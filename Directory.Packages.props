@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- Every package version is pinned here, once. Projects reference packages without a Version attribute.
+       No floating versions: a floating HartsyInference reference is what the Swarm extension used, and it made
+       builds depend on what was published that day. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

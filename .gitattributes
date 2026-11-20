@@ -1,0 +1,14 @@
+# Text files are LF in the repository and in every checkout, on every OS. .editorconfig asks for LF, and
+# `dotnet format --verify-no-changes` would otherwise fail on a Windows checkout that converted to CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.wav binary
+*.flac binary
+*.mp3 binary
+*.ogg binary
+*.mid binary
+*.sf2 binary
+*.woff2 binary
