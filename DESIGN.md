@@ -465,9 +465,9 @@ server, as commands.
 
 | # | Question | Decided by |
 |---|----------|------------|
-| O1 | Audio for a browser on another machine. Preferred: the same C# engine compiled to WebAssembly in the page, feeding a minimal `AudioWorklet` shim, so there is one engine and no mixer per listener on the server. Fallback: the server mixes and streams to the page. | A spike that measures dropouts and latency for the WebAssembly engine, inside an iframe without cross-origin isolation. |
-| O2 | How the timeline, waveforms and piano roll are drawn from C#: a Skia canvas in Blazor, or DOM and SVG. | A spike that measures scroll and drag frame rate on a dense project. |
-| O3 | The native audio device and MIDI input library. | A spike that measures round-trip latency and device enumeration, and checks license and upkeep. |
+| O1 | Audio for a browser on another machine. Preferred: the same C# engine compiled to WebAssembly in the page, feeding a minimal `AudioWorklet` shim, so there is one engine and no mixer per listener on the server. Fallback: the server mixes and streams to the page. | A spike. **Pass:** zero dropouts over 10 minutes of 16 tracks with effects, at 100 ms of output buffering or less, while the UI is being dragged and scrolled, inside an iframe without cross-origin isolation. Measured with the engine on the main thread and in a web worker. |
+| O2 | How the timeline, waveforms and piano roll are drawn from C#: a Skia canvas in Blazor, or DOM and SVG. | A spike that rebuilds the mock's session screen in Blazor with 32 tracks and 500 clips with waveforms. **Pass:** 60 frames a second while scrolling and dragging, never below 45, in Chromium and Firefox, and it looks like the mock. |
+| O3 | The native audio device and MIDI input library. | A spike that checks license and upkeep. **Pass:** round-trip latency of 12 ms or less on the owner's audio interface, and correct device enumeration. |
 | O4 | The desktop window: an embedded webview, or the default browser at first. | Owner, after O2. |
 | O5 | Score notation. The extension uses the abcjs library for rendering, playback and timing. Options: a C# renderer, or that library on the allowlist. | Owner. |
 | O6 | Where a hosted instance runs: on the GPU machine with the engine in-process, or on a web host with a remote engine. | Owner. |
@@ -475,7 +475,9 @@ server, as commands.
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
 | O10 | Where generic control behaviour comes from: dialogs with focus trapping, menus, popover positioning, combo boxes, toasts, tables. Preferred: a headless (unstyled) primitives library wrapped by the catalogue components in 7.5. Fallback: MudBlazor used only for those, behind the same wrappers. No library styles the session screen either way. | A short evaluation: licence, .NET 10 and WebAssembly support, the JavaScript it ships, accessibility, upkeep. Its pull request also teaches the script allowlist to list package scripts. |
 
-A spike ends by editing this file: the question moves to the decisions table with its evidence.
+A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
+fixed before the spike runs. A spike that misses it reports the miss, the numbers and the fallback; it does not move
+the line. Numbers name the machine they were measured on.
 
 ## 12. Roadmap
 
@@ -501,3 +503,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 |------|--------|
 | 2026-11-20 | First version. UI changed from Avalonia to Blazor WebAssembly (D3); JavaScript by exception (D4); D9 to D12 proposed. |
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
+| 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
