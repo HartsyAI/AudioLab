@@ -96,7 +96,8 @@ Rules:
 - **Model.** A typed project document (`version: 4`), with a migration from the extension's `version: 3` JSON, tested
   by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
-  effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together.
+  effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
+  may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
 - **History.** Undo and redo on the server, coalesced by gesture: a drag is one step. History is in memory and is
   lost on restart.
 - **Store.** Open documents, a lock per project, debounced autosave, atomic writes. Projects and media are scoped to
@@ -473,6 +474,7 @@ server, as commands.
 | O6 | Where a hosted instance runs: on the GPU machine with the engine in-process, or on a web host with a remote engine. | Owner. |
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
+| O9 | Whether the HartsyInference packages restore, pin to exact versions and run on net10, and what using `HartsyInference.Audio` (`Resampler`, `WavFile`, `Fft`) in WebAssembly would cost. Default stays that `AudioLab.Audio` references only Core (section 4). | A spike that restores and runs each API on the server and in a Blazor WebAssembly page, and lists package ids and exact versions. |
 | O10 | Where generic control behaviour comes from: dialogs with focus trapping, menus, popover positioning, combo boxes, toasts, tables. Preferred: a headless (unstyled) primitives library wrapped by the catalogue components in 7.5. Fallback: MudBlazor used only for those, behind the same wrappers. No library styles the session screen either way. | A short evaluation: licence, .NET 10 and WebAssembly support, the JavaScript it ships, accessibility, upkeep. Its pull request also teaches the script allowlist to list package scripts. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
@@ -486,7 +488,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | Phase | Outcome |
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
-| 1 | Spikes O1, O2 and O3 and the O10 evaluation, each closed in this file. |
+| 1 | Spikes O1, O2, O3 and O9, and the O10 evaluation, each closed in this file. |
 | 2 | Core and server: model with v3 migration, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
@@ -504,3 +506,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | First version. UI changed from Avalonia to Blazor WebAssembly (D3); JavaScript by exception (D4); D9 to D12 proposed. |
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
+| 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
