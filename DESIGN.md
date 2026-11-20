@@ -42,6 +42,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D10 | The desktop app is the server plus a window that shows the same web UI. There is no second UI. | Proposed | The native part of a desktop DAW is the audio, and that lives in the server process, not the window. |
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
+| D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
 
 ## 3. Architecture
 
@@ -124,6 +125,8 @@ engine, and a stress test reads it.
 
 ## 7. User interface
 
+### 7.1 Technology
+
 - **Blazor WebAssembly**, served as static files by `AudioLab.Server`. Not Blazor Server: that would hold UI state on
   the server and send every pointer move over the network.
 - **Markup and logic are separate.** A `.razor` file holds markup only. Its logic is a `.razor.cs` partial class, so
@@ -132,9 +135,285 @@ engine, and a stress test reads it.
   rule in `AudioLab.Core`, not a copy in each component.
 - **Typed end to end.** The UI talks to the server through one typed client built on the `AudioLab.Core` records.
   No hand-written JSON, no stringly-typed route names scattered through components.
-- **Styling** is plain CSS and component-scoped CSS. There is no Node toolchain in the build.
+- **Styling** is plain CSS and component-scoped CSS. There is no Node toolchain in the build. Fonts are files served
+  by the app, not a hosted font service.
 - **Dense surfaces** (timeline, waveforms, piano roll, automation) are drawn from C#: see
-  [O2](#11-open-questions).
+  [O2](#11-open-questions). They take their colours and sizes from the same tokens as the CSS; how C# reads them is
+  settled with O2.
+
+### 7.2 Character
+
+AudioLab looks like studio equipment, not a web page: graphite, dense, quiet and exact. The screen belongs to the
+arrangement; everything around it recedes until it is needed.
+
+**The picture of this section is [docs/design/session-mock.html](docs/design/session-mock.html)**: the session screen
+at full fidelity, built only from the tokens in 7.4. Open it in a browser before any UI work, at 1440 pixels wide or
+more. This section is the authority: where the mock and this text differ, the mock is wrong and gets fixed.
+
+The layout comes from the extension's DAW, which already reads as a professional workstation. Its styling does not:
+that stylesheet took every colour from SwarmUI's theme (675 theme-variable uses) and grew 32 font sizes, 22 corner
+radii and 12 stacking values with no scale behind them. The rules below exist so that cannot happen again.
+
+| Rule | What it means | Why |
+|------|---------------|-----|
+| **Controls are filled, not outlined** | A control is a filled shape one step lighter than the surface it sits on. A set of exclusive choices sits in a well, with the chosen one raised. Nothing gets an outline to mark it as a control. | Outlines on every control read as a wireframe. The first draft of this design did exactly that. |
+| **Regions are split by dark lines** | Two surfaces meet at a `--line` seam, darker than both. Never a lighter border. | A light border draws a grid of boxes; a dark seam reads as two pieces of equipment. |
+| **Depth is small and means something** | A raised control carries a one-pixel top highlight. A well (a counter, a field, the slot a fader runs in) is recessed. Only overlays, fader caps and a dragged clip cast a shadow. No decorative gradients: the only gradients are a meter's scale and the grid. | Depth that marks "pressable" or "holds a value" is information. Depth as decoration is noise. |
+| **Colour says state** | Chrome is graphite. A colour appears only to say something: engaged, recording, playing, signal level, a warning, or which track a thing belongs to. | When everything is coloured, the one control that is armed looks like the others. |
+| **Red means recording or destroying** | Record, arm, punch, clipping and delete. Nothing else is red; the playhead is white and turns red only while recording. | Red is the one colour a musician must never have to interpret. |
+| **Selection is white, engagement is accent** | The selected clip takes a white inner ring and a stronger body; the selected track's header and lane lighten. Accent marks what is switched on: an engaged toggle, the loop range, the active tab, the primary action. | Accent can match a track colour, and a selected thing is not a switched-on thing. |
+| **Ink on fills is dark** | Text on any coloured fill uses `--ink`. | White on these fills misses the contrast floor; one ink colour keeps every fill legible. |
+| **One scale** | Every colour, font size, font family, radius, shadow and stacking value is a token from 7.4. No literals in component styles. | See the numbers above. |
+| **Numbers do not move** | Every number that changes while you watch it (time, bars, dB, BPM, percent) uses tabular figures in the interface face. The mono face is only for values copied verbatim: paths, seeds, ids. | Digits that change width make a display jitter; a second typeface in the counters makes them look bolted on. |
+| **The timeline never waits** | A busy state belongs to the thing that is busy: a clip, a track, a panel. Nothing covers the arrangement or disables the transport while a job runs. | Generation takes seconds to minutes; the session must stay playable. |
+| **Fill the container** | The app sizes to its container (`100%`), never to the viewport (`vh`, `dvh`). | It runs inside a SwarmUI tab, under site chrome, and in a window; the viewport is not its space. |
+| **Words on decisions, icons on reflexes** | Transport and M / S / R / I controls may be a glyph or a letter. Anything a user has to read to decide carries a text label. Every icon-only control has an accessible name and a tooltip with its shortcut. | A bare glyph asks the user to remember a legend. |
+| **Sentence case** | Labels, buttons, tabs and menus are sentence case. Capitals only on micro captions (`TIME`, `BARS`, `TRACKS`) and single-letter track toggles. | Capitals on everything shouts; kept to captions they separate a label from its value. |
+| **Same in every door** | One dark theme. Inter ships with the app as font files, so it looks the same on every OS. It does not inherit SwarmUI's theme or the host site's styles. | The product should be recognisable wherever it is opened, and inherited styles are how the last stylesheet lost its shape. |
+
+### 7.3 Layout
+
+One screen, the session, with fixed regions. Other screens (projects, model manager, settings) use the same tokens
+and components and have no layout of their own beyond a centred column of panels.
+
+| Region | Holds | Rules |
+|--------|-------|-------|
+| Transport bar | Project name and save state; transport (to start, stop, play, record) in one well; the counter (time, bars, tempo, meter, key); toggles (loop, click, punch, follow); tool and grid; who is in the session; export. | `--bar-height`, `--surface-panel`. Controls are grouped; groups wrap to a second row as a unit and never clip or scroll. |
+| Overview | The whole song at a glance, with the visible window marked. | Optional, a viewer preference. Not in the mock. |
+| Rulers | A corner cell (the `TRACKS` caption, Add track), then rows: sections and bars always; time, tempo and markers on request. The loop range and the playhead's cap sit in the bars row. | Rows of `--ruler-row`, sticky above the lanes. Only the visible slice is drawn. |
+| Header column | One header per track: colour strip, number, name, M / S / R / I, source, volume with its dB readout, stereo meter. | `--header-column` wide, sticky at the left, `--surface-panel`. Each header is `--lane-height`. |
+| Lanes | Clips, MIDI clips, automation, the selection, the loop range, the playhead. | `--surface-lane`, the darkest working surface, so clips carry the colour. A `--grid-line` per bar and a `--grid-line-strong` every four. Scrolls both ways under the rulers and headers. |
+| Bottom panel | Tabs for the selection's tools: mixer, clip editor, piano roll, effects, instruments, stems, score, lyrics, voice agent. Generate is docked at its right edge and stays there whichever tab is open. | Resizable and collapsible. Tabs are `--tab-height`. A tab shows its own empty state when nothing is selected. |
+| Status bar | Connection and save state, who else is in the project (including agents), running jobs with progress, sample rate and buffer, engine load, dropouts. | `--status-height`, `--surface-lane`. New in AudioLab: the server owns the project, so its state has to be visible. |
+| Overlays | Menus, dialogs, tooltips, toasts. | The only regions with `--shadow-overlay`. Stacked by the `--z-*` tokens. |
+
+Built for a pointer and a keyboard at 1280 pixels wide and up, usable down to 1024. Phones are out of scope.
+
+### 7.4 Tokens
+
+These are every value a style may use. The mock and `src/AudioLab.Web/wwwroot/css/tokens.css` each declare exactly
+this list on `:root`, and tests fail if either differs. To change or add a value, edit it here and in those files in
+the same pull request, and look at the mock afterwards.
+
+<!-- tokens:start -->
+```css
+/* Surfaces, deepest to highest. One cool graphite, stepped by lightness. */
+--surface-well: #0d0f12;
+--surface-lane: #14171b;
+--surface-panel: #1b1e23;
+--surface-selected: #23272e;
+--surface-raised: #282c34;
+--surface-raised-active: #30353d;
+
+/* Lines. Regions are split by a line darker than both sides, never a lighter outline. */
+--line: #08090b;
+--lane-line: rgba(0, 0, 0, 0.5);
+--grid-line: rgba(255, 255, 255, 0.03);
+--grid-line-strong: rgba(255, 255, 255, 0.08);
+--tick: rgba(255, 255, 255, 0.22);
+--highlight: rgba(255, 255, 255, 0.06);
+
+/* Text: neutral, four steps. */
+--text: #e7e9ec;
+--text-soft: #c9ced6;
+--text-dim: #a8aeb7;
+--text-faint: #8a919b;
+
+/* State: the only saturated colours in the chrome. --ink is the text on any of them. */
+--accent: #4a9df0;
+--record: #f0524a;
+--go: #45d18f;
+--caution: #f3c94f;
+--mute: #f29a4c;
+--ink: #0b0d10;
+--playhead: #ffffff;
+
+/* Control parts. */
+--control-fill: #59606b;
+--control-cap: #d5dae0;
+
+/* Identity: twelve track colours of similar weight, in hue order. */
+--track-1: #ee6d86;
+--track-2: #ef7d67;
+--track-3: #ee9a55;
+--track-4: #e3ad4f;
+--track-5: #a9cf5b;
+--track-6: #5fcf95;
+--track-7: #4fcdb8;
+--track-8: #4fbfdc;
+--track-9: #6c93f2;
+--track-10: #a487ee;
+--track-11: #cf7de0;
+--track-12: #e07ab5;
+
+/* Type: Inter, seven sizes, three weights. */
+--font-ui: Inter, "Segoe UI", system-ui, sans-serif;
+--font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+--font-size-micro: 0.59375rem;
+--font-size-label: 0.65625rem;
+--font-size-control: 0.71875rem;
+--font-size-body: 0.75rem;
+--font-size-title: 0.8125rem;
+--font-size-readout: 0.9375rem;
+--font-size-heading: 1rem;
+--font-weight-normal: 400;
+--font-weight-medium: 500;
+--font-weight-strong: 600;
+
+/* Space: 2-pixel steps, named by their pixel size. */
+--space-2: 0.125rem;
+--space-4: 0.25rem;
+--space-6: 0.375rem;
+--space-8: 0.5rem;
+--space-10: 0.625rem;
+--space-12: 0.75rem;
+--space-14: 0.875rem;
+--space-16: 1rem;
+--space-24: 1.5rem;
+
+/* Size: control heights and the fixed parts of the layout. */
+--control-xs: 1.125rem;
+--control-sm: 1.375rem;
+--control-md: 1.75rem;
+--control-lg: 2rem;
+--bar-height: 3.25rem;
+--tab-height: 2.125rem;
+--status-height: 1.5rem;
+--ruler-row: 1.375rem;
+--lane-height: 4rem;
+--header-column: 15.5rem;
+--strip-width: 6.5rem;
+
+/* Shape and depth. */
+--radius-xs: 0.125rem;
+--radius-sm: 0.25rem;
+--radius-md: 0.375rem;
+--radius-lg: 0.5rem;
+--radius-round: 999px;
+--shadow-raised: inset 0 1px 0 var(--highlight);
+--shadow-well: inset 0 0 0 1px var(--line), inset 0 2px 5px rgba(0, 0, 0, 0.55);
+--shadow-cap: 0 2px 3px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+--shadow-overlay: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, 0.6);
+--focus-ring: 0 0 0 2px var(--accent);
+
+/* Stacking, lowest to highest. */
+--z-lane-overlay: 10;
+--z-sticky: 20;
+--z-popover: 100;
+--z-dialog: 200;
+--z-toast: 300;
+--z-tooltip: 400;
+
+/* Motion. */
+--motion-fast: 80ms;
+--motion-base: 160ms;
+```
+<!-- tokens:end -->
+
+What each group is for:
+
+| Tokens | Used for | Why these values |
+|--------|----------|------------------|
+| `--surface-well` | The counter, fields, the group behind a set of exclusive choices, meter and fader slots. Always with `--shadow-well`. | The deepest tone: a place a value sits in. |
+| `--surface-lane` | Arrangement lanes, piano-roll and automation grids, the status bar, effect slots. | Dark enough that a clip in a track colour is the brightest thing on screen. |
+| `--surface-panel` | Transport bar, header column, rulers, bottom panel. | The chrome. |
+| `--surface-selected` | The selected track's header; the master strip. | One step up from the panel marks "this one" without colour. |
+| `--surface-raised`, `--surface-raised-active` | Buttons, off toggles, selects, knobs; the chosen item in a well, and a raised control under the pointer. | Lighter than the panel says "this can be pressed". |
+| `--line`, `--lane-line` | The seam between regions; the seam between lanes. | Darker than every surface. |
+| `--grid-line`, `--grid-line-strong`, `--tick` | Bar lines; four-bar lines and minor ruler ticks; major ruler ticks. | White at low alpha, so the grid sits on any lane tint. |
+| `--highlight` | The top edge of a raised control, through `--shadow-raised`. | The one-pixel cue that a surface is raised. |
+| `--text`, `--text-soft`, `--text-dim`, `--text-faint` | Primary text and values; labels on raised controls; secondary text and off-toggle legends; captions, units, placeholders. | Neutral, so text never reads as tinted. Each meets 4.5:1 on every surface, except that `--text-faint` is not used on a raised surface. Nothing is fainter. |
+| `--accent` | Engaged toggles, the loop range, the active tab, progress, the primary button. | One highlight colour. It is a single token so the brand can move it. |
+| `--record` | Record, arm, punch, the playhead while recording, meter clipping, destructive actions. | See "Red means recording or destroying". |
+| `--go` | Play while playing, input monitoring, the safe range of a meter, connected, success. | |
+| `--caution` | Solo, the hot range of a meter, warnings. | Solo is yellow on most consoles. |
+| `--mute` | Mute. | Orange, so mute and solo differ at a glance and neither is red. |
+| `--ink`, `--playhead` | Text and glyphs on any coloured fill; the playhead and the selection ring. | |
+| `--control-fill`, `--control-cap` | The filled part of a slider; a fader cap and a slider handle. | The cap is the lightest thing in the chrome because it is the thing you grab. |
+| `--track-1` to `--track-12` | A track's colour, and so its clips, its mixer strip, its group. Markers and sections pick from the same twelve. | Similar weight: no track looks more important than another, and `--ink` is legible on all of them. |
+| `--font-ui`, `--font-mono` | Everything; values copied verbatim. | Inter: built for dense interfaces, with tabular figures. |
+| `--font-size-*` | micro: captions, meter scales. label: track-toggle letters, source lines, readouts beside controls, status bar. control: buttons, toggles, selects. body: names, tabs, fields. title: project name, panel titles. readout: the counter. heading: dialogs and empty states. | Seven sizes replace thirty-two. Nothing is smaller than micro (9.5 pixels), and micro is for captions and scales only. |
+| `--font-weight-*` | normal: running text. medium: control labels and secondary values. strong: names, values, engaged states. | Emphasis comes from weight, not colour. |
+| `--space-*` | Every gap and padding. | Two-pixel steps: a dense screen needs finer steps than a four-pixel grid. |
+| `--control-*` | xs: track toggles. sm: small buttons in rulers and panels. md: transport, toggles, selects. lg: a panel's main action. | Dense, and still a reliable pointer target. |
+| `--bar-height` to `--strip-width` | The fixed parts of the layout in 7.3. | |
+| `--radius-*` | xs: meters and slider slots. sm: track toggles, clips, effect slots. md: buttons, selects, fields. lg: wells and groups. round: avatars, dots. | Small radii read as equipment; large ones read as a consumer app. |
+| `--shadow-raised`, `--shadow-well`, `--shadow-cap`, `--shadow-overlay` | Raised controls; wells; fader caps and slider handles; menus, dialogs, tooltips. | The whole depth vocabulary. A shadow that is not one of these is not allowed. |
+| `--motion-*` | fast: hover and press. base: a panel opening, a menu appearing. | Nothing animates in time with the music except the playhead and the meters, and those are drawn directly, not transitioned. Motion stops under `prefers-reduced-motion`. |
+
+Tints are made at the point of use with `color-mix` over tokens, never with a new literal. A clip's body is its track
+colour at 17% over the lane (30% when selected), the loop range is the accent at 9% over the lanes and 30% in the
+ruler, and a section is its colour at 22%.
+
+### 7.5 Components
+
+The interface is built from this catalogue. Each row is one Razor component in `src/AudioLab.Web/Components/`, styled
+by its own scoped CSS, configured by parameters. A screen composes them and adds layout only: it does not restyle a
+component, and it does not hand-build a control the catalogue has. A new component, or a new variant of one, is a
+change to this table.
+
+No styled component library sets the look. Everything on the session screen is ours, because no library has it.
+Where a library helps is behaviour that is hard to get right (focus trapping, menus, popover positioning, combo
+boxes, tables); the catalogue component wraps it, so the look and the API stay ours: see [O10](#11-open-questions).
+
+| Component | Variants | Rules |
+|-----------|----------|-------|
+| Button | default, primary, danger, icon | `--surface-raised` with `--shadow-raised`, `--radius-md`, control size, medium weight. Primary is `--accent` with `--ink`: one per panel or dialog. Danger uses `--record` and is never the default action. |
+| Toggle | labelled, track (M, S, R, I) | Strong weight in both states. Off: `--surface-raised` with `--text-dim`. On: filled with its state colour (`--accent`, or mute, caution, record, go for M, S, R, I) and `--ink`. Track toggles are `--control-xs` high letters with `--radius-sm`. |
+| Segmented control | transport, tool, mode | A `--surface-well` group with `--shadow-well` and `--radius-lg`; items are `--radius-md`. The chosen item is `--surface-raised-active`; the rest are bare glyphs or labels. The transport uses raised items, and play fills with `--go` while playing. |
+| Counter | | One well, cells split by a `--surface-panel` line. Each cell is a micro caption in `--text-faint` over its value. Time and bars are readout size; tempo, meter and key are body size in `--text-soft`. Click swaps or edits a cell. |
+| Select and menu | dropdown, context | The closed select is a default button with its value and a chevron. A menu is `--surface-raised` with `--shadow-overlay`; every command shows its shortcut; destructive items sit last, in `--record`. |
+| Field | text, number, multi-line | `--surface-well`, `--shadow-well`, `--radius-md`, body size. A number field scrubs by vertical drag, steps with the arrow keys and the wheel, and resets on double-click. |
+| Checkbox | | A `--radius-sm` box: `--surface-well` when off, `--accent` with an `--ink` tick when on. Its label is the click target too. |
+| Slider | track volume | A `--surface-well` slot with `--control-fill` up to the value and a `--control-cap` handle. Its value sits beside it, label size. Same gestures as a number field. |
+| Fader | channel | A vertical slot, a `--control-cap` cap with `--shadow-cap` and a centre line, a dB scale in micro at its left. Same gestures as a number field. |
+| Knob | pan, send, parameter | A `--surface-raised` disc with a `--line` edge and a `--text` pointer. Its value sits beside it. Same gestures as a number field. |
+| Meter | mono, stereo, input | A `--surface-well` slot. `--go` up to -12 dBFS, `--caution` to -3, `--record` above, as hard steps. A clip light latches at 0 dBFS until clicked. Drawn directly; no transition. |
+| Tabs | bottom panel | Body size. The active tab is `--text`, strong, with a two-pixel `--accent` underline; the rest are `--text-dim`, medium. |
+| Panel | | A titled region of `--surface-panel` split from its neighbours by `--line`. No shadow, no nested panels more than one deep. |
+| Dialog | confirm, form | `--surface-raised`, `--radius-lg`, `--shadow-overlay`. Traps focus, closes on Escape, names the action on its button ("Delete project", not "OK"). |
+| Tooltip | | Name, then shortcut. Appears after a pause, never over the thing it describes. |
+| Toast | info, success, warning, error | Says what happened and offers Undo where there is one. An error stays until dismissed. |
+| Empty state | lanes, panel tab, screen | A heading, one sentence, and the one to three actions that get the user moving. No illustration. |
+| Progress | bar, inline spinner | Attached to the thing that is busy, with a cancel control. A known duration is an `--accent` bar in a well; an unknown one is a spinner with elapsed time. |
+| Presence | | Overlapping round avatars for everyone in the session. An agent takes a track colour and the label AI. |
+| Track header | audio, instrument, bus, group | Left to right: a four-pixel strip in the track colour, the number in `--text-faint`, then two rows (name with M / S / R / I; source with the volume slider and its dB), then the meter. Selected: `--surface-selected`. |
+| Clip | audio, MIDI, recording, generating | `--radius-sm`. A title bar in the track colour with the name in `--ink`; the body is the track colour at 17% with a 50% inner ring, holding the waveform or notes in the track colour. Selected: a white inner ring and a 30% body. Muted: 40% opacity. Fade and trim handles appear on hover or selection. Generating shows progress inside its own bounds. |
+| Ruler row | sections, bars, time, tempo, markers | Label size. Bar numbers sit right of their tick; every fourth is `--text-soft`, the rest `--text-faint`. A section is a `--radius-sm` block in its colour at 22%. |
+| Playhead and ranges | playhead, selection, loop, punch | A one-pixel `--playhead` line with a cap in the bars row. Loop is an `--accent` band between two accent edges in the ruler and a wash over the lanes; punch is the same in `--record`. |
+| Channel strip | track, bus, master | `--strip-width`, split by `--line`. Top to bottom: colour dot and name, effect slots, pan knob with its value, then scale, fader and meter side by side, then M / S and the dB readout. The master is wider and `--surface-selected`. |
+| Effect slot | filled, empty | A `--surface-lane` slot with `--shadow-well`, label size. Empty reads "Add effect" in `--text-faint`. |
+| Piano keys and grid | | Keys at the left of the piano roll; notes in the track colour, velocity as brightness. |
+| Status item | state, presence, job, metric | Label size in `--text-faint`, with a six-pixel dot for state. A job shows its name, a bar and a percentage. |
+
+### 7.6 States, input and accessibility
+
+- Every interactive control has six states and styles all of them: rest, hover, pressed, keyboard focus, disabled,
+  and engaged where it is a toggle. Hover moves a raised control to `--surface-raised-active`. Focus is the
+  `--focus-ring` on `:focus-visible`, always visible, and distinct from selection.
+- Disabled is half opacity with no pointer response, and says why in its tooltip.
+- Every command has a keyboard path. Shortcuts live in one C# registry that the menus, the tooltips and the key
+  handler all read; a shortcut is never written into a component.
+- Colour is never the only signal: an engaged toggle changes fill and ink, not hue alone; M / S / R / I keep their letters,
+  a clipped meter shows its peak as a number.
+- Text meets 4.5:1 against the surface it sits on; a test checks the tokens. A control is identified by its label or
+  glyph, which meets that floor, not by an outline.
+- Icons are inline SVG from one set (Lucide, proposed), wrapped as Razor components. No icon font, no emoji.
+  Transport glyphs are filled; every other icon is a 1.5 to 1.8 pixel stroke in the current text colour.
+- Dragging anything shows where it will land before release, and Escape cancels the drag.
+
+### 7.7 What enforces it
+
+| Rule | Check |
+|------|-------|
+| The mock declares exactly the tokens in 7.4 | `DesignTokenTests.MockTokensMatchTheDesignDocument` |
+| The mock's screen uses tokens only | `DesignTokenTests.MockUsesTokensNotLiterals` |
+| `tokens.css` declares exactly the tokens in 7.4 | `DesignTokenTests.StyleSheetTokensMatchTheDesignDocument` |
+| Text tokens meet 4.5:1 on their surfaces, and `--ink` on every state and track colour | `DesignTokenTests.TextTokensMeetTheContrastFloor` |
+| No colour literal outside `tokens.css`, in a style sheet or a `style` attribute | `DesignTokenTests.StylesUseTokensNotLiterals` |
+| Font size, font family, radius, shadow and stacking values are tokens | `DesignTokenTests.StylesUseTokensNotLiterals` |
+| No viewport units | `DesignTokenTests.StylesUseTokensNotLiterals` |
+| Everything else in 7.2 to 7.6 | Review, against this section and the mock |
 
 ## 8. JavaScript policy
 
@@ -150,7 +429,8 @@ When a script is unavoidable:
   not do the job, and the owner approves that line in the pull request. That list is the full inventory.
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
   the rest of the UI calls.
-- A third-party script library is a script and follows the same rule.
+- A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
+  package: it is listed by package id, with the same reason and approval.
 
 Tests enforce this: an unlisted `.js` or `.ts` file, an inline `<script>` block, or interop outside that folder fails
 the build.
@@ -193,6 +473,7 @@ server, as commands.
 | O6 | Where a hosted instance runs: on the GPU machine with the engine in-process, or on a web host with a remote engine. | Owner. |
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
+| O10 | Where generic control behaviour comes from: dialogs with focus trapping, menus, popover positioning, combo boxes, toasts, tables. Preferred: a headless (unstyled) primitives library wrapped by the catalogue components in 7.5. Fallback: MudBlazor used only for those, behind the same wrappers. No library styles the session screen either way. | A short evaluation: licence, .NET 10 and WebAssembly support, the JavaScript it ships, accessibility, upkeep. Its pull request also teaches the script allowlist to list package scripts. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence.
 
@@ -203,7 +484,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | Phase | Outcome |
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
-| 1 | Spikes O1, O2 and O3, each closed in this file. |
+| 1 | Spikes O1, O2 and O3 and the O10 evaluation, each closed in this file. |
 | 2 | Core and server: model with v3 migration, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
@@ -219,3 +500,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | Date | Change |
 |------|--------|
 | 2026-11-20 | First version. UI changed from Avalonia to Blazor WebAssembly (D3); JavaScript by exception (D4); D9 to D12 proposed. |
+| 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |

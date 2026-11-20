@@ -103,6 +103,19 @@ Blazor
   `src/AudioLab.Web/Interop/` `[test]`.
 - Shared state and behaviour live in a C# service or in `AudioLab.Core`, not copied between components.
 
+Interface design
+
+- Read [DESIGN.md section 7](DESIGN.md#7-user-interface) before any UI work, and open
+  [the session mock](docs/design/session-mock.html) in a browser. The section is the whole visual vocabulary; the
+  mock is what it looks like. What you build should be indistinguishable from the mock at the same size.
+- The mock and DESIGN.md declare the same tokens `[test]`, and the mock's screen uses tokens only `[test]`. Change
+  a token in both, in one pull request, and look at the mock afterwards.
+- Styles use tokens only: no colour literal, and no literal font size, font family, radius, shadow or stacking
+  value `[test]`. No viewport units `[test]`.
+- Build screens from the component catalogue. Do not restyle a catalogue component from a screen, and do not
+  hand-build a control the catalogue has. A new token, component or variant is a change to DESIGN.md in the same
+  pull request.
+
 Tests
 
 - A test earns its place when its failure would otherwise be silent: command results and undo, model migration and
