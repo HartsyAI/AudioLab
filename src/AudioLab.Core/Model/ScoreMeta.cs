@@ -37,6 +37,7 @@ public sealed record ScoreMeta
     public string? Label { get; init; }
 
     /// <summary>The clip this score is a variation of, or null for a root version.</summary>
+    [JsonConverter(typeof(OptionalIdJsonConverter<ClipId>))]
     public ClipId? Parent { get; init; }
 
     /// <summary>How the score came to be, such as planned or rendered.</summary>

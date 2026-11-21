@@ -87,6 +87,7 @@ public static class SampleProject
     private static Track VocalTrack(SequentialIdService ids, TrackId id, ClipId clip, ClipId stem, MediaId media, MediaId stemMedia, TrackId bus)
     {
         using JsonDocument future = JsonDocument.Parse("{\"nested\":[1,2,{\"deep\":true}]}");
+        using JsonDocument aligned = JsonDocument.Parse("\"future\"");
         return Plain(id, "Lead vocal", TrackKind.Audio) with
         {
             Armed = true,
@@ -125,6 +126,7 @@ public static class SampleProject
                         {
                             Text = "[Verse]\nla la la",
                             Source = "transcribed",
+                            Extra = new Dictionary<string, JsonElement> { ["alignedBy"] = aligned.RootElement.Clone() },
                             Words = [new LyricWord("la", 0.5, 0.9, 0), new LyricWord("la", 1, 1.01, 0, true)],
                         },
                     },
