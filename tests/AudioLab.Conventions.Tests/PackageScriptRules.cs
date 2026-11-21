@@ -33,7 +33,7 @@ public static class PackageScriptRules
             {
                 problems.Add($"'{name}' needs a package id, a version, a script path and a reason");
             }
-            else if (!seen.Add($"{entry.PackageId.ToUpperInvariant()}|{entry.Version}|{Normalise(entry.Script)}"))
+            else if (!seen.Add($"{entry.PackageId}|{entry.Version}|{Normalise(entry.Script)}"))
             {
                 problems.Add($"{name} is listed twice");
             }
@@ -93,7 +93,7 @@ public static class PackageScriptRules
 
     private static bool IsSameId(string left, string right)
     {
-        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(left, right, StringComparison.Ordinal);
     }
 
     private static List<string> ScriptsOf(PackageListing package)

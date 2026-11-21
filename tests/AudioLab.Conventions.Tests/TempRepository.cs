@@ -25,6 +25,13 @@ internal sealed class TempRepository : IDisposable
         }
     }
 
+    /// <summary>Writes AudioLab.slnx listing the given project paths.</summary>
+    public void AddSolution(params string[] projects)
+    {
+        string entries = string.Concat(projects.Select(project => $"<Project Path=\"{project}\" />"));
+        File.WriteAllText(Path.Combine(Root, "AudioLab.slnx"), $"<Solution>{entries}</Solution>");
+    }
+
     /// <summary>Writes obj/project.assets.json under a folder, whether or not a project is there.</summary>
     public void AddAssets(string folder, string assetsJson)
     {

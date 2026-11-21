@@ -51,7 +51,7 @@ public static class RestoredPackages
     /// <param name="project">The project it belongs to, for messages and for <see cref="PackageListing.Projects"/>.</param>
     public static List<PackageListing> Parse(string json, string project)
     {
-        AssetsDocument assets = JsonSerializer.Deserialize(json, AssetsJsonContext.Default.AssetsDocument)
+        AssetsDocument assets = Deserialize(json, project)
             ?? throw new InvalidOperationException($"The restore output of {project} is empty.");
         if (!_supportedVersions.Contains(assets.Version))
         {
@@ -79,6 +79,19 @@ public static class RestoredPackages
             packages.Add(ToListing(library.Key, entry, project));
         }
         return packages;
+    }
+
+    private static AssetsDocument? Deserialize(string json, string project)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize(json, AssetsJsonContext.Default.AssetsDocument);
+        }
+        catch (JsonException error)
+        {
+            string problem = $"The restore output of {project} cannot be read ({error.Message}); run 'dotnet restore' at the repository root.";
+            throw new InvalidOperationException(problem, error);
+        }
     }
 
     private static PackageListing ToListing(string key, AssetsLibrary entry, string project)
