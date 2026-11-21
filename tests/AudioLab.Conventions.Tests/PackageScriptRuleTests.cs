@@ -7,7 +7,32 @@ public sealed class PackageScriptRuleTests
 
     private static readonly PackageListing _widgets = Package("Acme.Widgets", "1.2.0", "lib/net10.0/Acme.Widgets.dll", "staticwebassets/widgets.js");
 
-    private static readonly PackageListing _plain = Package("Acme.Plain", "3.0.0", "lib/net10.0/Acme.Plain.dll", "staticwebassets/plain.css", "README.md");
+    private static readonly PackageListing _plain =
+        Package("Acme.Plain", "3.0.0", "lib/net10.0/Acme.Plain.dll", "staticwebassets/plain.css", "README.md");
+
+    [Theory]
+    [InlineData("staticwebassets/app.js", true)]
+    [InlineData("staticwebassets/app.mjs", true)]
+    [InlineData("build/loader.cjs", true)]
+    [InlineData("content/app.jsx", true)]
+    [InlineData("content/app.ts", true)]
+    [InlineData("content/app.mts", true)]
+    [InlineData("content/app.cts", true)]
+    [InlineData("content/app.tsx", true)]
+    [InlineData("content/types.d.ts", true)]
+    [InlineData("content/App.JS", true)]
+    [InlineData("staticwebassets\\app.js", true)]
+    [InlineData("staticwebassets/app.js.map", false)]
+    [InlineData("staticwebassets/app.css", false)]
+    [InlineData("staticwebassets/index.html", false)]
+    [InlineData("lib/net10.0/Acme.dll", false)]
+    [InlineData("content/javascript/notes.txt", false)]
+    [InlineData("content/app.js/README", false)]
+    [InlineData("content/js", false)]
+    public void ScriptFilesAreRecognisedByExtensionWithEitherSlash(string path, bool expected)
+    {
+        Assert.Equal(expected, ScriptFiles.IsScript(path));
+    }
 
     [Fact]
     public void PackageWithAListedIdIsAccepted()
@@ -23,6 +48,19 @@ public sealed class PackageScriptRuleTests
         Assert.Empty(PackageScriptRules.Unlisted([_widgets], allowed));
     }
 
+    [Theory]
+    [InlineData("Acme.Widgets.Extras")]
+    [InlineData("Acme.Widget")]
+    [InlineData(" Acme.Widgets")]
+    [InlineData("Acme.Widgets ")]
+    public void ListedIdCoversOnlyThatExactId(string other)
+    {
+        PackageListing neighbour = Package(other, "2.0.0", "staticwebassets/other.js");
+        PackageScriptAllowance[] allowed = [new("Acme.Widgets", "Focus handling.")];
+        string line = Assert.Single(PackageScriptRules.Unlisted([_widgets, neighbour], allowed));
+        Assert.StartsWith(other, line, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void PackageWithoutScriptsNeedsNoEntry()
     {
@@ -34,7 +72,10 @@ public sealed class PackageScriptRuleTests
     [InlineData("staticwebassets/app.mjs")]
     [InlineData("build/net10.0/loader.cjs")]
     [InlineData("content/Scripts/app.ts")]
+    [InlineData("content/Scripts/app.mts")]
+    [InlineData("content/Scripts/types.d.ts")]
     [InlineData("content/Scripts/App.JS")]
+    [InlineData("staticwebassets\\app.js")]
     public void UnlistedPackageShippingAScriptIsRejected(string script)
     {
         List<string> unlisted = PackageScriptRules.Unlisted([Package("Acme.Widgets", "1.2.0", "lib/net10.0/Acme.Widgets.dll", script)], _none);
@@ -44,22 +85,39 @@ public sealed class PackageScriptRuleTests
     }
 
     [Fact]
-    public void ListingOnePackageDoesNotCoverAnother()
+    public void RejectionNamesEveryScriptTheProjectsAndACopyReadyEntry()
     {
-        PackageListing other = Package("Acme.Other", "2.0.0", "staticwebassets/other.js");
-        PackageScriptAllowance[] allowed = [new("Acme.Widgets", "Focus handling.")];
-        string line = Assert.Single(PackageScriptRules.Unlisted([_widgets, other, _plain], allowed));
-        Assert.StartsWith("Acme.Other", line, StringComparison.Ordinal);
+        PackageListing package = new(
+            "Acme.Widgets",
+            "1.2.0",
+            ["a/one.js", "b/two.mjs", "lib/Acme.dll"],
+            ["src/Web/Web.csproj", "src/Other/Other.csproj"]);
+        string line = Assert.Single(PackageScriptRules.Unlisted([package], _none));
+        Assert.Contains("2 script file(s)", line, StringComparison.Ordinal);
+        Assert.Contains("a/one.js", line, StringComparison.Ordinal);
+        Assert.Contains("b/two.mjs", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Acme.dll", line, StringComparison.Ordinal);
+        Assert.Contains("src/Web/Web.csproj, src/Other/Other.csproj", line, StringComparison.Ordinal);
+        Assert.Contains("new(\"Acme.Widgets\", ", line, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData("staticwebassets/app.js.map")]
     [InlineData("staticwebassets/app.css")]
+    [InlineData("staticwebassets/index.html")]
     [InlineData("lib/net10.0/Acme.Widgets.dll")]
     [InlineData("content/javascript/notes.txt")]
     public void FilesThatAreNotScriptsAreIgnored(string file)
     {
         Assert.Empty(PackageScriptRules.Unlisted([Package("Acme.Widgets", "1.2.0", file)], _none));
+    }
+
+    [Fact]
+    public void EveryRestoredVersionIsCheckedAgainstTheListedId()
+    {
+        PackageListing older = Package("Acme.Widgets", "1.0.0", "lib/net10.0/Acme.Widgets.dll");
+        string line = Assert.Single(PackageScriptRules.Unlisted([older, _widgets], _none));
+        Assert.Contains("Acme.Widgets 1.2.0", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -73,7 +131,18 @@ public sealed class PackageScriptRuleTests
     public void EntryWithoutAReasonIsRejected()
     {
         PackageScriptAllowance[] allowed = [new("Acme.Widgets", "  ")];
-        Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
+        string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
+        Assert.Contains("'Acme.Widgets' needs a package id and a reason", line, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EntryWithoutAnIdIsRejected(string id)
+    {
+        PackageScriptAllowance[] allowed = [new(id, "Focus handling.")];
+        string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
+        Assert.Contains("needs a package id and a reason", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -81,7 +150,15 @@ public sealed class PackageScriptRuleTests
     {
         PackageScriptAllowance[] allowed = [new("Acme.Gone", "Focus handling.")];
         string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
-        Assert.Contains("not restored", line, StringComparison.Ordinal);
+        Assert.Contains("Acme.Gone is not restored", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PaddedEntryDoesNotMatchTheRestoredPackage()
+    {
+        PackageScriptAllowance[] allowed = [new(" Acme.Widgets", "Focus handling.")];
+        string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
+        Assert.Contains("is not restored", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -89,7 +166,7 @@ public sealed class PackageScriptRuleTests
     {
         PackageScriptAllowance[] allowed = [new("Acme.Plain", "Focus handling.")];
         string line = Assert.Single(PackageScriptRules.EntryProblems([_plain], allowed));
-        Assert.Contains("ships no script", line, StringComparison.Ordinal);
+        Assert.Contains("Acme.Plain ships no script", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,7 +174,7 @@ public sealed class PackageScriptRuleTests
     {
         PackageScriptAllowance[] allowed = [new("Acme.Widgets", "Focus handling."), new("ACME.WIDGETS", "Again.")];
         string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], allowed));
-        Assert.Contains("listed twice", line, StringComparison.Ordinal);
+        Assert.Contains("ACME.WIDGETS is listed twice", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -110,6 +187,6 @@ public sealed class PackageScriptRuleTests
 
     private static PackageListing Package(string id, string version, params string[] files)
     {
-        return new PackageListing(id, version, files);
+        return new PackageListing(id, version, files, ["src/Web/Web.csproj"]);
     }
 }

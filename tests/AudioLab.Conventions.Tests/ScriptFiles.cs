@@ -1,10 +1,10 @@
 namespace AudioLab.Conventions.Tests;
 
-/// <summary>Which files count as JavaScript or TypeScript, shared by every script rule.</summary>
+/// <summary>Which files count as JavaScript or TypeScript, shared by every script rule. HTML is not a script file here.</summary>
 public static class ScriptFiles
 {
     /// <summary>File extensions of script files, with the leading dot.</summary>
-    public static readonly string[] Extensions = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"];
+    public static readonly string[] Extensions = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"];
 
     /// <summary>True when the path, written with either kind of slash, names a script file.</summary>
     public static bool IsScript(string path)
