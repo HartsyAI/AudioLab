@@ -10,7 +10,28 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The Skia candidate is optional so the other two can be built, sized and ahead-of-time compiled without it. -->
+  <PropertyGroup>
+    <WithSkia Condition="'$(WithSkia)' == ''">true</WithSkia>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(WithSkia)' == 'true'">
     <PackageReference Include="SkiaSharp.Views.Blazor" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(WithSkia)' != 'true'">
+    <DefineConstants>$(DefineConstants);NOSKIA</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(WithSkia)' != 'true'">
+    <Compile Remove="Rendering/SkiaBackend.cs" />
+    <Compile Remove="Rendering/SkiaFontLoader.cs" />
+    <Compile Remove="Components/SkiaLaneSurface.razor.cs" />
+    <Content Remove="Components/SkiaLaneSurface.razor" />
+    <Content Remove="Components/SkiaLaneSurface.razor.css" />
+    <None Remove="Components/SkiaLaneSurface.razor.css" />
   </ItemGroup>
 
 </Project>

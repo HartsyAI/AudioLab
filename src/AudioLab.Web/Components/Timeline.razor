@@ -14,24 +14,7 @@
         <div id="lanes" class="lanes" style="width: @(View.ContentWidth)px; height: @(View.ContentHeight)px">
             @if (_ready)
             {
-                @switch (Options.Renderer)
-                {
-                    case RendererKind.Svg:
-                        <SvgLaneSurface Virtualize="false" />
-                        break;
-                    case RendererKind.SvgVirtual:
-                        <SvgLaneSurface Virtualize="true" />
-                        break;
-                    case RendererKind.SkiaGl:
-                        <SkiaLaneSurface Gpu="true" />
-                        break;
-                    case RendererKind.SkiaCpu:
-                        <SkiaLaneSurface Gpu="false" />
-                        break;
-                    default:
-                        <CanvasLaneSurface />
-                        break;
-                }
+                <DynamicComponent Type="LaneSurfaceCatalog.TypeFor(Options.Renderer)" Parameters="LaneSurfaceCatalog.ParametersFor(Options.Renderer)" />
             }
         </div>
         <div class="corner">
