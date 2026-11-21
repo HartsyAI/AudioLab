@@ -431,10 +431,14 @@ When a script is unavoidable:
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
   the rest of the UI calls.
 - A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
-  package: it is listed by package id, with the same reason and approval.
+  package, even one a Razor class library serves as a static web asset: the package is listed by id in
+  `ScriptAllowlist.Packages`, with the same reason and approval. The id covers every script the package ships, at any
+  version, so a version bump is read in review.
 
 Tests enforce this: an unlisted `.js` or `.ts` file, an inline `<script>` block, or interop outside that folder fails
-the build.
+the build, and so does a restored package (transitive ones included, read from each project's
+`obj/project.assets.json`) that ships a script file and is not listed. A listed package that is no longer restored, or
+no longer ships a script, fails too, so the list never outlives its reason.
 
 ## 9. Deployment: three doors
 
@@ -507,3 +511,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-20 | The script allowlist can list a script that ships inside a NuGet package by package id, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10. |
