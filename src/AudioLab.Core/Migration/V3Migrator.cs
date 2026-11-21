@@ -10,12 +10,14 @@ internal static class V3Migrator
 
     private const int DefaultSteps = 16;
 
+    private const int MaxMarks = ProjectLimits.MaxMarks;
+
     /// <summary>Converts a version 3 project into a version 4 document, recording each change in the context.</summary>
     public static ProjectDocument Migrate(V3Project project, UserId owner, V3Context context)
     {
-        List<V3Group> rawGroups = V3Context.Items(project.Groups, "groups");
+        List<V3Group> rawGroups = V3Context.Items(project.Groups, "groups", ProjectLimits.MaxSends);
         List<TrackGroup> groups = V3Sections.ConvertGroups(rawGroups, context);
-        List<V3Track> rawTracks = V3Context.Items(project.Tracks, "tracks");
+        List<V3Track> rawTracks = V3Context.Items(project.Tracks, "tracks", ProjectLimits.MaxTracks);
         V3Tracks.Reserve(rawTracks, context);
         List<Track> tracks = V3Tracks.Convert(rawTracks, V3Sections.GroupIdsByOldId(rawGroups, groups), context);
         tracks = V3Tracks.BreakScoreLinkLoops(tracks, context);
@@ -24,15 +26,15 @@ internal static class V3Migrator
             Version = ProjectDocument.CurrentVersion,
             Id = context.Ids.Next<ProjectId>(),
             Owner = owner,
-            Name = string.IsNullOrWhiteSpace(project.ProjectName) ? "Untitled project" : project.ProjectName,
+            Name = context.Name(project.ProjectName, "Untitled project", "projectName"),
             Bpm = project.Bpm is { } bpm && bpm != 0 ? bpm : DefaultBpm,
-            TempoMap = [.. ConvertTempo(V3Context.Items(project.TempoMap, "tempoMap"), context)],
+            TempoMap = [.. ConvertTempo(V3Context.Items(project.TempoMap, "tempoMap", MaxMarks), context)],
             TimeSignature = ConvertSignature(project.TimeSignature),
             MasterVolume = project.MasterVolume ?? 1,
             MasterLimiter = project.MasterLimiterEnabled != false,
             Metronome = project.Metronome == true,
-            Markers = [.. ConvertMarkers(V3Context.Items(project.Markers, "markers"), context)],
-            Sections = [.. V3Sections.ConvertSections(V3Context.Items(project.Sections, "sections"), context)],
+            Markers = [.. ConvertMarkers(V3Context.Items(project.Markers, "markers", ProjectLimits.MaxMarks), context)],
+            Sections = [.. V3Sections.ConvertSections(V3Context.Items(project.Sections, "sections", MaxMarks), context)],
             Groups = [.. groups],
             BeatPattern = ConvertBeats(project.BeatPattern, context),
             Tracks = [.. tracks],
@@ -91,7 +93,7 @@ internal static class V3Migrator
                 context.Warn($"markers[{i}] was before the start and moved to 0.");
                 time = 0;
             }
-            string name = string.IsNullOrWhiteSpace(raw[i].Name) ? $"Marker {i + 1}" : raw[i].Name!;
+            string name = context.Name(raw[i].Name, $"Marker {V3Context.Num(i + 1)}", $"markers[{i}].name");
             kept.Add((time, name, context.Color(raw[i].Color, null, $"markers[{i}].color")));
         }
         return
@@ -139,14 +141,10 @@ internal static class V3Migrator
         int steps = raw?.Steps is { } count && count != 0 ? count : DefaultSteps;
         if (steps < 1 || steps > ProjectLimits.MaxBeatSteps)
         {
-            throw V3Context.Fail("beatPattern.steps", $"{steps} is not from 1 to {ProjectLimits.MaxBeatSteps}.");
+            string limit = V3Context.Num(ProjectLimits.MaxBeatSteps);
+            throw V3Context.Fail("beatPattern.steps", $"{V3Context.Num(steps)} is not from 1 to {limit}.");
         }
-        List<V3BeatLane> rawLanes = V3Context.Items(raw?.Lanes, "beatPattern.lanes");
-        if (rawLanes.Count > ProjectLimits.MaxBeatLanes)
-        {
-            string limit = $"{rawLanes.Count} lanes is more than {ProjectLimits.MaxBeatLanes}.";
-            throw V3Context.Fail("beatPattern.lanes", limit);
-        }
+        List<V3BeatLane> rawLanes = V3Context.Items(raw?.Lanes, "beatPattern.lanes", ProjectLimits.MaxBeatLanes);
         List<BeatLane> lanes = [];
         for (int i = 0; i < rawLanes.Count; i++)
         {
@@ -154,7 +152,7 @@ internal static class V3Migrator
             lanes.Add(new BeatLane
             {
                 Id = context.Ids.Next<BeatLaneId>(),
-                Name = rawLanes[i].Name ?? string.Empty,
+                Name = context.Name(rawLanes[i].Name, string.Empty, $"{path}.name"),
                 Media = LaneMedia(rawLanes[i].BlobKey, path, context),
                 Gain = rawLanes[i].Gain ?? 1,
                 Steps = [.. ConvertSteps(rawLanes[i].Steps ?? [], steps, path, context)],

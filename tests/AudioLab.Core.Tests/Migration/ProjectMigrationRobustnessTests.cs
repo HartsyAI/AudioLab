@@ -162,24 +162,30 @@ public sealed class ProjectMigrationRobustnessTests
     }
 
     [Fact]
-    public void AStoredFadeLongerThanThePlayingPartIsShortenedAsTheExtensionDoesWhenItRenders()
+    public void AStoredFadeIsShortenedTheWayTheExtensionRendersIt()
     {
         MigrationResult result = Migrate(V3Fixtures.Read(V3Fixtures.Full));
         AudioClip clip = result.Document.Tracks[0].Clips[2];
-        Assert.Equal((5.0, 5.0), (clip.FadeIn, clip.FadeOut));
+        Assert.Equal((5.0, 0.0), (clip.FadeIn, clip.FadeOut));
         Assert.Contains(result.Warnings, warning => warning.StartsWith("tracks[0].clips[2].fadeIn was 7 seconds", StringComparison.Ordinal));
-        Assert.Contains(result.Warnings, warning => warning.StartsWith("tracks[0].clips[2].fadeOut was 9 seconds", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.StartsWith("tracks[0].clips[2].fadeOut was 9 seconds, more than the 0", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void FadesThatFitAreKeptEvenWhenTogetherTheyAreLongerThanTheClip()
+    [Theory]
+    [InlineData(2, 3, 2, 3, false)]
+    [InlineData(4, 4, 4, 1, true)]
+    [InlineData(9, 1, 5, 0, true)]
+    public void TheFadeInTakesWhatItNeedsAndTheFadeOutTheRest(double fadeIn, double fadeOut, double wantIn, double wantOut, bool warns)
     {
         JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));
-        Clip(root, 0, 2)["fadeIn"] = 4;
-        Clip(root, 0, 2)["fadeOut"] = 4;
+        Clip(root, 0, 2)["fadeIn"] = fadeIn;
+        Clip(root, 0, 2)["fadeOut"] = fadeOut;
         MigrationResult result = Migrate(root.ToJsonString());
-        Assert.Equal((4.0, 4.0), (result.Document.Tracks[0].Clips[2].FadeIn, result.Document.Tracks[0].Clips[2].FadeOut));
-        Assert.DoesNotContain(result.Warnings, warning => warning.Contains("fadeIn was"));
+        AudioClip clip = result.Document.Tracks[0].Clips[2];
+        Assert.Equal((wantIn, wantOut), (clip.FadeIn, clip.FadeOut));
+        Assert.Equal(warns, result.Warnings.Any(warning => warning.StartsWith("tracks[0].clips[2].fade", StringComparison.Ordinal)));
     }
 
     [Fact]

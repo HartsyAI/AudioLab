@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using AudioLab.Core.Model;
 
@@ -10,12 +11,14 @@ public static class ProjectMigration
     public const int OldestVersion = 3;
 
     /// <summary>Migrates a version 3 project; the same JSON, owner and ids always give the same result.</summary>
-    /// <remarks>A refusal part way through may have used some ids; that is harmless, as no id is handed out twice.</remarks>
+    /// <remarks>A refusal part way through may have used some ids; no id is ever handed out twice.</remarks>
     /// <param name="json">The project file as the extension saved it.</param>
     /// <param name="owner">The user the project now belongs to, from the door it arrived through.</param>
     /// <param name="ids">The service every new id comes from.</param>
-    /// <param name="audio">The audio files of a project whose JSON lists none, such as an autosave; otherwise null.</param>
-    /// <exception cref="ProjectFormatException">The text is not a version 3 project, or version 4 cannot hold it.</exception>
+    /// <param name="audio">Audio files the project's own JSON does not list, such as an autosave's; merged with its list.</param>
+    /// <remarks>The project's own list wins where the two disagree. A <see cref="MediaReference.Length"/> is what the file
+    /// or the caller says: the store must measure the audio itself and never trust it.</remarks>
+    /// <exception cref="ProjectFormatException">The text is not a version 3 project, or v4 cannot hold it.</exception>
     public static MigrationResult FromV3(
         string json,
         UserId owner,
@@ -36,10 +39,14 @@ public static class ProjectMigration
         IReadOnlyList<string> problems = ProjectValidator.Validate(document);
         if (problems.Count > 0)
         {
-            throw new ProjectFormatException("The migrated project breaks the version 4 rules:", problems);
+            const string Message = "The migrated project breaks the version 4 rules (a clip by its version 3 id, "
+                + "an effect or a MIDI clip by its position in its list, a note by its number after repairs):";
+            throw new ProjectFormatException(Message, [.. problems.Select(context.Explain)]);
         }
         return new MigrationResult { Document = document, Media = context.MediaReferences, Warnings = warnings };
     }
+
+    private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static void RequireVersion3(int? version)
     {
@@ -49,11 +56,11 @@ public static class ProjectMigration
                 throw new ProjectFormatException("The project has no version, so it cannot be migrated.");
             case < OldestVersion:
                 throw new ProjectFormatException(
-                    $"Version {version} projects are older than version {OldestVersion} and cannot be migrated.");
+                    $"Version {Number(version.Value)} is older than version {OldestVersion} and cannot be migrated.");
             case ProjectDocument.CurrentVersion:
                 throw new ProjectFormatException("The project is already version 4; read it with ProjectJson.Read.");
             case not OldestVersion:
-                throw new ProjectFormatException($"Version {version} is newer than this migration understands.");
+                throw new ProjectFormatException($"Version {Number(version.Value)} is newer than this migration reads.");
         }
     }
 

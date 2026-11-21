@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
-/// <summary>The loose parameter bag of one effect: reading a value marks it used, anything left over is an error.</summary>
+/// <summary>The loose parameter bag of one effect: a value read is marked used, anything left over is an error.</summary>
 internal sealed class V3Params(Dictionary<string, JsonElement>? raw, string path)
 {
     private readonly Dictionary<string, JsonElement> _raw = raw ?? [];
@@ -51,7 +51,7 @@ internal sealed class V3Params(Dictionary<string, JsonElement>? raw, string path
         string? unknown = _raw.Keys.FirstOrDefault(key => !_used.Contains(key));
         if (unknown is not null)
         {
-            throw V3Context.Fail($"{path}.params.{unknown}", "is not a parameter of this effect; version 4 cannot keep it.");
+            throw V3Context.Fail($"{path}.params.{unknown}", "is not a parameter of this effect; v4 cannot keep it.");
         }
     }
 

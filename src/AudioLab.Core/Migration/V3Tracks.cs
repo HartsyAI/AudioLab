@@ -21,14 +21,14 @@ internal static class V3Tracks
             {
                 throw V3Context.Fail($"{path}.id", $"the id {id} is used by two tracks, so sends to it are ambiguous.");
             }
-            List<V3Clip> clips = V3Context.Items(raw[i].Clips, $"{path}.clips");
+            List<V3Clip> clips = V3Context.Items(raw[i].Clips, $"{path}.clips", ProjectLimits.MaxClips);
             for (int j = 0; j < clips.Count; j++)
             {
                 string clipId = clips[j].Id ?? string.Empty;
                 bool playable = MissingAudio(clips[j], $"{path}.clips[{j}]", context) is null;
-                if (clipId.Length > 0 && playable && !context.ClipIds.TryAdd(clipId, context.Ids.Next<ClipId>()))
+                if (clipId.Length > 0 && playable)
                 {
-                    context.Warn($"{path}.clips[{j}] repeats the id {clipId}; links to it point at the first.");
+                    ReserveClip(clipId, $"{path}.clips[{j}]", context);
                 }
             }
         }
@@ -78,16 +78,32 @@ internal static class V3Tracks
         return cleared.Count == 0 ? tracks : [.. tracks.Select(track => ClearLinks(track, cleared, context))];
     }
 
-    // The reason a clip has no audio to play, or null. The extension skips such a clip when it opens a project.
+    private static void ReserveClip(string clipId, string path, V3Context context)
+    {
+        ClipId id = context.Ids.Next<ClipId>();
+        if (context.ClipIds.TryAdd(clipId, id))
+        {
+            context.Origin(id.Value, $"'{clipId}'");
+        }
+        else
+        {
+            context.Warn($"{path} repeats the id {clipId}; links to it point at the first.");
+        }
+    }
+
+    // The reason a clip has no audio to play, or null. The extension skips a clip without audio when it opens a
+    // project, and re-measures a clip whose length was never stored, which a migration cannot do.
     private static string? MissingAudio(V3Clip clip, string path, V3Context context)
     {
         if (string.IsNullOrEmpty(clip.BlobKey))
         {
             return "it has no audio key";
         }
-        return context.IsAvailable(clip.BlobKey, $"{path}.blobKey")
-            ? null
-            : $"its audio '{clip.BlobKey}' is not among the project's audio files";
+        if (!context.IsAvailable(clip.BlobKey, $"{path}.blobKey"))
+        {
+            return $"its audio '{clip.BlobKey}' is not among the project's audio files";
+        }
+        return clip.Duration is > 0 ? null : "its length was never stored, and a migration cannot measure the audio";
     }
 
     private static Track ConvertTrack(
@@ -105,10 +121,13 @@ internal static class V3Tracks
             "bus" => TrackKind.Bus,
             _ => throw V3Context.Fail($"{path}.kind", $"'{raw.Kind}' is not audio, instrument or bus."),
         };
+        List<V3Clip> clips = V3Context.Items(raw.Clips, $"{path}.clips", ProjectLimits.MaxClips);
+        List<V3MidiClip> midiClips = V3Context.Items(raw.MidiClips, $"{path}.midiClips", ProjectLimits.MaxClips);
+        List<V3Fx> effects = V3Context.Items(raw.Fx, $"{path}.fx", ProjectLimits.MaxEffects);
         return new Track
         {
             Id = context.TrackIds[raw.Id!],
-            Name = string.IsNullOrWhiteSpace(raw.Name) ? $"Track {index + 1}" : raw.Name,
+            Name = context.Name(raw.Name, $"Track {V3Context.Num(index + 1)}", $"{path}.name"),
             Kind = kind,
             Color = context.Color(raw.Color, ProjectDefaults.TrackColor(index), $"{path}.color")!,
             Volume = raw.Volume ?? 0.8,
@@ -122,9 +141,12 @@ internal static class V3Tracks
             Input = ConvertInput(raw.Input, $"{path}.input"),
             TakeCount = raw.TakeCount ?? 0,
             Instrument = V3Sound.ConvertInstrument(raw.Instrument, $"{path}.instrument", context),
-            Clips = [.. ConvertClips(V3Context.Items(raw.Clips, $"{path}.clips"), path, claimed, context)],
-            MidiClips = [.. ConvertMidiClips(V3Context.Items(raw.MidiClips, $"{path}.midiClips"), path, context)],
-            Effects = [.. V3Sound.ConvertEffects(V3Context.Items(raw.Fx, $"{path}.fx"), $"{path}.fx", context)],
+            Clips = [.. ConvertClips(clips, path, claimed, context)],
+            MidiClips =
+            [
+                .. midiClips.Select((clip, i) => V3Midi.ConvertClip(clip, i, $"{path}.midiClips[{i}]", context)),
+            ],
+            Effects = [.. V3Sound.ConvertEffects(effects, $"{path}.fx", context)],
             Automation = ConvertAutomation(raw, path, context),
             Sends = [],
             View = ConvertView(raw, path),
@@ -211,34 +233,47 @@ internal static class V3Tracks
     {
         bool keepsId = !string.IsNullOrEmpty(raw.Id) && claimed.Add(raw.Id);
         ClipId id = keepsId ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
-        double playable = (raw.Duration ?? 0) - (raw.Offset ?? 0) - (raw.TrimEnd ?? 0);
+        double duration = raw.Duration!.Value;
+        double offset = context.NoTinyNegative(raw.Offset ?? 0, $"{path}.offset");
+        double trimEnd = context.NoTinyNegative(raw.TrimEnd ?? 0, $"{path}.trimEnd");
+        double playable = duration - offset - trimEnd;
+        double fadeIn = context.NoTinyNegative(raw.FadeIn ?? 0, $"{path}.fadeIn");
+        double fadeOut = context.NoTinyNegative(raw.FadeOut ?? 0, $"{path}.fadeOut");
+        if (playable > 0)
+        {
+            fadeIn = FitFade(fadeIn, playable, $"{path}.fadeIn", context);
+            fadeOut = FitFade(fadeOut, playable - fadeIn, $"{path}.fadeOut", context);
+        }
         return new AudioClip
         {
             Id = id,
-            Name = raw.Name ?? string.Empty,
+            Name = context.Name(raw.Name, string.Empty, $"{path}.name"),
             Media = context.MediaFor(raw.BlobKey!, $"{path}.blobKey")!.Value,
-            Start = raw.StartTime ?? 0,
-            Duration = raw.Duration ?? 0,
-            Offset = raw.Offset ?? 0,
-            TrimEnd = raw.TrimEnd ?? 0,
+            Start = context.NoTinyNegative(raw.StartTime ?? 0, $"{path}.startTime"),
+            Duration = duration,
+            Offset = offset,
+            TrimEnd = trimEnd,
             Gain = raw.Gain ?? 1,
-            FadeIn = FitFade(raw.FadeIn ?? 0, playable, $"{path}.fadeIn", context),
-            FadeOut = FitFade(raw.FadeOut ?? 0, playable, $"{path}.fadeOut", context),
+            FadeIn = fadeIn,
+            FadeOut = fadeOut,
             Muted = raw.Muted == true,
             Color = context.Color(raw.Color, null, $"{path}.color"),
             Meta = RemapMeta(raw.Meta, path, context),
         };
     }
 
-    // The extension stores a fade as it was typed and clamps it only when it renders, so the stored one may be too long.
-    private static double FitFade(double fade, double playable, string path, V3Context context)
+    // The extension stores a fade as it was typed and clamps it only when it renders: the fade in to the part that
+    // plays, the fade out to what the fade in leaves. The stored value is what the render would use.
+    private static double FitFade(double fade, double room, string path, V3Context context)
     {
-        if (playable <= 0 || fade <= playable)
+        if (fade <= room)
         {
             return fade;
         }
-        context.Warn($"{path} was {V3Context.Num(fade)} seconds, longer than the {V3Context.Num(playable)} that play; it was shortened.");
-        return playable;
+        string was = V3Context.Num(fade);
+        string space = V3Context.Num(room);
+        context.Warn($"{path} was {was} seconds, more than the {space} it has room for; it was shortened.");
+        return room;
     }
 
     // A score's parent and a stem's source are clip ids, so they follow the clips to their new ids.
@@ -269,11 +304,6 @@ internal static class V3Tracks
         }
         context.Warn($"{path} pointed at a clip that is not in the project; the link was cleared.");
         return null;
-    }
-
-    private static List<MidiClip> ConvertMidiClips(List<V3MidiClip> raw, string trackPath, V3Context context)
-    {
-        return [.. raw.Select((clip, index) => V3Midi.ConvertClip(clip, $"{trackPath}.midiClips[{index}]", context))];
     }
 
     private static Track ClearLinks(Track track, HashSet<ClipId> cleared, V3Context context)
@@ -330,7 +360,7 @@ internal static class V3Tracks
         List<Track> result = [];
         for (int i = 0; i < tracks.Count; i++)
         {
-            List<V3Send> rawSends = V3Context.Items(raw[i].Sends, $"tracks[{i}].sends");
+            List<V3Send> rawSends = V3Context.Items(raw[i].Sends, $"tracks[{i}].sends", ProjectLimits.MaxSends);
             List<Send> sends = [];
             HashSet<TrackId> targets = [];
             for (int j = 0; j < rawSends.Count; j++)

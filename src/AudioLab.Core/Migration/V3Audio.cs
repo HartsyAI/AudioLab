@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
-/// <summary>The audio files a version 3 project can reach: its audio list, its inline blobs and what the caller supplies.</summary>
+/// <summary>The audio files a version 3 project can reach: its audio list, inline blobs and what the caller supplies.</summary>
 internal sealed class V3Audio
 {
     private const string DefaultType = "audio/wav";
@@ -17,7 +17,7 @@ internal sealed class V3Audio
     /// <summary>Whether anything says which audio exists; without it no clip can be tied to a file.</summary>
     public bool HasList { get; }
 
-    /// <summary>The audio the project lists, carries inline or the caller supplies; the project's own list wins.</summary>
+    /// <summary>The audio the project lists, carries inline or the caller supplies; the project's list wins.</summary>
     public static V3Audio From(
         V3Project project,
         IReadOnlyDictionary<string, MediaFileInfo>? supplied,

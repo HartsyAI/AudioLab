@@ -110,6 +110,10 @@ Rules:
   - Compatibility is D14. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
     text holds no control or text-direction characters, and an error lists at most 100 problems of at most 300
     characters each.
+  - The migration (`ProjectMigration`) hands the store a `MediaReference` per audio file with the type and size the
+    file or the caller claims; the store measures the audio itself and never trusts them. Inline audio in an old
+    project costs about seven bytes of memory per base64 character (about 700 MB for 100 MB), so a hosted door
+    limits the size of an upload it migrates.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.

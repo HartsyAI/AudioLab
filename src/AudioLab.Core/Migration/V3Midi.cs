@@ -7,20 +7,23 @@ internal static class V3Midi
 {
     private const int DefaultVelocity = 100;
 
-    /// <summary>A MIDI clip with fresh note ids; notes and controllers outside the clip are repaired or dropped.</summary>
-    public static MidiClip ConvertClip(V3MidiClip raw, string path, V3Context context)
+    /// <summary>A MIDI clip with fresh note ids; notes and controllers outside it are repaired or dropped.</summary>
+    public static MidiClip ConvertClip(V3MidiClip raw, int index, string path, V3Context context)
     {
         double length = Math.Max(MidiClip.MinLength, raw.Length ?? 0);
-        List<MidiNote> notes = ConvertNotes(V3Context.Items(raw.Notes, $"{path}.notes"), length, path, context);
+        List<V3Note> rawNotes = V3Context.Items(raw.Notes, $"{path}.notes", ProjectLimits.MaxListItems);
+        List<MidiNote> notes = ConvertNotes(rawNotes, length, path, context);
+        ClipId id = context.Ids.Next<ClipId>();
+        context.Origin(id.Value, V3Context.Num(index));
         return new MidiClip
         {
-            Id = context.Ids.Next<ClipId>(),
-            Name = raw.Name ?? string.Empty,
-            Start = raw.StartTime ?? 0,
+            Id = id,
+            Name = context.Name(raw.Name, string.Empty, $"{path}.name"),
+            Start = context.NoTinyNegative(raw.StartTime ?? 0, $"{path}.startTime"),
             Length = length,
             NextNoteId = new NoteId(notes.Count).Next(),
             Notes = [.. notes],
-            ControlChanges = [.. ConvertControllers(V3Context.Items(raw.Cc, $"{path}.cc"), length, path, context)],
+            ControlChanges = [.. ConvertControllers(raw.Cc, length, path, context)],
             Muted = raw.Muted == true,
             Color = context.Color(raw.Color, null, $"{path}.color"),
         };
@@ -30,7 +33,7 @@ internal static class V3Midi
     public static List<AutomationPoint> ConvertPoints(List<V3Point>? raw, string path, V3Context context)
     {
         List<AutomationPoint> points = [];
-        List<V3Point> source = V3Context.Items(raw, path);
+        List<V3Point> source = V3Context.Items(raw, path, ProjectLimits.MaxListItems);
         int moved = 0;
         for (int i = 0; i < source.Count; i++)
         {
@@ -39,10 +42,7 @@ internal static class V3Midi
             moved += time < 0 ? 1 : 0;
             points.Add(new AutomationPoint(Math.Max(0, time), value));
         }
-        if (moved > 0)
-        {
-            context.Warn($"{path} had {moved} points before the start; they were moved to 0.");
-        }
+        Report(context, path, moved, "points before the start; they were moved to 0");
         return [.. points.OrderBy(point => point.Time)];
     }
 
@@ -54,6 +54,7 @@ internal static class V3Midi
         NoteId next = NoteId.First;
         int trimmed = 0;
         int beyond = 0;
+        int silent = 0;
         for (int i = 0; i < raw.Count; i++)
         {
             string notePath = $"{path}.notes[{i}]";
@@ -69,6 +70,7 @@ internal static class V3Midi
             }
             if (duration <= 0)
             {
+                silent++;
                 continue;
             }
             if (start >= length)
@@ -80,16 +82,18 @@ internal static class V3Midi
             next = next.Next();
         }
         Report(context, path, trimmed, "notes starting before the clip; the part inside the clip was kept");
+        Report(context, path, silent, "notes that last no time; they were dropped");
         Report(context, path, beyond, "notes starting after the clip end; they never played and were dropped");
         return notes;
     }
 
     private static List<MidiControlChange> ConvertControllers(
-        List<V3Cc> raw,
+        List<V3Cc>? source,
         double length,
         string path,
         V3Context context)
     {
+        List<V3Cc> raw = V3Context.Items(source, $"{path}.cc", ProjectLimits.MaxListItems);
         List<MidiControlChange> changes = [];
         int moved = 0;
         int beyond = 0;
@@ -116,7 +120,7 @@ internal static class V3Midi
     {
         if (count > 0)
         {
-            context.Warn($"{path} had {count} {what}.");
+            context.Warn($"{path} had {V3Context.Num(count)} {what}.");
         }
     }
 

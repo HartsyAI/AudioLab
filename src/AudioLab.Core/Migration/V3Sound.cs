@@ -5,7 +5,7 @@ namespace AudioLab.Core.Migration;
 /// <summary>Instruments and effects. A value the extension would have defaulted gets the same default here.</summary>
 internal static class V3Sound
 {
-    /// <summary>An instrument with the extension's defaults for what was left out; null when the track has none.</summary>
+    /// <summary>An instrument with the extension's defaults for what was left out; null for a track with none.</summary>
     public static Instrument? ConvertInstrument(V3Instrument? raw, string path, V3Context context)
     {
         if (raw is null)
@@ -20,7 +20,7 @@ internal static class V3Sound
         };
     }
 
-    /// <summary>An insert chain; an unknown effect or parameter is refused, a missing parameter takes its default.</summary>
+    /// <summary>An insert chain; an unknown effect or parameter is refused, a missing one takes its default.</summary>
     public static List<Effect> ConvertEffects(List<V3Fx> raw, string path, V3Context context)
     {
         List<Effect> effects = [];
@@ -29,6 +29,7 @@ internal static class V3Sound
             string fxPath = $"{path}[{i}]";
             V3Params values = new(raw[i].Params, fxPath);
             EffectId id = context.Ids.Next<EffectId>();
+            context.Origin(id.Value, V3Context.Num(i));
             // restoreProject copies the flag as it is, so a missing one reads as off
             bool enabled = raw[i].Enabled == true;
             Effect effect = raw[i].Type switch
@@ -97,9 +98,9 @@ internal static class V3Sound
             ("sustain", raw.Sustain));
         return new SamplerInstrument
         {
-            Name = string.IsNullOrEmpty(raw.Name) ? "Sampler" : raw.Name,
+            Name = context.Name(raw.Name, "Sampler", $"{path}.name"),
             Sample = SampleMedia(raw.SampleKey, path, context),
-            SampleName = raw.SampleName ?? string.Empty,
+            SampleName = context.Name(raw.SampleName, string.Empty, $"{path}.sampleName"),
             RootNote = OrDefault(raw.RootNote, 60),
             Attack = OrDefault(raw.Attack, 0.002),
             Release = OrDefault(raw.Release, 0.2),
