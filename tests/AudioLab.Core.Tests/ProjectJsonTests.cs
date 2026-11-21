@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Tests;
@@ -40,6 +41,26 @@ public sealed class ProjectJsonTests
         Assert.Equal(4294967295, score.Seed);
         Assert.Equal(reloaded.Tracks[0].Clips[1].Id, score.Parent);
         Assert.Equal(reloaded.Tracks[0].Clips[0].Id, reloaded.Tracks[0].Clips[1].Meta!.StemOf!.Value.ClipId);
+    }
+
+    [Fact]
+    public void LyricsKeepFieldsThisVersionDoesNotKnow()
+    {
+        ProjectDocument reloaded = ProjectJson.Read(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        ClipLyrics lyrics = reloaded.Tracks[0].Clips[0].Meta!.Lyrics!;
+        Assert.Equal("future", lyrics.Extra!["alignedBy"].GetString());
+    }
+
+    [Fact]
+    public void AnEmptyOrNullClipLinkInMetaReadsAsNone()
+    {
+        JsonObject root = TestJson.Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        JsonNode meta = TestJson.Clip(root)["meta"]!;
+        meta["score"]!["parent"] = string.Empty;
+        TestJson.Clip(root, 0, 1)["meta"]!["stemOf"]!["clipId"] = null;
+        ProjectDocument reloaded = ProjectJson.Read(root.ToJsonString());
+        Assert.Null(reloaded.Tracks[0].Clips[0].Meta!.Score!.Parent);
+        Assert.Null(reloaded.Tracks[0].Clips[1].Meta!.StemOf!.Value.ClipId);
     }
 
     [Fact]
