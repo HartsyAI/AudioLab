@@ -69,20 +69,22 @@ public sealed class FrameRecorder(IBrowser browser)
         {
             Scenario = scenario,
             Frames = intervals.Count,
-            MeanFps = intervals.Count / span * 1000,
-            MedianMs = Percentile(sorted, 0.5),
-            P95Ms = Percentile(sorted, 0.95),
-            P99Ms = Percentile(sorted, 0.99),
+            MeanFps = Finite(intervals.Count / span * 1000),
+            MedianMs = Finite(Percentile(sorted, 0.5)),
+            P95Ms = Finite(Percentile(sorted, 0.95)),
+            P99Ms = Finite(Percentile(sorted, 0.99)),
             MaxMs = sorted.Length > 0 ? sorted[^1] : 0,
             FramesOver45FpsLine = intervals.Count(interval => interval > 22.2),
-            WorstSecondFps = WorstSecond(),
-            DrawMeanMs = _draws.Count > 0 ? _draws.Average() : 0,
-            DrawP95Ms = Percentile(drawSorted, 0.95),
+            WorstSecondFps = Finite(WorstSecond()),
+            DrawMeanMs = Finite(_draws.Count > 0 ? _draws.Average() : 0),
+            DrawP95Ms = Finite(Percentile(drawSorted, 0.95)),
             DrawMaxMs = drawSorted.Length > 0 ? drawSorted[^1] : 0,
-            CallsPerFrame = _calls / drawn,
-            ClipsPerFrame = _clips / drawn,
+            CallsPerFrame = Finite(_calls / drawn),
+            ClipsPerFrame = Finite(_clips / drawn),
         };
     }
+
+    private static double Finite(double value) => double.IsFinite(value) ? value : -1;
 
     private static double Percentile(double[] sorted, double fraction)
     {
@@ -95,13 +97,13 @@ public sealed class FrameRecorder(IBrowser browser)
         int start = 0;
         for (int end = 1; end < _stamps.Count; end++)
         {
-            while (_stamps[end] - _stamps[start] > 1000)
+            while (_stamps[end] - _stamps[start] >= 1000)
             {
                 start++;
             }
             if (_stamps[end] - _stamps[0] >= 1000)
             {
-                worst = Math.Min(worst, (end - start) / (_stamps[end] - _stamps[start]) * 1000);
+                worst = Math.Min(worst, end - start + 1);
             }
         }
         return worst == double.MaxValue ? 0 : worst;
