@@ -3,6 +3,8 @@
 Machine: Windows_NT 10.0.26200, Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz, 8 cores, 40 GB. Node v26.13.0, Playwright 1.65.1, axe-core 4.14.1.
 Browsers: chromium 159.0.8154.6, webkit 27.2, firefox 159.0.
 
+Scored checks: 33 per browser. Passed: chromium 32, webkit 30, firefox 31. Observations are listed in the table and are not scored. The Shift+F10 check uses a synthetic key press and is informational; it is counted.
+
 | Check | chromium | webkit | firefox |
 |---|---|---|---|
 | native dialog: opened with the keyboard, opens modal and moves focus inside | pass | pass | pass |
@@ -37,7 +39,7 @@ Browsers: chromium 159.0.8154.6, webkit 27.2, firefox 159.0.
 | modal: combobox inside a native dialog, Escape closes the list before the dialog | pass | pass | pass |
 | modal: popover inside a native dialog, Escape closes it before the dialog | pass | pass | pass |
 | modal: axe state - native form dialog with a select list expanded | pass | pass | pass |
-| modal: a toast raised from inside a dialog (observation: is it clickable?) | pass | pass | pass |
+| modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks? | observation: shown, not clickable | observation: shown, not clickable | observation: shown, not clickable |
 | tabs: ArrowRight moves to the next tab and shows its panel | pass | pass | pass |
 
 ## Failures
@@ -66,15 +68,15 @@ Browsers: chromium 159.0.8154.6, webkit 27.2, firefox 159.0.
 
 ## Observations
 
-- chromium: native dialog: focus passed through the document body (the browser UI) 6 time(s) in 20 presses; ends in
+- chromium: modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks?: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)
+- webkit: modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks?: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)
+- firefox: modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks?: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)
+- chromium: native dialog: focus passed through the document body (the browser UI) 6 time(s) in 20 presses; after the last press it was inside the dialog
 - chromium: library popover offset from its button (px): {"dTop":0,"dLeft":0}
 - chromium: anchor positioning: supports {"anchorName":true,"positionArea":true}; native popover offset from its anchor (px): {"open":true,"dTop":0,"dLeft":0}
-- chromium: toast raised from inside a modal dialog: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)
-- webkit: native dialog: focus passed through the document body (the browser UI) 5 time(s) in 20 presses; ends in
+- webkit: native dialog: focus passed through the document body (the browser UI) 5 time(s) in 20 presses; after the last press it was inside the dialog
 - webkit: library popover offset from its button (px): {"dTop":0,"dLeft":0}
 - webkit: anchor positioning: supports {"anchorName":true,"positionArea":true}; native popover offset from its anchor (px): {"open":true,"dTop":0,"dLeft":0}
-- webkit: toast raised from inside a modal dialog: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)
-- firefox: native dialog: focus passed through the document body (the browser UI) 4 time(s) in 20 presses; ends in
+- firefox: native dialog: focus passed through the document body (the browser UI) 4 time(s) in 20 presses; after the last press it was inside the dialog
 - firefox: library popover offset from its button (px): {"dTop":0,"dLeft":0}
 - firefox: anchor positioning: supports {"anchorName":true,"positionArea":true}; native popover offset from its anchor (px): {"open":true,"dTop":0,"dLeft":0}
-- firefox: toast raised from inside a modal dialog: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)

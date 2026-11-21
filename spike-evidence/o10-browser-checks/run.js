@@ -30,6 +30,15 @@ async function runBrowser(name) {
       out.steps.push({ title, ok: false, detail: 'threw: ' + String(e.message).split('\n')[0].slice(0, 200) });
     }
   };
+  // An observation records what was seen; it is not scored, so it never counts as a pass or a fail.
+  const observe = async (title, fn) => {
+    try {
+      const r = await fn();
+      out.steps.push({ title, ok: null, observation: true, short: r.short, detail: r.detail });
+    } catch (e) {
+      out.steps.push({ title, ok: null, observation: true, short: 'threw', detail: 'threw: ' + String(e.message).split('\n')[0].slice(0, 200) });
+    }
+  };
   const active = () => page.evaluate(() => {
     const a = document.activeElement; if (!a) return 'none';
     return a.tagName.toLowerCase() + (a.id ? '#' + a.id : '') + (a.className && typeof a.className === 'string' ? '.' + a.className.split(' ')[0] : '') +
@@ -70,7 +79,7 @@ async function runBrowser(name) {
     for (let i = 0; i < 10; i++) { await page.keyboard.press('Tab'); const r = await probe(); if (r === 'out') outside.push(await active()); if (r === 'body') viaBody++; }
     for (let i = 0; i < 10; i++) { await page.keyboard.press('Shift+Tab'); const r = await probe(); if (r === 'out') outside.push(await active()); if (r === 'body') viaBody++; }
     const back = await probe();
-    out.notes = out.notes || []; out.notes.push('native dialog: focus passed through the document body (the browser UI) ' + viaBody + ' time(s) in 20 presses; ends ' + back);
+    out.notes = out.notes || []; out.notes.push('native dialog: focus passed through the document body (the browser UI) ' + viaBody + ' time(s) in 20 presses; after the last press it was ' + ({ in: 'inside the dialog', out: 'on the page behind it', body: 'on the document body' })[back]);
     return (outside.length === 0 && back !== 'out') || 'focus reached the page behind the dialog: ' + outside.join(', ');
   });
   await step('native dialog: Escape closes it and focus returns to the opener', async () => {
@@ -323,7 +332,7 @@ async function runBrowser(name) {
     await closeAll();
     return true;
   });
-  await step('modal: a toast raised from inside a dialog (observation: is it clickable?)', async () => {
+  await observe('modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks?', async () => {
     await page.click('#open-native-form'); await settle(400);
     await page.locator('#dialog-toast').click(); await settle(500);
     const r = await page.evaluate(() => {
@@ -332,8 +341,10 @@ async function runBrowser(name) {
       return { shown: true, topmost: t.contains(hit), hit: hit ? hit.tagName.toLowerCase() + '.' + (hit.className || '') : null };
     });
     await closeAll();
-    out.notes = out.notes || []; out.notes.push('toast raised from inside a modal dialog: shown=' + r.shown + ', receives pointer hits=' + r.topmost + ' (topmost element at its centre: ' + r.hit + ')');
-    return true;
+    return {
+      short: !r.shown ? 'not shown' : r.topmost ? 'shown, receives clicks' : 'shown, not clickable',
+      detail: 'shown=' + r.shown + ', receives pointer hits=' + r.topmost + ' (topmost element at its centre: ' + r.hit + ')'
+    };
   });
 
   await fresh();
@@ -361,7 +372,7 @@ async function runBrowser(name) {
   fs.writeFileSync(path.join(__dirname, process.env.OUT || 'results.json'), JSON.stringify({ meta, results }, null, 1));
   for (const r of results) {
     console.log(`\n== ${r.name} ${r.version || ''} ${r.fatal || ''}`);
-    for (const s of r.steps) console.log(`${s.ok ? 'PASS' : 'FAIL'}  ${s.title}${s.detail ? '\n        ' + s.detail : ''}`);
+    for (const s of r.steps) console.log(`${s.observation ? 'SEEN' : s.ok ? 'PASS' : 'FAIL'}  ${s.title}${s.detail ? '\n        ' + s.detail : ''}`);
     for (const a of r.axe) console.log(`AXE   ${a.label}: ${a.violations.length} violation(s), ${a.incomplete.length} incomplete, ${a.passes} passes` + a.violations.map(v => `\n        ${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0].target}`).join(''));
     if (r.errors?.length) console.log('page errors:', r.errors);
   }

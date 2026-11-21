@@ -6,7 +6,8 @@ conventions tests do not scan this folder.
 - `run.js`: Playwright script. Per browser it runs the keyboard and focus checks and axe-core on ten states of the proof page.
 - `report.js`: turns the three JSON files into `results.md`.
 - `anchor.html`: a native popover placed with CSS anchor positioning, copied next to the published proof page.
-- `results.md`: the per-check pass/fail table for Chromium, WebKit and Firefox, the axe table and the observations.
+- `results.md`: the per-check table for Chromium, WebKit and Firefox (33 scored checks, plus one observation row that is not
+  scored), the axe table and the observations.
 - `chromium.json`, `webkit.json`, `firefox.json`: raw results, including every axe violation with its element and message.
 
 Run, from an empty scratch folder (nothing here is installed by the repository):

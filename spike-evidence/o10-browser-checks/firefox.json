@@ -174,9 +174,11 @@
      "detail": ""
     },
     {
-     "title": "modal: a toast raised from inside a dialog (observation: is it clickable?)",
-     "ok": true,
-     "detail": ""
+     "title": "modal: a toast raised from inside a dialog (observation, not scored): shown, and does it receive clicks?",
+     "ok": null,
+     "observation": true,
+     "short": "shown, not clickable",
+     "detail": "shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)"
     },
     {
      "title": "tabs: ArrowRight moves to the next tab and shows its panel",
@@ -212,7 +214,7 @@
        "help": "Elements must meet minimum color contrast ratio thresholds",
        "nodes": [
         {
-         "target": "#bit-bh-43e22e > span[b-upkv0r39kk=\"\"]",
+         "target": "#bit-bh-42f32e > span[b-upkv0r39kk=\"\"]",
          "html": "<span b-upkv0r39kk=\"\">Delete track</span>",
          "summary": "  Element has insufficient color contrast of 4 (foreground color: #f0524a, background color: #282c34, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
         }
@@ -270,10 +272,9 @@
     }
    ],
    "notes": [
-    "native dialog: focus passed through the document body (the browser UI) 4 time(s) in 20 presses; ends in",
+    "native dialog: focus passed through the document body (the browser UI) 4 time(s) in 20 presses; after the last press it was inside the dialog",
     "library popover offset from its button (px): {\"dTop\":0,\"dLeft\":0}",
-    "anchor positioning: supports {\"anchorName\":true,\"positionArea\":true}; native popover offset from its anchor (px): {\"open\":true,\"dTop\":0,\"dLeft\":0}",
-    "toast raised from inside a modal dialog: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)"
+    "anchor positioning: supports {\"anchorName\":true,\"positionArea\":true}; native popover offset from its anchor (px): {\"open\":true,\"dTop\":0,\"dLeft\":0}"
    ],
    "errors": []
   }
