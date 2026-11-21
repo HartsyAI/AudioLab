@@ -442,14 +442,34 @@ When a script is unavoidable:
 
 - It is as small as it can be: a shim that moves data across the boundary. Logic stays in C#.
 - It is listed in [`ScriptAllowlist`](tests/AudioLab.Conventions.Tests/ScriptAllowlist.cs) with the reason C# could
-  not do the job, and the owner approves that line in the pull request. That list is the full inventory.
+  not do the job, and the owner approves that line in the pull request. That list is the full inventory of the
+  scripts the tests can see; the end of this section says what they cannot.
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
   the rest of the UI calls.
 - A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
-  package: it is listed by package id, with the same reason and approval.
+  package, even one a Razor class library serves as a static web asset. Each script is listed in
+  `ScriptAllowlist.Packages` by package id, exact version and its path inside the package, with the same reason and
+  approval. An entry covers that one script at that one version: a version bump, or a new script in a listed
+  package, fails until its own entries are added and the old ones removed.
 
-Tests enforce this: an unlisted `.js` or `.ts` file, an inline `<script>` block, or interop outside that folder fails
-the build.
+The convention tests, which `dotnet test` runs and CI requires, enforce this. They fail on an unlisted `.js`, `.ts`
+or similar file, an inline `<script>` block, or interop outside that folder. They also read the `libraries` section
+of `obj/project.assets.json` for every project under `src` and `tests`, and fail on a restored package, transitive
+ones included, that ships a script file that is not listed by id, version and path, on a project with no restore
+output, and on restore output they cannot read, including a repeated key. An entry for a package version that is not
+restored, or for a script that version does not ship, fails too, so the list never outlives its reason. Matching is
+exact: the id, the version and the path are compared character for character, so a different case, a glob, a folder, or
+an unnormalised path such as `a/../b.js` approves nothing. Trailing dots and spaces on a file name are ignored when
+deciding whether it is a script, as Windows ignores them.
+
+What they do not see: scripts added at publish (the .NET runtime pack's `dotnet.js` and its files), scripts embedded in
+an assembly as a resource, scripts inside an archive within a package, and compressed scripts (`.js.gz`). Inline
+`<script>` blocks are looked for in `.razor`, `.cshtml`, `.html` and `.htm` files of the repository only, not in SVG or
+XHTML, and not in a package. Nothing in the build prompts a check of these. The tests also assume that
+each project keeps its restore output in `obj/`, and a package reference conditioned on the operating system can make
+the "not restored" check fail on another CI leg, loudly rather than silently. A project listed in `AudioLab.slnx`
+that the scan under `src` and `tests` does not find (for example one inside a `bin`, `obj`, `node_modules` or
+`artifacts` folder) fails a test, so it cannot be skipped silently.
 
 ## 9. Deployment: three doors
 
@@ -524,3 +544,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
 | 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5); D15 and D16 proposed. |
 | 2026-11-21 | Migration from the extension's `version: 3` project JSON dropped by owner decision: new project format only (sections 5 and 12). |
+| 2026-11-21 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
