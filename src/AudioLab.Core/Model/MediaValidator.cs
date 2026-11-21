@@ -15,7 +15,7 @@ public static partial class MediaValidator
         ProblemList problems = new();
         problems.Id(media.Id.Value, "id");
         problems.Id(media.Owner.Value, "owner");
-        if (media.ContentType is null || !ContentTypePattern().IsMatch(media.ContentType))
+        if (!IsContentType(media.ContentType))
         {
             problems.Add("contentType: a media type such as audio/wav, in lower case.");
         }
@@ -25,6 +25,9 @@ public static partial class MediaValidator
         }
         return problems.ToList();
     }
+
+    /// <summary>Whether <paramref name="contentType"/> is a lower-case media type such as audio/wav, with no parameters.</summary>
+    public static bool IsContentType(string? contentType) => contentType is not null && ContentTypePattern().IsMatch(contentType);
 
     [GeneratedRegex(
         @"\A[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\z",
