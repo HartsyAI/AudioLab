@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>How edits move other material.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<EditMode>))]
+[JsonConverter(typeof(StrictEnumConverter<EditMode>))]
 public enum EditMode
 {
     /// <summary>Free placement, no snapping.</summary>

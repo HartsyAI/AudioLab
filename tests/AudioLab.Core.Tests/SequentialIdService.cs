@@ -13,14 +13,4 @@ public sealed class SequentialIdService : IIdService
         _next++;
         return TId.From($"{TId.Prefix}_{_next}");
     }
-
-    public NoteId NextNote(IReadOnlyCollection<MidiNote> existing)
-    {
-        int highest = 0;
-        foreach (MidiNote note in existing)
-        {
-            highest = Math.Max(highest, note.Id.Value);
-        }
-        return new NoteId(highest).Next();
-    }
 }

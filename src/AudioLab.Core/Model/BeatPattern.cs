@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>The drum machine: lanes of steps looped over the project.</summary>
@@ -10,5 +12,6 @@ public sealed record BeatPattern
     public required double Swing { get; init; }
 
     /// <summary>The lanes, top to bottom.</summary>
-    public required IReadOnlyList<BeatLane> Lanes { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<BeatLane>))]
+    public required ValueList<BeatLane> Lanes { get; init; }
 }

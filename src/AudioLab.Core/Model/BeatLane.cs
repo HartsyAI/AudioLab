@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>One drum-machine lane: a sample and its step pattern.</summary>
@@ -16,5 +18,6 @@ public sealed record BeatLane
     public required double Gain { get; init; }
 
     /// <summary>Which steps fire; its length equals the pattern's step count.</summary>
-    public required IReadOnlyList<bool> Steps { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<bool>))]
+    public required ValueList<bool> Steps { get; init; }
 }

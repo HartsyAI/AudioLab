@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>What a track holds and how it is played.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<TrackKind>))]
+[JsonConverter(typeof(StrictEnumConverter<TrackKind>))]
 public enum TrackKind
 {
     /// <summary>Plays audio clips.</summary>

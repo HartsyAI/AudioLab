@@ -4,8 +4,12 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>The score a clip was rendered from. Unknown fields are kept in <see cref="Extra"/>.</summary>
-public sealed record ScoreMeta
+public sealed record ScoreMeta : IJsonOnDeserialized
 {
+    private ExtraFields _extra = ExtraFields.Empty;
+
+    private Dictionary<string, JsonElement>? _incoming;
+
     /// <summary>The score in ABC notation.</summary>
     public string? Abc { get; init; }
 
@@ -47,7 +51,25 @@ public sealed record ScoreMeta
     public long? Created { get; init; }
 
     /// <summary>Every other field, kept as it was written.</summary>
-    // System.Text.Json cannot fill extension data through an init-only property.
+    [JsonIgnore]
+    public ExtraFields Extra
+    {
+        get => _extra;
+        init => _extra = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    // System.Text.Json fills this dictionary while it reads; it is turned into Extra once the object is complete.
+    [JsonInclude]
     [JsonExtensionData]
-    public Dictionary<string, JsonElement>? Extra { get; set; }
+    internal Dictionary<string, JsonElement>? ExtensionData
+    {
+        get => _incoming ?? (_extra.IsEmpty ? null : _extra.ToDictionary());
+        set => _incoming = value;
+    }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        _extra = ExtraFields.From(_incoming);
+        _incoming = null;
+    }
 }

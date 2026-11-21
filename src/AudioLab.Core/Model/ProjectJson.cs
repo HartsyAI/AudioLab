@@ -9,25 +9,24 @@ public static class ProjectJson
     /// <exception cref="ProjectFormatException">The text is not a valid version 4 project.</exception>
     public static ProjectDocument Read(string json)
     {
-        ArgumentNullException.ThrowIfNull(json);
-        int? version = ProjectVersion.Peek(json);
+        string text = ProjectVersion.WithoutByteOrderMark(json);
+        int? version = ProjectVersion.Peek(text);
         if (version != ProjectDocument.CurrentVersion)
         {
             string found = version is { } number ? $"version {number}" : "no version";
-            throw new ProjectFormatException($"Expected a version {ProjectDocument.CurrentVersion} project, found {found}.");
+            string expected = $"Expected a version {ProjectDocument.CurrentVersion} project";
+            throw new ProjectFormatException($"{expected}, found {found}.");
         }
-        ProjectDocument? document;
+        ProjectDocument document;
         try
         {
-            document = JsonSerializer.Deserialize(json, ProjectJsonContext.Default.ProjectDocument);
+            // The version check proved the text is a JSON object, so this is never the literal null.
+            document = JsonSerializer.Deserialize(text, ProjectJsonContext.Default.ProjectDocument)!;
         }
-        catch (JsonException exception)
+        catch (Exception exception) when (exception is JsonException or NotSupportedException)
         {
-            throw new ProjectFormatException("The project is not a valid version 4 document.", [Describe(exception)], exception);
-        }
-        if (document is null)
-        {
-            throw new ProjectFormatException("The project file is empty.");
+            string problem = exception is JsonException jsonError ? JsonErrors.Describe(jsonError) : exception.Message;
+            throw new ProjectFormatException("The project is not a valid version 4 document.", [problem], exception);
         }
         Check(document);
         return document;
@@ -40,12 +39,6 @@ public static class ProjectJson
         ArgumentNullException.ThrowIfNull(document);
         Check(document);
         return JsonSerializer.Serialize(document, ProjectJsonContext.Default.ProjectDocument);
-    }
-
-    private static string Describe(JsonException exception)
-    {
-        bool hasPath = exception.Message.Contains("Path:", StringComparison.Ordinal);
-        return exception.Path is { } path && !hasPath ? $"{path}: {exception.Message}" : exception.Message;
     }
 
     private static void Check(ProjectDocument document)

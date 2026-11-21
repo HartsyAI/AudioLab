@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>A track: an audio track, an instrument track or an aux bus.</summary>
@@ -49,19 +51,23 @@ public sealed record Track
     public Instrument? Instrument { get; init; }
 
     /// <summary>The audio clips; later clips layer over earlier ones.</summary>
-    public required IReadOnlyList<AudioClip> Clips { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<AudioClip>))]
+    public required ValueList<AudioClip> Clips { get; init; }
 
     /// <summary>The MIDI clips; later clips layer over earlier ones.</summary>
-    public required IReadOnlyList<MidiClip> MidiClips { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<MidiClip>))]
+    public required ValueList<MidiClip> MidiClips { get; init; }
 
     /// <summary>The insert chain, in signal order.</summary>
-    public required IReadOnlyList<Effect> Effects { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<Effect>))]
+    public required ValueList<Effect> Effects { get; init; }
 
     /// <summary>The volume and pan envelopes.</summary>
     public required TrackAutomation Automation { get; init; }
 
     /// <summary>The sends to aux buses.</summary>
-    public required IReadOnlyList<Send> Sends { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<Send>))]
+    public required ValueList<Send> Sends { get; init; }
 
     /// <summary>How the track draws.</summary>
     public required TrackView View { get; init; }

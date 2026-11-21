@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>How a track's automation lanes behave during playback.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AutomationMode>))]
+[JsonConverter(typeof(StrictEnumConverter<AutomationMode>))]
 public enum AutomationMode
 {
     /// <summary>Plays the lanes back.</summary>
