@@ -72,7 +72,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 
 | Project | Holds | May reference | Status |
 |---------|-------|---------------|--------|
-| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version only) |
+| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract) |
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
@@ -80,7 +80,8 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
-| `tests/<Project>.Tests` | One test project per source project. | its project | Planned |
+| `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection. | Core | Exists |
+| `tests/<Project>.Tests` | One test project per other source project. | its project | Planned |
 
 Rules:
 
@@ -95,6 +96,9 @@ Rules:
 
 - **Model.** A typed project document (`version: 4`), with a migration from the extension's `version: 3` JSON, tested
   by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
+  Ids are typed (`TrackId`, `ClipId`, `MediaId`, ...) and minted only by `IIdService`; the project and every media
+  record carry the owner `UserId` (D12). JSON goes only through `ProjectJsonContext`, which refuses unknown members.
+  Colours stay CSS strings until the UI maps them to the twelve track tokens.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -507,3 +511,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5). |
