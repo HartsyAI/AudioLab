@@ -93,8 +93,8 @@ Rules:
 
 ## 5. The server-owned project
 
-- **Model.** A typed project document (`version: 4`), with a migration from the extension's `version: 3` JSON, tested
-  by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
+- **Model.** A typed project document (`version: 4`), the only project format, tested by round trips and by
+  rejecting invalid documents. Ids are allocated by the server. Time is seconds plus a tempo map.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -489,7 +489,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
 | 1 | Spikes O1, O2, O3 and O9, and the O10 evaluation, each closed in this file. |
-| 2 | Core and server: model with v3 migration, commands, history, store, hub, routes, and a minimal UI that opens a project. |
+| 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
 | 5 | The UI, one domain at a time: tempo, markers, sections and groups; tracks and mixer; clips and media; effects, automation, MIDI, piano roll and beats. |
@@ -507,3 +507,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-21 | The migration from the extension's `version: 3` project JSON was dropped by owner decision: new project format only (sections 5 and 12). |
