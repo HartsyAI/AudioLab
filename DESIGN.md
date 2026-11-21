@@ -43,6 +43,24 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
+| D15 | The timeline lanes, clips and waveforms are drawn as DOM with inline SVG waveforms, each clip a small component that redraws only when its own revision changes. A Canvas2D surface driven from C# through `[JSImport]` calls to browser built-ins (no script file) is the kept alternative for views that outgrow the DOM. The Skia canvas is not adopted. See [the O2 evidence](#d15-evidence-the-o2-spike). | Proposed | It meets the pass line in Chromium and Firefox with no per-frame C#, no native library, no script, and the clips stay in the accessibility tree. |
+
+#### D15 evidence: the O2 spike
+
+Code: [branch `spike/o2-drawing`](https://github.com/HartsyAI/AudioLab/tree/spike/o2-drawing). Measured on OFFICE-DESKTOP: Intel Core i7-9700K, 40 GB, NVIDIA GeForce RTX 3060, Windows 11 Pro 26200, a 2560 x 1440 display at 100 Hz and 125% scaling, headed Chrome 157.0.8103.79 and Firefox 160.0.1, lane area about 1740 x 600 CSS pixels. The session screen was rebuilt in Blazor WebAssembly (.NET 10.0.14, interpreted, no AOT) with 32 tracks and 500 clips with cached peaks at the mock's 68 pixel bars, about 57 clips in view. Each scenario (scroll across, scroll down, both, drag a clip across tracks) ran for 6 s, three times. The pass line is read as: median frame interval 16.7 ms or less, and no one-second window under 45 fps.
+
+| Candidate | Chrome | Firefox | JavaScript policy (section 8) | Brotli size | Accessibility |
+|-----------|--------|---------|-------------------------------|-------------|---------------|
+| DOM + SVG, every clip in the page | Pass: median 10 ms, worst second 100 fps | Pass: median 10 ms, worst second 99 fps | None | 2.7 MB (baseline) | Clips are elements; names, roles and tab stops attach to them |
+| Canvas2D through `[JSImport]` | Pass: 1.7 ms of C# a frame, about 1,400 calls | Pass: 2.7 ms, worst second 92 fps | About 25 imports of built-ins in `Interop/`, no script file | Baseline | One canvas: no clips, no keyboard stops; a parallel DOM layer of the visible clips would be needed |
+| SkiaSharp 4.157.0 on WebGL | Pass: 1.5 ms of C# a frame | Pass: 2.5 ms, worst second 99 fps | Four package scripts (10.8 KB) for a by-package allowlist entry | +1.3 MB | As Canvas2D |
+| SkiaSharp on the CPU | Miss: worst second 56 fps | Miss: worst second 32 fps | As Skia | As Skia | As Canvas2D |
+
+All three passing candidates look like the mock: the transport and ruler are pixel-identical, and in the first six tracks 0.3% of pixels differ for SVG and 2.3% to 2.7% for the canvases (text and edge antialiasing). Real wheel and pointer input in Chrome agreed with the scripted runs (worst second 88 fps or better in all five). Virtualising the SVG (only clips near the view) passes but is worse: 9 to 13 ms of C# a frame and frames over 22 ms.
+
+A harder view separates them, and is not part of the pass line: 2,000 clips at 17 pixel bars, about 215 in view. Chrome holds with all three (worst second 77 fps DOM, 83 Canvas2D, 100 Skia GL). Firefox holds only with Skia GL (worst second 81 fps; DOM 42, Canvas2D 31), and an AOT build does not change that, so Firefox's canvas and layout cost is the limit, not C#. Skia is the fallback if a real view needs that density.
+
+Costs and limits: Skia links a native library into `dotnet.native.wasm`, needs the `wasm-tools` workload to build (CI has none), and its assembly cannot be AOT-compiled (the Mono AOT compiler crashes on `SkiaSharp.dll` with SDK 10.0.403). AOT of the other two works and changes little here (the Canvas2D frame cost fell from 1.7 to 1.2 ms in Chrome) for +2 MB brotli. The frame intervals are taken from `requestAnimationFrame`, so they show main-thread work, not frames the compositor alone dropped. The piano roll was not built; it uses the same primitives as clip notes. Nothing measured argues against D3.
 
 ## 3. Architecture
 
@@ -138,9 +156,10 @@ engine, and a stress test reads it.
   No hand-written JSON, no stringly-typed route names scattered through components.
 - **Styling** is plain CSS and component-scoped CSS. There is no Node toolchain in the build. Fonts are files served
   by the app, not a hosted font service.
-- **Dense surfaces** (timeline, waveforms, piano roll, automation) are drawn from C#: see
-  [O2](#11-open-questions). They take their colours and sizes from the same tokens as the CSS; how C# reads them is
-  settled with O2.
+- **Dense surfaces** (timeline, waveforms, piano roll, automation) are drawn from C#, as [D15](#2-decisions) decides:
+  DOM with inline SVG by default. They take their colours and sizes from the same tokens as the CSS: C# reads each
+  token it draws with from the root element's computed style (one `TokenSet` read at start), so `tokens.css` stays the
+  only place a value is declared.
 
 ### 7.2 Character
 
@@ -467,7 +486,6 @@ server, as commands.
 | # | Question | Decided by |
 |---|----------|------------|
 | O1 | Audio for a browser on another machine. Preferred: the same C# engine compiled to WebAssembly in the page, feeding a minimal `AudioWorklet` shim, so there is one engine and no mixer per listener on the server. Fallback: the server mixes and streams to the page. | A spike. **Pass:** zero dropouts over 10 minutes of 16 tracks with effects, at 100 ms of output buffering or less, while the UI is being dragged and scrolled, inside an iframe without cross-origin isolation. Measured with the engine on the main thread and in a web worker. |
-| O2 | How the timeline, waveforms and piano roll are drawn from C#: a Skia canvas in Blazor, or DOM and SVG. | A spike that rebuilds the mock's session screen in Blazor with 32 tracks and 500 clips with waveforms. **Pass:** 60 frames a second while scrolling and dragging, never below 45, in Chromium and Firefox, and it looks like the mock. |
 | O3 | The native audio device and MIDI input library. | A spike that checks license and upkeep. **Pass:** round-trip latency of 12 ms or less on the owner's audio interface, and correct device enumeration. |
 | O4 | The desktop window: an embedded webview, or the default browser at first. | Owner, after O2. |
 | O5 | Score notation. The extension uses the abcjs library for rendering, playback and timing. Options: a C# renderer, or that library on the allowlist. | Owner. |
@@ -507,3 +525,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-21 | O2 closed: D15 proposes DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D15; 7.1 states how C# reads tokens. |
