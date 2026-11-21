@@ -40,6 +40,8 @@ public sealed class UnknownFieldTests
     [InlineData("1e100001", false)]
     [InlineData("1e-100001", false)]
     [InlineData("1e99999999999999999999", false)]
+    [InlineData("1e-9223372036854775808", false)]
+    [InlineData("1e9223372036854775807", false)]
     public void ANumberWithAnExponentTooBigToKeepIsRefusedInsteadOfRounded(string written, bool kept)
     {
         if (kept)
@@ -50,6 +52,18 @@ public sealed class UnknownFieldTests
         {
             Assert.Throws<ArgumentException>(() => ExtraFields.FromJson(("n", written)));
         }
+    }
+
+    [Theory]
+    [InlineData("1e-9223372036854775808")]
+    [InlineData("1e9223372036854775807")]
+    [InlineData("1e99999999999999999999")]
+    public void ReadRefusesAnExponentTooBigToKeepWithAProjectFormatError(string number)
+    {
+        JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        Clip(root)["meta"]!["n"] = 1;
+        string json = root.ToJsonString().Replace("\"n\":1", "\"n\":" + number, StringComparison.Ordinal);
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(json));
     }
 
     [Fact]

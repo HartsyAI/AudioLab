@@ -174,7 +174,7 @@ public sealed class ExtraFields : IEquatable<ExtraFields>
         string mantissa = exponentAt < 0 ? unsigned : unsigned[..exponentAt];
         long written = 0;
         bool parsed = exponentAt < 0 || long.TryParse(unsigned[(exponentAt + 1)..], CultureInfo.InvariantCulture, out written);
-        if (!parsed || Math.Abs(written) > MaxExponent)
+        if (!parsed || written is < -MaxExponent or > MaxExponent)
         {
             throw new ArgumentException("An unknown field holds a number too large or too small to keep exactly.", nameof(number));
         }

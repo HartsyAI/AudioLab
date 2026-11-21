@@ -162,11 +162,11 @@ internal static class TrackValidator
             Send send = track.Sends[i];
             string sendPath = $"{path}.sends[{i}]";
             problems.Range(send.Level, 0, ProjectLimits.MaxGain, $"{sendPath}.level");
-            if (!tracks.TryGetValue(send.Bus.Value ?? string.Empty, out Track? bus) || bus.Kind != TrackKind.Bus)
+            if (!tracks.TryGetValue(send.Bus.Value, out Track? bus) || bus.Kind != TrackKind.Bus)
             {
                 problems.Add($"{sendPath}.bus: {send.Bus.Value} is not a bus track of this project.");
             }
-            else if (!targets.Add(send.Bus.Value!))
+            else if (!targets.Add(send.Bus.Value))
             {
                 problems.Add($"{sendPath}.bus: the track already sends to {send.Bus.Value}.");
             }

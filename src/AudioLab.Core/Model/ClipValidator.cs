@@ -200,7 +200,7 @@ internal static class ClipValidator
         {
             problems.Add($"{path}: a clip cannot link to itself.");
         }
-        else if (!audioClipIds.Contains(target.Value ?? string.Empty))
+        else if (!audioClipIds.Contains(target.Value))
         {
             problems.Add($"{path}: {target.Value} is not an audio clip of this project.");
         }

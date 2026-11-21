@@ -61,7 +61,9 @@ internal static partial class JsonErrors
     [GeneratedRegex(@"The '\$id', '\$ref' or '\$type' metadata properties must be JSON strings\.[^.]*\.?")]
     private static partial Regex NonStringType();
 
-    [GeneratedRegex(@"The (?:constructor parameter|property or field) '[^']*'(?: on type '[^']*')? doesn't allow (?:setting )?null values\.(?: Consider updating its nullability annotation\.)?")]
+    [GeneratedRegex(
+        @"The (?:constructor parameter|property or field) '[^']*'(?: on type '[^']*')? doesn't allow (?:setting )?null values\."
+        + @"(?: Consider updating its nullability annotation\.)?")]
     private static partial Regex NullNotAllowed();
 
     [GeneratedRegex(@"could not be mapped to any \.NET member contained in type '[^']*'")]

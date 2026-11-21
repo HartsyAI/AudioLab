@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace AudioLab.Core.Model;
@@ -46,28 +47,39 @@ public static class ProjectJson
     // version does not know still says which version it is.
     private static void RequireVersion(string json)
     {
-        using JsonDocument? document = TryParse(json);
-        if (document?.RootElement is { ValueKind: JsonValueKind.Object } root
-            && root.TryGetProperty("version", out JsonElement element)
-            && element.ValueKind == JsonValueKind.Number
-            && element.TryGetInt32(out int version)
-            && version != ProjectDocument.CurrentVersion)
+        if (FoundVersion(json) is { } version && version != ProjectDocument.CurrentVersion)
         {
             throw Refused(ProjectValidator.VersionProblem(version), null);
         }
     }
 
-    // Null for text that is not JSON; the serializer reads it next and reports the same mistake with its path.
-    private static JsonDocument? TryParse(string json)
+    // The top-level version number if there is one, read without building the whole document. Text that is not JSON
+    // gives null: the serializer reads it next and reports the same mistake with its path.
+    private static int? FoundVersion(string json)
     {
         try
         {
-            return JsonDocument.Parse(json);
+            Utf8JsonReader reader = new(Encoding.UTF8.GetBytes(json));
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+            {
+                return null;
+            }
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                bool isVersion = reader.ValueTextEquals("version"u8);
+                reader.Read();
+                if (isVersion)
+                {
+                    return reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int version) ? version : null;
+                }
+                reader.Skip();
+            }
         }
         catch (JsonException)
         {
             return null;
         }
+        return null;
     }
 
     private static ProjectFormatException Refused(string problem, Exception? inner)
