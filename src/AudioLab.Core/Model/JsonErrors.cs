@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace AudioLab.Core.Model;
 
@@ -12,7 +13,9 @@ internal static class JsonErrors
     public static string Describe(JsonException exception)
     {
         string path = (exception.Path ?? "$") + (exception.Data[ItemKey] as string);
-        return ProjectLimits.Shorten($"{path}: {BaseMessage(exception)}");
+        // The serializer names the .NET type it failed on; the reader of an error has no use for the namespace.
+        string message = Regex.Replace(BaseMessage(exception), @"\bAudioLab\.Core\.(?:Model|Migration)\.(?:V3)?", string.Empty);
+        return ProjectLimits.Shorten($"{path}: {message}");
     }
 
     /// <summary>The exception for a list item, which carries the item's index in front of the path inside it.</summary>

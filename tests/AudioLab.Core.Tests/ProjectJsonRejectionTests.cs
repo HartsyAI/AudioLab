@@ -315,6 +315,17 @@ public sealed class ProjectJsonRejectionTests
     }
 
     [Theory]
+    [MemberData(nameof(BrokenFiles))]
+    public void NoErrorNamesAnInternalType(string description, string expected, Action<JsonObject> breakIt)
+    {
+        JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        breakIt(root);
+        ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(root.ToJsonString()));
+        Assert.DoesNotContain("AudioLab.Core.", error.Message, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrEmpty(expected), description);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("not json")]
     [InlineData("[]")]
