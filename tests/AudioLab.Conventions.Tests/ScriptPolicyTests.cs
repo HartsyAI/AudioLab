@@ -9,9 +9,9 @@ public sealed partial class ScriptPolicyTests
 {
     private const string InteropFolder = "src/AudioLab.Web/Interop/";
 
-    private static readonly string[] _scriptExtensions = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"];
+    private static readonly Lazy<List<PackageListing>> _restored = new(RestoredPackages.Read);
 
-    private static readonly string[] _markupExtensions = [".razor", ".cshtml", ".html"];
+    private static readonly string[] _markupExtensions = [".razor", ".cshtml", ".html", ".htm"];
 
     private static readonly string[] _interopIdentifiers = ["IJSRuntime", "IJSInProcessRuntime", "IJSObjectReference", "IJSInProcessObjectReference", "JSImport", "JSExport", "JSHost"];
 
@@ -19,7 +19,8 @@ public sealed partial class ScriptPolicyTests
     public void EveryScriptFileIsOnTheAllowlist()
     {
         HashSet<string> allowed = [.. ScriptAllowlist.Entries.Select(entry => entry.Path)];
-        List<string> unlisted = [.. RepoFiles.WithExtensions(_scriptExtensions).Select(RepoFiles.Relative).Where(path => !allowed.Contains(path))];
+        List<string> files = [.. RepoFiles.WithExtensions(ScriptFiles.Extensions).Select(RepoFiles.Relative)];
+        List<string> unlisted = [.. files.Where(path => !allowed.Contains(path))];
         Assert.True(unlisted.Count == 0, $"Script files that are not in ScriptAllowlist (write it in C#, or get the file approved): {string.Join(", ", unlisted)}");
     }
 
@@ -31,6 +32,22 @@ public sealed partial class ScriptPolicyTests
             Assert.True(File.Exists(Path.Combine(RepoFiles.Root, entry.Path)), $"ScriptAllowlist lists a file that does not exist: {entry.Path}");
             Assert.False(string.IsNullOrWhiteSpace(entry.Reason), $"ScriptAllowlist entry has no reason: {entry.Path}");
         }
+    }
+
+    [Fact]
+    public void EveryPackageScriptIsOnTheAllowlist()
+    {
+        List<string> unlisted = PackageScriptRules.Unlisted(_restored.Value, ScriptAllowlist.Packages);
+        Assert.True(
+            unlisted.Count == 0,
+            $"Restored packages that ship scripts and are not in ScriptAllowlist.Packages: {string.Join("; ", unlisted)}");
+    }
+
+    [Fact]
+    public void PackageAllowlistEntriesAreRestoredAndGiveAReason()
+    {
+        List<string> problems = PackageScriptRules.EntryProblems(_restored.Value, ScriptAllowlist.Packages);
+        Assert.True(problems.Count == 0, $"ScriptAllowlist.Packages has entries that do not hold: {string.Join("; ", problems)}");
     }
 
     [Fact]

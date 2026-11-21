@@ -13,10 +13,16 @@ public static class RepoFiles
     /// <summary>Every authored file under src and tests with one of the given extensions, as absolute paths.</summary>
     public static List<string> WithExtensions(params string[] extensions)
     {
+        return WithExtensionsIn(Root, extensions);
+    }
+
+    /// <summary>Every authored file under the src and tests folders of the given root with one of the extensions, as absolute paths.</summary>
+    public static List<string> WithExtensionsIn(string root, params string[] extensions)
+    {
         List<string> found = [];
         foreach (string folder in _sourceFolders)
         {
-            string path = Path.Combine(Root, folder);
+            string path = Path.Combine(root, folder);
             if (Directory.Exists(path))
             {
                 Collect(path, extensions, found);
