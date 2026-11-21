@@ -427,18 +427,25 @@ When a script is unavoidable:
 
 - It is as small as it can be: a shim that moves data across the boundary. Logic stays in C#.
 - It is listed in [`ScriptAllowlist`](tests/AudioLab.Conventions.Tests/ScriptAllowlist.cs) with the reason C# could
-  not do the job, and the owner approves that line in the pull request. That list is the full inventory.
+  not do the job, and the owner approves that line in the pull request. That list is the full inventory of the
+  scripts the tests can see; the end of this section says what they cannot.
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
   the rest of the UI calls.
 - A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
   package, even one a Razor class library serves as a static web asset: the package is listed by id in
-  `ScriptAllowlist.Packages`, with the same reason and approval. The id covers every script the package ships, at any
-  version, so a version bump is read in review.
+  `ScriptAllowlist.Packages`, with the same reason and approval. An id covers every script the package ships, at any
+  version: a bump that adds a script stays green, and only review catches it.
 
-Tests enforce this: an unlisted `.js` or `.ts` file, an inline `<script>` block, or interop outside that folder fails
-the build, and so does a restored package (transitive ones included, read from each project's
-`obj/project.assets.json`) that ships a script file and is not listed. A listed package that is no longer restored, or
-no longer ships a script, fails too, so the list never outlives its reason.
+The convention tests, which `dotnet test` runs and CI requires, enforce this. They fail on an unlisted `.js`, `.ts`
+or similar file, an inline `<script>` block, or interop outside that folder. They also read the `libraries` section
+of `obj/project.assets.json` for every project under `src` and `tests`, and fail on a restored package, transitive
+ones included, that ships a script file and is not listed, on a project with no restore output, and on restore output
+they cannot read. A listed package that is no longer restored, or no longer ships a script, fails too, so the list
+never outlives its reason.
+
+What they do not see, and review checks instead: scripts added at publish (the .NET runtime pack's `dotnet.js` and
+its files), scripts embedded in an assembly as a resource, scripts inside an archive within a package, and HTML in a
+package, which is not inspected for an inline `<script>`.
 
 ## 9. Deployment: three doors
 
