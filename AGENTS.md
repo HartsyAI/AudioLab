@@ -118,9 +118,9 @@ Interface design
 
 Tests
 
-- A test earns its place when its failure would otherwise be silent: command results and undo, model migration and
-  round trips, DSP against golden renders, store atomicity, concurrency, hub fan-out. Do not add a test that only
-  shows the code runs.
+- A test earns its place when its failure would otherwise be silent: command results and undo, model round trips
+  and rejection of invalid documents, DSP against golden renders, store atomicity, concurrency, hub fan-out. Do not
+  add a test that only shows the code runs.
 - Unit tests are fast and deterministic and need no GPU, model weights, audio device or network. A test that needs
   one of those carries a trait and skips cleanly where the resource is missing.
 </code_style>
