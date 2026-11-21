@@ -6,13 +6,17 @@ public static class ScriptAllowlist
     /// <summary>Approved script files in the repository. Adding one needs the owner's approval in the pull request that adds the file.</summary>
     public static readonly ScriptAllowance[] Entries = [];
 
-    /// <summary>Approved NuGet packages that ship scripts, by package id. Adding one needs the owner's approval in its pull request.</summary>
-    /// <remarks>An id covers every script the package ships, at any version.</remarks>
+    /// <summary>Approved scripts inside NuGet packages, one entry per script. Adding one needs the owner's approval in its pull request.</summary>
+    /// <remarks>An entry covers one script path of one package id at one exact version. A new script, or a new version, needs a new entry.</remarks>
     public static readonly PackageScriptAllowance[] Packages =
     [
-        new("Microsoft.AspNetCore.Components.WebAssembly", "The Blazor WebAssembly runtime loader (blazor.webassembly.js); the framework."),
-        new("Microsoft.AspNetCore.App.Internal.Assets", "Ships the Blazor runtime loaders (blazor.*.js); only blazor.webassembly.js is served."),
-        new("MudBlazor", "Dialog, menu and popover behaviour for the fallback proof (MudBlazor.min.js). Evaluated in O10."),
-        new("Bit.Bheadless", "Focus trap, outside-click, positioning and live-region behaviour for menus and combo boxes. Evaluated in O10."),
+        new("Bit.Bheadless", "11.0.0-pre-23", "staticwebassets/Bit.Bheadless.4mg12f5a83.lib.module.js", "Spike only: Blazor loads it as the library's initialiser."),
+        new("Bit.Bheadless", "11.0.0-pre-23", "staticwebassets/bit-bheadless-csp.js", "Spike only: the library's behaviour script, CSP build."),
+        new("Bit.Bheadless", "11.0.0-pre-23", "staticwebassets/bit-bheadless.js", "Spike only: the library's behaviour script."),
+        new("Microsoft.AspNetCore.App.Internal.Assets", "10.0.14", "_framework/blazor.server.js", "Spike only: Blazor runtime loader."),
+        new("Microsoft.AspNetCore.App.Internal.Assets", "10.0.14", "_framework/blazor.web.js", "Spike only: Blazor runtime loader."),
+        new("Microsoft.AspNetCore.App.Internal.Assets", "10.0.14", "_framework/blazor.webassembly.js", "Spike only: Blazor runtime loader."),
+        new("Microsoft.AspNetCore.Components.WebAssembly", "10.0.14", "build/net10.0/blazor.webassembly.js", "Spike only: Blazor runtime loader."),
+        new("MudBlazor", "9.14.0", "staticwebassets/MudBlazor.min.js", "Spike only: MudBlazor's behaviour script."),
     ];
 }
