@@ -11,7 +11,7 @@ public static partial class TrackIcon
     /// <summary>The longest image icon, as a data URL, in characters.</summary>
     public const int MaxImageLength = 60000;
 
-    /// <summary>Whether <paramref name="icon"/> may be stored: short text, or a png, jpeg or webp data URL of sane size.</summary>
+    /// <summary>Whether <paramref name="icon"/> may be stored: short text, or a small png, jpeg or webp data URL.</summary>
     public static bool IsValid(string icon)
     {
         ArgumentNullException.ThrowIfNull(icon);

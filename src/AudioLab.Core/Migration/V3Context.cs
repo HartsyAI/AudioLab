@@ -33,5 +33,21 @@ internal sealed class V3Context(IIdService ids)
         return media;
     }
 
+    /// <summary>A colour to keep: the value when it is well formed, else the fallback, with a warning.</summary>
+    public string? Color(string? value, string? fallback, string where)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return fallback;
+        }
+        if (ProjectColor.IsValid(value))
+        {
+            return value;
+        }
+        string shown = value.Length > 32 ? value[..32] + "..." : value;
+        Warn($"{where} was '{shown}', which is not #rgb, #rrggbb or #rrggbbaa; {(fallback is null ? "it was dropped" : "the default was used")}.");
+        return fallback;
+    }
+
     public static ProjectFormatException Fail(string path, string message) => new($"{path}: {message}");
 }

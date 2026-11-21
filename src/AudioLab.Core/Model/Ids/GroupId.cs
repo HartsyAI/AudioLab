@@ -3,16 +3,20 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>Identifies a track group.</summary>
-/// <param name="Value">The identifier text.</param>
 [JsonConverter(typeof(IdJsonConverter<GroupId>))]
-public readonly record struct GroupId(string Value) : IAllocatedId<GroupId>
+public readonly record struct GroupId : IAllocatedId<GroupId>
 {
+    private GroupId(string value) => Value = value;
+
     /// <inheritdoc />
     public static string Prefix => "grp";
 
     /// <inheritdoc />
-    public static GroupId From(string value) => new(value);
+    public string Value { get; }
+
+    /// <inheritdoc />
+    public static GroupId From(string value) => new(IdRules.Require(value));
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value;
+    public override string ToString() => Value ?? string.Empty;
 }

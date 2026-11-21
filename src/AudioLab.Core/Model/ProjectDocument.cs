@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>The project document, version 4. The server owns it; every edit is a command applied to it.</summary>
@@ -22,7 +24,8 @@ public sealed record ProjectDocument
     public required double Bpm { get; init; }
 
     /// <summary>The tempo changes after the start, ordered by time.</summary>
-    public required IReadOnlyList<TempoChange> TempoMap { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<TempoChange>))]
+    public required ValueList<TempoChange> TempoMap { get; init; }
 
     /// <summary>The time signature.</summary>
     public required TimeSignature TimeSignature { get; init; }
@@ -37,19 +40,23 @@ public sealed record ProjectDocument
     public required bool Metronome { get; init; }
 
     /// <summary>The markers, ordered by time.</summary>
-    public required IReadOnlyList<Marker> Markers { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<Marker>))]
+    public required ValueList<Marker> Markers { get; init; }
 
     /// <summary>The arrangement sections, ordered by start and never overlapping.</summary>
-    public required IReadOnlyList<Section> Sections { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<Section>))]
+    public required ValueList<Section> Sections { get; init; }
 
     /// <summary>The track groups.</summary>
-    public required IReadOnlyList<TrackGroup> Groups { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<TrackGroup>))]
+    public required ValueList<TrackGroup> Groups { get; init; }
 
     /// <summary>The drum machine.</summary>
     public required BeatPattern BeatPattern { get; init; }
 
     /// <summary>The tracks, top to bottom.</summary>
-    public required IReadOnlyList<Track> Tracks { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<Track>))]
+    public required ValueList<Track> Tracks { get; init; }
 
     /// <summary>How the arrangement opens.</summary>
     public required ProjectView View { get; init; }

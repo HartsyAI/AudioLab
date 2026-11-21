@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>The parameter whose lane a track shows.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AutomationParameter>))]
+[JsonConverter(typeof(StrictEnumConverter<AutomationParameter>))]
 public enum AutomationParameter
 {
     /// <summary>The track volume.</summary>

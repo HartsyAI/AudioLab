@@ -9,16 +9,4 @@ public sealed class IdService : IIdService
     {
         return TId.From($"{TId.Prefix}_{Guid.CreateVersion7():N}");
     }
-
-    /// <inheritdoc />
-    public NoteId NextNote(IReadOnlyCollection<MidiNote> existing)
-    {
-        ArgumentNullException.ThrowIfNull(existing);
-        int highest = 0;
-        foreach (MidiNote note in existing)
-        {
-            highest = Math.Max(highest, note.Id.Value);
-        }
-        return new NoteId(highest).Next();
-    }
 }

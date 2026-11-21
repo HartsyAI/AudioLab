@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using AudioLab.Core.Migration;
 using AudioLab.Core.Model;
 
@@ -5,7 +6,7 @@ namespace AudioLab.Core.Tests.Migration;
 
 public sealed class ProjectMigrationTests
 {
-    private static readonly UserId _owner = new("swarm-user-7");
+    private static readonly UserId _owner = UserId.ForDoor("swarm", "7");
 
     [Fact]
     public void TheProjectIsVersion4AndBelongsToTheOwnerItArrivedWith()
@@ -26,10 +27,10 @@ public sealed class ProjectMigrationTests
     public void TheSameProjectMigratedForTwoUsersSharesNothing()
     {
         string json = V3Fixtures.Read(V3Fixtures.Full);
-        MigrationResult alice = ProjectMigration.FromV3(json, new UserId("alice"), new IdService());
-        MigrationResult bob = ProjectMigration.FromV3(json, new UserId("bob"), new IdService());
-        Assert.Equal(new UserId("alice"), alice.Document.Owner);
-        Assert.Equal(new UserId("bob"), bob.Document.Owner);
+        MigrationResult alice = ProjectMigration.FromV3(json, UserId.ForDoor("swarm", "alice"), new IdService());
+        MigrationResult bob = ProjectMigration.FromV3(json, UserId.ForDoor("swarm", "bob"), new IdService());
+        Assert.Equal(UserId.ForDoor("swarm", "alice"), alice.Document.Owner);
+        Assert.Equal(UserId.ForDoor("swarm", "bob"), bob.Document.Owner);
         Assert.Empty(alice.Media.Select(media => media.Media).Intersect(bob.Media.Select(media => media.Media)));
         Assert.NotEqual(alice.Document.Id, bob.Document.Id);
     }
@@ -171,7 +172,9 @@ public sealed class ProjectMigrationTests
         IReadOnlyList<TrackGroup> groups = result.Document.Groups;
         Assert.Equal(["Drums", "Group 2"], groups.Select(group => group.Name));
         TrackGroup drums = groups[0];
-        Assert.Equal(("Drums", "#7a8cff", true, false, false, true, 0.5), (drums.Name, drums.Color, drums.Collapsed, drums.Tint, drums.Muted, drums.Soloed, drums.Volume));
+        Assert.Equal(
+            ("Drums", "#7a8cff", true, false, false, true, 0.5),
+            (drums.Name, drums.Color, drums.Collapsed, drums.Tint, drums.Muted, drums.Soloed, drums.Volume));
         Assert.Equal("#7a8cff", groups[1].Color);
         Assert.Equal(1.5, groups[1].Volume);
         Assert.Equal(groups[0].Id, result.Document.Tracks[0].Group);
@@ -202,8 +205,10 @@ public sealed class ProjectMigrationTests
     [Fact]
     public void MidiClipsKeepTheirNotesWithFreshIdsAndOrderedControllers()
     {
-        MidiClip clip = Assert.Single(Migrate().Document.Tracks[1].MidiClips);
-        Assert.Equal(0.05, clip.Length);
+        MigrationResult result = Migrate();
+        MidiClip clip = result.Document.Tracks[1].MidiClips[0];
+        Assert.Equal(2, clip.Length);
+        Assert.Equal(new NoteId(4), clip.NextNoteId);
         Assert.Equal(
             [
                 new MidiNote(new NoteId(1), 60, 0, 0.5, 100),
@@ -216,6 +221,29 @@ public sealed class ProjectMigrationTests
             clip.ControlChanges);
         Assert.True(clip.Muted);
         Assert.Equal("#4fcdb8", clip.Color);
+    }
+
+    [Fact]
+    public void AMidiClipShorterThanTheMinimumGrowsToItAndLosesNotesThatNeverPlayed()
+    {
+        MigrationResult result = Migrate();
+        MidiClip tiny = result.Document.Tracks[1].MidiClips[1];
+        Assert.Equal(0.05, tiny.Length);
+        Assert.Empty(tiny.Notes);
+        Assert.Equal(NoteId.First, tiny.NextNoteId);
+        Assert.Contains(result.Warnings, warning => warning.Contains("1 notes starting after the clip end"));
+    }
+
+    [Fact]
+    public void AColourThatIsNotHexIsReplacedAndSaidSo()
+    {
+        JsonObject root = TestJson.Parse(V3Fixtures.Read(V3Fixtures.Full));
+        TestJson.Track(root, 0)["color"] = "red;background:url(//evil)";
+        TestJson.Clip(root)["color"] = "rgb(1,2,3)";
+        MigrationResult result = ProjectMigration.FromV3(root.ToJsonString(), _owner, new SequentialIdService());
+        Assert.Equal("#4a9eff", result.Document.Tracks[0].Color);
+        Assert.Null(result.Document.Tracks[0].Clips[0].Color);
+        Assert.Contains(result.Warnings, warning => warning.Contains("tracks[0].color") && warning.Contains("default was used"));
     }
 
     [Fact]

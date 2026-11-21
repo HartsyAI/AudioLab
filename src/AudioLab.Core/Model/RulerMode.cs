@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>Which time ruler the arrangement shows first.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<RulerMode>))]
+[JsonConverter(typeof(StrictEnumConverter<RulerMode>))]
 public enum RulerMode
 {
     /// <summary>Minutes and seconds.</summary>

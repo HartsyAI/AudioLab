@@ -15,12 +15,13 @@ public static class ProjectMigration
     {
         ArgumentNullException.ThrowIfNull(json);
         ArgumentNullException.ThrowIfNull(ids);
-        if (string.IsNullOrEmpty(owner.Value))
+        if (!IdRules.IsValid(owner.Value))
         {
-            throw new ArgumentException("A migrated project needs an owner.", nameof(owner));
+            throw new ArgumentException("A migrated project needs a well-formed owner.", nameof(owner));
         }
-        RequireVersion3(ProjectVersion.Peek(json));
-        V3Project project = Read(json);
+        string text = ProjectVersion.WithoutByteOrderMark(json);
+        RequireVersion3(ProjectVersion.Peek(text));
+        V3Project project = Read(text);
         V3Context context = new(ids);
         ProjectDocument document = V3Migrator.Migrate(project, owner, context);
         IReadOnlyList<string> problems = ProjectValidator.Validate(document);

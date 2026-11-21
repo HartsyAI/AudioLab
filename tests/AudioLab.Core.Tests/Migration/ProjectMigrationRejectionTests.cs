@@ -107,12 +107,12 @@ public sealed class ProjectMigrationRejectionTests
         SequentialIdService ids = new();
         JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));
         root["version"] = 2;
-        Assert.Throws<ProjectFormatException>(() => ProjectMigration.FromV3(root.ToJsonString(), new UserId("u"), ids));
+        Assert.Throws<ProjectFormatException>(() => ProjectMigration.FromV3(root.ToJsonString(), UserId.ForDoor("swarm", "u"), ids));
         Assert.Equal("prj_1", ids.Next<ProjectId>().Value);
     }
 
     private static MigrationResult Migrate(string json)
     {
-        return ProjectMigration.FromV3(json, new UserId("swarm-user-7"), new SequentialIdService());
+        return ProjectMigration.FromV3(json, UserId.ForDoor("swarm", "7"), new SequentialIdService());
     }
 }

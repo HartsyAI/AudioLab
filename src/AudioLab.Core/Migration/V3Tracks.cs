@@ -6,7 +6,7 @@ namespace AudioLab.Core.Migration;
 /// <summary>Tracks, clips, MIDI clips, automation and sends.</summary>
 internal static class V3Tracks
 {
-    private const double MinMidiLength = 0.05;
+    private const string DefaultColor = "#4a9eff";
 
     /// <summary>Gives every track and audio clip its new id first, so references that point forward still resolve.</summary>
     public static void Reserve(List<V3Track> raw, V3Context context)
@@ -71,7 +71,7 @@ internal static class V3Tracks
             Id = context.TrackIds[raw.Id!],
             Name = string.IsNullOrWhiteSpace(raw.Name) ? "Track" : raw.Name,
             Kind = kind,
-            Color = string.IsNullOrEmpty(raw.Color) ? "#4a9eff" : raw.Color,
+            Color = context.Color(raw.Color, DefaultColor, $"{path}.color")!,
             Volume = raw.Volume ?? 0.8,
             Pan = raw.Pan ?? 0,
             Muted = raw.Muted == true,
@@ -85,7 +85,7 @@ internal static class V3Tracks
             Instrument = V3Sound.ConvertInstrument(raw.Instrument, $"{path}.instrument", context),
             Clips = [.. clips.Select((clip, index) => ConvertClip(clip, $"{path}.clips[{index}]", claimed, context))],
             MidiClips = [.. (raw.MidiClips ?? []).Select((clip, index) => V3Midi.ConvertClip(clip, $"{path}.midiClips[{index}]", context))],
-            Effects = V3Sound.ConvertEffects(raw.Fx ?? [], $"{path}.fx", context),
+            Effects = [.. V3Sound.ConvertEffects(raw.Fx ?? [], $"{path}.fx", context)],
             Automation = ConvertAutomation(raw, path, context),
             Sends = [],
             View = ConvertView(raw, path),
@@ -165,7 +165,7 @@ internal static class V3Tracks
             FadeIn = raw.FadeIn ?? 0,
             FadeOut = raw.FadeOut ?? 0,
             Muted = raw.Muted == true,
-            Color = string.IsNullOrEmpty(raw.Color) ? null : raw.Color,
+            Color = context.Color(raw.Color, null, $"{path}.color"),
             Meta = RemapMeta(raw.Meta, path, context),
         };
     }
@@ -214,8 +214,8 @@ internal static class V3Tracks
         return new TrackAutomation
         {
             Mode = mode,
-            Volume = V3Midi.ConvertPoints(raw.Automation?.Volume, $"{path}.automation.volume", context),
-            Pan = V3Midi.ConvertPoints(raw.Automation?.Pan, $"{path}.automation.pan", context),
+            Volume = [.. V3Midi.ConvertPoints(raw.Automation?.Volume, $"{path}.automation.volume", context)],
+            Pan = [.. V3Midi.ConvertPoints(raw.Automation?.Pan, $"{path}.automation.pan", context)],
         };
     }
 
@@ -258,7 +258,7 @@ internal static class V3Tracks
                     context.Warn($"tracks[{i}] had a send that was dropped: {reason}.");
                 }
             }
-            result.Add(tracks[i] with { Sends = sends });
+            result.Add(tracks[i] with { Sends = [.. sends] });
         }
         return result;
     }

@@ -98,7 +98,14 @@ Rules:
   by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
   Ids are typed (`TrackId`, `ClipId`, `MediaId`, ...) and minted only by `IIdService`; the project and every media
   record carry the owner `UserId` (D12). JSON goes only through `ProjectJsonContext`, which refuses unknown members.
-  Colours stay CSS strings until the UI maps them to the twelve track tokens.
+  Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` until the UI maps them to the twelve track tokens.
+  - Ids are 1 to 64 of `A-Za-z0-9_-`, so an id cannot hold a path separator; a `UserId` is prefixed by its door
+    (`desktop-local`, `swarm-<hash>`), so one door cannot mint another's. A note id counts up inside its clip and
+    `MidiClip.NextNoteId` never goes back, so the id of a deleted note is not reused.
+  - Collections are immutable `ValueList<T>` and unknown fields are `ExtraFields`, so a document is equal to another
+    with the same content and nothing can change it after it is read. Enums are written by name and refuse numbers.
+  - A file with a member this version does not know is refused, so an older build cannot read a newer file; a format
+    change raises `version`. `ProjectLimits` bounds every number, and an error lists at most 100 problems.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -512,4 +519,5 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
 | 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5). |
+| 2026-11-20 | Model hardened after review: immutable value-equal collections, id and colour rules, strict enums, ranges and size limits, per-clip note id counter (section 5). |
 | 2026-11-20 | `ProjectMigration` added: version 3 JSON to version 4 as a pure function, with the media references it needs the store to resolve (section 5). |

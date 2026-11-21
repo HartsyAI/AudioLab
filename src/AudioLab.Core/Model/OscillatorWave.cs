@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>The shape of a synth oscillator.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<OscillatorWave>))]
+[JsonConverter(typeof(StrictEnumConverter<OscillatorWave>))]
 public enum OscillatorWave
 {
     /// <summary>A sine wave.</summary>

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AudioLab.Core.Model;
 
 /// <summary>Which channels of a track's input device are recorded.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<InputChannelMode>))]
+[JsonConverter(typeof(StrictEnumConverter<InputChannelMode>))]
 public enum InputChannelMode
 {
     /// <summary>The inputs summed to one channel.</summary>

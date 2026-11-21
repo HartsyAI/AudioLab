@@ -24,16 +24,16 @@ internal static class V3Migrator
             Owner = owner,
             Name = string.IsNullOrWhiteSpace(project.ProjectName) ? "Untitled project" : project.ProjectName,
             Bpm = project.Bpm is { } bpm && bpm != 0 ? bpm : DefaultBpm,
-            TempoMap = ConvertTempo(project.TempoMap ?? [], context),
+            TempoMap = [.. ConvertTempo(project.TempoMap ?? [], context)],
             TimeSignature = ConvertSignature(project.TimeSignature),
             MasterVolume = project.MasterVolume ?? 1,
             MasterLimiter = project.MasterLimiterEnabled != false,
             Metronome = project.Metronome == true,
-            Markers = ConvertMarkers(project.Markers ?? [], context),
-            Sections = V3Sections.ConvertSections(project.Sections ?? [], context),
-            Groups = groups,
+            Markers = [.. ConvertMarkers(project.Markers ?? [], context)],
+            Sections = [.. V3Sections.ConvertSections(project.Sections ?? [], context)],
+            Groups = [.. groups],
             BeatPattern = ConvertBeats(project.BeatPattern, context),
-            Tracks = tracks,
+            Tracks = [.. tracks],
             View = ConvertView(project, context),
         };
     }
@@ -90,7 +90,7 @@ internal static class V3Migrator
                 time = 0;
             }
             string name = string.IsNullOrWhiteSpace(raw[i].Name) ? $"Marker {i + 1}" : raw[i].Name!;
-            kept.Add((time, name, string.IsNullOrEmpty(raw[i].Color) ? null : raw[i].Color));
+            kept.Add((time, name, context.Color(raw[i].Color, null, $"markers[{i}].color")));
         }
         return
         [
@@ -144,10 +144,10 @@ internal static class V3Migrator
                 Name = rawLanes[i].Name ?? string.Empty,
                 Media = string.IsNullOrEmpty(rawLanes[i].BlobKey) ? null : context.MediaFor(rawLanes[i].BlobKey!),
                 Gain = rawLanes[i].Gain ?? 1,
-                Steps = ConvertSteps(rawLanes[i].Steps ?? [], steps, i, context),
+                Steps = [.. ConvertSteps(rawLanes[i].Steps ?? [], steps, i, context)],
             });
         }
-        return new BeatPattern { Steps = steps, Swing = raw?.Swing ?? 0, Lanes = lanes };
+        return new BeatPattern { Steps = steps, Swing = raw?.Swing ?? 0, Lanes = [.. lanes] };
     }
 
     private static List<bool> ConvertSteps(List<JsonElement> raw, int steps, int lane, V3Context context)

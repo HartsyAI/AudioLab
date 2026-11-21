@@ -57,7 +57,7 @@ internal static class V3Sections
                 Start = draft.Start,
                 End = draft.End,
                 Name = string.IsNullOrWhiteSpace(draft.Name) ? $"Section {index + 1}" : draft.Name.Trim(),
-                Color = string.IsNullOrEmpty(draft.Color) ? _palette[index % _palette.Length] : draft.Color,
+                Color = context.Color(draft.Color, _palette[index % _palette.Length], "A section colour")!,
             }),
         ];
     }
@@ -76,7 +76,7 @@ internal static class V3Sections
             {
                 Id = context.Ids.Next<GroupId>(),
                 Name = string.IsNullOrWhiteSpace(group.Name) ? UniqueName(groups) : group.Name,
-                Color = string.IsNullOrEmpty(group.Color) ? DefaultGroupColor : group.Color,
+                Color = context.Color(group.Color, DefaultGroupColor, "A group colour")!,
                 Collapsed = group.Collapsed == true,
                 Tint = group.Tint != false,
                 Muted = group.Muted == true,

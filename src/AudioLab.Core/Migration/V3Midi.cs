@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
-/// <summary>MIDI clips and automation points. Times before the start of their clip or lane are repaired, not refused.</summary>
+/// <summary>MIDI clips and automation points. Times outside their clip or lane are repaired, not refused.</summary>
 internal static class V3Midi
 {
     private const double MinLength = 0.05;
@@ -11,16 +11,19 @@ internal static class V3Midi
 
     public static MidiClip ConvertClip(V3MidiClip raw, string path, V3Context context)
     {
+        double length = Math.Max(MinLength, raw.Length ?? 0);
+        List<MidiNote> notes = ConvertNotes(raw.Notes ?? [], length, path, context);
         return new MidiClip
         {
             Id = context.Ids.Next<ClipId>(),
             Name = raw.Name ?? string.Empty,
             Start = raw.StartTime ?? 0,
-            Length = Math.Max(MinLength, raw.Length ?? 0),
-            Notes = ConvertNotes(raw.Notes ?? [], path, context),
-            ControlChanges = ConvertControllers(raw.Cc ?? [], path, context),
+            Length = length,
+            NextNoteId = new NoteId(notes.Count).Next(),
+            Notes = [.. notes],
+            ControlChanges = [.. ConvertControllers(raw.Cc ?? [], length, path, context)],
             Muted = raw.Muted == true,
-            Color = string.IsNullOrEmpty(raw.Color) ? null : raw.Color,
+            Color = context.Color(raw.Color, null, $"{path}.color"),
         };
     }
 
@@ -44,11 +47,13 @@ internal static class V3Midi
     }
 
     // A shuffle delete once saved notes with negative times (audit row 65): the part inside the clip is kept.
-    private static List<MidiNote> ConvertNotes(List<V3Note> raw, string path, V3Context context)
+    // A note that starts at or after the clip end never plays, so it is dropped.
+    private static List<MidiNote> ConvertNotes(List<V3Note> raw, double length, string path, V3Context context)
     {
         List<MidiNote> notes = [];
         NoteId next = NoteId.First;
         int trimmed = 0;
+        int beyond = 0;
         for (int i = 0; i < raw.Count; i++)
         {
             string notePath = $"{path}.notes[{i}]";
@@ -61,40 +66,54 @@ internal static class V3Midi
                 trimmed++;
                 duration += start;
                 start = 0;
-                if (duration <= 0)
-                {
-                    continue;
-                }
+            }
+            if (duration <= 0)
+            {
+                continue;
+            }
+            if (start >= length)
+            {
+                beyond++;
+                continue;
             }
             notes.Add(new MidiNote(next, pitch, start, duration, velocity));
             next = next.Next();
         }
-        if (trimmed > 0)
-        {
-            context.Warn($"{path} had {trimmed} notes starting before the clip; the part inside the clip was kept.");
-        }
+        Report(context, path, trimmed, "notes starting before the clip; the part inside the clip was kept");
+        Report(context, path, beyond, "notes starting after the clip end; they never played and were dropped");
         return notes;
     }
 
-    private static List<MidiControlChange> ConvertControllers(List<V3Cc> raw, string path, V3Context context)
+    private static List<MidiControlChange> ConvertControllers(List<V3Cc> raw, double length, string path, V3Context context)
     {
         List<MidiControlChange> changes = [];
         int moved = 0;
+        int beyond = 0;
         for (int i = 0; i < raw.Count; i++)
         {
             string changePath = $"{path}.cc[{i}]";
             double time = raw[i].T ?? throw V3Context.Fail($"{changePath}.t", "is missing.");
+            int controller = Whole(raw[i].N, $"{changePath}.n", context);
+            int value = Whole(raw[i].V, $"{changePath}.v", context);
             moved += time < 0 ? 1 : 0;
-            changes.Add(new MidiControlChange(
-                Math.Max(0, time),
-                Whole(raw[i].N, $"{changePath}.n", context),
-                Whole(raw[i].V, $"{changePath}.v", context)));
+            if (time > length)
+            {
+                beyond++;
+                continue;
+            }
+            changes.Add(new MidiControlChange(Math.Max(0, time), controller, value));
         }
-        if (moved > 0)
-        {
-            context.Warn($"{path} had {moved} controller events before the clip; they were moved to its start.");
-        }
+        Report(context, path, moved, "controller events before the clip; they were moved to its start");
+        Report(context, path, beyond, "controller events after the clip end; they never took effect and were dropped");
         return [.. changes.OrderBy(change => change.Time)];
+    }
+
+    private static void Report(V3Context context, string path, int count, string what)
+    {
+        if (count > 0)
+        {
+            context.Warn($"{path} had {count} {what}.");
+        }
     }
 
     private static int Whole(double? value, string path, V3Context context)

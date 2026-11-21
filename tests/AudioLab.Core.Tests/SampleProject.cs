@@ -120,13 +120,13 @@ public static class SampleProject
                             Label = "Version A",
                             Parent = stem,
                             Created = 1760000000000,
-                            Extra = new Dictionary<string, JsonElement> { ["futureField"] = future.RootElement.Clone() },
+                            Extra = ExtraFields.FromJson(("futureField", future.RootElement.GetRawText())),
                         },
                         Lyrics = new ClipLyrics
                         {
                             Text = "[Verse]\nla la la",
                             Source = "transcribed",
-                            Extra = new Dictionary<string, JsonElement> { ["alignedBy"] = aligned.RootElement.Clone() },
+                            Extra = ExtraFields.FromJson(("alignedBy", aligned.RootElement.GetRawText())),
                             Words = [new LyricWord("la", 0.5, 0.9, 0), new LyricWord("la", 1, 1.01, 0, true)],
                         },
                     },
@@ -228,6 +228,7 @@ public static class SampleProject
                     Name = "Keys MIDI",
                     Start = 2,
                     Length = 4,
+                    NextNoteId = new NoteId(3),
                     Notes = [new MidiNote(NoteId.First, 60, 0, 0.5, 100), new MidiNote(NoteId.First.Next(), 64, 0.5, 1.5, 90)],
                     ControlChanges = [new MidiControlChange(0, 64, 127), new MidiControlChange(2, 64, 0)],
                     Muted = true,

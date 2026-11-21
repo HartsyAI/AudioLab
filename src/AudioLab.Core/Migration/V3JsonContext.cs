@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
@@ -6,7 +7,9 @@ namespace AudioLab.Core.Migration;
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    AllowDuplicateProperties = false,
     RespectNullableAnnotations = true,
     NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(V3Project))]
+[JsonSerializable(typeof(LyricWord))]
 internal sealed partial class V3JsonContext : JsonSerializerContext;

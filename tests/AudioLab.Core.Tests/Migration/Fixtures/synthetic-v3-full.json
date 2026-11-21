@@ -181,7 +181,7 @@
           "id": "midi-a-1",
           "name": "Keys MIDI",
           "startTime": 2,
-          "length": 0.01,
+          "length": 2,
           "notes": [ { "id": 5, "pitch": 60, "start": 0, "dur": 0.5, "vel": 100 }, { "id": 5, "pitch": 64, "start": 0.5, "dur": 1 },
             { "id": 9, "pitch": 67, "start": -0.25, "dur": 1, "vel": 90 },
             { "id": 10, "pitch": 69, "start": -2, "dur": 1, "vel": 90 }
@@ -189,6 +189,16 @@
           "cc": [ { "t": 2, "n": 64, "v": 0 }, { "t": 0, "n": 64, "v": 127 }, { "t": -0.5, "n": 1, "v": 10 } ],
           "muted": true,
           "color": "#4fcdb8"
+        },
+        {
+          "id": "midi-a-2",
+          "name": "Too short",
+          "startTime": 8,
+          "length": 0.01,
+          "notes": [ { "id": 1, "pitch": 60, "start": 0.5, "dur": 1, "vel": 100 } ],
+          "cc": [],
+          "muted": false,
+          "color": null
         }
       ],
       "color": "#ff6b6b",

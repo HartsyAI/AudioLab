@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>A MIDI clip: notes and controller events placed on the timeline.</summary>
@@ -15,11 +17,16 @@ public sealed record MidiClip
     /// <summary>The clip length, in seconds.</summary>
     public required double Length { get; init; }
 
+    /// <summary>The id the next note added to this clip takes. Ids of deleted notes are never reused.</summary>
+    public required NoteId NextNoteId { get; init; }
+
     /// <summary>The notes, with times in seconds from the clip start.</summary>
-    public required IReadOnlyList<MidiNote> Notes { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<MidiNote>))]
+    public required ValueList<MidiNote> Notes { get; init; }
 
     /// <summary>The controller events such as the sustain pedal, ordered by time.</summary>
-    public required IReadOnlyList<MidiControlChange> ControlChanges { get; init; }
+    [JsonConverter(typeof(ValueListJsonConverter<MidiControlChange>))]
+    public required ValueList<MidiControlChange> ControlChanges { get; init; }
 
     /// <summary>Whether the clip is silent.</summary>
     public required bool Muted { get; init; }
