@@ -3,8 +3,17 @@ namespace AudioLab.Core.Model;
 /// <summary>The clip rules: audio clips and what they carry, and MIDI clips with their notes and controllers.</summary>
 internal static class ClipValidator
 {
-    private const int MaxMetaFields = 256;
+    private static readonly string[] _clipMetaMembers = ["score", "lyrics", "stemOf"];
 
+    private static readonly string[] _scoreMembers =
+    [
+        "abc", "truncated", "budgetSeconds", "style", "lyrics", "cot", "seed", "model", "engineId", "label", "parent",
+        "source", "created",
+    ];
+
+    private static readonly string[] _lyricsMembers = ["text", "words", "source", "model"];
+
+    /// <summary>Checks one audio clip; its fades must fit inside the part of the file that plays.</summary>
     public static void CheckAudioClip(
         AudioClip clip,
         string path,
@@ -25,11 +34,12 @@ internal static class ClipValidator
         problems.Range(clip.TrimEnd, 0, ProjectLimits.MaxSeconds, $"{path}.trimEnd");
         problems.Range(clip.Gain, 0, ProjectLimits.MaxGain, $"{path}.gain");
         double playable = clip.Duration - clip.Offset - clip.TrimEnd;
-        if (double.IsFinite(playable) && playable <= 0)
+        bool known = double.IsFinite(playable) && clip.Duration > 0 && clip.Offset >= 0 && clip.TrimEnd >= 0;
+        if (known && playable <= 0)
         {
             problems.Add($"{path}: nothing of the clip plays; the offset and trim must leave part of the duration.");
         }
-        double longest = double.IsFinite(playable) ? Math.Max(playable, 0) : 0;
+        double longest = known ? Math.Max(playable, 0) : 0;
         problems.Range(clip.FadeIn, 0, longest, $"{path}.fadeIn");
         problems.Range(clip.FadeOut, 0, longest, $"{path}.fadeOut");
         if (clip.Meta is not null)
@@ -38,6 +48,7 @@ internal static class ClipValidator
         }
     }
 
+    /// <summary>Checks one MIDI clip with its notes and controller events.</summary>
     public static void CheckMidiClip(MidiClip clip, string path, HashSet<string> clipIds, ProblemList problems)
     {
         problems.Unique(clipIds, clip.Id.Value, $"{path}.id");
@@ -48,14 +59,16 @@ internal static class ClipValidator
         }
         problems.Range(clip.Start, 0, ProjectLimits.MaxSeconds, $"{path}.start");
         problems.Range(clip.Length, MidiClip.MinLength, ProjectLimits.MaxSeconds, $"{path}.length");
-        problems.Range(clip.NextNoteId.Value, 1, int.MaxValue, $"{path}.nextNoteId");
+        problems.Range(clip.NextNoteId.Value, 1, NoteId.Max, $"{path}.nextNoteId");
+        problems.Count(clip.Notes.Count, ProjectLimits.MaxListItems, $"{path}.notes");
+        problems.Count(clip.ControlChanges.Count, ProjectLimits.MaxListItems, $"{path}.controlChanges");
         CheckNotes(clip, path, problems);
         double previous = 0;
+        double latest = Math.Min(clip.Length, ProjectLimits.MaxSeconds);
         for (int i = 0; i < clip.ControlChanges.Count; i++)
         {
             MidiControlChange change = clip.ControlChanges[i];
             string changePath = $"{path}.controlChanges[{i}]";
-            double latest = Math.Min(clip.Length, ProjectLimits.MaxSeconds);
             problems.Range(change.Time, previous, latest, $"{changePath}.time");
             problems.Range(change.Controller, 0, 127, $"{changePath}.controller");
             problems.Range(change.Value, 0, 127, $"{changePath}.value");
@@ -63,9 +76,11 @@ internal static class ClipValidator
         }
     }
 
+    // A note starts inside its clip; it may ring on past the clip end, as a held or pedalled note does.
     private static void CheckNotes(MidiClip clip, string path, ProblemList problems)
     {
         HashSet<int> noteIds = [];
+        double latest = Math.Min(clip.Length, ProjectLimits.MaxSeconds);
         foreach (MidiNote note in clip.Notes)
         {
             string notePath = $"{path}.notes[{note.Id.Value}]";
@@ -76,10 +91,9 @@ internal static class ClipValidator
             problems.Range(note.Pitch, 0, 127, $"{notePath}.pitch");
             problems.Range(note.Velocity, 0, 127, $"{notePath}.velocity");
             problems.Range(note.Duration, 0, ProjectLimits.MaxSeconds, $"{notePath}.duration");
-            problems.Range(note.Start, 0, Math.Min(clip.Length, ProjectLimits.MaxSeconds), $"{notePath}.start");
-            if (note.Start >= clip.Length)
+            if (!(note.Start >= 0 && note.Start < latest))
             {
-                problems.Add($"{notePath}.start: a note starts inside its clip.");
+                problems.Add($"{notePath}.start: a note starts inside its clip, from 0 up to its length.");
             }
         }
     }
@@ -91,7 +105,7 @@ internal static class ClipValidator
         HashSet<string> audioClipIds,
         ProblemList problems)
     {
-        problems.Range(meta.Extra.Count, 0, MaxMetaFields, $"{path}.extra");
+        CheckExtra(meta.Extra, _clipMetaMembers, $"{path}.extra", problems);
         if (meta.Score is { } score)
         {
             CheckScore(score, clipId, $"{path}.score", audioClipIds, problems);
@@ -114,14 +128,14 @@ internal static class ClipValidator
         HashSet<string> audioClipIds,
         ProblemList problems)
     {
-        Optional(score.Abc, ProjectLimits.MaxLongText, $"{path}.abc", problems);
-        Optional(score.Style, ProjectLimits.MaxLongText, $"{path}.style", problems);
-        Optional(score.Lyrics, ProjectLimits.MaxLongText, $"{path}.lyrics", problems);
-        Optional(score.Cot, ProjectLimits.MaxLabel, $"{path}.cot", problems);
-        Optional(score.Model, ProjectLimits.MaxLabel, $"{path}.model", problems);
-        Optional(score.EngineId, ProjectLimits.MaxLabel, $"{path}.engineId", problems);
-        Optional(score.Label, ProjectLimits.MaxName, $"{path}.label", problems);
-        Optional(score.Source, ProjectLimits.MaxLabel, $"{path}.source", problems);
+        Long(score.Abc, $"{path}.abc", problems);
+        Long(score.Style, $"{path}.style", problems);
+        Long(score.Lyrics, $"{path}.lyrics", problems);
+        Short(score.Cot, ProjectLimits.MaxLabel, $"{path}.cot", problems);
+        Short(score.Model, ProjectLimits.MaxLabel, $"{path}.model", problems);
+        Short(score.EngineId, ProjectLimits.MaxLabel, $"{path}.engineId", problems);
+        Short(score.Label, ProjectLimits.MaxName, $"{path}.label", problems);
+        Short(score.Source, ProjectLimits.MaxLabel, $"{path}.source", problems);
         if (score.BudgetSeconds is { } budget)
         {
             problems.Range(budget, 0, ProjectLimits.MaxSeconds, $"{path}.budgetSeconds");
@@ -130,16 +144,17 @@ internal static class ClipValidator
         {
             problems.Add($"{path}.created: a time since 1970 is not negative.");
         }
-        problems.Range(score.Extra.Count, 0, MaxMetaFields, $"{path}.extra");
+        CheckExtra(score.Extra, _scoreMembers, $"{path}.extra", problems);
         CheckLink(score.Parent, clipId, $"{path}.parent", audioClipIds, problems);
     }
 
     private static void CheckLyrics(ClipLyrics lyrics, string path, ProblemList problems)
     {
-        problems.Text(lyrics.Text, ProjectLimits.MaxLongText, $"{path}.text", required: false);
-        Optional(lyrics.Source, ProjectLimits.MaxLabel, $"{path}.source", problems);
-        Optional(lyrics.Model, ProjectLimits.MaxLabel, $"{path}.model", problems);
-        problems.Range(lyrics.Extra.Count, 0, MaxMetaFields, $"{path}.extra");
+        problems.Text(lyrics.Text, ProjectLimits.MaxLongText, $"{path}.text", required: false, allowLineBreaks: true);
+        Short(lyrics.Source, ProjectLimits.MaxLabel, $"{path}.source", problems);
+        Short(lyrics.Model, ProjectLimits.MaxLabel, $"{path}.model", problems);
+        CheckExtra(lyrics.Extra, _lyricsMembers, $"{path}.extra", problems);
+        problems.Count(lyrics.Words.Count, ProjectLimits.MaxListItems, $"{path}.words");
         for (int i = 0; i < lyrics.Words.Count; i++)
         {
             LyricWord word = lyrics.Words[i];
@@ -152,6 +167,21 @@ internal static class ClipValidator
             {
                 problems.Add($"{wordPath}.line: a line index is 0 to 1000000.");
             }
+        }
+    }
+
+    // Unknown fields are written beside the known ones in one JSON object, so a name already in use would appear twice.
+    private static void CheckExtra(ExtraFields extra, string[] known, string path, ProblemList problems)
+    {
+        problems.Count(extra.Count, ProjectLimits.MaxExtraFields, path);
+        if (extra.TotalLength > ProjectLimits.MaxExtraLength)
+        {
+            long limit = ProjectLimits.MaxExtraLength;
+            problems.Add($"{path}: the unknown fields take {extra.TotalLength} characters; at most {limit}.");
+        }
+        foreach (string name in extra.Names.Where(name => known.Contains(name, StringComparer.Ordinal)))
+        {
+            problems.Add($"{path}.{name}: an unknown field cannot reuse the name of a known one.");
         }
     }
 
@@ -176,7 +206,15 @@ internal static class ClipValidator
         }
     }
 
-    private static void Optional(string? value, int max, string path, ProblemList problems)
+    private static void Long(string? value, string path, ProblemList problems)
+    {
+        if (value is not null)
+        {
+            problems.Text(value, ProjectLimits.MaxLongText, path, required: false, allowLineBreaks: true);
+        }
+    }
+
+    private static void Short(string? value, int max, string path, ProblemList problems)
     {
         if (value is not null)
         {

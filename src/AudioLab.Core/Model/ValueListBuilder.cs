@@ -4,5 +4,5 @@ namespace AudioLab.Core.Model;
 public static class ValueList
 {
     /// <summary>Called by the compiler for a collection expression.</summary>
-    public static ValueList<T> Create<T>(ReadOnlySpan<T> items) => new(items.ToArray());
+    public static ValueList<T> Create<T>(ReadOnlySpan<T> items) => ValueList<T>.Wrap(items.ToArray());
 }

@@ -1,15 +1,50 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace AudioLab.Core.Model;
 
-/// <summary>Writes an enum as its member name and refuses numbers and unknown names.</summary>
-/// <typeparam name="TEnum">The enum type; its members carry a member name attribute.</typeparam>
-public sealed class StrictEnumConverter<TEnum> : JsonStringEnumConverter<TEnum>
+/// <summary>Reads and writes an enum as exactly the name its <see cref="JsonStringEnumMemberNameAttribute"/> gives.</summary>
+/// <typeparam name="TEnum">The enum type; every member carries a member name attribute.</typeparam>
+public sealed class StrictEnumConverter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] TEnum>
+    : JsonConverter<TEnum>
     where TEnum : struct, Enum
 {
-    /// <summary>Creates the converter with integer values switched off.</summary>
+    private readonly Dictionary<string, TEnum> _byName = new(StringComparer.Ordinal);
+
+    private readonly Dictionary<TEnum, string> _byValue = [];
+
+    /// <summary>Reads the member names of <typeparamref name="TEnum"/> once.</summary>
     public StrictEnumConverter()
-        : base(namingPolicy: null, allowIntegerValues: false)
     {
+        foreach (FieldInfo field in typeof(TEnum).GetFields(BindingFlags.Public | BindingFlags.Static))
+        {
+            string name = field.GetCustomAttribute<JsonStringEnumMemberNameAttribute>()?.Name ?? field.Name;
+            TEnum value = (TEnum)field.GetValue(null)!;
+            _byName[name] = value;
+            _byValue[value] = name;
+        }
+    }
+
+    /// <inheritdoc />
+    public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? text = reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+        if (text is not null && _byName.TryGetValue(text, out TEnum value))
+        {
+            return value;
+        }
+        throw new JsonException($"A {typeof(TEnum).Name} is one of: {string.Join(", ", _byName.Keys)}.");
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
+    {
+        if (!_byValue.TryGetValue(value, out string? name))
+        {
+            throw new JsonException($"{value} is not a member of {typeof(TEnum).Name}.");
+        }
+        writer.WriteStringValue(name);
     }
 }

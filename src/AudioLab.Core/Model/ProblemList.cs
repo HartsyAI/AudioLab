@@ -9,21 +9,21 @@ internal sealed class ProblemList
 
     private int _more;
 
+    /// <summary>Records a problem, cut to a readable length; past the cap it is only counted.</summary>
     public void Add(string message)
     {
-        if (_items.Count < ProjectLimits.MaxProblems)
-        {
-            _items.Add(message);
-        }
-        else
+        if (_items.Count >= ProjectLimits.MaxProblems)
         {
             _more++;
+            return;
         }
+        _items.Add(ProjectLimits.Shorten(message));
     }
 
+    /// <summary>A copy of the problems, with a last line saying how many more there were.</summary>
     public IReadOnlyList<string> ToList()
     {
-        return _more == 0 ? _items : [.. _items, $"and {_more} more."];
+        return _more == 0 ? [.. _items] : [.. _items, $"and {_more} more."];
     }
 
     /// <summary>A number from <paramref name="min"/> to <paramref name="max"/>; NaN and infinity never pass.</summary>
@@ -31,8 +31,7 @@ internal sealed class ProblemList
     {
         if (!(value >= min && value <= max))
         {
-            string shown = double.IsFinite(value) ? value.ToString(CultureInfo.InvariantCulture) : "a non-finite number";
-            Add($"{path}: {shown} must be from {Format(min)} to {Format(max)}.");
+            Add($"{path}: {Shown(value)} must be from {Format(min)} to {Format(max)}.");
         }
     }
 
@@ -41,17 +40,29 @@ internal sealed class ProblemList
     {
         if (!(value > 0 && value <= max))
         {
-            string shown = double.IsFinite(value) ? value.ToString(CultureInfo.InvariantCulture) : "a non-finite number";
-            Add($"{path}: {shown} must be above 0 and at most {Format(max)}.");
+            Add($"{path}: {Shown(value)} must be above 0 and at most {Format(max)}.");
         }
     }
 
-    /// <summary>Text of 1 to <paramref name="max"/> characters; empty is fine when not <paramref name="required"/>.</summary>
-    public void Text(string? value, int max, string path, bool required = true)
+    /// <summary>A count of at most <paramref name="max"/> items.</summary>
+    public void Count(int count, int max, string path)
+    {
+        if (count > max)
+        {
+            Add($"{path}: {count} items is more than the {max} a project keeps.");
+        }
+    }
+
+    /// <summary>Text of 1 to <paramref name="max"/> characters (0 if not required), without control or direction marks.</summary>
+    public void Text(string? value, int max, string path, bool required = true, bool allowLineBreaks = false)
     {
         if (value is null || value.Length > max || (required && string.IsNullOrWhiteSpace(value)))
         {
             Add($"{path}: must be {(required ? "1" : "0")} to {max} characters.");
+        }
+        else if (!TextRules.IsClean(value, allowLineBreaks))
+        {
+            Add($"{path}: must not hold control or text-direction characters.");
         }
     }
 
@@ -64,11 +75,12 @@ internal sealed class ProblemList
         }
     }
 
+    /// <summary>A well-formed id.</summary>
     public void Id(string? id, string path)
     {
         if (!IdRules.IsValid(id))
         {
-            Add($"{path}: an id is 1 to {IdRules.MaxLength} letters, digits, underscores or hyphens.");
+            Add($"{path}: {IdRules.Description}");
         }
     }
 
@@ -88,6 +100,7 @@ internal sealed class ProblemList
         return true;
     }
 
+    /// <summary>An enum value that is one of its named members.</summary>
     public void Defined<TEnum>(TEnum value, string path)
         where TEnum : struct, Enum
     {
@@ -95,6 +108,11 @@ internal sealed class ProblemList
         {
             Add($"{path}: {value} is not a known {typeof(TEnum).Name}.");
         }
+    }
+
+    private static string Shown(double value)
+    {
+        return double.IsFinite(value) ? value.ToString(CultureInfo.InvariantCulture) : "a non-finite number";
     }
 
     private static string Format(double value)

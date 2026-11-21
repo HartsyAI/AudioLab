@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace AudioLab.Core.Model;
 
-/// <summary>The lyrics a clip carries and how they were timed; unknown fields are kept in <see cref="Extra"/>.</summary>
+/// <summary>The lyrics a clip carries and how they were timed; unknown fields go in <see cref="Extra"/>.</summary>
 public sealed record ClipLyrics : IJsonOnDeserialized
 {
     private ExtraFields _extra = ExtraFields.Empty;
@@ -42,6 +42,10 @@ public sealed record ClipLyrics : IJsonOnDeserialized
 
     void IJsonOnDeserialized.OnDeserialized()
     {
+        if (_incoming is null)
+        {
+            return;
+        }
         _extra = ExtraFields.From(_incoming);
         _incoming = null;
     }

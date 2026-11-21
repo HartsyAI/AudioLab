@@ -38,4 +38,35 @@ public static class ProjectLimits
 
     /// <summary>The most problems an error lists before it says how many more there were.</summary>
     public const int MaxProblems = 100;
+
+    /// <summary>The most items in one list of notes, controller events, words or automation points.</summary>
+    public const int MaxListItems = 1_000_000;
+
+    /// <summary>The most audio or MIDI clips on one track.</summary>
+    public const int MaxClips = 100_000;
+
+    /// <summary>The most effects on one track.</summary>
+    public const int MaxEffects = 64;
+
+    /// <summary>The most sends on one track, and groups in a project.</summary>
+    public const int MaxSends = 1024;
+
+    /// <summary>The most markers, sections or tempo changes in a project.</summary>
+    public const int MaxMarks = 100_000;
+
+    /// <summary>The most unknown fields one holder keeps.</summary>
+    public const int MaxExtraFields = 256;
+
+    /// <summary>The most characters of JSON text all unknown fields of one holder may total.</summary>
+    public const int MaxExtraLength = 65_536;
+
+    /// <summary>The most characters one listed problem keeps.</summary>
+    public const int MaxProblemLength = 300;
+
+    /// <summary>Cuts text to <see cref="MaxProblemLength"/> characters, so an error never echoes an attack.</summary>
+    public static string Shorten(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.Length > MaxProblemLength ? text[..MaxProblemLength] + "..." : text;
+    }
 }

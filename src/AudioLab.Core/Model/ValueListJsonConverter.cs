@@ -19,9 +19,7 @@ public sealed class ValueListJsonConverter<T> : JsonConverter<ValueList<T>>
         List<T> items = [];
         while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
         {
-            T item = JsonSerializer.Deserialize(ref reader, info)
-                ?? throw new JsonException($"A list of {typeof(T).Name} cannot hold null.");
-            items.Add(item);
+            items.Add(ReadItem(ref reader, info, items.Count));
         }
         return new ValueList<T>(items);
     }
@@ -36,5 +34,21 @@ public sealed class ValueListJsonConverter<T> : JsonConverter<ValueList<T>>
             JsonSerializer.Serialize(writer, item, info);
         }
         writer.WriteEndArray();
+    }
+
+    // The item is read by a new serializer call, which starts its path at the item; the index is put back in front.
+    private static T ReadItem(ref Utf8JsonReader reader, JsonTypeInfo<T> info, int index)
+    {
+        T? item;
+        try
+        {
+            item = JsonSerializer.Deserialize(ref reader, info);
+        }
+        catch (JsonException exception)
+        {
+            throw JsonErrors.InItem(exception, index);
+        }
+        JsonException none = new($"A list of {typeof(T).Name} cannot hold null.");
+        return item ?? throw JsonErrors.InItem(none, index);
     }
 }

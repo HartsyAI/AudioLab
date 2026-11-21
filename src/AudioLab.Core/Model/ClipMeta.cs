@@ -38,6 +38,10 @@ public sealed record ClipMeta : IJsonOnDeserialized
 
     void IJsonOnDeserialized.OnDeserialized()
     {
+        if (_incoming is null)
+        {
+            return;
+        }
         _extra = ExtraFields.From(_incoming);
         _incoming = null;
     }

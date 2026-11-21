@@ -3,6 +3,7 @@ namespace AudioLab.Core.Model;
 /// <summary>The instrument and effect rules. The ranges are the ranges of the knobs that edit them.</summary>
 internal static class SoundValidator
 {
+    /// <summary>Checks a synth or sampler against the ranges of the knobs that edit it.</summary>
     public static void CheckInstrument(Instrument instrument, string path, ProblemList problems)
     {
         switch (instrument)
@@ -13,9 +14,13 @@ internal static class SoundValidator
             case SamplerInstrument sampler:
                 CheckSampler(sampler, path, problems);
                 break;
+            default:
+                problems.Add($"{path}: {instrument.GetType().Name} is not an instrument version 4 knows.");
+                break;
         }
     }
 
+    /// <summary>Checks a track's insert chain: unique ids and every parameter inside its knob range.</summary>
     public static void CheckEffects(
         ValueList<Effect> effects,
         string trackPath,
@@ -42,6 +47,9 @@ internal static class SoundValidator
                     break;
                 case SaturationEffect saturation:
                     CheckSaturation(saturation, path, problems);
+                    break;
+                default:
+                    problems.Add($"{path}: {effect.GetType().Name} is not an effect version 4 knows.");
                     break;
             }
         }

@@ -13,6 +13,9 @@ public readonly record struct NoteId(int Value)
     /// <summary>The id after this one.</summary>
     public NoteId Next() => new(checked(Value + 1));
 
+    /// <summary>The highest value an id may have, so <see cref="Next"/> can always follow it.</summary>
+    public const int Max = int.MaxValue - 1;
+
     /// <summary>The identifier text.</summary>
     public override string ToString() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }

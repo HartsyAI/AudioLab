@@ -8,4 +8,9 @@ namespace AudioLab.Core.Model;
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
 [JsonDerivedType(typeof(SynthInstrument), "synth")]
 [JsonDerivedType(typeof(SamplerInstrument), "sampler")]
-public abstract record Instrument;
+public abstract record Instrument
+{
+    private protected Instrument()
+    {
+    }
+}
