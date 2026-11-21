@@ -161,6 +161,10 @@ public static class ProjectValidator
     {
         Range(track.Volume, 0, double.MaxValue, $"{path}.volume", problems);
         Range(track.Pan, -1, 1, $"{path}.pan", problems);
+        if (track.Icon is { } icon && !TrackIcon.IsValid(icon))
+        {
+            problems.Add($"{path}.icon: an icon is short text or a small png, jpeg or webp image.");
+        }
         bool single = track.Input.Channels == InputChannelMode.Single;
         if (single != track.Input.Channel.HasValue || track.Input.Channel < 1)
         {

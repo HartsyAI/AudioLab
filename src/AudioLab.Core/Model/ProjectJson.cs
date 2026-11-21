@@ -23,7 +23,7 @@ public static class ProjectJson
         }
         catch (JsonException exception)
         {
-            throw new ProjectFormatException("The project is not a valid version 4 document.", [Describe(exception)], exception);
+            throw new ProjectFormatException("The project is not a valid version 4 document.", [JsonErrors.Describe(exception)], exception);
         }
         if (document is null)
         {
@@ -40,12 +40,6 @@ public static class ProjectJson
         ArgumentNullException.ThrowIfNull(document);
         Check(document);
         return JsonSerializer.Serialize(document, ProjectJsonContext.Default.ProjectDocument);
-    }
-
-    private static string Describe(JsonException exception)
-    {
-        bool hasPath = exception.Message.Contains("Path:", StringComparison.Ordinal);
-        return exception.Path is { } path && !hasPath ? $"{path}: {exception.Message}" : exception.Message;
     }
 
     private static void Check(ProjectDocument document)

@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using AudioLab.Core.Model;
+using static AudioLab.Core.Tests.TestJson;
 
 namespace AudioLab.Core.Tests;
 
@@ -127,10 +128,4 @@ public sealed class ProjectJsonRejectionTests
         Assert.Contains(error.Problems, problem => problem.StartsWith("tracks[0].pan", StringComparison.Ordinal));
         Assert.Contains(error.Problems, problem => problem.StartsWith("tracks[0].volume", StringComparison.Ordinal));
     }
-
-    private static JsonObject Parse(string json) => JsonNode.Parse(json)!.AsObject();
-
-    private static JsonNode Track(JsonObject root, int index) => root["tracks"]![index]!;
-
-    private static JsonNode Clip(JsonObject root) => Track(root, 0)["clips"]![0]!;
 }
