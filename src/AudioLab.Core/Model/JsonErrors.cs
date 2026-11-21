@@ -19,7 +19,7 @@ internal static class JsonErrors
     /// <summary>A message without the .NET type names the serializer puts in it, cut to a readable length.</summary>
     public static string Clean(string message)
     {
-        string plain = Regex.Replace(message, @"\bAudioLab\.Core\.(?:Model|Migration)\.(?:V3)?", string.Empty);
+        string plain = Regex.Replace(message, @"\bAudioLab\.Core\.Model\.", string.Empty);
         return ProjectLimits.Shorten(plain);
     }
 

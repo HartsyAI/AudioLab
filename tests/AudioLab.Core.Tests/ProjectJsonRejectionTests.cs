@@ -9,9 +9,9 @@ public sealed class ProjectJsonRejectionTests
     /// <summary>Each row breaks the sample project one way and names what the error must say.</summary>
     public static TheoryData<string, string, Action<JsonObject>> BrokenFiles => new()
     {
-        { "version 3", "version 3", root => root["version"] = 3 },
-        { "version 5", "version 5", root => root["version"] = 5 },
-        { "no version", "no version", root => root.Remove("version") },
+        { "version 3", "version: expected 4, found 3", root => root["version"] = 3 },
+        { "version 5", "version: expected 4, found 5", root => root["version"] = 5 },
+        { "no version", "'version'", root => root.Remove("version") },
         { "version as text", "$.version", root => root["version"] = "4" },
         { "unknown project field", "$.surprise", root => root["surprise"] = 1 },
         { "unknown track field", "$.tracks[0].surprise", root => Track(root, 0)["surprise"] = 1 },
@@ -346,10 +346,10 @@ public sealed class ProjectJsonRejectionTests
     }
 
     [Fact]
-    public void ALeadingByteOrderMarkIsIgnored()
+    public void ALeadingByteOrderMarkIsRefused()
     {
         string json = ProjectJson.Write(SampleProject.Create(UserId.Local));
-        Assert.Equal(json, ProjectJson.Write(ProjectJson.Read("﻿" + json)));
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read("﻿" + json));
     }
 
     [Fact]

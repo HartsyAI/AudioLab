@@ -29,17 +29,16 @@ public sealed class ConverterTests
     [InlineData("true")]
     [InlineData("\"../evil\"")]
     [InlineData("\"a b\"")]
+    [InlineData("\"\"")]
     public void AnOptionalIdThatIsNotAnIdOrNoneIsRefused(string json)
     {
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<OptionalIdHolder>("{\"Link\":" + json + "}"));
     }
 
-    [Theory]
-    [InlineData("null")]
-    [InlineData("\"\"")]
-    public void AnOptionalIdWrittenAsNullOrEmptyReadsAsNone(string json)
+    [Fact]
+    public void AnOptionalIdWrittenAsNullReadsAsNone()
     {
-        Assert.Null(JsonSerializer.Deserialize<OptionalIdHolder>("{\"Link\":" + json + "}")!.Link);
+        Assert.Null(JsonSerializer.Deserialize<OptionalIdHolder>("{\"Link\":null}")!.Link);
     }
 
     [Fact]

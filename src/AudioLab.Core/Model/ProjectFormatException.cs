@@ -1,6 +1,6 @@
 namespace AudioLab.Core.Model;
 
-/// <summary>A project file or document that cannot be read, written or migrated, with every problem found.</summary>
+/// <summary>A project file or document that cannot be read or written, with every problem found.</summary>
 public sealed class ProjectFormatException : Exception
 {
     /// <summary>Creates the exception with a message and the individual problems, which it copies.</summary>

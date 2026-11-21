@@ -1,6 +1,6 @@
 namespace AudioLab.Core.Model;
 
-/// <summary>How the arrangement opens; the extension kept this with the project.</summary>
+/// <summary>How the arrangement opens, kept with the project.</summary>
 public sealed record ProjectView
 {
     /// <summary>Which ruler shows first.</summary>

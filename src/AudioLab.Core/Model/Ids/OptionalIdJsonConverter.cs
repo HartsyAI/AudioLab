@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace AudioLab.Core.Model;
 
-/// <summary>Reads an optional id where the extension wrote null or an empty string for "none".</summary>
+/// <summary>Reads an optional id: null means none, and an empty string is not an id.</summary>
 /// <typeparam name="TId">The identifier type.</typeparam>
 public sealed class OptionalIdJsonConverter<TId> : JsonConverter<TId?>
     where TId : struct, IId<TId>
@@ -23,11 +23,7 @@ public sealed class OptionalIdJsonConverter<TId> : JsonConverter<TId?>
             throw new JsonException($"An id of type {typeof(TId).Name} must be a string or null.");
         }
         string? value = reader.GetString();
-        if (string.IsNullOrEmpty(value))
-        {
-            return null;
-        }
-        return IdRules.IsValid(value)
+        return value is not null && IdRules.IsValid(value)
             ? TId.From(value)
             : throw new JsonException($"An id of type {typeof(TId).Name}: {IdRules.Description}");
     }

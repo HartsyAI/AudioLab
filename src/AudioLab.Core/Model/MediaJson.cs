@@ -13,8 +13,7 @@ public static class MediaJson
         MediaRecord media;
         try
         {
-            string text = ProjectVersion.WithoutByteOrderMark(json);
-            media = JsonSerializer.Deserialize(text, ProjectJsonContext.Default.MediaRecord)
+            media = JsonSerializer.Deserialize(json, ProjectJsonContext.Default.MediaRecord)
                 ?? throw new ProjectFormatException("The media record is empty.");
         }
         catch (JsonException exception)

@@ -52,15 +52,17 @@ public sealed class ProjectJsonTests
     }
 
     [Fact]
-    public void AnEmptyOrNullClipLinkInMetaReadsAsNone()
+    public void ANullClipLinkInMetaReadsAsNoneAndAnEmptyOneIsRefused()
     {
         JsonObject root = TestJson.Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
         JsonNode meta = TestJson.Clip(root)["meta"]!;
-        meta["score"]!["parent"] = string.Empty;
+        meta["score"]!["parent"] = null;
         TestJson.Clip(root, 0, 1)["meta"]!["stemOf"]!["clipId"] = null;
         ProjectDocument reloaded = ProjectJson.Read(root.ToJsonString());
         Assert.Null(reloaded.Tracks[0].Clips[0].Meta!.Score!.Parent);
         Assert.Null(reloaded.Tracks[0].Clips[1].Meta!.StemOf!.Value.ClipId);
+        meta["score"]!["parent"] = string.Empty;
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(root.ToJsonString()));
     }
 
     [Fact]

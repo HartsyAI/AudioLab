@@ -5,23 +5,16 @@ namespace AudioLab.Core.Model;
 /// <summary>Reads and writes version 4 project documents. Neither direction accepts an invalid document.</summary>
 public static class ProjectJson
 {
-    /// <summary>Reads a version 4 document and checks it.</summary>
+    /// <summary>Reads a version 4 document and checks it; the validator refuses any other version.</summary>
     /// <exception cref="ProjectFormatException">The text is not a valid version 4 project.</exception>
     public static ProjectDocument Read(string json)
     {
-        string text = ProjectVersion.WithoutByteOrderMark(json);
-        int? version = ProjectVersion.Peek(text);
-        if (version != ProjectDocument.CurrentVersion)
-        {
-            string found = version is { } number ? $"version {number}" : "no version";
-            string expected = $"Expected a version {ProjectDocument.CurrentVersion} project";
-            throw new ProjectFormatException($"{expected}, found {found}.");
-        }
+        ArgumentNullException.ThrowIfNull(json);
         ProjectDocument document;
         try
         {
-            // The version check proved the text is a JSON object, so this is never the literal null.
-            document = JsonSerializer.Deserialize(text, ProjectJsonContext.Default.ProjectDocument)!;
+            document = JsonSerializer.Deserialize(json, ProjectJsonContext.Default.ProjectDocument)
+                ?? throw new ProjectFormatException("The project is empty.");
         }
         catch (JsonException exception)
         {

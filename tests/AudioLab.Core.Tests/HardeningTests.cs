@@ -147,36 +147,6 @@ public sealed class HardeningTests
         Assert.Equal(valid, IdRules.IsValid(id));
     }
 
-    [Theory]
-    [InlineData("{\"version\":4}", 4)]
-    [InlineData("{\"version\":null,\"x\":1}", null)]
-    [InlineData("{\"other\":{\"version\":9},\"version\":3}", 3)]
-    [InlineData("{}", null)]
-    public void ThePeekedVersionIsTheTopLevelOne(string json, int? expected)
-    {
-        Assert.Equal(expected, ProjectVersion.Peek(json));
-    }
-
-    [Fact]
-    public void ThePeekFindsAVersionThatComesAfterALongMember()
-    {
-        string json = "{\"padding\":\"" + new string('x', 100_000) + "\",\"version\":3}";
-        Assert.Equal(3, ProjectVersion.Peek(json));
-        Assert.Null(ProjectVersion.Peek("{\"padding\":\"" + new string('x', 100_000) + "\"}"));
-    }
-
-    [Theory]
-    [InlineData("{\"version\":", "not valid JSON")]
-    [InlineData("not json", "not valid JSON")]
-    [InlineData("[1]", "not a JSON object")]
-    [InlineData("{\"version\":\"4\"}", "whole number")]
-    [InlineData("{\"version\":4.5}", "whole number")]
-    public void ThePeekSaysWhatIsWrongWithTheFile(string json, string expected)
-    {
-        ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectVersion.Peek(json));
-        Assert.Contains(expected, error.Message);
-    }
-
     private static ProjectDocument WithMeta(ClipMeta meta)
     {
         ProjectDocument project = SampleProject.Create(UserId.Local);
