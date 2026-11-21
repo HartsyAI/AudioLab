@@ -43,6 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
+| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it covers every behaviour, ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5. |
 
 ## 3. Architecture
 
@@ -355,7 +356,8 @@ change to this table.
 
 No styled component library sets the look. Everything on the session screen is ours, because no library has it.
 Where a library helps is behaviour that is hard to get right (focus trapping, menus, popover positioning, combo
-boxes, tables); the catalogue component wraps it, so the look and the API stay ours: see [O10](#11-open-questions).
+boxes, tables); the catalogue component wraps it, so the look and the API stay ours: see [D14](#2-decisions) and
+[the behaviour library](#behaviour-library).
 
 | Component | Variants | Rules |
 |-----------|----------|-------|
@@ -364,6 +366,8 @@ boxes, tables); the catalogue component wraps it, so the look and the API stay o
 | Segmented control | transport, tool, mode | A `--surface-well` group with `--shadow-well` and `--radius-lg`; items are `--radius-md`. The chosen item is `--surface-raised-active`; the rest are bare glyphs or labels. The transport uses raised items, and play fills with `--go` while playing. |
 | Counter | | One well, cells split by a `--surface-panel` line. Each cell is a micro caption in `--text-faint` over its value. Time and bars are readout size; tempo, meter and key are body size in `--text-soft`. Click swaps or edits a cell. |
 | Select and menu | dropdown, context | The closed select is a default button with its value and a chevron. A menu is `--surface-raised` with `--shadow-overlay`; every command shows its shortcut; destructive items sit last, in `--record`. |
+| Popover | | `--surface-raised`, `--shadow-overlay`, `--radius-md`, `--space-12` padding. Opens from a default button, closes on Escape and on a click outside, and returns focus to the button. |
+| Combo box | | A field whose list is a menu. Filters as you type, announces the result count, Enter picks, Escape closes. An empty result says "No matches". |
 | Field | text, number, multi-line | `--surface-well`, `--shadow-well`, `--radius-md`, body size. A number field scrubs by vertical drag, steps with the arrow keys and the wheel, and resets on double-click. |
 | Checkbox | | A `--radius-sm` box: `--surface-well` when off, `--accent` with an `--ink` tick when on. Its label is the click target too. |
 | Slider | track volume | A `--surface-well` slot with `--control-fill` up to the value and a `--control-cap` handle. Its value sits beside it, label size. Same gestures as a number field. |
@@ -386,6 +390,86 @@ boxes, tables); the catalogue component wraps it, so the look and the API stay o
 | Effect slot | filled, empty | A `--surface-lane` slot with `--shadow-well`, label size. Empty reads "Add effect" in `--text-faint`. |
 | Piano keys and grid | | Keys at the left of the piano roll; notes in the track colour, velocity as brightness. |
 | Status item | state, presence, job, metric | Label size in `--text-faint`, with a six-pixel dot for state. A job shows its name, a bar and a percentage. |
+
+#### Behaviour library
+
+Evidence for [D14](#2-decisions), measured on OFFICE-DESKTOP (Windows 11, .NET SDK 10.0.403); figures that change over time
+are as of 2026-11-21. Sizes are a trimmed `dotnet publish -c Release` of a page that uses each library's own dialog,
+menu, popover, tooltip and select or combo box (and a toast where it has one), against an empty app made from
+`dotnet new blazorwasm --empty -f net10.0` (9.09 MB, 2.70 MB brotli). The proof pages, which render each control from
+`tokens.css` and pass the conventions tests, are the branch
+[spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives).
+
+| Library | Licence | Script it ships | Covers | Cost, and verdict |
+|---------|---------|-----------------|--------|-------------------|
+| Bit.Bheadless 11.0.0-pre-23 | MIT | 3 files (93,794 bytes), loaded by Blazor with no script tag | Dialog, alert dialog, menu, context menu, popover, tooltip, listbox, combo box, toasts, tabs, grid, tree, number field. No CSS. Sets no stacking value on the parts D14 uses; its dialog, alert dialog and drawer write an inline `z-index` of 50 or 51 unless given a class. | +0.85 MB, +0.27 MB brotli. Preferred (Proposed). |
+| BlazorBlueprint.Primitives 4.2.0 | Apache-2.0 | 32 files, 293 KB | Everything but combo box and toast. Stacking is an integer (a `ZIndex` parameter, default 9999 on the popover; inline values of 40, 50 and 9999 and a computed one seen), not a CSS variable, so tokens cannot drive it. | +1.59 MB, +0.44 MB brotli. Second. |
+| MudBlazor 9.14.0 | MIT | 1 file, 75 KB, and a 638 KB stylesheet that sets the look | Dialog, menu, popover, select, autocomplete, snackbar, table. | +2.45 MB, +0.55 MB brotli. Candidate fallback, see below. |
+
+| Library | Accessibility evidence | Upkeep |
+|---------|------------------------|--------|
+| Bit.Bheadless | Its own tests (read, not run): 629 unit tests, 46 of them for its own audit helpers rather than the controls, and 75 Playwright tests in Chromium-based browsers only, including an axe-core audit (WCAG 2.2 A and AA) of every demo page. Here: driven by hand in Chromium 156 only. Not run in Firefox or Safari, no axe-core here, no screen reader. | The code entered the bitplatform monorepo on 2026-10-28 (the 1,381 stars belong to the monorepo) and the package was first published on 2026-10-30: 584 downloads, against 204,652 for BlazorBlueprint.Primitives and 43.2 million for MudBlazor. 19 commits since: 7 features and fixes by one person, 12 by a second committer, mostly dependency bumps and pipelines. Versions follow the monorepo's pre-release train; no stable version. The API moved inside the pinned window (namespaces simplified on 2026-11-18). |
+| BlazorBlueprint.Primitives | Interaction tests in Chromium and WebKit; an axe-core run (WCAG 2.0 to 2.2 A and AA) over every demo in Chromium only; it says it is not a screen-reader certification (read, not run). | 54 versions since 2026-02, stable 4.2.0 on 2026-11-07, 700 stars, 7 open issues and 3 pull requests, one author with 883 commits (the next has 17). |
+| MudBlazor | Not examined beyond a count: 33 open issues labelled accessibility, and no keyboard or axe suite found. | 225 versions, a release every one to three weeks (9.14.0 on 2026-11-16), 10.7k stars, 537 open issues and 91 open pull requests. |
+
+Publishing the Bit.Bheadless page with trim warnings on gives eight distinct warnings, none in the library (all are in
+the Blazor framework and the template). With `RunAOTCompilation` the same pages publish with no warnings: 4.59 MB
+brotli for the empty app, +0.81 MB with Bit.Bheadless, +1.08 MB with BlazorBlueprint.Primitives. AOT output was built,
+not opened in a browser.
+
+**Why not native elements and C# alone (D4).** A dialog needs no script. The proof page has one on the native `<dialog>`
+element, opened through `[JSImport]` calls to browser built-ins and a `close` listener added the same way (Blazor's own
+handlers never see `close`, because it does not bubble): it opens modal, moves focus in, keeps Tab inside, closes on
+Escape, returns focus and reopens, with no script file. That needs `AllowUnsafeBlocks` in the project and the interop in
+`src/AudioLab.Web/Interop/`. So D14 does not use the library for dialogs. Popover has the same route in principle: the
+Popover API is Baseline since January 2025 (Chrome 114, Firefox 125, Safari 17) and gives light dismiss, but the
+placement a popover needs next to its button is CSS anchor positioning. MDN lists `position-area` as Baseline 2026, newly
+available since January 2026, while caniuse still marks Chrome 125, Firefox 147 and Safari 26 as partial and full only
+from Safari 27 (both pages read on 2026-11-21). It is present in the Chromium 156 used here and unproven elsewhere.
+Menus, select and combo box are the other part: the browser supplies no roving focus, typeahead, active-descendant
+handling, filtering or result announcements for them, so native elements would mean writing and testing that logic
+ourselves; Bit.Bheadless supplies it. That is the whole case for the library, and it narrows D14 to those controls.
+
+**A native modal and the library's overlays.** A modal `<dialog>` makes everything outside it inert and paints above any
+`z-index`, so the library's overlays must live inside it. Proven on the proof page, with real key presses in Chromium
+156: a select, a combo box and a popover opened from a native form dialog render inside the dialog (the library's
+default; the portal option is off) and answer pointer hits. Escape with one of those lists open closes the list and the
+dialog together unless the dialog's `cancel` event is stopped; the proof stops it when a list was expanded at the key
+press, and then the first Escape closes the list and the second the dialog. A toast raised while a modal is open is
+different: its host is a manual popover, lifted into the top layer again whenever a modal opens, so it is painted above
+the dialog, but it is inert there, so its Undo and close buttons cannot be pressed until the dialog closes. A toast
+raised from inside a dialog therefore must not rely on Undo. The `--z-dialog` token is not used by native dialogs; it
+stays for the library's dialog and the fallback.
+
+**MudBlazor as the fallback is a candidate, not a proven one.** A dialog wrapper on it, on the proof branch, passes the
+conventions tests, but those do not read its stylesheet or a C# theme (the script gate does read the package, and
+MudBlazor is on the proof allowlist). Measured live, loading `MudBlazor.min.css` after `tokens.css` and `app.css` turned
+the page's background white and its text grey, switched the font to Roboto, removed link underlines and reset heading
+margins, because the stylesheet has global rules (`*`, `body`, `a`, headings); a theme provider adds its own variables.
+The `body` rule won only because of the load order; the dialog finding does not depend on it. Its dialog renders in a
+provider outside the wrapper, so the wrapper's scoped CSS did not reach it: it kept a white fill, a 4-pixel radius, its
+own shadow and stacking of 1400 to 1402 rather than the tokens. Its focus trap, Escape and focus return worked. I infer
+that using MudBlazor would mean shipping its global stylesheet or cherry-picking from it, overriding it with global CSS,
+and putting colours in a `MudTheme` in C#, which the tests do not scan; that conflicts with "Same in every door" unless
+shown otherwise.
+
+**To move D14 to Decided:** a stable Bit.Bheadless release, and the proof page run again on it in Chromium, Firefox and
+WebKit with axe-core on the menu, select, combo box, popover, tooltip and toast, and a screen-reader pass on the menu
+and combo box. **To leave it:** switch the wrappers to BlazorBlueprint.Primitives or MudBlazor if the package is
+unpublished or has no release for 90 days, or if two pre-releases in a row break a wrapper. The wrappers are the only
+code that names the library.
+
+- A wrapper has one root element of its own and styles the library's parts with `::deep` from it. The library's parts
+  do not take Blazor's scoped-CSS attribute, and a part that renders in a portal under `<body>` needs the root inside
+  its content.
+- A wrapper always passes a class to a part and never relies on the library's stacking: the `--z-*` tokens apply to the
+  wrapper's class.
+- A closed part carries the `hidden` attribute, and a wrapper's own `display` beats it, so a part that sets `display`
+  also gets a `[hidden] { display: none }` rule.
+- A library overlay opened from a dialog renders inside it, never in a portal. The toast host is a top-layer popover
+  that is shown again after a modal opens.
+- The package is listed by the rule of [section 8](#8-javascript-policy), by the pull request that first references it.
+- Not built: a table. Bit.Bheadless has a grid with cell navigation, but nothing in this catalogue is a table yet.
 
 ### 7.6 States, input and accessibility
 
@@ -418,14 +502,17 @@ boxes, tables); the catalogue component wraps it, so the look and the API stay o
 
 ## 8. JavaScript policy
 
-C# is the default for everything. JavaScript is allowed only where the browser offers no other way in, which today
-means the audio thread (an `AudioWorklet` processor) and browser APIs that have no .NET binding (microphone capture,
-Web MIDI). Before adding any script, check whether C# can do it, including through `[JSImport]` calls to browser
-built-ins that need no script file.
+C# is the default for everything. JavaScript is allowed only where the browser offers no other way in: the audio
+thread (an `AudioWorklet` processor), browser APIs that have no .NET binding (microphone capture, Web MIDI), and the
+keyboard, focus and positioning behaviour of menus, select, combo box, popover, tooltip and toasts that the UI library
+of [D14](#2-decisions) ships. Before adding any script, check whether C# can do it, including through `[JSImport]` calls to browser
+built-ins that need no script file: the native dialog of D14 is one.
 
 When a script is unavoidable:
 
 - It is as small as it can be: a shim that moves data across the boundary. Logic stays in C#.
+  The UI library of D14 is larger than that and carries logic (roving focus, typeahead, positioning, live regions). It is
+  an exception to this bullet that the owner approves with D14, and it is not approved until D14 is.
 - It is listed in [`ScriptAllowlist`](tests/AudioLab.Conventions.Tests/ScriptAllowlist.cs) with the reason C# could
   not do the job, and the owner approves that line in the pull request. That list is the full inventory.
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
@@ -475,7 +562,6 @@ server, as commands.
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
 | O9 | Whether the HartsyInference packages restore, pin to exact versions and run on net10, and what using `HartsyInference.Audio` (`Resampler`, `WavFile`, `Fft`) in WebAssembly would cost. Default stays that `AudioLab.Audio` references only Core (section 4). | A spike that restores and runs each API on the server and in a Blazor WebAssembly page, and lists package ids and exact versions. |
-| O10 | Where generic control behaviour comes from: dialogs with focus trapping, menus, popover positioning, combo boxes, toasts, tables. Preferred: a headless (unstyled) primitives library wrapped by the catalogue components in 7.5. Fallback: MudBlazor used only for those, behind the same wrappers. No library styles the session screen either way. | A short evaluation: licence, .NET 10 and WebAssembly support, the JavaScript it ships, accessibility, upkeep. Its pull request also teaches the script allowlist to list package scripts. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
 fixed before the spike runs. A spike that misses it reports the miss, the numbers and the fallback; it does not move
@@ -507,3 +593,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-20 | O10 closed: D14 proposes native dialogs and Bit.Bheadless for the rest, behind the 7.5 wrappers; Popover and Combo box rows added to 7.5. |
