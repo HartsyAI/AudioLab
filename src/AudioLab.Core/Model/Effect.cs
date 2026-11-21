@@ -13,6 +13,10 @@ namespace AudioLab.Core.Model;
 [JsonDerivedType(typeof(SaturationEffect), "saturation")]
 public abstract record Effect
 {
+    private protected Effect()
+    {
+    }
+
     /// <summary>The effect's id.</summary>
     public required EffectId Id { get; init; }
 

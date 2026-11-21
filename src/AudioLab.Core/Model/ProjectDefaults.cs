@@ -1,6 +1,6 @@
 namespace AudioLab.Core.Model;
 
-/// <summary>The starting values shared by whatever creates sections, groups and tracks: commands, the UI and the migration.</summary>
+/// <summary>The starting values shared by whatever creates sections, groups and tracks.</summary>
 public static class ProjectDefaults
 {
     /// <summary>The colour of a group that has none.</summary>
@@ -20,7 +20,7 @@ public static class ProjectDefaults
     /// <summary>The colour handed to the section at <paramref name="index"/>; the palette wraps.</summary>
     public static string SectionColor(int index) => _sectionColors[Wrap(index, _sectionColors.Length)];
 
-    /// <summary>The colour handed to the track at <paramref name="index"/>: the twelve track tokens of the design, in order.</summary>
+    /// <summary>The colour of the track at <paramref name="index"/>: the design's twelve track tokens, in order.</summary>
     public static string TrackColor(int index) => _trackColors[Wrap(index, _trackColors.Length)];
 
     private static int Wrap(int index, int length) => ((index % length) + length) % length;

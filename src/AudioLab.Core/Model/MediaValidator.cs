@@ -26,8 +26,11 @@ public static partial class MediaValidator
         return problems.ToList();
     }
 
-    /// <summary>Whether <paramref name="contentType"/> is a lower-case media type such as audio/wav, with no parameters.</summary>
-    public static bool IsContentType(string? contentType) => contentType is not null && ContentTypePattern().IsMatch(contentType);
+    /// <summary>Whether <paramref name="contentType"/> is a lower-case media type such as audio/wav, no parameters.</summary>
+    public static bool IsContentType(string? contentType)
+    {
+        return contentType is not null && ContentTypePattern().IsMatch(contentType);
+    }
 
     [GeneratedRegex(
         @"\A[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\z",

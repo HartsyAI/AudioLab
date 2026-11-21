@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace AudioLab.Core.Model;
 
-/// <summary>An immutable list equal to any other with the same items in order, so records holding one compare by value.</summary>
+/// <summary>An immutable list equal to any other with the same items in order, so records compare by value.</summary>
 /// <typeparam name="T">The item type.</typeparam>
 [CollectionBuilder(typeof(ValueList), nameof(ValueList.Create))]
 public sealed class ValueList<T> : IReadOnlyList<T>, IEquatable<ValueList<T>>
@@ -19,8 +19,13 @@ public sealed class ValueList<T> : IReadOnlyList<T>, IEquatable<ValueList<T>>
         _items = [.. items];
     }
 
+    private ValueList(T[] owned) => _items = owned;
+
     /// <summary>The list with no items.</summary>
     public static ValueList<T> Empty { get; } = new([]);
+
+    /// <summary>Wraps an array nobody else holds, without copying it.</summary>
+    internal static ValueList<T> Wrap(T[] owned) => new(owned);
 
     /// <inheritdoc />
     public int Count => _items.Length;

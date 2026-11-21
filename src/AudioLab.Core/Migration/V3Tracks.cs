@@ -211,6 +211,7 @@ internal static class V3Tracks
     {
         bool keepsId = !string.IsNullOrEmpty(raw.Id) && claimed.Add(raw.Id);
         ClipId id = keepsId ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
+        double playable = (raw.Duration ?? 0) - (raw.Offset ?? 0) - (raw.TrimEnd ?? 0);
         return new AudioClip
         {
             Id = id,
@@ -221,12 +222,23 @@ internal static class V3Tracks
             Offset = raw.Offset ?? 0,
             TrimEnd = raw.TrimEnd ?? 0,
             Gain = raw.Gain ?? 1,
-            FadeIn = raw.FadeIn ?? 0,
-            FadeOut = raw.FadeOut ?? 0,
+            FadeIn = FitFade(raw.FadeIn ?? 0, playable, $"{path}.fadeIn", context),
+            FadeOut = FitFade(raw.FadeOut ?? 0, playable, $"{path}.fadeOut", context),
             Muted = raw.Muted == true,
             Color = context.Color(raw.Color, null, $"{path}.color"),
             Meta = RemapMeta(raw.Meta, path, context),
         };
+    }
+
+    // The extension stores a fade as it was typed and clamps it only when it renders, so the stored one may be too long.
+    private static double FitFade(double fade, double playable, string path, V3Context context)
+    {
+        if (playable <= 0 || fade <= playable)
+        {
+            return fade;
+        }
+        context.Warn($"{path} was {V3Context.Num(fade)} seconds, longer than the {V3Context.Num(playable)} that play; it was shortened.");
+        return playable;
     }
 
     // A score's parent and a stem's source are clip ids, so they follow the clips to their new ids.

@@ -23,10 +23,13 @@ public static class ProjectJson
             // The version check proved the text is a JSON object, so this is never the literal null.
             document = JsonSerializer.Deserialize(text, ProjectJsonContext.Default.ProjectDocument)!;
         }
-        catch (Exception exception) when (exception is JsonException or NotSupportedException)
+        catch (JsonException exception)
         {
-            string problem = exception is JsonException jsonError ? JsonErrors.Describe(jsonError) : exception.Message;
-            throw new ProjectFormatException("The project is not a valid version 4 document.", [problem], exception);
+            throw Refused(JsonErrors.Describe(exception), exception);
+        }
+        catch (NotSupportedException exception)
+        {
+            throw Refused(ProjectLimits.Shorten(exception.Message), exception);
         }
         Check(document);
         return document;
@@ -39,6 +42,11 @@ public static class ProjectJson
         ArgumentNullException.ThrowIfNull(document);
         Check(document);
         return JsonSerializer.Serialize(document, ProjectJsonContext.Default.ProjectDocument);
+    }
+
+    private static ProjectFormatException Refused(string problem, Exception inner)
+    {
+        return new ProjectFormatException("The project is not a valid version 4 document.", [problem], inner);
     }
 
     private static void Check(ProjectDocument document)

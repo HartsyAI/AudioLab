@@ -3,6 +3,7 @@ namespace AudioLab.Core.Model;
 /// <summary>The track rules: what each kind holds, sends, groups, and the ids all clips and effects share.</summary>
 internal static class TrackValidator
 {
+    /// <summary>Checks every track and what hangs off it: ids, sends, groups, clips, effects, automation, score versions.</summary>
     public static void Check(ProjectDocument document, ProblemList problems)
     {
         problems.Range(document.Tracks.Count, 0, ProjectLimits.MaxTracks, "tracks");
@@ -25,6 +26,12 @@ internal static class TrackValidator
             Track track = document.Tracks[i];
             string path = $"tracks[{i}]";
             CheckTrack(track, path, problems);
+            problems.Count(track.Clips.Count, ProjectLimits.MaxClips, $"{path}.clips");
+            problems.Count(track.MidiClips.Count, ProjectLimits.MaxClips, $"{path}.midiClips");
+            problems.Count(track.Effects.Count, ProjectLimits.MaxEffects, $"{path}.effects");
+            problems.Count(track.Sends.Count, ProjectLimits.MaxSends, $"{path}.sends");
+            problems.Count(track.Automation.Volume.Count, ProjectLimits.MaxListItems, $"{path}.automation.volume");
+            problems.Count(track.Automation.Pan.Count, ProjectLimits.MaxListItems, $"{path}.automation.pan");
             if (track.Group is { } group && !groupIds.Contains(group.Value))
             {
                 problems.Add($"{path}.group: no group has the id {group.Value}.");

@@ -5,10 +5,30 @@ namespace AudioLab.Core.Model;
 /// <summary>Turns a JSON error into one line that says where it happened.</summary>
 internal static class JsonErrors
 {
-    /// <summary>The error message, led by the JSON path when the message does not already carry it.</summary>
+    /// <summary>Where inside a list the error happened; list converters add the index of the item they read.</summary>
+    public const string ItemKey = "AudioLab.ItemPath";
+
+    /// <summary>The path, a colon and the message, cut to a readable length.</summary>
     public static string Describe(JsonException exception)
     {
-        bool hasPath = exception.Message.Contains("Path:", StringComparison.Ordinal);
-        return exception.Path is { } path && !hasPath ? $"{path}: {exception.Message}" : exception.Message;
+        string path = (exception.Path ?? "$") + (exception.Data[ItemKey] as string);
+        return ProjectLimits.Shorten($"{path}: {BaseMessage(exception)}");
+    }
+
+    /// <summary>The exception for a list item, which carries the item's index in front of the path inside it.</summary>
+    public static JsonException InItem(JsonException exception, int index)
+    {
+        string inside = exception.Path is { Length: > 1 } path ? path[1..] : string.Empty;
+        string inner = inside + (exception.Data[ItemKey] as string);
+        JsonException wrapped = new(BaseMessage(exception), exception);
+        wrapped.Data[ItemKey] = $"[{index}]{inner}";
+        return wrapped;
+    }
+
+    // The serializer appends " Path: ... | LineNumber: ..." to a message; the path is shown separately.
+    private static string BaseMessage(JsonException exception)
+    {
+        int at = exception.Message.IndexOf(" Path: ", StringComparison.Ordinal);
+        return at < 0 ? exception.Message : exception.Message[..at];
     }
 }

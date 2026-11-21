@@ -145,8 +145,8 @@
           "offset": 0,
           "trimEnd": 0,
           "gain": 1,
-          "fadeIn": 0,
-          "fadeOut": 0,
+          "fadeIn": 7,
+          "fadeOut": 9,
           "muted": false,
           "color": null,
           "meta": { "score": { "parent": "clip-gone", "label": "Orphan" }, "stemOf": { "clipId": "clip-missing", "stem": "drums" } }

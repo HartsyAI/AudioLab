@@ -11,7 +11,7 @@ public static partial class TrackIcon
     /// <summary>The longest image icon, as a data URL, in characters.</summary>
     public const int MaxImageLength = 60000;
 
-    /// <summary>Whether <paramref name="icon"/> may be stored: short text, or a small png, jpeg or webp data URL.</summary>
+    /// <summary>Whether <paramref name="icon"/> may be stored: short clean text, or a small png, jpeg or webp image.</summary>
     public static bool IsValid(string icon)
     {
         ArgumentNullException.ThrowIfNull(icon);
@@ -19,7 +19,7 @@ public static partial class TrackIcon
         {
             return icon.Length <= MaxImageLength && ImagePattern().IsMatch(icon);
         }
-        return icon.Length > 0 && icon.Length <= MaxTextLength;
+        return icon.Length > 0 && icon.Length <= MaxTextLength && TextRules.IsClean(icon);
     }
 
     [GeneratedRegex(@"\Adata:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*\z", RegexOptions.CultureInvariant)]

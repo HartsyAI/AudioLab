@@ -162,6 +162,27 @@ public sealed class ProjectMigrationRobustnessTests
     }
 
     [Fact]
+    public void AStoredFadeLongerThanThePlayingPartIsShortenedAsTheExtensionDoesWhenItRenders()
+    {
+        MigrationResult result = Migrate(V3Fixtures.Read(V3Fixtures.Full));
+        AudioClip clip = result.Document.Tracks[0].Clips[2];
+        Assert.Equal((5.0, 5.0), (clip.FadeIn, clip.FadeOut));
+        Assert.Contains(result.Warnings, warning => warning.StartsWith("tracks[0].clips[2].fadeIn was 7 seconds", StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.StartsWith("tracks[0].clips[2].fadeOut was 9 seconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FadesThatFitAreKeptEvenWhenTogetherTheyAreLongerThanTheClip()
+    {
+        JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));
+        Clip(root, 0, 2)["fadeIn"] = 4;
+        Clip(root, 0, 2)["fadeOut"] = 4;
+        MigrationResult result = Migrate(root.ToJsonString());
+        Assert.Equal((4.0, 4.0), (result.Document.Tracks[0].Clips[2].FadeIn, result.Document.Tracks[0].Clips[2].FadeOut));
+        Assert.DoesNotContain(result.Warnings, warning => warning.Contains("fadeIn was"));
+    }
+
+    [Fact]
     public void AnEffectWithNoEnabledFlagIsOffBecauseTheExtensionCopiesTheFlagAsItIs()
     {
         JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));

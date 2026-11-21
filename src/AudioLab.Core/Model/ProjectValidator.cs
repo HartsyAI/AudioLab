@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace AudioLab.Core.Model;
 
-/// <summary>The rules a version 4 document keeps: unique ids, references that resolve, ranges, order, finite numbers.</summary>
+/// <summary>The rules a version 4 document keeps: unique ids, resolving references, ranges, order, finite numbers.</summary>
 public static class ProjectValidator
 {
     private static readonly int[] _denominators = [1, 2, 4, 8, 16, 32];
@@ -12,13 +12,21 @@ public static class ProjectValidator
     {
         ArgumentNullException.ThrowIfNull(document);
         ProblemList problems = new();
-        CheckHeader(document, problems);
-        CheckTempo(document, problems);
-        CheckMarkers(document, problems);
-        CheckSections(document, problems);
-        CheckGroups(document, problems);
-        CheckBeatPattern(document.BeatPattern, problems);
-        TrackValidator.Check(document, problems);
+        try
+        {
+            CheckHeader(document, problems);
+            CheckTempo(document, problems);
+            CheckMarkers(document, problems);
+            CheckSections(document, problems);
+            CheckGroups(document, problems);
+            CheckBeatPattern(document.BeatPattern, problems);
+            TrackValidator.Check(document, problems);
+        }
+        catch (NullReferenceException)
+        {
+            // A required member or list item that is null breaks the contract the compiler checks, so say so once.
+            problems.Add("A required member or list item is null; every member a document needs must be set.");
+        }
         return problems.ToList();
     }
 
@@ -44,6 +52,7 @@ public static class ProjectValidator
 
     private static void CheckTempo(ProjectDocument document, ProblemList problems)
     {
+        problems.Count(document.TempoMap.Count, ProjectLimits.MaxMarks, "tempoMap");
         problems.Range(document.Bpm, ProjectLimits.MinBpm, ProjectLimits.MaxBpm, "bpm");
         HashSet<string> ids = [];
         double previous = 0;
@@ -63,6 +72,7 @@ public static class ProjectValidator
 
     private static void CheckMarkers(ProjectDocument document, ProblemList problems)
     {
+        problems.Count(document.Markers.Count, ProjectLimits.MaxMarks, "markers");
         HashSet<string> ids = [];
         double previous = 0;
         for (int i = 0; i < document.Markers.Count; i++)
@@ -82,6 +92,7 @@ public static class ProjectValidator
 
     private static void CheckSections(ProjectDocument document, ProblemList problems)
     {
+        problems.Count(document.Sections.Count, ProjectLimits.MaxMarks, "sections");
         HashSet<string> ids = [];
         double end = 0;
         for (int i = 0; i < document.Sections.Count; i++)
@@ -99,7 +110,8 @@ public static class ProjectValidator
             }
             if (!(section.End - section.Start >= Section.MinLength - ProjectLimits.Tolerance))
             {
-                problems.Add($"{path}.end: a section must be at least {Section.MinLength.ToString(CultureInfo.InvariantCulture)} seconds long.");
+                string minimum = Section.MinLength.ToString(CultureInfo.InvariantCulture);
+                problems.Add($"{path}.end: a section must be at least {minimum} seconds long.");
             }
             end = double.IsFinite(section.End) ? section.End : end;
         }
@@ -107,6 +119,7 @@ public static class ProjectValidator
 
     private static void CheckGroups(ProjectDocument document, ProblemList problems)
     {
+        problems.Count(document.Groups.Count, ProjectLimits.MaxSends, "groups");
         HashSet<string> ids = [];
         for (int i = 0; i < document.Groups.Count; i++)
         {

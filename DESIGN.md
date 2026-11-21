@@ -43,6 +43,8 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
+| D14 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
+| D15 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
 
 ## 3. Architecture
 
@@ -99,13 +101,15 @@ Rules:
   Ids are typed (`TrackId`, `ClipId`, `MediaId`, ...) and minted only by `IIdService`; the project and every media
   record carry the owner `UserId` (D12). JSON goes only through `ProjectJsonContext`, which refuses unknown members.
   Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` until the UI maps them to the twelve track tokens.
-  - Ids are 1 to 64 of `A-Za-z0-9_-`, so an id cannot hold a path separator; a `UserId` is prefixed by its door
-    (`desktop-local`, `swarm-<hash>`), so one door cannot mint another's. A note id counts up inside its clip and
+  - Ids are 1 to 64 of `a-z0-9_-` and never a device name, so an id holds no separator and two ids never differ only
+    by case. A `UserId` is `<door>-<subject>` in lower-case letters and digits, so one door cannot mint another's. The
+    store maps an id to a name of its own and never puts a raw id in a path, and it takes the owner from the session
+    that made the request, never from the `owner` a file names. A note id counts up inside its clip and
     `MidiClip.NextNoteId` never goes back, so the id of a deleted note is not reused.
-  - Collections are immutable `ValueList<T>` and unknown fields are `ExtraFields`, so a document is equal to another
-    with the same content and nothing can change it after it is read. Enums are written by name and refuse numbers.
-  - A file with a member this version does not know is refused, so an older build cannot read a newer file; a format
-    change raises `version`. `ProjectLimits` bounds every number, and an error lists at most 100 problems.
+  - Immutability and equality are D15. Enums are written by exact name and refuse numbers and variants of a name.
+  - Compatibility is D14. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
+    text holds no control or text-direction characters, and an error lists at most 100 problems of at most 300
+    characters each.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -521,3 +525,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5). |
 | 2026-11-20 | Model hardened after review: immutable value-equal collections, id and colour rules, strict enums, ranges and size limits, per-clip note id counter (section 5). |
 | 2026-11-20 | `ProjectMigration` added: version 3 JSON to version 4 as a pure function, with the media references it needs the store to resolve (section 5). |
+| 2026-11-20 | Model hardened after a second review: extra-field and enum exactness, item paths in errors, list and text limits, id rules (lower case, no device names), D14 and D15 proposed (sections 2 and 5). |
