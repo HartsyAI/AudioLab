@@ -7,6 +7,8 @@ public sealed class LaneScene(SessionModel session, TimelineView view, DragContr
 {
     private const double WaveInset = 0;
 
+    private const double RegionMargin = 48;
+
     private readonly string?[] _titles = new string?[session.Clips.Count];
 
     private double _titleBarWidth;
@@ -34,25 +36,29 @@ public sealed class LaneScene(SessionModel session, TimelineView view, DragContr
     /// <summary>Clips painted by the last call.</summary>
     public int ClipsPainted { get; private set; }
 
-    /// <summary>Paints one frame.</summary>
-    public void Paint(IPaintBackend backend)
+    /// <summary>Paints one frame: the whole window, or with viewOnly just the view and a margin, which is all a drag changes.</summary>
+    public void Paint(IPaintBackend backend, PaintWindow window, bool viewOnly)
     {
         if (_titleBarWidth != view.BarWidth)
         {
             _titleBarWidth = view.BarWidth;
             Array.Clear(_titles);
         }
-        double width = view.ViewWidth;
-        double height = view.ViewHeight;
-        double left = view.ScrollLeft;
-        double top = view.ScrollTop;
+        double width = window.Width;
+        double height = window.Height;
+        double left = window.OriginX;
+        double top = window.OriginY;
         double bar = view.BarWidth;
         double laneHeight = view.LaneHeight;
         ClipsPainted = 0;
-        backend.Begin(width, height, _lane);
-        PaintGrid(backend, left, width, height, bar);
-        int last = view.LastTrack;
-        for (int t = view.FirstTrack; t <= last; t++)
+        double regionLeft = viewOnly ? Math.Max(0, view.ScrollLeft - left - RegionMargin) : 0;
+        double regionRight = viewOnly ? Math.Min(width, view.ScrollLeft - left + view.ViewWidth + RegionMargin) : width;
+        double regionTop = viewOnly ? Math.Max(0, view.ScrollTop - top - RegionMargin) : 0;
+        double regionBottom = viewOnly ? Math.Min(height, view.ScrollTop - top + view.ViewHeight + RegionMargin) : height;
+        backend.Begin(regionLeft, regionTop, regionRight - regionLeft, regionBottom - regionTop, _lane);
+        PaintGrid(backend, left + regionLeft, regionRight - regionLeft, left, regionTop, regionBottom - regionTop, bar);
+        int last = Math.Min(window.LastTrack(view), (int)((top + regionBottom) / laneHeight));
+        for (int t = Math.Max(window.FirstTrack(view), (int)((top + regionTop) / laneHeight)); t <= last; t++)
         {
             TrackModel track = session.Tracks[t];
             double y = (t * laneHeight) - top;
@@ -68,7 +74,7 @@ public sealed class LaneScene(SessionModel session, TimelineView view, DragContr
                 ClipModel clip = clips[i];
                 double x = view.ClipLeft(clip) - left;
                 double clipWidth = view.ClipWidth(clip);
-                if (x + clipWidth >= 0 && x <= width)
+                if (x + clipWidth >= regionLeft && x <= regionRight)
                 {
                     PaintClip(backend, clip, colour, x, y + view.ClipInset, clipWidth, track.Muted ? 0.4 : 1, clip.Selected);
                 }
@@ -79,17 +85,17 @@ public sealed class LaneScene(SessionModel session, TimelineView view, DragContr
         backend.End();
     }
 
-    private void PaintGrid(IPaintBackend backend, double left, double width, double height, double bar)
+    private void PaintGrid(IPaintBackend backend, double from, double span, double windowLeft, double y, double height, double bar)
     {
-        int first = (int)(left / bar);
-        int lastBar = (int)((left + width) / bar) + 1;
+        int first = (int)(from / bar);
+        int lastBar = (int)((from + span) / bar) + 1;
         for (int k = first; k <= lastBar; k++)
         {
-            double x = (k * bar) - left;
-            backend.FillRect(x, 0, 1, height, _grid);
+            double x = (k * bar) - windowLeft;
+            backend.FillRect(x, y, 1, height, _grid);
             if (k % 4 == 0)
             {
-                backend.FillRect(x, 0, 1, height, _gridStrong);
+                backend.FillRect(x, y, 1, height, _gridStrong);
             }
         }
     }

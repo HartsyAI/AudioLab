@@ -1,7 +1,7 @@
 @using SkiaSharp.Views.Blazor
 @inherits LaneSurfaceBase
 
-<div class="canvas" style="width: @(View.ViewWidth)px; height: @(View.ViewHeight)px">
+<div id="lane-skia" class="canvas" style="width: @(_window.Width)px; height: @(_window.Height)px">
     @if (_backend is not null)
     {
         @if (Gpu)

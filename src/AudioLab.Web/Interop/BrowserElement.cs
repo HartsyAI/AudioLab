@@ -45,6 +45,13 @@ public sealed class BrowserElement(JSObject handle) : IDisposable
     /// <summary>Calls back on every scroll of this element, straight from the browser's event.</summary>
     public void OnScroll(Action callback) => BrowserImports.AddEventListener(Handle, "scroll", callback);
 
+    /// <summary>Moves the element by a CSS transform, which the compositor scrolls along with the page.</summary>
+    public void SetTranslation(double x, double y)
+    {
+        using JSObject style = Handle.GetPropertyAsJSObject("style")!;
+        style.SetProperty("transform", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"translate({x}px, {y}px)"));
+    }
+
     /// <summary>Gives the element keyboard focus.</summary>
     public void Focus() => BrowserImports.Focus(Handle);
 

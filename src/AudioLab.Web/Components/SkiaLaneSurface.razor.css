@@ -1,5 +1,6 @@
 .canvas {
-    position: sticky;
-    top: calc(var(--ruler-row) * 2 + 1px);
-    left: var(--header-column);
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
 }

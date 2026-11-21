@@ -8,8 +8,8 @@ public interface IPaintBackend
     /// <summary>Drawing calls made across the interop boundary since the last <see cref="Begin"/>, where that is meaningful.</summary>
     public int CallCount { get; }
 
-    /// <summary>Starts a frame of the given size in CSS pixels and fills it with the background.</summary>
-    public void Begin(double width, double height, Rgba background);
+    /// <summary>Starts a frame that repaints only the given rectangle, in CSS pixels, filling it with the background; nothing outside it changes.</summary>
+    public void Begin(double x, double y, double width, double height, Rgba background);
 
     /// <summary>Fills a rectangle.</summary>
     public void FillRect(double x, double y, double width, double height, Rgba colour);

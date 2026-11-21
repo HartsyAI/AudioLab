@@ -25,7 +25,12 @@ public sealed class SkiaBackend(IReadOnlyDictionary<int, SKTypeface> faces) : IP
     public void Attach(SKCanvas canvas) => _canvas = canvas;
 
     /// <inheritdoc />
-    public void Begin(double width, double height, Rgba background) => Canvas.Clear(Colour(background));
+    public void Begin(double x, double y, double width, double height, Rgba background)
+    {
+        Canvas.Save();
+        Canvas.ClipRect(new SKRect((float)x, (float)y, (float)(x + width), (float)(y + height)));
+        Canvas.Clear(Colour(background));
+    }
 
     /// <inheritdoc />
     public void FillRect(double x, double y, double width, double height, Rgba colour)
@@ -87,9 +92,7 @@ public sealed class SkiaBackend(IReadOnlyDictionary<int, SKTypeface> faces) : IP
     public double MeasureText(string text, double size, int weight) => Font(weight, size).MeasureText(text);
 
     /// <inheritdoc />
-    public void End()
-    {
-    }
+    public void End() => Canvas.Restore();
 
     /// <inheritdoc />
     public void Dispose()

@@ -25,12 +25,16 @@ public sealed class Canvas2DBackend(Canvas2DContext context, string fontFamily, 
     }
 
     /// <inheritdoc />
-    public void Begin(double width, double height, Rgba background)
+    public void Begin(double x, double y, double width, double height, Rgba background)
     {
         context.Calls = 0;
         context.SetTransform(_scale, 0, 0, _scale, 0, 0);
+        context.Save();
+        context.BeginPath();
+        context.RoundRect(x, y, width, height, 0);
+        context.Clip();
         context.FillStyle(Css(background));
-        context.FillRect(0, 0, width, height);
+        context.FillRect(x, y, width, height);
     }
 
     /// <inheritdoc />
@@ -101,9 +105,7 @@ public sealed class Canvas2DBackend(Canvas2DContext context, string fontFamily, 
     }
 
     /// <inheritdoc />
-    public void End()
-    {
-    }
+    public void End() => context.Restore();
 
     private string Css(Rgba colour)
     {
