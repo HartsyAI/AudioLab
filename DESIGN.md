@@ -43,7 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
-| D14 | Generic control behaviour (dialogs that trap focus, menus, popovers, tooltips, select, combo box, toasts, tabs) comes from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#75-components). MudBlazor, for those controls only and behind the same wrappers, is the fallback. | Proposed (O10, 2026-11-20) | It is the one candidate that covers every behaviour, ships no CSS, sets no colour, font, radius, shadow or stacking value, and has the smallest script. It is MIT. It was first published on 2026-10-30 and has only pre-releases, so the wrapper boundary is what keeps it replaceable. |
+| D14 | Generic control behaviour (dialogs that trap focus, menus, popovers, tooltips, select, combo box, toasts, tabs) comes from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor, for those controls only and behind the same wrappers, is the fallback. Proof page: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed (O10, 2026-11-20) | It is the one candidate that covers every behaviour, ships no CSS, sets no stacking value on its overlays and ships one script bundle of 93.8 KB. It is MIT. It was first published on 2026-10-30 and has only pre-releases, so the wrapper boundary is what keeps it replaceable. |
 
 ## 3. Architecture
 
@@ -392,18 +392,27 @@ boxes, tables); the catalogue component wraps it, so the look and the API stay o
 #### Behaviour library
 
 Evidence for [D14](#2-decisions), measured on OFFICE-DESKTOP (Windows 11, .NET SDK 10.0.403). Sizes are a trimmed
-`dotnet publish -c Release` of one page using a dialog, menu, popover, tooltip, combo box and toast, against an empty
-Blazor WebAssembly app (9.09 MB, 2.70 MB brotli). The proof page, which renders each control from `tokens.css` and passes
-the conventions tests, is the branch [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives).
+`dotnet publish -c Release` of a page that uses each library's own dialog, menu, popover, tooltip and select or combo
+box (and a toast where it has one), against an empty Blazor WebAssembly app (9.09 MB, 2.70 MB brotli). The proof page,
+which renders each control from `tokens.css` and passes the conventions tests, is the branch
+[spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives).
 
 | Library | Licence | Script it ships | Covers | Cost, and verdict |
 |---------|---------|-----------------|--------|-------------------|
-| Bit.Bheadless 11.0.0-pre-23 | MIT | 3 files, 93.8 KB, loaded by Blazor with no script tag | Dialog, alert dialog, menu, context menu, popover, tooltip, listbox, combo box, toasts, tabs, grid, tree, number field. No CSS, no z-index of its own. | +0.85 MB, +0.27 MB brotli. **Chosen.** |
+| Bit.Bheadless 11.0.0-pre-23 | MIT | 3 files, 93.8 KB, loaded by Blazor with no script tag | Dialog, alert dialog, menu, context menu, popover, tooltip, listbox, combo box, toasts, tabs, grid, tree, number field. No CSS, and no stacking value on any overlay. | +0.85 MB, +0.27 MB brotli. **Chosen.** |
 | BlazorBlueprint.Primitives 4.2.0 | Apache-2.0 | 32 files, 293 KB | Everything but combo box and toast. Stacking is an integer parameter and an inline style (50, 60, 9999), so tokens cannot drive it. | +1.59 MB, +0.44 MB brotli. Second. |
 | MudBlazor 9.14.0 | MIT | 1 file, 75 KB, and a 638 KB stylesheet that sets the look | Dialog, menu, popover, select, autocomplete, snackbar, table. | +2.45 MB, +0.55 MB brotli. Fallback. |
 
-With `RunAOTCompilation` the same pages publish with no warnings: 4.59 MB brotli for the empty app, +0.81 MB with
-Bit.Bheadless, +1.08 MB with BlazorBlueprint.Primitives. AOT output was built, not opened in a browser.
+| Library | Accessibility evidence | Upkeep |
+|---------|------------------------|--------|
+| Bit.Bheadless | WAI-ARIA authoring patterns, a bUnit rule engine with about 144 unit tests, and a Playwright suite for keyboard, accessibility and strict CSP (read, not run). Driven here in Chromium: dialog focus trap, Escape and focus return, menu, select, combo box, popover, tooltip, toast with Undo and F8, tabs, right-click context menu. | In the bitplatform repository (1.4k stars, since 2016), but the package first appeared on 2026-10-30: nine pre-releases, 17 commits by two people, no stable version. |
+| BlazorBlueprint.Primitives | A Playwright suite with axe and keyboard checks in Chromium and WebKit; it says it is not a screen-reader certification (read, not run). | 54 versions since 2026-02, stable 4.2.0 on 2026-11-07, 696 stars, 10 open issues, one author with 883 commits (the next has 17). |
+| MudBlazor | Not examined beyond a count: 33 open issues labelled accessibility, and no keyboard or axe suite found. | 225 versions, a release every one to three weeks (9.14.0 on 2026-11-16), 10.7k stars, 623 open issues. |
+
+Publishing the Bit.Bheadless page with trim warnings on gives eight distinct warnings, none in the library (all are in
+the Blazor framework and the template). With `RunAOTCompilation` the same pages publish with no warnings: 4.59 MB
+brotli for the empty app, +0.81 MB with Bit.Bheadless, +1.08 MB with BlazorBlueprint.Primitives. AOT output was built,
+not opened in a browser.
 
 Not shortlisted: Soenneker.Bradix.Suite (targets net11.0 only), SummitUI (alpha, last commit 2026-02-11), HeadlessBlazor
 (preview, three modules), NeoUI.Blazor.Primitives (a fork of the BlazorBlueprint code), Blaizio.Base (ships a 45 KB
@@ -413,6 +422,8 @@ stylesheet), Fluent UI Blazor and Radzen.Blazor (styled libraries with 0.5 to 0.
   do not take Blazor's scoped-CSS attribute, and a dialog renders in a portal under `<body>`, so the root sits inside
   the dialog's content.
 - A wrapper never sets the library's stacking: the `--z-*` tokens apply to the wrapper's class.
+- A closed part carries the `hidden` attribute, and a wrapper's own `display` beats it, so a part that sets `display`
+  also gets a `[hidden] { display: none }` rule.
 - The package is listed by id in `ScriptAllowlist.Packages` by the pull request that first references it, together with
   `Microsoft.AspNetCore.Components.WebAssembly` and `Microsoft.AspNetCore.App.Internal.Assets`, which ship the Blazor
   runtime loaders.
