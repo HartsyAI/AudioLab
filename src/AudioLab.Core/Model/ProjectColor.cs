@@ -8,6 +8,6 @@ public static partial class ProjectColor
     /// <summary>Whether <paramref name="color"/> is a well-formed colour.</summary>
     public static bool IsValid(string? color) => color is not null && Pattern().IsMatch(color);
 
-    [GeneratedRegex("^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\z", RegexOptions.CultureInvariant)]
     private static partial Regex Pattern();
 }

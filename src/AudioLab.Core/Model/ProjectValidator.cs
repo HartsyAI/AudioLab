@@ -1,10 +1,10 @@
+using System.Globalization;
+
 namespace AudioLab.Core.Model;
 
 /// <summary>The rules a version 4 document keeps: unique ids, references that resolve, ranges, order, finite numbers.</summary>
 public static class ProjectValidator
 {
-    private const double Tolerance = 1e-9;
-
     private static readonly int[] _denominators = [1, 2, 4, 8, 16, 32];
 
     /// <summary>Every rule the document breaks, each with the path of the value; empty when it is valid.</summary>
@@ -93,13 +93,13 @@ public static class ProjectValidator
             problems.Color(section.Color, $"{path}.color");
             problems.Range(section.Start, 0, ProjectLimits.MaxSeconds, $"{path}.start");
             problems.Range(section.End, 0, ProjectLimits.MaxSeconds, $"{path}.end");
-            if (section.Start < end - Tolerance)
+            if (section.Start < end - ProjectLimits.Tolerance)
             {
                 problems.Add($"{path}.start: a section must not overlap the one before it.");
             }
-            if (!(section.End - section.Start >= Section.MinLength - Tolerance))
+            if (!(section.End - section.Start >= Section.MinLength - ProjectLimits.Tolerance))
             {
-                problems.Add($"{path}.end: a section must be at least {Section.MinLength} seconds long.");
+                problems.Add($"{path}.end: a section must be at least {Section.MinLength.ToString(CultureInfo.InvariantCulture)} seconds long.");
             }
             end = double.IsFinite(section.End) ? section.End : end;
         }

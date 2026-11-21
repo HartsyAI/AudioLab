@@ -35,6 +35,7 @@ public sealed class MediaRecordTests
     [InlineData("Audio/WAV")]
     [InlineData("audio/wav; charset=x")]
     [InlineData("audio/")]
+    [InlineData("audio/wav\n")]
     public void AContentTypeThatIsNotAMediaTypeIsRefused(string contentType)
     {
         Assert.Throws<ProjectFormatException>(() => MediaJson.Write(Valid with { ContentType = contentType }));

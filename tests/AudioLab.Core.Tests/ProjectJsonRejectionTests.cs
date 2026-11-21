@@ -195,6 +195,12 @@ public sealed class ProjectJsonRejectionTests
             root => Clip(root)["meta"]!["score"]!["parent"] = "clp_gone"
         },
         {
+            "score versions that lead back to themselves",
+            "lead back to itself",
+            root => Clip(root, 0, 1)["meta"]!["score"] = new JsonObject { ["parent"] = Clip(root)["id"]!.GetValue<string>() }
+        },
+        { "a colour with a trailing newline", "color", root => Track(root, 0)["color"] = "#fff\n" },
+        {
             "a clip that is its own stem source",
             "link to itself",
             root => Clip(root, 0, 1)["meta"]!["stemOf"]!["clipId"] = Clip(root, 0, 1)["id"]!.GetValue<string>()

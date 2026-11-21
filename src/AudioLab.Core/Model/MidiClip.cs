@@ -5,6 +5,9 @@ namespace AudioLab.Core.Model;
 /// <summary>A MIDI clip: notes and controller events placed on the timeline.</summary>
 public sealed record MidiClip
 {
+    /// <summary>The shortest a MIDI clip may be, in seconds.</summary>
+    public const double MinLength = 0.05;
+
     /// <summary>The clip's id.</summary>
     public required ClipId Id { get; init; }
 

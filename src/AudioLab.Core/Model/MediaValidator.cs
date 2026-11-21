@@ -27,7 +27,7 @@ public static partial class MediaValidator
     }
 
     [GeneratedRegex(
-        "^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$",
+        @"\A[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\z",
         RegexOptions.CultureInvariant)]
     private static partial Regex ContentTypePattern();
 }

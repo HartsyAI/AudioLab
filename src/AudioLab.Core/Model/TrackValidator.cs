@@ -42,6 +42,40 @@ internal static class TrackValidator
             CheckEnvelope(track.Automation.Volume, 0, ProjectLimits.MaxGain, $"{path}.automation.volume", problems);
             CheckEnvelope(track.Automation.Pan, -1, 1, $"{path}.automation.pan", problems);
         }
+        CheckScoreVersions(document, problems);
+    }
+
+    // Score versions form a tree through their parent links, so a chain of parents must not lead back to itself.
+    private static void CheckScoreVersions(ProjectDocument document, ProblemList problems)
+    {
+        Dictionary<string, string> parents = [];
+        foreach (AudioClip clip in document.Tracks.SelectMany(track => track.Clips))
+        {
+            if (clip.Meta?.Score?.Parent is { } parent && parent.Value != clip.Id.Value)
+            {
+                parents[clip.Id.Value] = parent.Value;
+            }
+        }
+        Dictionary<string, bool> settled = [];
+        foreach (string start in parents.Keys)
+        {
+            List<string> path = [];
+            string? current = start;
+            while (current is not null && !settled.ContainsKey(current))
+            {
+                settled[current] = false;
+                path.Add(current);
+                current = parents.GetValueOrDefault(current);
+            }
+            if (current is not null && settled[current] == false && path.Contains(current))
+            {
+                problems.Add($"clip {current}: its score parents lead back to itself.");
+            }
+            foreach (string visited in path)
+            {
+                settled[visited] = true;
+            }
+        }
     }
 
     private static void CheckTrack(Track track, string path, ProblemList problems)
