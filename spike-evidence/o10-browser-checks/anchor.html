@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>anchor</title>
+<style>
+  body { margin: 0; padding: 120px 200px; font: 14px sans-serif; }
+  #b { anchor-name: --b; padding: 8px 16px; }
+  #p { position-anchor: --b; position-area: bottom span-right; margin: 0; padding: 8px; border: 1px solid #888; }
+</style>
+<button id="b" popovertarget="p">Anchor</button>
+<div id="p" popover>Popover next to its button</div>

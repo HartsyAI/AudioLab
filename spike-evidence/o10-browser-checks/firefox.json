@@ -1,0 +1,281 @@
+{
+ "meta": {
+  "os": "Windows_NT 10.0.26200",
+  "cpu": "Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz",
+  "cores": 8,
+  "ramGB": 40,
+  "node": "v26.13.0",
+  "playwright": "1.65.1",
+  "axe": "4.14.1"
+ },
+ "results": [
+  {
+   "name": "firefox",
+   "version": "159.0",
+   "steps": [
+    {
+     "title": "native dialog: opened with the keyboard, opens modal and moves focus inside",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "native dialog: Tab and Shift+Tab never reach the page behind it (10 presses each way)",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "native dialog: Escape closes it and focus returns to the opener",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "native dialog: opened with a mouse click, Escape returns focus to the opener",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "native dialog: confirm runs the action and closes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "library dialog: opens, role=dialog/alertdialog, focus inside",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "library dialog: Tab stays inside (10 presses)",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "library dialog: Escape closes it and focus returns to the opener",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "menu: Enter opens, role=menu, focus on the first item",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "menu: ArrowDown/ArrowUp move the active item, Home/End jump",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "menu: typeahead moves to a matching item",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "menu: Escape closes and focus returns to the button",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "menu: Enter on an item runs it and closes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "context menu: right-click opens, ArrowDown + Enter runs an item",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "context menu: Shift+F10 on the focused area opens it (synthetic key, informational)",
+     "ok": false,
+     "detail": "did not open (synthetic key presses do not raise contextmenu in every engine)"
+    },
+    {
+     "title": "select: Enter opens a listbox, ArrowDown + Enter selects, value shown",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "select: Escape closes the list and focus returns to the button",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "combobox: typing filters, ArrowDown + Enter selects",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "combobox: Escape closes the list",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "popover: Enter opens, Escape closes, focus returns to the button",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "popover: click outside closes it",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "popover (library): the panel opens below its button, start-aligned",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "popover (native, CSS anchor positioning): placed below its button, start-aligned",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "tooltip (trigger is the button): keyboard focus shows it, Escape hides it",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "tooltip (trigger is the button): hover shows it",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "tooltip (span wrapped around a button): keyboard focus shows it",
+     "ok": false,
+     "detail": "focus on button.al-button \"Play\"; tooltip not shown"
+    },
+    {
+     "title": "tooltip (span wrapped around a button): hover shows it",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "toast: appears, announced (role status/alert or live region), F8 reaches it, Undo runs",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "modal: select inside a native dialog opens, picks, and Escape closes the list before the dialog",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "modal: combobox inside a native dialog, Escape closes the list before the dialog",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "modal: popover inside a native dialog, Escape closes it before the dialog",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "modal: axe state - native form dialog with a select list expanded",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "modal: a toast raised from inside a dialog (observation: is it clickable?)",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "title": "tabs: ArrowRight moves to the next tab and shows its panel",
+     "ok": true,
+     "detail": ""
+    }
+   ],
+   "axe": [
+    {
+     "label": "page at rest",
+     "violations": [],
+     "incomplete": [],
+     "passes": 27
+    },
+    {
+     "label": "native dialog open",
+     "violations": [],
+     "incomplete": [],
+     "passes": 13
+    },
+    {
+     "label": "library dialog open",
+     "violations": [],
+     "incomplete": [],
+     "passes": 20
+    },
+    {
+     "label": "menu open",
+     "violations": [
+      {
+       "id": "color-contrast",
+       "impact": "serious",
+       "help": "Elements must meet minimum color contrast ratio thresholds",
+       "nodes": [
+        {
+         "target": "#bit-bh-43e22e > span[b-upkv0r39kk=\"\"]",
+         "html": "<span b-upkv0r39kk=\"\">Delete track</span>",
+         "summary": "  Element has insufficient color contrast of 4 (foreground color: #f0524a, background color: #282c34, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+        }
+       ]
+      }
+     ],
+     "incomplete": [],
+     "passes": 28
+    },
+    {
+     "label": "select open",
+     "violations": [],
+     "incomplete": [],
+     "passes": 28
+    },
+    {
+     "label": "combobox open",
+     "violations": [],
+     "incomplete": [],
+     "passes": 28
+    },
+    {
+     "label": "popover open",
+     "violations": [],
+     "incomplete": [],
+     "passes": 27
+    },
+    {
+     "label": "tooltip visible",
+     "violations": [],
+     "incomplete": [],
+     "passes": 28
+    },
+    {
+     "label": "toast visible",
+     "violations": [],
+     "incomplete": [
+      {
+       "id": "label-content-name-mismatch",
+       "nodes": 1
+      }
+     ],
+     "passes": 28
+    },
+    {
+     "label": "native form dialog with select expanded",
+     "violations": [],
+     "incomplete": [
+      {
+       "id": "color-contrast",
+       "nodes": 2
+      }
+     ],
+     "passes": 23
+    }
+   ],
+   "notes": [
+    "native dialog: focus passed through the document body (the browser UI) 4 time(s) in 20 presses; ends in",
+    "library popover offset from its button (px): {\"dTop\":0,\"dLeft\":0}",
+    "anchor positioning: supports {\"anchorName\":true,\"positionArea\":true}; native popover offset from its anchor (px): {\"open\":true,\"dTop\":0,\"dLeft\":0}",
+    "toast raised from inside a modal dialog: shown=true, receives pointer hits=false (topmost element at its centre: dialog.al-native-dialog)"
+   ],
+   "errors": []
+  }
+ ]
+}
