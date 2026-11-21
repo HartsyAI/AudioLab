@@ -145,4 +145,74 @@ public sealed class RestoredPackagesTests
         repository.AddAssets("src/Gone", Fixture.Replace("Acme.Widgets", "Acme.Stale", StringComparison.Ordinal));
         Assert.DoesNotContain(RestoredPackages.Read(repository.Root), package => package.Id == "Acme.Stale");
     }
+
+    [Theory]
+    [InlineData("{ not json")]
+    [InlineData("")]
+    [InlineData("[1, 2]")]
+    [InlineData("""{ "version": "four", "libraries": {} }""")]
+    [InlineData("""{ "version": 4, "libraries": 5 }""")]
+    [InlineData("""{ "version": 4, "libraries": { "Acme.Widgets/1.2.0": { "type": "package", "files": "a.js" } } }""")]
+    public void UnreadableRestoreOutputFailsNamingTheProjectAndWhatToRun(string json)
+    {
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(json, Project));
+        Assert.Contains(Project, error.Message, StringComparison.Ordinal);
+        Assert.Contains("dotnet restore", error.Message, StringComparison.Ordinal);
+        Assert.IsAssignableFrom<System.Text.Json.JsonException>(error.InnerException);
+    }
+
+    [Fact]
+    public void RepeatedLibraryKeyFailsInsteadOfTheLastOneWinning()
+    {
+        const string Json = """
+            {
+              "version": 4,
+              "libraries": {
+                "Acme.Widgets/1.2.0": { "type": "package", "files": [ "staticwebassets/widgets.js" ] },
+                "Acme.Widgets/1.2.0": { "type": "project", "path": "../Widgets/Widgets.csproj" }
+              }
+            }
+            """;
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(Json, Project));
+        Assert.Contains(Project, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 4, "libraries": { "Acme.Plain/3.0.0": { "type": "package", "files": [] } }, "libraries": {} }""")]
+    [InlineData("""{ "version": 4, "libraries": {}, "Libraries": { "Acme.Widgets/1.2.0": { "type": "package", "files": [] } } }""")]
+    [InlineData("""{ "version": 4, "version": 4, "libraries": {} }""")]
+    [InlineData("""{ "version": 4, "libraries": { "Acme.Widgets/1.2.0": { "type": "project", "type": "package", "files": [] } } }""")]
+    public void RepeatedPropertyFails(string json)
+    {
+        Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(json, Project));
+    }
+
+    [Fact]
+    public void EveryProjectInTheSolutionIsFoundByTheScan()
+    {
+        Assert.Empty(RepoFiles.SolutionProjectsTheScanMisses(RepoFiles.Root));
+    }
+
+    [Theory]
+    [InlineData("src/node_modules/Hidden/Hidden.csproj")]
+    [InlineData("src/Hidden/obj/Hidden.csproj")]
+    [InlineData("tests/artifacts/Hidden/Hidden.csproj")]
+    [InlineData("tools/Outside/Outside.csproj")]
+    public void SolutionProjectTheScanSkipsOrNeverReachesIsReported(string hidden)
+    {
+        using TempRepository repository = new();
+        repository.AddProject("src/Live/Live.csproj", Fixture);
+        repository.AddProject(hidden, Fixture);
+        repository.AddSolution("src/Live/Live.csproj", hidden);
+        Assert.Equal([hidden], RepoFiles.SolutionProjectsTheScanMisses(repository.Root));
+    }
+
+    [Fact]
+    public void SolutionProjectsWrittenWithBackslashesAreMatched()
+    {
+        using TempRepository repository = new();
+        repository.AddProject("src/Live/Live.csproj", Fixture);
+        repository.AddSolution("src\\Live\\Live.csproj");
+        Assert.Empty(RepoFiles.SolutionProjectsTheScanMisses(repository.Root));
+    }
 }

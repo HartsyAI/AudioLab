@@ -24,6 +24,12 @@ public sealed class PackageScriptRuleTests
     [InlineData("content/types.d.ts", true)]
     [InlineData("content/App.JS", true)]
     [InlineData("staticwebassets\\app.js", true)]
+    [InlineData("staticwebassets/app.js.", true)]
+    [InlineData("staticwebassets/app.js ", true)]
+    [InlineData("staticwebassets/app.js. . ", true)]
+    [InlineData("staticwebassets/app.ts...", true)]
+    [InlineData("staticwebassets/app.js.map.", false)]
+    [InlineData("staticwebassets/js. ", false)]
     [InlineData("staticwebassets/app.js.map", false)]
     [InlineData("staticwebassets/app.css", false)]
     [InlineData("staticwebassets/index.html", false)]
@@ -43,10 +49,18 @@ public sealed class PackageScriptRuleTests
     }
 
     [Fact]
-    public void ListedIdIgnoresCaseButNotThePath()
+    public void ListedIdMatchesExactlyIncludingCase()
     {
-        Assert.Empty(PackageScriptRules.Unlisted([_widgets], [_widgetsScript with { PackageId = "acme.widgets" }]));
+        Assert.Single(PackageScriptRules.Unlisted([_widgets], [_widgetsScript with { PackageId = "acme.widgets" }]));
+        Assert.Single(PackageScriptRules.Unlisted([_widgets], [_widgetsScript with { PackageId = "ACME.WIDGETS" }]));
         Assert.Single(PackageScriptRules.Unlisted([_widgets], [_widgetsScript with { Script = "staticwebassets/WIDGETS.js" }]));
+    }
+
+    [Fact]
+    public void EntryWithAnotherCaseOfTheIdIsNotRestored()
+    {
+        string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], [_widgetsScript with { PackageId = "acme.widgets" }]));
+        Assert.Contains("acme.widgets 1.2.0 is not restored by any project (no version of it is restored)", line, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -221,9 +235,41 @@ public sealed class PackageScriptRuleTests
     [Fact]
     public void RepeatedEntryIsRejected()
     {
-        PackageScriptAllowance[] twice = [_widgetsScript, _widgetsScript with { PackageId = "ACME.WIDGETS", Reason = "Again." }];
+        PackageScriptAllowance[] twice = [_widgetsScript, _widgetsScript with { Reason = "Again." }];
         string line = Assert.Single(PackageScriptRules.EntryProblems([_widgets], twice));
-        Assert.Contains("ACME.WIDGETS 1.2.0 staticwebassets/widgets.js is listed twice", line, StringComparison.Ordinal);
+        Assert.Contains("Acme.Widgets 1.2.0 staticwebassets/widgets.js is listed twice", line, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("*.js")]
+    [InlineData("staticwebassets/*.js")]
+    [InlineData("**/*.js")]
+    [InlineData("staticwebassets/")]
+    [InlineData("staticwebassets")]
+    [InlineData("staticwebassets/widgets.*")]
+    [InlineData("staticwebassets/widgets.j?")]
+    [InlineData("")]
+    public void GlobOrDirectoryEntryApprovesNothingAndIsFlagged(string pattern)
+    {
+        PackageScriptAllowance[] entries = [_widgetsScript with { Script = pattern }];
+        Assert.Single(PackageScriptRules.Unlisted([_widgets], entries));
+        Assert.Single(PackageScriptRules.EntryProblems([_widgets], entries));
+    }
+
+    [Theory]
+    [InlineData("a/../b.js", "b.js")]
+    [InlineData("a//b.js", "a/b.js")]
+    [InlineData("./c.js", "c.js")]
+    [InlineData("a/./b.js", "a/b.js")]
+    [InlineData("/b.js", "b.js")]
+    public void UnnormalisedPackagePathIsNotApprovedByItsNormalForm(string shipped, string listed)
+    {
+        PackageListing package = Package("Acme.Widgets", "1.2.0", shipped);
+        PackageScriptAllowance[] entries = [_widgetsScript with { Script = listed }];
+        string line = Assert.Single(PackageScriptRules.Unlisted([package], entries));
+        Assert.Contains(shipped, line, StringComparison.Ordinal);
+        Assert.Single(PackageScriptRules.EntryProblems([package], entries));
+        Assert.Empty(PackageScriptRules.Unlisted([package], [_widgetsScript with { Script = shipped }]));
     }
 
     [Fact]

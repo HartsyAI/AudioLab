@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+
 namespace AudioLab.Conventions.Tests;
 
 /// <summary>Finds the repository on disk and lists the source files the convention checks read.</summary>
@@ -29,6 +31,16 @@ public static class RepoFiles
             }
         }
         return found;
+    }
+
+    /// <summary>The projects in AudioLab.slnx under a root that the scan for .csproj files does not find, as the solution writes them.</summary>
+    /// <remarks>A project in bin, obj, node_modules, artifacts or outside src and tests would be invisible to the package gate.</remarks>
+    public static List<string> SolutionProjectsTheScanMisses(string root)
+    {
+        XDocument solution = XDocument.Load(Path.Combine(root, "AudioLab.slnx"));
+        HashSet<string> scanned = [.. WithExtensionsIn(root, ".csproj").Select(file => Path.GetRelativePath(root, file).Replace('\\', '/'))];
+        IEnumerable<string> listed = solution.Descendants("Project").Select(project => (string?)project.Attribute("Path") ?? string.Empty);
+        return [.. listed.Select(path => path.Replace('\\', '/')).Where(path => !scanned.Contains(path))];
     }
 
     /// <summary>The repository-relative path of a file, with forward slashes on every OS.</summary>
