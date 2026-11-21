@@ -43,6 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
+| D14 | Generic control behaviour (dialogs that trap focus, menus, popovers, tooltips, select, combo box, toasts, tabs) comes from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#75-components). MudBlazor, for those controls only and behind the same wrappers, is the fallback. | Proposed (O10, 2026-11-20) | It is the one candidate that covers every behaviour, ships no CSS, sets no colour, font, radius, shadow or stacking value, and has the smallest script. It is MIT. It was first published on 2026-10-30 and has only pre-releases, so the wrapper boundary is what keeps it replaceable. |
 
 ## 3. Architecture
 
@@ -355,7 +356,8 @@ change to this table.
 
 No styled component library sets the look. Everything on the session screen is ours, because no library has it.
 Where a library helps is behaviour that is hard to get right (focus trapping, menus, popover positioning, combo
-boxes, tables); the catalogue component wraps it, so the look and the API stay ours: see [O10](#11-open-questions).
+boxes, tables); the catalogue component wraps it, so the look and the API stay ours: see [D14](#2-decisions) and
+[the behaviour library](#behaviour-library).
 
 | Component | Variants | Rules |
 |-----------|----------|-------|
@@ -386,6 +388,35 @@ boxes, tables); the catalogue component wraps it, so the look and the API stay o
 | Effect slot | filled, empty | A `--surface-lane` slot with `--shadow-well`, label size. Empty reads "Add effect" in `--text-faint`. |
 | Piano keys and grid | | Keys at the left of the piano roll; notes in the track colour, velocity as brightness. |
 | Status item | state, presence, job, metric | Label size in `--text-faint`, with a six-pixel dot for state. A job shows its name, a bar and a percentage. |
+
+#### Behaviour library
+
+Evidence for [D14](#2-decisions), measured on OFFICE-DESKTOP (Windows 11, .NET SDK 10.0.403). Sizes are a trimmed
+`dotnet publish -c Release` of one page using a dialog, menu, popover, tooltip, combo box and toast, against an empty
+Blazor WebAssembly app (9.09 MB, 2.70 MB brotli). The proof page, which renders each control from `tokens.css` and passes
+the conventions tests, is the branch [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives).
+
+| Library | Licence | Script it ships | Covers | Cost, and verdict |
+|---------|---------|-----------------|--------|-------------------|
+| Bit.Bheadless 11.0.0-pre-23 | MIT | 3 files, 93.8 KB, loaded by Blazor with no script tag | Dialog, alert dialog, menu, context menu, popover, tooltip, listbox, combo box, toasts, tabs, grid, tree, number field. No CSS, no z-index of its own. | +0.85 MB, +0.27 MB brotli. **Chosen.** |
+| BlazorBlueprint.Primitives 4.2.0 | Apache-2.0 | 32 files, 293 KB | Everything but combo box and toast. Stacking is an integer parameter and an inline style (50, 60, 9999), so tokens cannot drive it. | +1.59 MB, +0.44 MB brotli. Second. |
+| MudBlazor 9.14.0 | MIT | 1 file, 75 KB, and a 638 KB stylesheet that sets the look | Dialog, menu, popover, select, autocomplete, snackbar, table. | +2.45 MB, +0.55 MB brotli. Fallback. |
+
+With `RunAOTCompilation` the same pages publish with no warnings: 4.59 MB brotli for the empty app, +0.81 MB with
+Bit.Bheadless, +1.08 MB with BlazorBlueprint.Primitives. AOT output was built, not opened in a browser.
+
+Not shortlisted: Soenneker.Bradix.Suite (targets net11.0 only), SummitUI (alpha, last commit 2026-02-11), HeadlessBlazor
+(preview, three modules), NeoUI.Blazor.Primitives (a fork of the BlazorBlueprint code), Blaizio.Base (ships a 45 KB
+stylesheet), Fluent UI Blazor and Radzen.Blazor (styled libraries with 0.5 to 0.6 MB of script).
+
+- A wrapper has one root element of its own and styles the library's parts with `::deep` from it. The library's parts
+  do not take Blazor's scoped-CSS attribute, and a dialog renders in a portal under `<body>`, so the root sits inside
+  the dialog's content.
+- A wrapper never sets the library's stacking: the `--z-*` tokens apply to the wrapper's class.
+- The package is listed by id in `ScriptAllowlist.Packages` by the pull request that first references it, together with
+  `Microsoft.AspNetCore.Components.WebAssembly` and `Microsoft.AspNetCore.App.Internal.Assets`, which ship the Blazor
+  runtime loaders.
+- Not built: a table. Bit.Bheadless has a grid with cell navigation, but nothing in this catalogue is a table yet.
 
 ### 7.6 States, input and accessibility
 
@@ -475,7 +506,6 @@ server, as commands.
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
 | O9 | Whether the HartsyInference packages restore, pin to exact versions and run on net10, and what using `HartsyInference.Audio` (`Resampler`, `WavFile`, `Fft`) in WebAssembly would cost. Default stays that `AudioLab.Audio` references only Core (section 4). | A spike that restores and runs each API on the server and in a Blazor WebAssembly page, and lists package ids and exact versions. |
-| O10 | Where generic control behaviour comes from: dialogs with focus trapping, menus, popover positioning, combo boxes, toasts, tables. Preferred: a headless (unstyled) primitives library wrapped by the catalogue components in 7.5. Fallback: MudBlazor used only for those, behind the same wrappers. No library styles the session screen either way. | A short evaluation: licence, .NET 10 and WebAssembly support, the JavaScript it ships, accessibility, upkeep. Its pull request also teaches the script allowlist to list package scripts. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
 fixed before the spike runs. A spike that misses it reports the miss, the numbers and the fallback; it does not move
@@ -507,3 +537,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
+| 2026-11-20 | O10 closed: D14 proposes Bit.Bheadless behind the catalogue wrappers, with MudBlazor as the fallback; the evidence is under 7.5. |
