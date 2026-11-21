@@ -47,7 +47,7 @@
 }
 
 .al-context-root ::deep .al-context-shortcut {
-    color: var(--text-faint);
+    color: var(--text-dim);
     font-family: var(--font-ui);
     font-size: var(--font-size-label);
 }

@@ -13,6 +13,10 @@ public sealed partial class AlTooltip
     [Parameter]
     public string? Shortcut { get; set; }
 
+    /// <summary>True when the trigger is itself the focusable button; false wraps the control in a span. A span does not see keyboard focus.</summary>
+    [Parameter]
+    public bool AsButton { get; set; }
+
     /// <summary>The control the tooltip describes.</summary>
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
