@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "projectName": null,
+  "tracks": [
+    {
+      "id": "track-1",
+      "name": "Autosaved",
+      "kind": "audio",
+      "clips": [
+        { "id": "clip-1", "blobKey": "blob-7-70", "name": "In the browser store", "startTime": 0, "duration": 4, "offset": 0, "trimEnd": 0, "gain": 1, "fadeIn": 0, "fadeOut": 0, "muted": false, "color": null }
+      ]
+    }
+  ]
+}

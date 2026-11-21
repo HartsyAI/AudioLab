@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "projectName": "Synthetic v3 project with inline audio",
+  "blobs": {
+    "blob-1-1": { "b64": "AAEC", "type": "audio/wav" },
+    "blob-2-2": { "b64": "AAECAw==", "type": "audio/mpeg" }
+  },
+  "tracks": [
+    {
+      "id": "track-1",
+      "name": "Old track",
+      "kind": "audio",
+      "clips": [
+        { "id": "clip-1", "blobKey": "blob-1-1", "name": "Old clip", "startTime": 0, "duration": 1, "offset": 0, "trimEnd": 0, "gain": 1, "fadeIn": 0, "fadeOut": 0, "muted": false, "color": null },
+        { "id": "clip-2", "blobKey": "blob-2-2", "name": "Older clip", "startTime": 2, "duration": 1, "offset": 0, "trimEnd": 0, "gain": 1, "fadeIn": 0, "fadeOut": 0, "muted": false, "color": null }
+      ]
+    }
+  ]
+}

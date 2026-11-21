@@ -74,7 +74,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 
 | Project | Holds | May reference | Status |
 |---------|-------|---------------|--------|
-| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract) |
+| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract, v3 migration) |
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
@@ -110,6 +110,10 @@ Rules:
   - Compatibility is D14. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
     text holds no control or text-direction characters, and an error lists at most 100 problems of at most 300
     characters each.
+  - The migration (`ProjectMigration`) hands the store a `MediaReference` per audio file with the type and size the
+    file or the caller claims; the store measures the audio itself and never trusts them. Inline audio in an old
+    project costs about seven bytes of memory per base64 character (about 700 MB for 100 MB), so a hosted door
+    limits the size of an upload it migrates.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -524,4 +528,5 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
 | 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5). |
 | 2026-11-20 | Model hardened after review: immutable value-equal collections, id and colour rules, strict enums, ranges and size limits, per-clip note id counter (section 5). |
+| 2026-11-20 | `ProjectMigration` added: version 3 JSON to version 4 as a pure function, with the media references it needs the store to resolve (section 5). |
 | 2026-11-20 | Model hardened after a second review: extra-field and enum exactness, item paths in errors, list and text limits, id rules (lower case, no device names), D14 and D15 proposed (sections 2 and 5). |
