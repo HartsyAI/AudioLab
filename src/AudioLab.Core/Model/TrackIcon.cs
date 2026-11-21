@@ -22,6 +22,6 @@ public static partial class TrackIcon
         return icon.Length > 0 && icon.Length <= MaxTextLength;
     }
 
-    [GeneratedRegex("^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\Adata:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*\z", RegexOptions.CultureInvariant)]
     private static partial Regex ImagePattern();
 }

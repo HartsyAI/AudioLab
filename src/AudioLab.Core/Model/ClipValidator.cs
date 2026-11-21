@@ -3,8 +3,6 @@ namespace AudioLab.Core.Model;
 /// <summary>The clip rules: audio clips and what they carry, and MIDI clips with their notes and controllers.</summary>
 internal static class ClipValidator
 {
-    private const double Tolerance = 1e-9;
-
     private const int MaxMetaFields = 256;
 
     public static void CheckAudioClip(
@@ -49,7 +47,7 @@ internal static class ClipValidator
             problems.Color(clip.Color, $"{path}.color");
         }
         problems.Range(clip.Start, 0, ProjectLimits.MaxSeconds, $"{path}.start");
-        problems.Positive(clip.Length, ProjectLimits.MaxSeconds, $"{path}.length");
+        problems.Range(clip.Length, MidiClip.MinLength, ProjectLimits.MaxSeconds, $"{path}.length");
         problems.Range(clip.NextNoteId.Value, 1, int.MaxValue, $"{path}.nextNoteId");
         CheckNotes(clip, path, problems);
         double previous = 0;

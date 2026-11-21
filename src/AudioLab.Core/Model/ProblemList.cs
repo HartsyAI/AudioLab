@@ -1,10 +1,9 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 
 namespace AudioLab.Core.Model;
 
 /// <summary>Collects what a validation finds, with the shared checks. Past the cap it only counts.</summary>
-internal sealed partial class ProblemList
+internal sealed class ProblemList
 {
     private readonly List<string> _items = [];
 
@@ -59,7 +58,7 @@ internal sealed partial class ProblemList
     /// <summary>A colour as #rgb, #rrggbb or #rrggbbaa; nothing else is safe to put in a style.</summary>
     public void Color(string? value, string path)
     {
-        if (value is null || !ColorPattern().IsMatch(value))
+        if (!ProjectColor.IsValid(value))
         {
             Add($"{path}: a colour is #rgb, #rrggbb or #rrggbbaa.");
         }
@@ -107,7 +106,4 @@ internal sealed partial class ProblemList
             _ => value.ToString(CultureInfo.InvariantCulture),
         };
     }
-
-    [GeneratedRegex("^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", RegexOptions.CultureInvariant)]
-    private static partial Regex ColorPattern();
 }

@@ -33,6 +33,9 @@ public static class ProjectLimits
     /// <summary>The most lanes a drum pattern has.</summary>
     public const int MaxBeatLanes = 128;
 
+    /// <summary>How far apart two times in seconds may be and still count as the same.</summary>
+    public const double Tolerance = 1e-9;
+
     /// <summary>The most problems an error lists before it says how many more there were.</summary>
     public const int MaxProblems = 100;
 }

@@ -18,6 +18,7 @@ public sealed class TrackIconTests
     [InlineData("https://example.com/icon.png")]
     [InlineData("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=")]
     [InlineData("data:image/png;base64,<script>")]
+    [InlineData("data:image/png;base64,AAAA\n")]
     public void RemoteAddressesVectorImagesAndMarkupAreRefused(string icon)
     {
         Assert.False(TrackIcon.IsValid(icon));
