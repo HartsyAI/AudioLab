@@ -432,18 +432,17 @@ When a script is unavoidable:
 - All interop (`IJSRuntime`, `[JSImport]`, `[JSExport]`) lives in `src/AudioLab.Web/Interop/`, behind a C# interface
   the rest of the UI calls.
 - A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
-  package, even one a Razor class library serves as a static web asset: the package is listed by id in
-  `ScriptAllowlist.Packages`, with the same reason and approval. An id covers every script the package ships, at any
-  version: a bump that adds a script stays green. Nothing in the build catches it; the version bump in
-  `Directory.Packages.props` is the only cue. Whether an entry should instead name exact package-relative script paths is
-  **Open** with the owner; do not settle it in a pull request.
+  package, even one a Razor class library serves as a static web asset. Each script is listed in
+  `ScriptAllowlist.Packages` by package id, exact version and its path inside the package, with the same reason and
+  approval. An entry covers that one script at that one version: a version bump, or a new script in a listed
+  package, fails until its own entries are added and the old ones removed.
 
 The convention tests, which `dotnet test` runs and CI requires, enforce this. They fail on an unlisted `.js`, `.ts`
 or similar file, an inline `<script>` block, or interop outside that folder. They also read the `libraries` section
 of `obj/project.assets.json` for every project under `src` and `tests`, and fail on a restored package, transitive
-ones included, that ships a script file and is not listed, on a project with no restore output, and on restore output
-they cannot read. A listed package that is no longer restored, or no longer ships a script, fails too, so the list
-never outlives its reason.
+ones included, that ships a script file that is not listed by id, version and path, on a project with no restore
+output, and on restore output they cannot read. An entry for a package version that is not restored, or for a script
+that version does not ship, fails too, so the list never outlives its reason.
 
 What they do not see: scripts added at publish (the .NET runtime pack's `dotnet.js` and its files), scripts embedded in
 an assembly as a resource, scripts inside an archive within a package, and compressed scripts (`.js.gz`). Inline
@@ -524,4 +523,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
-| 2026-11-20 | The script allowlist can list a script that ships inside a NuGet package by package id, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10. |
+| 2026-11-20 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
