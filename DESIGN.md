@@ -43,7 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
-| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox (see 7.5), ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. |
+| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox; the failures are listed in 7.5. It ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. |
 
 ## 3. Architecture
 
@@ -442,14 +442,16 @@ the dialog, but it is inert there, so its Undo and close buttons cannot be press
 raised from inside a dialog therefore must not rely on Undo. The `--z-dialog` token is not used by native dialogs; it
 stays for the library's dialog and the fallback. The scripted run below repeated the select, combo box and popover
 checks inside a native dialog, the order of the two Escapes and the toast hit test in Chromium 159, WebKit 27.2 and
-Firefox 159, with the same results; the one difference found, focus return in WebKit, is listed there.
+Firefox 159, with the same results; the differences found are the WebKit focus return and the Shift+F10 check, both
+listed below.
 
 **Browser and axe-core run, 2026-11-21.** On the trimmed publish of the proof page, in Playwright-managed Chromium
 159.0.8154.6, WebKit 27.2 (Playwright's WebKit build for Windows, not Safari) and Firefox 159.0, on OFFICE-DESKTOP
 (Windows 11 10.0.26200, Intel Core i7-9700K, 8 cores, 40 GB), with Playwright 1.65.1 and axe-core 4.14.1 (WCAG 2.0 to
-2.2 A and AA). It ran 34 keyboard, focus and placement checks and axe on ten states (the page at rest, each overlay
-open, a native form dialog with a list expanded). Chromium passed 33 of the 34 checks, WebKit 31 and Firefox 32. The
-script, the raw results and this table are on the proof branch, in
+2.2 A and AA). It ran 33 scored keyboard, focus and placement checks, one observation that is not scored, and axe on
+ten states (the page at rest, each overlay open, a native form dialog with a list expanded). Chromium passed 32 of the
+33 scored checks, WebKit 30 and Firefox 31. The Shift+F10 check uses a synthetic key press and is informational; it is
+included in the count. The script, the raw results and this table are on the proof branch, in
 [spike-evidence/o10-browser-checks](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives/spike-evidence/o10-browser-checks)
 ([results.md](https://github.com/HartsyAI/AudioLab/blob/spike/o10-primitives/spike-evidence/o10-browser-checks/results.md)); the folder is throwaway and not part of the solution.
 
@@ -487,7 +489,7 @@ script, the raw results and this table are on the proof branch, in
 | modal: combobox inside a native dialog, Escape closes the list before the dialog | pass | pass | pass |
 | modal: popover inside a native dialog, Escape closes it before the dialog | pass | pass | pass |
 | modal: axe state - native form dialog with a select list expanded | pass | pass | pass |
-| modal: a toast raised from inside a dialog (observation: is it clickable?) | pass | pass | pass |
+| modal: a toast raised from inside a dialog (observation, not scored) | observation: shown, not clickable | observation: shown, not clickable | observation: shown, not clickable |
 | tabs: ArrowRight moves to the next tab and shows its panel | pass | pass | pass |
 
 | axe-core state | Chromium | WebKit | Firefox |
@@ -506,7 +508,8 @@ script, the raw results and this table are on the proof branch, in
 - **axe-core:** one violation in each browser, the same one: `color-contrast` on the open menu, for the destructive
   item's text in `--record` on `--surface-raised` (4.0 to 1 at 12 px; 4.5 to 1 is needed). 7.5 asks for that colour, so
   this is a finding on the design, not on the library; it is [O11](#11-open-questions) and no token changes here. The
-  menu shortcut text uses `--text-dim`: `--text-faint` on a raised surface measured 3.87 to 1, and 7.4 forbids it. Axe
+  menu shortcut text uses `--text-dim`: `--text-faint` is 4.40 to 1 on `--surface-raised` (3.88 to 1 on `--surface-raised-active`), under the 4.5 floor, and 7.4
+  forbids it there. Axe
   left two items unresolved (the toast close button's name against its visible ×, and the contrast of two elements
   behind an expanded list in a dialog).
 - **Tooltip:** it opens on hover, and on keyboard focus only when the trigger is the focusable control itself. A trigger
@@ -528,7 +531,7 @@ script, the raw results and this table are on the proof branch, in
 - **Overlays inside a native dialog:** a select, a combo box and a popover opened from it; Escape closed the list first
   and the dialog second; a toast raised from inside the modal was shown but did not receive pointer hits, in all three.
 - **Firefox:** Firefox 159.0 did not start from Playwright's default browser folder on this machine (Windows
-  side-by-side error, `mozglue` not found, at 13:56 and 14:10 on 2026-11-21, also after a clean reinstall); a copy of that
+  side-by-side error, `mozglue` not found); a copy of that
   folder at `C:\pwtest`, with `PLAYWRIGHT_BROWSERS_PATH` pointing there, started and ran every check. The cause was not
   found.
 - **Not run:** a screen reader, touch, Safari itself, and the libraries' own test suites.
