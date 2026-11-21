@@ -1,0 +1,13 @@
+.proof {
+    padding: var(--space-24);
+}
+
+.plain {
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+}

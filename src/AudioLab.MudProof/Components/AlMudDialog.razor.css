@@ -1,0 +1,32 @@
+.al-mud-root ::deep .al-mud-dialog {
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+    font-family: var(--font-ui);
+}
+
+.al-mud-root ::deep .al-mud-title {
+    font-size: var(--font-size-heading);
+    font-weight: var(--font-weight-strong);
+}
+
+.al-mud-root ::deep .al-mud-text {
+    color: var(--text-soft);
+    font-size: var(--font-size-body);
+}
+
+.al-mud-root ::deep .al-mud-button {
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised-active);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+}
+
+.al-mud-root ::deep .al-mud-danger {
+    background: var(--record);
+    color: var(--ink);
+}

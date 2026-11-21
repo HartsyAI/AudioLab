@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AudioLab.Core/AudioLab.Core.csproj" />
+    <Project Path="src/AudioLab.MudProof/AudioLab.MudProof.csproj" />
     <Project Path="src/AudioLab.Web/AudioLab.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

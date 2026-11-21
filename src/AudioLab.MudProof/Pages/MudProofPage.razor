@@ -1,0 +1,10 @@
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<main class="proof">
+    <h1 id="proof-title">MudBlazor proof</h1>
+    <p id="proof-text">Plain page text.</p>
+    <button type="button" id="plain-button" class="plain" @onclick="OpenDialog">Delete project</button>
+    <a id="plain-link" href="#top">A plain link</a>
+    <AlMudDialog @bind-Open="_open" Title="Delete project" Description="This removes the project and its media." ConfirmText="Delete project" />
+</main>

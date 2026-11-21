@@ -23,6 +23,8 @@ public sealed partial class PrimitivesPage
 
     private bool _formOpen;
 
+    private bool _nativeOpen;
+
     private string? _grid = "Bars";
 
     private string? _model;
@@ -35,6 +37,11 @@ public sealed partial class PrimitivesPage
     private void OpenConfirm()
     {
         _confirmOpen = true;
+    }
+
+    private void OpenNative()
+    {
+        _nativeOpen = true;
     }
 
     private void OpenForm()

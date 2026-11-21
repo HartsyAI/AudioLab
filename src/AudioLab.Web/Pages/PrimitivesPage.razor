@@ -6,6 +6,8 @@
         <section class="row" aria-label="Dialogs">
             <AlButton OnClick="OpenConfirm" id="open-confirm">Delete project</AlButton>
             <AlButton Variant="AlButtonVariant.Primary" OnClick="OpenForm" id="open-form">Rename project</AlButton>
+            <AlButton OnClick="OpenNative" id="open-native">Delete (native dialog)</AlButton>
+            <AlNativeDialog @bind-Open="_nativeOpen" Title="Delete project" Description="Built on the native dialog element and C#." ConfirmText="Delete project" OnConfirm="Deleted" />
             <AlDialog @bind-Open="_confirmOpen" Title="Delete project" Description="This removes the project and its media. It cannot be undone." ConfirmText="Delete project" ConfirmVariant="AlButtonVariant.Danger" OnConfirm="Deleted" />
             <AlDialog @bind-Open="_formOpen" Title="Rename project" ConfirmText="Rename" OnConfirm="Renamed">
                 <label class="field-label" for="project-name">Name</label>

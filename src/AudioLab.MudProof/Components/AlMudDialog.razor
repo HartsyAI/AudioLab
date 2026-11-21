@@ -1,0 +1,10 @@
+<div class="al-mud-root">
+    <MudDialog Visible="Open" VisibleChanged="OpenChanged" Class="al-mud-dialog" Options="_options">
+        <TitleContent><span class="al-mud-title">@Title</span></TitleContent>
+        <DialogContent><span class="al-mud-text">@Description</span></DialogContent>
+        <DialogActions>
+            <button type="button" class="al-mud-button" @onclick="CloseAsync">Cancel</button>
+            <button type="button" class="al-mud-button al-mud-danger" @onclick="ConfirmAsync">@ConfirmText</button>
+        </DialogActions>
+    </MudDialog>
+</div>

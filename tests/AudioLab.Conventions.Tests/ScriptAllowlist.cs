@@ -12,6 +12,7 @@ public static class ScriptAllowlist
     [
         new("Microsoft.AspNetCore.Components.WebAssembly", "The Blazor WebAssembly runtime loader (blazor.webassembly.js); the framework."),
         new("Microsoft.AspNetCore.App.Internal.Assets", "Ships the Blazor runtime loaders (blazor.*.js); only blazor.webassembly.js is served."),
+        new("MudBlazor", "Dialog, menu and popover behaviour for the fallback proof (MudBlazor.min.js). Evaluated in O10."),
         new("Bit.Bheadless", "Focus trap, outside-click, positioning and live-region behaviour for menus and combo boxes. Evaluated in O10."),
     ];
 }

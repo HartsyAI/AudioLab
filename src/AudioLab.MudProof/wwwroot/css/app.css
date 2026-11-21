@@ -1,0 +1,6 @@
+body {
+    background: var(--surface-panel);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+}
