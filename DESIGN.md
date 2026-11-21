@@ -43,7 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
-| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it covers every behaviour, ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the Chromium, WebKit and axe-core results; Firefox and a screen-reader pass are not done. |
+| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox (see 7.5), ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. |
 
 ## 3. Architecture
 
@@ -94,8 +94,8 @@ Rules:
 
 ## 5. The server-owned project
 
-- **Model.** A typed project document (`version: 4`), with a migration from the extension's `version: 3` JSON, tested
-  by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
+- **Model.** A typed project document (`version: 4`), the only project format, tested by round trips and by the
+  rejection of invalid documents. Ids are allocated by the server. Time is seconds plus a tempo map.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -408,7 +408,7 @@ menu, popover, tooltip and select or combo box (and a toast where it has one), a
 
 | Library | Accessibility evidence | Upkeep |
 |---------|------------------------|--------|
-| Bit.Bheadless | Its own tests (read, not run): 629 unit tests, 46 of them for its own audit helpers rather than the controls, and 75 Playwright tests in Chromium-based browsers only, including an axe-core audit (WCAG 2.2 A and AA) of every demo page. Here: driven by hand in Chromium 156, then scripted with axe-core in Chromium 159 and WebKit 27.2 (results below). Not run in Firefox or Safari, no screen reader. | The code entered the bitplatform monorepo on 2026-10-28 (the 1,381 stars belong to the monorepo) and the package was first published on 2026-10-30: 584 downloads, against 204,652 for BlazorBlueprint.Primitives and 43.2 million for MudBlazor. 19 commits since: 7 features and fixes by one person, 12 by a second committer, mostly dependency bumps and pipelines. Versions follow the monorepo's pre-release train; no stable version. The API moved inside the pinned window (namespaces simplified on 2026-11-18). |
+| Bit.Bheadless | Its own tests (read, not run): 629 unit tests, 46 of them for its own audit helpers rather than the controls, and 75 Playwright tests in Chromium-based browsers only, including an axe-core audit (WCAG 2.2 A and AA) of every demo page. Here: driven by hand in Chromium 156, then scripted with axe-core in Chromium 159, WebKit 27.2 and Firefox 159 (results below). Not run in Safari itself, no screen reader. | The code entered the bitplatform monorepo on 2026-10-28 (the 1,381 stars belong to the monorepo) and the package was first published on 2026-10-30: 584 downloads, against 204,652 for BlazorBlueprint.Primitives and 43.2 million for MudBlazor. 19 commits since: 7 features and fixes by one person, 12 by a second committer, mostly dependency bumps and pipelines. Versions follow the monorepo's pre-release train; no stable version. The API moved inside the pinned window (namespaces simplified on 2026-11-18). |
 | BlazorBlueprint.Primitives | Interaction tests in Chromium and WebKit; an axe-core run (WCAG 2.0 to 2.2 A and AA) over every demo in Chromium only; it says it is not a screen-reader certification (read, not run). | 54 versions since 2026-02, stable 4.2.0 on 2026-11-07, 700 stars, 7 open issues and 3 pull requests, one author with 883 commits (the next has 17). |
 | MudBlazor | Not examined beyond a count: 33 open issues labelled accessibility, and no keyboard or axe suite found. | 225 versions, a release every one to three weeks (9.14.0 on 2026-11-16), 10.7k stars, 537 open issues and 91 open pull requests. |
 
@@ -425,8 +425,8 @@ Escape, returns focus and reopens, with no script file. That needs `AllowUnsafeB
 Popover API is Baseline since January 2025 (Chrome 114, Firefox 125, Safari 17) and gives light dismiss, but the
 placement a popover needs next to its button is CSS anchor positioning. MDN lists `position-area` as Baseline 2026, newly
 available since January 2026, while caniuse still marks Chrome 125, Firefox 147 and Safari 26 as partial and full only
-from Safari 27 (both pages read on 2026-11-21). It is present in the Chromium 156 used by hand here; it was not checked in
-WebKit or Firefox.
+from Safari 27 (both pages read on 2026-11-21). `anchor-name` and `position-area` were present, and a native popover placed with them opened flush below its button, in
+Chromium 159, WebKit 27.2 and Firefox 159 (see the run below); other versions were not checked.
 Menus, select and combo box are the other part: the browser supplies no roving focus, typeahead, active-descendant
 handling, filtering or result announcements for them, so native elements would mean writing and testing that logic
 ourselves; Bit.Bheadless supplies it. That is the whole case for the library, and it narrows D14 to those controls.
@@ -440,42 +440,98 @@ press, and then the first Escape closes the list and the second the dialog. A to
 different: its host is a manual popover, lifted into the top layer again whenever a modal opens, so it is painted above
 the dialog, but it is inert there, so its Undo and close buttons cannot be pressed until the dialog closes. A toast
 raised from inside a dialog therefore must not rely on Undo. The `--z-dialog` token is not used by native dialogs; it
-stays for the library's dialog and the fallback. The same checks, scripted, gave the same results in Chromium 159 and
-WebKit 27.2.
+stays for the library's dialog and the fallback. The scripted run below repeated the select, combo box and popover
+checks inside a native dialog, the order of the two Escapes and the toast hit test in Chromium 159, WebKit 27.2 and
+Firefox 159, with the same results; the one difference found, focus return in WebKit, is listed there.
 
-**Browser and axe-core run, 2026-11-21.** After the first review, on the trimmed publish of the proof page, in
-Playwright-managed Chromium 159.0.8154.6 and WebKit 27.2 (Playwright's WebKit build for Windows, not Safari), on
-OFFICE-DESKTOP (Windows 11 10.0.26200, Intel Core i7-9700K, 8 cores, 40 GB), driven by Playwright 1.65.1 with axe-core
-4.14.1 (tags WCAG 2.0 to 2.2 A and AA). It ran 32 keyboard and focus checks (both dialogs, menu, context menu, select,
-combo box, popover, tooltip, toast, the overlays inside a native dialog, tabs) and axe on ten states (the page at rest,
-each overlay open, and a native form dialog with a list expanded). Chromium passed 31 of the 32 checks and WebKit 29.
-Firefox was not run, see the end of this list. The script and the raw results are throwaway and are not in the
-repository.
+**Browser and axe-core run, 2026-11-21.** On the trimmed publish of the proof page, in Playwright-managed Chromium
+159.0.8154.6, WebKit 27.2 (Playwright's WebKit build for Windows, not Safari) and Firefox 159.0, on OFFICE-DESKTOP
+(Windows 11 10.0.26200, Intel Core i7-9700K, 8 cores, 40 GB), with Playwright 1.65.1 and axe-core 4.14.1 (WCAG 2.0 to
+2.2 A and AA). It ran 34 keyboard, focus and placement checks and axe on ten states (the page at rest, each overlay
+open, a native form dialog with a list expanded). Chromium passed 33 of the 34 checks, WebKit 31 and Firefox 32. The
+script, the raw results and this table are on the proof branch, in
+[spike-evidence/o10-browser-checks](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives/spike-evidence/o10-browser-checks)
+([results.md](https://github.com/HartsyAI/AudioLab/blob/spike/o10-primitives/spike-evidence/o10-browser-checks/results.md)); the folder is throwaway and not part of the solution.
+
+| Check | Chromium | WebKit | Firefox |
+|-------|----------|--------|---------|
+| native dialog: opened with the keyboard, opens modal and moves focus inside | pass | pass | pass |
+| native dialog: Tab and Shift+Tab never reach the page behind it (10 presses each way) | pass | pass | pass |
+| native dialog: Escape closes it and focus returns to the opener | pass | pass | pass |
+| native dialog: opened with a mouse click, Escape returns focus to the opener | pass | **FAIL** | pass |
+| native dialog: confirm runs the action and closes | pass | pass | pass |
+| library dialog: opens, role=dialog/alertdialog, focus inside | pass | pass | pass |
+| library dialog: Tab stays inside (10 presses) | pass | pass | pass |
+| library dialog: Escape closes it and focus returns to the opener | pass | pass | pass |
+| menu: Enter opens, role=menu, focus on the first item | pass | pass | pass |
+| menu: ArrowDown/ArrowUp move the active item, Home/End jump | pass | pass | pass |
+| menu: typeahead moves to a matching item | pass | pass | pass |
+| menu: Escape closes and focus returns to the button | pass | pass | pass |
+| menu: Enter on an item runs it and closes | pass | pass | pass |
+| context menu: right-click opens, ArrowDown + Enter runs an item | pass | pass | pass |
+| context menu: Shift+F10 on the focused area opens it (synthetic key, informational) | pass | **FAIL** | **FAIL** |
+| select: Enter opens a listbox, ArrowDown + Enter selects, value shown | pass | pass | pass |
+| select: Escape closes the list and focus returns to the button | pass | pass | pass |
+| combobox: typing filters, ArrowDown + Enter selects | pass | pass | pass |
+| combobox: Escape closes the list | pass | pass | pass |
+| popover: Enter opens, Escape closes, focus returns to the button | pass | pass | pass |
+| popover: click outside closes it | pass | pass | pass |
+| popover (library): the panel opens below its button, start-aligned | pass | pass | pass |
+| popover (native, CSS anchor positioning): placed below its button, start-aligned | pass | pass | pass |
+| tooltip (trigger is the button): keyboard focus shows it, Escape hides it | pass | pass | pass |
+| tooltip (trigger is the button): hover shows it | pass | pass | pass |
+| tooltip (span wrapped around a button): keyboard focus shows it | **FAIL** | **FAIL** | **FAIL** |
+| tooltip (span wrapped around a button): hover shows it | pass | pass | pass |
+| toast: appears, announced (role status/alert or live region), F8 reaches it, Undo runs | pass | pass | pass |
+| modal: select inside a native dialog opens, picks, and Escape closes the list before the dialog | pass | pass | pass |
+| modal: combobox inside a native dialog, Escape closes the list before the dialog | pass | pass | pass |
+| modal: popover inside a native dialog, Escape closes it before the dialog | pass | pass | pass |
+| modal: axe state - native form dialog with a select list expanded | pass | pass | pass |
+| modal: a toast raised from inside a dialog (observation: is it clickable?) | pass | pass | pass |
+| tabs: ArrowRight moves to the next tab and shows its panel | pass | pass | pass |
+
+| axe-core state | Chromium | WebKit | Firefox |
+|----------------|----------|--------|---------|
+| page at rest | 0 violations | 0 violations | 0 violations |
+| native dialog open | 0 violations | 0 violations | 0 violations |
+| library dialog open | 0 violations | 0 violations | 0 violations |
+| menu open | 1 violation (color-contrast) | 1 violation (color-contrast) | 1 violation (color-contrast) |
+| select open | 0 violations | 0 violations | 0 violations |
+| combobox open | 0 violations | 0 violations | 0 violations |
+| popover open | 0 violations | 0 violations | 0 violations |
+| tooltip visible | 0 violations | 0 violations | 0 violations |
+| toast visible | 0 violations, 1 unresolved | 0 violations, 1 unresolved | 0 violations, 1 unresolved |
+| native form dialog with select expanded | 0 violations, 1 unresolved | 0 violations, 1 unresolved | 0 violations, 1 unresolved |
+
 - **axe-core:** one violation in each browser, the same one: `color-contrast` on the open menu, for the destructive
-  item's text in `--record` on `--surface-raised` (4.0 to 1 at 12 px; 4.5 to 1 is needed). That is the colour 7.5 asks for,
-  so it is a finding on the design, not on the library; it is for the owner and nothing here changes a token. A first
-  run also flagged the menu shortcut text in `--text-faint` on a raised surface, which 7.4 already forbids; the proof now
-  uses `--text-dim` and it passes. Axe could not decide two items (the toast close button's name against its visible
-  ×, and the contrast of two elements behind an expanded list in a dialog); they are not resolved.
+  item's text in `--record` on `--surface-raised` (4.0 to 1 at 12 px; 4.5 to 1 is needed). 7.5 asks for that colour, so
+  this is a finding on the design, not on the library; it is [O11](#11-open-questions) and no token changes here. The
+  menu shortcut text uses `--text-dim`: `--text-faint` on a raised surface measured 3.87 to 1, and 7.4 forbids it. Axe
+  left two items unresolved (the toast close button's name against its visible ×, and the contrast of two elements
+  behind an expanded list in a dialog).
 - **Tooltip:** it opens on hover, and on keyboard focus only when the trigger is the focusable control itself. A trigger
-  that is a span around a button never sees the focus, in both engines. The catalogue tooltip must make the control the
-  trigger; this is a wrapper rule (below), and the proof page has both forms.
-- **WebKit, native dialog:** opened with the mouse, it returns focus to the page body when it closes, where Chromium returns
-  it to the opener; opened with the keyboard it returns focus to the opener. I infer that WebKit does not focus a button
-  on click, so the dialog has nothing to return to. The library's dialog returned focus to its opener in both. So the
-  native dialog wrapper records the opener and restores focus itself.
-- **Context menu:** Shift+F10 opened it in Chromium and not in WebKit; synthetic key presses do not raise `contextmenu`
-  in every engine, so this says nothing yet about the Menu key on a real keyboard.
-- **Passed in both:** focus moves into a native modal and Tab or Shift+Tab (20 presses) never reaches the page behind it
-  (focus passes through the document body, where the browser's own UI sits, 6 and 5 times); Escape and focus return for
-  the library dialog; the menu's Arrow, Home, End and typeahead keys, Escape and focus return, and Enter running an
-  item; the select and combo box (open, filter, pick, Escape); the popover (Escape, outside click); the toast with F8
-  and Undo; a select, combo box and popover inside a native dialog with Escape closing the list first; tabs.
-- **Firefox: not run.** Playwright's Firefox 159 for Windows would not start here (Windows reports a side-by-side
-  configuration error for `mozglue`, also after a clean reinstall), and a download of an older Playwright Firefox stalled
-  and was stopped. There is no stock Firefox on this machine. D14 is therefore unproven in Firefox, and so is the
-  Firefox 147 anchor-positioning claim above.
-- **Still not run:** a screen reader, touch, and the library's own test suites.
+  that is a span around a button never sees the focus, in all three engines. The catalogue tooltip must make the control
+  the trigger (a wrapper rule, below); the proof page has both forms.
+- **WebKit, native dialog:** opened with the mouse, it returns focus to the page body when it closes; Chromium and
+  Firefox return it to the opener, and WebKit does too when the dialog was opened with the keyboard. The cause was not
+  tested; WebKit may not focus a button on click, leaving nothing to return to. The library's dialog returned focus to
+  its opener in all three. The native dialog wrapper therefore records the opener and restores focus itself.
+- **Context menu:** Shift+F10 on its area opened it in Chromium and not in WebKit or Firefox; synthetic key presses do
+  not raise `contextmenu` in every engine, so nothing is known yet about the Menu key on a real keyboard.
+- **Anchor positioning:** `CSS.supports` for `anchor-name` and `position-area` was true in all three. A native popover
+  placed with `position-anchor` and `position-area: bottom span-right` opened flush below its button and start-aligned
+  (0 px offset on both axes) in all three, and the library popover opened below and start-aligned (0 px) in all three.
+  Checked: one placement (below, start-aligned), unscrolled, at 1280 by 900. Not checked: flipping at a viewport edge,
+  scrolling, a popover inside a dialog, other versions, touch.
+- **Native dialog and focus:** focus moved into the modal, and Tab or Shift+Tab (20 presses) never reached the page
+  behind it in all three (focus passes through the document body, where the browser's own UI sits: 6, 5 and 4 times).
+- **Overlays inside a native dialog:** a select, a combo box and a popover opened from it; Escape closed the list first
+  and the dialog second; a toast raised from inside the modal was shown but did not receive pointer hits, in all three.
+- **Firefox:** Firefox 159.0 did not start from Playwright's default browser folder on this machine (Windows
+  side-by-side error, `mozglue` not found, at 13:56 and 14:10 on 2026-11-21, also after a clean reinstall); a copy of that
+  folder at `C:\pwtest`, with `PLAYWRIGHT_BROWSERS_PATH` pointing there, started and ran every check. The cause was not
+  found.
+- **Not run:** a screen reader, touch, Safari itself, and the libraries' own test suites.
 
 **MudBlazor as the fallback is a candidate, not a proven one.** A dialog wrapper on it, on the proof branch, passes the
 conventions tests, but those do not read its stylesheet or a C# theme (the script gate does read the package, and
@@ -484,8 +540,8 @@ the page's background white and its text grey, switched the font to Roboto, remo
 margins, because the stylesheet has global rules (`*`, `body`, `a`, headings); a theme provider adds its own variables.
 The `body` rule won only because of the load order; the dialog finding does not depend on it. Its dialog renders in a
 provider outside the wrapper, so the wrapper's scoped CSS did not reach it: it kept a white fill, a 4-pixel radius, its
-own shadow and stacking of 1400 to 1402 rather than the tokens. Its focus trap, Escape and focus return worked. I infer
-that using MudBlazor would mean shipping its global stylesheet or cherry-picking from it, overriding it with global CSS,
+own shadow and stacking of 1400 to 1402 rather than the tokens. Its focus trap, Escape and focus return worked. Using
+MudBlazor would therefore mean shipping its global stylesheet or cherry-picking from it, overriding it with global CSS,
 and putting colours in a `MudTheme` in C#, which the tests do not scan; that conflicts with "Same in every door" unless
 shown otherwise.
 
@@ -493,8 +549,8 @@ shown otherwise.
 WebKit with axe-core on the menu, select, combo box, popover, tooltip and toast, and a screen-reader pass on the menu
 and combo box. **To leave it:** switch the wrappers to BlazorBlueprint.Primitives or MudBlazor if the package is
 unpublished or has no release for 90 days, or if two pre-releases in a row break a wrapper. The wrappers are the only
-code that names the library. These conditions are unchanged by the run above: Chromium and WebKit with axe-core are
-done on 11.0.0-pre-23; Firefox, the screen-reader pass and a stable release are not.
+code that names the library. These conditions are unchanged by the run above: Chromium, WebKit and Firefox with axe-core are
+done on 11.0.0-pre-23; the screen-reader pass and a stable release are not.
 
 - A wrapper has one root element of its own and styles the library's parts with `::deep` from it. The library's parts
   do not take Blazor's scoped-CSS attribute, and a part that renders in a portal under `<body>` needs the root inside
@@ -508,7 +564,9 @@ done on 11.0.0-pre-23; Firefox, the screen-reader pass and a stable release are 
 - A tooltip's trigger is the focusable control itself, never a wrapper around it, or keyboard focus does not show it.
 - A wrapper over a native dialog records the element that opened it and returns focus there on close, because WebKit
   returned focus to the page body after a native dialog opened with a mouse click.
-- Its scripts are listed by the rule of [section 8](#8-javascript-policy), by the pull request that first references the package.
+- Scripts are approved per exact version ([section 8](#8-javascript-policy)): every version bump of the library needs
+  new owner-approved entries. Bit.Bheadless 11.0.0-pre-23 ships three, `staticwebassets/Bit.Bheadless.4mg12f5a83.lib.module.js`
+  (its file name carries a content hash), `staticwebassets/bit-bheadless-csp.js` and `staticwebassets/bit-bheadless.js`.
 - Not built: a table. Bit.Bheadless has a grid with cell navigation, but nothing in this catalogue is a table yet.
 
 ### 7.6 States, input and accessibility
@@ -543,10 +601,11 @@ done on 11.0.0-pre-23; Firefox, the screen-reader pass and a stable release are 
 ## 8. JavaScript policy
 
 C# is the default for everything. JavaScript is allowed only where the browser offers no other way in: the audio
-thread (an `AudioWorklet` processor), browser APIs that have no .NET binding (microphone capture, Web MIDI), and the
-keyboard, focus and positioning behaviour of menus, select, combo box, popover, tooltip and toasts that the UI library
-of [D14](#2-decisions) ships. Before adding any script, check whether C# can do it, including through `[JSImport]` calls to browser
-built-ins that need no script file: the native dialog of D14 is one.
+thread (an `AudioWorklet` processor) and browser APIs that have no .NET binding (microphone capture, Web MIDI). If
+[D14](#2-decisions) is Decided, it also allows the keyboard, focus and positioning behaviour of menus, select, combo box,
+popover, tooltip and toasts that its UI library ships; until then it does not. Before adding any script, check whether C#
+can do it, including through `[JSImport]` calls to browser built-ins that need no script file: the native dialog in D14
+is one.
 
 When a script is unavoidable:
 
@@ -559,7 +618,7 @@ When a script is unavoidable:
   the rest of the UI calls.
 - A third-party script library is a script and follows the same rule. So is a script that arrives inside a NuGet
   package: each script is listed by package id, exact version and path inside the package, with the same reason and
-  approval (the conventions pull request, #3, builds that list).
+  approval.
 
 Tests enforce this: an unlisted `.js` or `.ts` file, an inline `<script>` block, or interop outside that folder fails
 the build.
@@ -603,6 +662,7 @@ server, as commands.
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
 | O8 | The event transport: SignalR or raw WebSockets. | The first server work item. |
 | O9 | Whether the HartsyInference packages restore, pin to exact versions and run on net10, and what using `HartsyInference.Audio` (`Resampler`, `WavFile`, `Fft`) in WebAssembly would cost. Default stays that `AudioLab.Audio` references only Core (section 4). | A spike that restores and runs each API on the server and in a Blazor WebAssembly page, and lists package ids and exact versions. |
+| O11 | Whether text in `--record` (destructive menu items in 7.5, and the danger button if its label is `--record`) may sit on raised surfaces. 7.6 says text meets 4.5:1, but `--record` is 4.01:1 on `--surface-raised`, 3.53:1 on `--surface-raised-active` and 4.29:1 on `--surface-selected` (axe-core measured 4.0 on the menu). Options: a lighter text-only red token, or a non-text cue (an icon or the position) with the label in `--text`. `TextTokensMeetTheContrastFloor` checks only the `--text` tokens and `--ink` on fills, and adding `--record` as text on the raised surfaces would fail today, so it is not extended until this is decided. | Owner. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
 fixed before the spike runs. A spike that misses it reports the miss, the numbers and the fallback; it does not move
@@ -615,15 +675,15 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | Phase | Outcome |
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
-| 1 | Spikes O1, O2, O3 and O9, and the O10 evaluation, each closed in this file. |
-| 2 | Core and server: model with v3 migration, commands, history, store, hub, routes, and a minimal UI that opens a project. |
+| 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14 stays Proposed until the owner decides; Proposed is not closed. |
+| 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
 | 5 | The UI, one domain at a time: tempo, markers, sections and groups; tracks and mixer; clips and media; effects, automation, MIDI, piano roll and beats. |
 | 6 | Engine services and the model manager. |
 | 7 | Recording, native devices and the desktop shell. |
 | 8 | Voice agent and wake word. |
-| 9 | SwarmUI extension: child process, proxy, tab, then cutover. |
+| 9 | SwarmUI extension: child process, proxy, tab, then cutover; projects saved by the extension are not carried over, by owner decision. |
 | 10 | Hosting: accounts, quotas, the job queue. |
 
 ## 13. Change log
@@ -634,4 +694,6 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
-| 2026-11-20 | O10 closed: D14 proposes native dialogs and Bit.Bheadless for the rest, behind the 7.5 wrappers; Popover and Combo box rows added to 7.5. Checked in Chromium and WebKit with axe-core on 2026-11-21; Firefox not run. |
+| 2026-11-20 | O10 evaluated: D14 proposes native dialogs and Bit.Bheadless for the rest, behind the 7.5 wrappers; Popover and Combo box rows added to 7.5. D14 is Proposed. |
+| 2026-11-21 | Migration from the extension's `version: 3` project JSON dropped by owner decision: new project format only (sections 5 and 12). |
+| 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
