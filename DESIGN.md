@@ -508,10 +508,9 @@ included in the count. The script, the raw results and this table are on the pro
 - **axe-core:** one violation in each browser, the same one: `color-contrast` on the open menu, for the destructive
   item's text in `--record` on `--surface-raised` (4.0 to 1 at 12 px; 4.5 to 1 is needed). 7.5 asks for that colour, so
   this is a finding on the design, not on the library; it is [O11](#11-open-questions) and no token changes here. The
-  menu shortcut text uses `--text-dim`: `--text-faint` is 4.40 to 1 on `--surface-raised` (3.88 to 1 on `--surface-raised-active`), under the 4.5 floor, and 7.4
-  forbids it there. Axe
-  left two items unresolved (the toast close button's name against its visible ×, and the contrast of two elements
-  behind an expanded list in a dialog).
+  menu shortcut text uses `--text-dim`: `--text-faint` is 4.40 to 1 on `--surface-raised` (3.88 to 1 on
+  `--surface-raised-active`), under the 4.5 floor, and 7.4 forbids it there. Axe left two items unresolved (the toast
+  close button's name against its visible ×, and the contrast of two elements behind an expanded list in a dialog).
 - **Tooltip:** it opens on hover, and on keyboard focus only when the trigger is the focusable control itself. A trigger
   that is a span around a button never sees the focus, in all three engines. The catalogue tooltip must make the control
   the trigger (a wrapper rule, below); the proof page has both forms.
@@ -531,9 +530,8 @@ included in the count. The script, the raw results and this table are on the pro
 - **Overlays inside a native dialog:** a select, a combo box and a popover opened from it; Escape closed the list first
   and the dialog second; a toast raised from inside the modal was shown but did not receive pointer hits, in all three.
 - **Firefox:** Firefox 159.0 did not start from Playwright's default browser folder on this machine (Windows
-  side-by-side error, `mozglue` not found); a copy of that
-  folder at `C:\pwtest`, with `PLAYWRIGHT_BROWSERS_PATH` pointing there, started and ran every check. The cause was not
-  found.
+  side-by-side error, `mozglue` not found); a copy of that folder at `C:\pwtest`, with
+  `PLAYWRIGHT_BROWSERS_PATH` pointing there, started and ran every check. The cause was not found.
 - **Not run:** a screen reader, touch, Safari itself, and the libraries' own test suites.
 
 **MudBlazor as the fallback is a candidate, not a proven one.** A dialog wrapper on it, on the proof branch, passes the
@@ -554,6 +552,8 @@ and combo box. **To leave it:** switch the wrappers to BlazorBlueprint.Primitive
 unpublished or has no release for 90 days, or if two pre-releases in a row break a wrapper. The wrappers are the only
 code that names the library. These conditions are unchanged by the run above: Chromium, WebKit and Firefox with axe-core are
 done on 11.0.0-pre-23; the screen-reader pass and a stable release are not.
+
+**Rules for the catalogue wrappers over the library:**
 
 - A wrapper has one root element of its own and styles the library's parts with `::deep` from it. The library's parts
   do not take Blazor's scoped-CSS attribute, and a part that renders in a portal under `<body>` needs the root inside
