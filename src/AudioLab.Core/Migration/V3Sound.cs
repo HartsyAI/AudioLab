@@ -13,7 +13,7 @@ internal static class V3Sound
         }
         return raw.Type switch
         {
-            null or "synth" => ConvertSynth(raw, path),
+            null or "synth" => ConvertSynth(raw, path, context),
             "sampler" => ConvertSampler(raw, path, context),
             _ => throw V3Context.Fail($"{path}.type", $"'{raw.Type}' is not synth or sampler."),
         };
@@ -43,12 +43,10 @@ internal static class V3Sound
         return effects;
     }
 
-    private static SynthInstrument ConvertSynth(V3Instrument raw, string path)
+    private static SynthInstrument ConvertSynth(V3Instrument raw, string path, V3Context context)
     {
-        if (raw.Name is not null || raw.SampleKey is not null || raw.SampleName is not null || raw.RootNote is not null || raw.OneShot is not null)
-        {
-            throw V3Context.Fail(path, "a synth has sampler fields, so it is not clear which it is.");
-        }
+        WarnIgnored(path, "synth", "sampler", context, (nameof(raw.Name), raw.Name), (nameof(raw.SampleKey), raw.SampleKey),
+            (nameof(raw.SampleName), raw.SampleName), (nameof(raw.RootNote), raw.RootNote), (nameof(raw.OneShot), raw.OneShot));
         return new SynthInstrument
         {
             Preset = string.IsNullOrEmpty(raw.Preset) ? "Custom" : raw.Preset,
@@ -70,13 +68,10 @@ internal static class V3Sound
 
     private static SamplerInstrument ConvertSampler(V3Instrument raw, string path, V3Context context)
     {
-        bool hasSynthField = raw.Preset is not null || raw.Osc1 is not null || raw.Osc2 is not null || raw.Ratio2 is not null
-            || raw.Mix2 is not null || raw.Detune is not null || raw.Cutoff is not null || raw.Resonance is not null
-            || raw.FilterEnv is not null || raw.Decay is not null || raw.Sustain is not null;
-        if (hasSynthField)
-        {
-            throw V3Context.Fail(path, "a sampler has synth fields, so it is not clear which it is.");
-        }
+        WarnIgnored(path, "sampler", "synth", context, (nameof(raw.Preset), raw.Preset), (nameof(raw.Osc1), raw.Osc1),
+            (nameof(raw.Osc2), raw.Osc2), (nameof(raw.Ratio2), raw.Ratio2), (nameof(raw.Mix2), raw.Mix2),
+            (nameof(raw.Detune), raw.Detune), (nameof(raw.Cutoff), raw.Cutoff), (nameof(raw.Resonance), raw.Resonance),
+            (nameof(raw.FilterEnv), raw.FilterEnv), (nameof(raw.Decay), raw.Decay), (nameof(raw.Sustain), raw.Sustain));
         return new SamplerInstrument
         {
             Name = string.IsNullOrEmpty(raw.Name) ? "Sampler" : raw.Name,
@@ -88,6 +83,16 @@ internal static class V3Sound
             Gain = raw.Gain ?? 0.8,
             OneShot = raw.OneShot == true,
         };
+    }
+
+    // Changing a track's instrument replaces the object in the extension, so a leftover from the other kind is noise.
+    private static void WarnIgnored(string path, string kind, string other, V3Context context, params (string Name, object? Value)[] fields)
+    {
+        string[] present = [.. fields.Where(field => field.Value is not null).Select(field => field.Name)];
+        if (present.Length > 0)
+        {
+            context.Warn($"{path} is a {kind} but had {other} fields ({string.Join(", ", present)}); they were ignored.");
+        }
     }
 
     private static OscillatorWave Wave(string? name, string path)

@@ -111,7 +111,8 @@
               "text": "[Verse]\nla la",
               "words": [ { "w": "la", "s": 0.5, "e": 0.9, "line": 0 }, { "w": "la", "s": 1, "e": 1.01, "line": 0, "u": true } ],
               "source": "transcribed",
-              "model": "whisper"
+              "model": "whisper",
+              "alignedBy": "future"
             }
           }
         },
@@ -128,7 +129,7 @@
           "fadeOut": 0,
           "muted": true,
           "color": null,
-          "meta": { "stemOf": { "clipId": "clip-1", "stem": "vocals" } }
+          "meta": { "score": { "parent": "" }, "stemOf": { "clipId": "clip-1", "stem": "vocals" } }
         },
         {
           "id": "clip-3",
@@ -144,6 +145,19 @@
           "muted": false,
           "color": null,
           "meta": { "score": { "parent": "clip-gone", "label": "Orphan" }, "stemOf": { "clipId": "clip-missing", "stem": "drums" } }
+        },
+        {
+          "id": "clip-4",
+          "name": "Never recorded",
+          "startTime": 40,
+          "duration": 0,
+          "offset": 0,
+          "trimEnd": 0,
+          "gain": 1,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "muted": false,
+          "color": null
         }
       ]
     },
@@ -161,15 +175,18 @@
       "input": { "deviceId": null, "channels": "stereo" },
       "takeCount": 0,
       "kind": "instrument",
-      "instrument": { "type": "synth", "preset": "Soft Keys", "osc1": "triangle", "osc2": "sine", "ratio2": 2, "mix2": 0.25, "detune": 0, "cutoff": 3200, "resonance": 1, "filterEnv": 0.6, "attack": 0, "decay": 0.7, "sustain": 0.25, "release": 0.45 },
+      "instrument": { "type": "synth", "preset": "Soft Keys", "osc1": "triangle", "osc2": "sine", "ratio2": 2, "mix2": 0.25, "detune": 0, "cutoff": 3200, "resonance": 1, "filterEnv": 0.6, "attack": 0, "decay": 0.7, "sustain": 0.25, "release": 0.45, "rootNote": 60, "oneShot": false },
       "midiClips": [
         {
           "id": "midi-a-1",
           "name": "Keys MIDI",
           "startTime": 2,
           "length": 0.01,
-          "notes": [ { "id": 5, "pitch": 60, "start": 0, "dur": 0.5, "vel": 100 }, { "id": 5, "pitch": 64, "start": 0.5, "dur": 1 } ],
-          "cc": [ { "t": 2, "n": 64, "v": 0 }, { "t": 0, "n": 64, "v": 127 } ],
+          "notes": [ { "id": 5, "pitch": 60, "start": 0, "dur": 0.5, "vel": 100 }, { "id": 5, "pitch": 64, "start": 0.5, "dur": 1 },
+            { "id": 9, "pitch": 67, "start": -0.25, "dur": 1, "vel": 90 },
+            { "id": 10, "pitch": 69, "start": -2, "dur": 1, "vel": 90 }
+          ],
+          "cc": [ { "t": 2, "n": 64, "v": 0 }, { "t": 0, "n": 64, "v": 127 }, { "t": -0.5, "n": 1, "v": 10 } ],
           "muted": true,
           "color": "#4fcdb8"
         }
@@ -202,7 +219,7 @@
       "input": { "deviceId": null, "channels": "mono" },
       "takeCount": 0,
       "kind": "instrument",
-      "instrument": { "type": "sampler", "name": "Sampler", "sampleKey": "blob-1-100", "sampleName": "snare.wav", "rootNote": 60, "attack": 0.002, "release": 0.2, "gain": 0.8, "oneShot": true },
+      "instrument": { "type": "sampler", "preset": "Soft Keys", "name": "Sampler", "sampleKey": "blob-1-100", "sampleName": "snare.wav", "rootNote": 60, "attack": 0.002, "release": 0.2, "gain": 0.8, "oneShot": true },
       "midiClips": [],
       "color": "#51cf66",
       "height": 100,

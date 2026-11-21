@@ -302,22 +302,22 @@ internal sealed record V3MidiClip
 
 internal sealed record V3Note
 {
-    public int? Id { get; init; }
+    public double? Id { get; init; }
 
-    public int? Pitch { get; init; }
+    public double? Pitch { get; init; }
 
     public double? Start { get; init; }
 
     public double? Dur { get; init; }
 
-    public int? Vel { get; init; }
+    public double? Vel { get; init; }
 }
 
 internal sealed record V3Cc
 {
     public double? T { get; init; }
 
-    public int? N { get; init; }
+    public double? N { get; init; }
 
-    public int? V { get; init; }
+    public double? V { get; init; }
 }

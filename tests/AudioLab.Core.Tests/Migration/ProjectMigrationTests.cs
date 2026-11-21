@@ -98,6 +98,8 @@ public sealed class ProjectMigrationTests
         Assert.Equal("[Verse]\nla la", lyrics.Text);
         Assert.Equal([new LyricWord("la", 0.5, 0.9, 0), new LyricWord("la", 1, 1.01, 0, true)], lyrics.Words);
         Assert.Equal(new StemOf(clips[0].Id, "vocals"), clips[1].Meta!.StemOf);
+        Assert.Equal("future", lyrics.Extra!["alignedBy"].GetString());
+        Assert.Null(clips[1].Meta!.Score!.Parent);
     }
 
     [Fact]
@@ -108,6 +110,32 @@ public sealed class ProjectMigrationTests
         Assert.Null(orphan.Score!.Parent);
         Assert.Equal(new StemOf(null, "drums"), orphan.StemOf);
         Assert.Contains(result.Warnings, warning => warning.Contains("meta.score.parent") && warning.Contains("cleared"));
+    }
+
+    [Fact]
+    public void AClipWithNoAudioIsDroppedAsTheExtensionDoesOnOpen()
+    {
+        MigrationResult result = Migrate();
+        Assert.Equal(3, result.Document.Tracks[0].Clips.Count);
+        Assert.Contains(result.Warnings, warning => warning.Contains("clip with no audio"));
+    }
+
+    [Fact]
+    public void TimesBeforeTheStartOfAClipAreRepairedAndSaidSo()
+    {
+        IReadOnlyList<string> warnings = Migrate().Warnings;
+        Assert.Contains(warnings, warning => warning.Contains("2 notes starting before the clip"));
+        Assert.Contains(warnings, warning => warning.Contains("1 controller events before the clip"));
+    }
+
+    [Fact]
+    public void FieldsOfTheOtherInstrumentKindAreIgnoredWithAWarning()
+    {
+        MigrationResult result = Migrate();
+        Assert.Contains(result.Warnings, warning => warning.Contains("is a synth but had sampler fields (RootNote, OneShot)"));
+        Assert.Contains(result.Warnings, warning => warning.Contains("is a sampler but had synth fields (Preset)"));
+        Assert.IsType<SynthInstrument>(result.Document.Tracks[1].Instrument);
+        Assert.IsType<SamplerInstrument>(result.Document.Tracks[2].Instrument);
     }
 
     [Fact]
@@ -177,9 +205,15 @@ public sealed class ProjectMigrationTests
         MidiClip clip = Assert.Single(Migrate().Document.Tracks[1].MidiClips);
         Assert.Equal(0.05, clip.Length);
         Assert.Equal(
-            [new MidiNote(new NoteId(1), 60, 0, 0.5, 100), new MidiNote(new NoteId(2), 64, 0.5, 1, 100)],
+            [
+                new MidiNote(new NoteId(1), 60, 0, 0.5, 100),
+                new MidiNote(new NoteId(2), 64, 0.5, 1, 100),
+                new MidiNote(new NoteId(3), 67, 0, 0.75, 90),
+            ],
             clip.Notes);
-        Assert.Equal([new MidiControlChange(0, 64, 127), new MidiControlChange(2, 64, 0)], clip.ControlChanges);
+        Assert.Equal(
+            [new MidiControlChange(0, 64, 127), new MidiControlChange(0, 1, 10), new MidiControlChange(2, 64, 0)],
+            clip.ControlChanges);
         Assert.True(clip.Muted);
         Assert.Equal("#4fcdb8", clip.Color);
     }

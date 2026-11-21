@@ -23,14 +23,10 @@ internal static class V3Tracks
             {
                 throw V3Context.Fail($"{path}.id", $"the id {id} is used by two tracks, so sends to it are ambiguous.");
             }
-            foreach (V3Clip clip in raw[i].Clips ?? [])
+            foreach (V3Clip clip in (raw[i].Clips ?? []).Where(HasAudio))
             {
                 string clipId = clip.Id ?? string.Empty;
-                if (clipId.Length == 0)
-                {
-                    throw V3Context.Fail($"{path}.clips", "a clip has no id.");
-                }
-                if (!context.ClipIds.TryAdd(clipId, context.Ids.Next<ClipId>()))
+                if (clipId.Length > 0 && !context.ClipIds.TryAdd(clipId, context.Ids.Next<ClipId>()))
                 {
                     context.Warn($"Two clips had the id {clipId}; links to it point at the first.");
                 }
@@ -49,6 +45,8 @@ internal static class V3Tracks
         return ConvertSends(raw, tracks, context);
     }
 
+    private static bool HasAudio(V3Clip clip) => !string.IsNullOrEmpty(clip.BlobKey);
+
     private static Track ConvertTrack(
         V3Track raw,
         string path,
@@ -63,7 +61,11 @@ internal static class V3Tracks
             "bus" => TrackKind.Bus,
             _ => throw V3Context.Fail($"{path}.kind", $"'{raw.Kind}' is not audio, instrument or bus."),
         };
-        List<V3Clip> clips = raw.Clips ?? [];
+        List<V3Clip> clips = [.. (raw.Clips ?? []).Where(HasAudio)];
+        if (clips.Count < (raw.Clips?.Count ?? 0))
+        {
+            context.Warn($"{path} had a clip with no audio; the extension skips those on open, so it was dropped.");
+        }
         return new Track
         {
             Id = context.TrackIds[raw.Id!],
@@ -82,9 +84,9 @@ internal static class V3Tracks
             TakeCount = raw.TakeCount ?? 0,
             Instrument = V3Sound.ConvertInstrument(raw.Instrument, $"{path}.instrument", context),
             Clips = [.. clips.Select((clip, index) => ConvertClip(clip, $"{path}.clips[{index}]", claimed, context))],
-            MidiClips = [.. (raw.MidiClips ?? []).Select((clip, index) => ConvertMidiClip(clip, $"{path}.midiClips[{index}]", context))],
+            MidiClips = [.. (raw.MidiClips ?? []).Select((clip, index) => V3Midi.ConvertClip(clip, $"{path}.midiClips[{index}]", context))],
             Effects = V3Sound.ConvertEffects(raw.Fx ?? [], $"{path}.fx", context),
-            Automation = ConvertAutomation(raw, path),
+            Automation = ConvertAutomation(raw, path, context),
             Sends = [],
             View = ConvertView(raw, path),
         };
@@ -148,7 +150,8 @@ internal static class V3Tracks
         {
             throw V3Context.Fail($"{path}.blobKey", "is missing, so the clip has no audio to refer to.");
         }
-        ClipId id = claimed.Add(raw.Id!) ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
+        bool keeps = !string.IsNullOrEmpty(raw.Id) && claimed.Add(raw.Id);
+        ClipId id = keeps ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
         return new AudioClip
         {
             Id = id,
@@ -197,48 +200,7 @@ internal static class V3Tracks
         return null;
     }
 
-    private static MidiClip ConvertMidiClip(V3MidiClip raw, string path, V3Context context)
-    {
-        List<MidiNote> notes = [];
-        NoteId next = NoteId.First;
-        List<V3Note> rawNotes = raw.Notes ?? [];
-        for (int i = 0; i < rawNotes.Count; i++)
-        {
-            V3Note note = rawNotes[i];
-            string notePath = $"{path}.notes[{i}]";
-            notes.Add(new MidiNote(
-                next,
-                note.Pitch ?? throw V3Context.Fail($"{notePath}.pitch", "is missing."),
-                note.Start ?? throw V3Context.Fail($"{notePath}.start", "is missing."),
-                note.Dur ?? throw V3Context.Fail($"{notePath}.dur", "is missing."),
-                note.Vel ?? 100));
-            next = next.Next();
-        }
-        List<MidiControlChange> changes = [];
-        List<V3Cc> rawChanges = raw.Cc ?? [];
-        for (int i = 0; i < rawChanges.Count; i++)
-        {
-            V3Cc change = rawChanges[i];
-            string changePath = $"{path}.cc[{i}]";
-            changes.Add(new MidiControlChange(
-                change.T ?? throw V3Context.Fail($"{changePath}.t", "is missing."),
-                change.N ?? throw V3Context.Fail($"{changePath}.n", "is missing."),
-                change.V ?? throw V3Context.Fail($"{changePath}.v", "is missing.")));
-        }
-        return new MidiClip
-        {
-            Id = context.Ids.Next<ClipId>(),
-            Name = raw.Name ?? string.Empty,
-            Start = raw.StartTime ?? 0,
-            Length = Math.Max(MinMidiLength, raw.Length ?? 0),
-            Notes = notes,
-            ControlChanges = [.. changes.OrderBy(change => change.Time)],
-            Muted = raw.Muted == true,
-            Color = string.IsNullOrEmpty(raw.Color) ? null : raw.Color,
-        };
-    }
-
-    private static TrackAutomation ConvertAutomation(V3Track raw, string path)
+    private static TrackAutomation ConvertAutomation(V3Track raw, string path, V3Context context)
     {
         AutomationMode mode = raw.AutomationMode switch
         {
@@ -252,22 +214,9 @@ internal static class V3Tracks
         return new TrackAutomation
         {
             Mode = mode,
-            Volume = ConvertPoints(raw.Automation?.Volume, $"{path}.automation.volume"),
-            Pan = ConvertPoints(raw.Automation?.Pan, $"{path}.automation.pan"),
+            Volume = V3Midi.ConvertPoints(raw.Automation?.Volume, $"{path}.automation.volume", context),
+            Pan = V3Midi.ConvertPoints(raw.Automation?.Pan, $"{path}.automation.pan", context),
         };
-    }
-
-    private static List<AutomationPoint> ConvertPoints(List<V3Point>? raw, string path)
-    {
-        List<AutomationPoint> points = [];
-        List<V3Point> source = raw ?? [];
-        for (int i = 0; i < source.Count; i++)
-        {
-            points.Add(new AutomationPoint(
-                source[i].T ?? throw V3Context.Fail($"{path}[{i}].t", "is missing."),
-                source[i].V ?? throw V3Context.Fail($"{path}[{i}].v", "is missing.")));
-        }
-        return [.. points.OrderBy(point => point.Time)];
     }
 
     private static TrackView ConvertView(V3Track raw, string path)
