@@ -35,7 +35,7 @@ public sealed class StrictEnumConverter<[DynamicallyAccessedMembers(DynamicallyA
         {
             return value;
         }
-        throw new JsonException($"A {typeof(TEnum).Name} is one of: {string.Join(", ", _byName.Keys)}.");
+        throw new JsonException($"The value is one of: {string.Join(", ", _byName.Keys)}.");
     }
 
     /// <inheritdoc />
@@ -43,7 +43,7 @@ public sealed class StrictEnumConverter<[DynamicallyAccessedMembers(DynamicallyA
     {
         if (!_byValue.TryGetValue(value, out string? name))
         {
-            throw new JsonException($"{value} is not a member of {typeof(TEnum).Name}.");
+            throw new JsonException($"{value} is not a known value.");
         }
         writer.WriteStringValue(name);
     }

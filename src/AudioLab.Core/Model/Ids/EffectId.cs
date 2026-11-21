@@ -6,17 +6,19 @@ namespace AudioLab.Core.Model;
 [JsonConverter(typeof(IdJsonConverter<EffectId>))]
 public readonly record struct EffectId : IAllocatedId<EffectId>
 {
-    private EffectId(string value) => Value = value;
+    private readonly string? _value;
+
+    private EffectId(string value) => _value = value;
 
     /// <inheritdoc />
     public static string Prefix => "fxn";
 
     /// <inheritdoc />
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <inheritdoc />
     public static EffectId From(string value) => new(IdRules.Require(value));
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 }

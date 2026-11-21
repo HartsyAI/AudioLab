@@ -13,12 +13,12 @@ public sealed class IdJsonConverter<TId> : JsonConverter<TId>
     {
         if (reader.TokenType != JsonTokenType.String)
         {
-            throw new JsonException($"An id of type {typeof(TId).Name} must be a string.");
+            throw new JsonException($"An id must be a string.");
         }
         string? value = reader.GetString();
         if (!IdRules.IsValid(value))
         {
-            throw new JsonException($"An id of type {typeof(TId).Name}: {IdRules.Description}");
+            throw new JsonException(IdRules.Description);
         }
         return TId.From(value!);
     }

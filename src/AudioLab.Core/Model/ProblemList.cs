@@ -20,6 +20,9 @@ internal sealed class ProblemList
         _items.Add(ProjectLimits.Shorten(message));
     }
 
+    /// <summary>How many problems were found, counting those past the cap.</summary>
+    public int Found => _items.Count + _more;
+
     /// <summary>A copy of the problems, with a last line saying how many more there were.</summary>
     public IReadOnlyList<string> ToList()
     {
@@ -106,7 +109,7 @@ internal sealed class ProblemList
     {
         if (!Enum.IsDefined(value))
         {
-            Add($"{path}: {value} is not a known {typeof(TEnum).Name}.");
+            Add($"{path}: {value} is not a known value.");
         }
     }
 

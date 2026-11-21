@@ -6,17 +6,19 @@ namespace AudioLab.Core.Model;
 [JsonConverter(typeof(IdJsonConverter<TempoChangeId>))]
 public readonly record struct TempoChangeId : IAllocatedId<TempoChangeId>
 {
-    private TempoChangeId(string value) => Value = value;
+    private readonly string? _value;
+
+    private TempoChangeId(string value) => _value = value;
 
     /// <inheritdoc />
     public static string Prefix => "tmp";
 
     /// <inheritdoc />
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <inheritdoc />
     public static TempoChangeId From(string value) => new(IdRules.Require(value));
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 }

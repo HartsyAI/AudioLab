@@ -6,18 +6,26 @@ namespace AudioLab.Core.Tests;
 
 public sealed class ProjectJsonRejectionTests
 {
-    /// <summary>Each row breaks the sample project one way and names what the error must say.</summary>
+    /// <summary>Each row breaks the sample project one way and names what the error must say; a bar splits fragments.</summary>
     public static TheoryData<string, string, Action<JsonObject>> BrokenFiles => new()
     {
         { "version 3", "version: expected 4, found 3", root => root["version"] = 3 },
-        { "version 5", "version: expected 4, found 5", root => root["version"] = 5 },
+        {
+            "a newer version with a member this version does not know",
+            "version: expected 4, found 5",
+            root =>
+            {
+                root["version"] = 5;
+                root["surprise"] = 1;
+            }
+        },
         { "no version", "'version'", root => root.Remove("version") },
         { "version as text", "$.version", root => root["version"] = "4" },
         { "unknown project field", "$.surprise", root => root["surprise"] = 1 },
         { "unknown track field", "$.tracks[0].surprise", root => Track(root, 0)["surprise"] = 1 },
         { "unknown clip field", "$.tracks[0].clips[0].blobKey", root => Clip(root)["blobKey"] = "blob-1" },
-        { "unknown instrument field", "'surprise'", root => Track(root, 1)["instrument"]!["surprise"] = 1 },
-        { "missing owner", "'owner'", root => root.Remove("owner") },
+        { "unknown instrument field", "$.tracks[1].instrument.surprise|'surprise'", root => Track(root, 1)["instrument"]!["surprise"] = 1 },
+        { "missing owner", "missing required properties|'owner'", root => root.Remove("owner") },
         { "null owner", "$.owner", root => root["owner"] = null },
         { "empty owner", "$.owner", root => root["owner"] = string.Empty },
         { "owner that climbs out of a folder", "$.owner", root => root["owner"] = "../x" },
@@ -26,8 +34,8 @@ public sealed class ProjectJsonRejectionTests
         { "id with a space", "$.tracks[0].id", root => Track(root, 0)["id"] = "a b" },
         { "id that is too long", "$.tracks[0].id", root => Track(root, 0)["id"] = new string('a', 65) },
         { "an empty id", "$.tracks[0].id", root => Track(root, 0)["id"] = string.Empty },
-        { "missing required field", "'volume'", root => Track(root, 0).AsObject().Remove("volume") },
-        { "null for a non-nullable field", "'Name'", root => Track(root, 0)["name"] = null },
+        { "missing required field", "$.tracks[0]|'volume'", root => Track(root, 0).AsObject().Remove("volume") },
+        { "null for a non-nullable field", "$.tracks[0].name|'Name'", root => Track(root, 0)["name"] = null },
         { "text for a number", "$.tracks[0].pan", root => Track(root, 0)["pan"] = "left" },
         { "unknown enum name", "$.tracks[0].kind", root => Track(root, 0)["kind"] = "folder" },
         { "enum as an undefined number", "$.tracks[0].kind", root => Track(root, 0)["kind"] = 99 },
@@ -42,39 +50,56 @@ public sealed class ProjectJsonRejectionTests
         { "an uppercase id", "$.tracks[0].id", root => Track(root, 0)["id"] = "Trk_1" },
         { "an id that is a device name", "$.tracks[0].id", root => Track(root, 0)["id"] = "nul" },
         { "a control character in a name", "tracks[0].name", root => Track(root, 0)["name"] = "a\u0007b" },
-        { "a text-direction mark in a name", "tracks[0].name", root => Track(root, 0)["name"] = "a‮b" },
+        { "a text-direction mark in a name", "tracks[0].name", root => Track(root, 0)["name"] = "a\u202Eb" },
         { "a line break in an icon", "tracks[4].icon", root => Track(root, 4)["icon"] = "a\nb" },
         {
             "a next note id that cannot be followed",
-            "nextNoteId",
+            "nextNoteId: 2147483647 must be from 1 to 2147483646",
             root => Track(root, 1)["midiClips"]![0]!["nextNoteId"] = int.MaxValue
         },
-        { "automation mode as a number", "mode", root => Track(root, 0)["automation"]!["mode"] = 0 },
-        { "view mode as a number", "editMode", root => root["view"]!["editMode"] = 7 },
+        {
+            "automation mode as a number",
+            "$.tracks[0].automation.mode|is one of: read, touch, latch, write, off",
+            root => Track(root, 0)["automation"]!["mode"] = 0
+        },
+        { "view mode as a number", "$.view.editMode|is one of: slip, grid, shuffle", root => root["view"]!["editMode"] = 7 },
         {
             "unknown effect type",
             "$.tracks[0].effects[0]: Read unrecognized type discriminator id 'flanger'",
             root => Track(root, 0)["effects"]![0]!["type"] = "flanger"
         },
-        { "effect without a type", "type", root => Track(root, 0)["effects"]![0]!.AsObject().Remove("type") },
-        { "effect with a null type", "type", root => Track(root, 0)["effects"]![0]!["type"] = null },
-        { "unknown instrument type", "'organ'", root => Track(root, 1)["instrument"]!["type"] = "organ" },
-        { "wrong shape", "tracks", root => root["tracks"] = "none" },
+        {
+            "effect without a type",
+            "$.tracks[0].effects[0]: a 'type' member is required.",
+            root => Track(root, 0)["effects"]![0]!.AsObject().Remove("type")
+        },
+        {
+            "instrument without a type",
+            "$.tracks[1].instrument: a 'type' member is required.",
+            root => Track(root, 1)["instrument"]!.AsObject().Remove("type")
+        },
+        {
+            "effect with a null type",
+            "$.tracks[0].effects[0].type: 'type' must be a string.",
+            root => Track(root, 0)["effects"]![0]!["type"] = null
+        },
+        { "unknown instrument type", "$.tracks[1].instrument|'organ'", root => Track(root, 1)["instrument"]!["type"] = "organ" },
+        { "wrong shape", "$.tracks|must be a JSON array", root => root["tracks"] = "none" },
         {
             "number too large for a double",
-            "hpFreq",
+            "hpFreq: a non-finite number must be from 20 to 1000",
             root => Track(root, 0)["effects"]![0]!["hpFreq"] = JsonNode.Parse("1e999")
         },
         { "pan out of range", "tracks[0].pan: 2 must be from -1 to 1", root => Track(root, 0)["pan"] = 2 },
         { "negative volume", "tracks[0].volume: -0.1 must be from 0 to 16", root => Track(root, 0)["volume"] = -0.1 },
         { "volume past the limit", "tracks[0].volume: 17", root => Track(root, 0)["volume"] = 17 },
         { "tempo of zero", "bpm: 0 must be from 1 to 1000", root => root["bpm"] = 0 },
-        { "tempo that is almost zero", "bpm", root => root["bpm"] = 1e-300 },
-        { "bad denominator", "timeSignature", root => root["timeSignature"]!["denominator"] = 5 },
-        { "huge numerator", "timeSignature", root => root["timeSignature"]!["numerator"] = int.MaxValue },
-        { "empty project name", "name", root => root["name"] = " " },
-        { "project name that is too long", "name", root => root["name"] = new string('n', 201) },
-        { "master volume past the limit", "masterVolume", root => root["masterVolume"] = 99 },
+        { "tempo that is almost zero", "bpm: 1E-300 must be from 1 to 1000", root => root["bpm"] = 1e-300 },
+        { "bad denominator", "timeSignature: the numerator is 1 to 64", root => root["timeSignature"]!["denominator"] = 5 },
+        { "huge numerator", "timeSignature: the numerator is 1 to 64", root => root["timeSignature"]!["numerator"] = int.MaxValue },
+        { "empty project name", "name: must be 1 to 200 characters", root => root["name"] = " " },
+        { "project name that is too long", "name: must be 1 to 200 characters", root => root["name"] = new string('n', 201) },
+        { "master volume past the limit", "masterVolume: 99 must be from 0 to 16", root => root["masterVolume"] = 99 },
         {
             "duplicate track id",
             "tracks[1].id: the id trk_1 is used more than once",
@@ -131,13 +156,13 @@ public sealed class ProjectJsonRejectionTests
         { "an input channel on a mono input", "tracks[0].input", root => Track(root, 0)["input"]!["channel"] = 2 },
         {
             "an input device name that is too long",
-            "deviceId",
+            "tracks[4].input.deviceId: must be 1 to 512 characters",
             root => Track(root, 4)["input"]!["deviceId"] = new string('d', 513)
         },
-        { "a take count below zero", "takeCount", root => Track(root, 0)["takeCount"] = -3 },
+        { "a take count below zero", "tracks[0].takeCount: -3 must be from 0 to 1000000", root => Track(root, 0)["takeCount"] = -3 },
         { "a lane height below the minimum", "view.height", root => Track(root, 0)["view"]!["height"] = -3 },
-        { "a colour that is a style", "color", root => Track(root, 0)["color"] = "red;background:url(//evil)" },
-        { "a colour that is a name", "color", root => Track(root, 0)["color"] = "red" },
+        { "a colour that is a style", "tracks[0].color: a colour is #rgb", root => Track(root, 0)["color"] = "red;background:url(//evil)" },
+        { "a colour that is a name", "tracks[0].color: a colour is #rgb", root => Track(root, 0)["color"] = "red" },
         {
             "an icon that is an address",
             "tracks[4].icon",
@@ -219,7 +244,7 @@ public sealed class ProjectJsonRejectionTests
             "lead back to itself",
             root => Clip(root, 0, 1)["meta"]!["score"] = new JsonObject { ["parent"] = Clip(root)["id"]!.GetValue<string>() }
         },
-        { "a colour with a trailing newline", "color", root => Track(root, 0)["color"] = "#fff\n" },
+        { "a colour with a trailing newline", "tracks[0].color: a colour is #rgb", root => Track(root, 0)["color"] = "#fff\n" },
         {
             "a clip that is its own stem source",
             "link to itself",
@@ -304,6 +329,20 @@ public sealed class ProjectJsonRejectionTests
         { "a sampler sample that is not an id", "sample", root => Track(root, 2)["instrument"]!["sample"] = "../s" },
     };
 
+    /// <summary>The same broken files without what their error must say.</summary>
+    public static TheoryData<string, Action<JsonObject>> BrokenFileActions
+    {
+        get
+        {
+            TheoryData<string, Action<JsonObject>> rows = [];
+            foreach (object[] row in BrokenFiles)
+            {
+                rows.Add((string)row[0], (Action<JsonObject>)row[2]);
+            }
+            return rows;
+        }
+    }
+
     [Theory]
     [MemberData(nameof(BrokenFiles))]
     public void AFileThatBreaksTheFormatIsRefusedAndTheErrorSaysWhere(string description, string expected, Action<JsonObject> breakIt)
@@ -311,18 +350,28 @@ public sealed class ProjectJsonRejectionTests
         JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
         breakIt(root);
         ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(root.ToJsonString()));
-        Assert.True(error.Message.Contains(expected, StringComparison.Ordinal), $"{description}: {error.Message}");
+        foreach (string part in expected.Split('|'))
+        {
+            Assert.True(error.Message.Contains(part, StringComparison.Ordinal), $"{description}: expected '{part}' in {error.Message}");
+        }
     }
 
     [Theory]
-    [MemberData(nameof(BrokenFiles))]
-    public void NoErrorNamesAnInternalType(string description, string expected, Action<JsonObject> breakIt)
+    [MemberData(nameof(BrokenFileActions))]
+    public void NoErrorNamesAnInternalType(string description, Action<JsonObject> breakIt)
     {
         JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
         breakIt(root);
         ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(root.ToJsonString()));
-        Assert.DoesNotContain("AudioLab.Core.", error.Message, StringComparison.Ordinal);
-        Assert.False(string.IsNullOrEmpty(expected), description);
+        string[] internals =
+        [
+            "AudioLab.", "ProjectDocument", "ClipLyrics", "ClipMeta", "ScoreMeta", "Instrument", "Effect", "ValueList",
+            "LineNumber", "BytePositionInLine",
+        ];
+        foreach (string name in internals)
+        {
+            Assert.True(!error.Message.Contains(name, StringComparison.Ordinal), $"{description} names {name}: {error.Message}");
+        }
     }
 
     [Theory]
@@ -349,7 +398,7 @@ public sealed class ProjectJsonRejectionTests
     public void ALeadingByteOrderMarkIsRefused()
     {
         string json = ProjectJson.Write(SampleProject.Create(UserId.Local));
-        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read("﻿" + json));
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read("\uFEFF" + json));
     }
 
     [Fact]

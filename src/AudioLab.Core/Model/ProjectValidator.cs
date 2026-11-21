@@ -12,29 +12,27 @@ public static class ProjectValidator
     {
         ArgumentNullException.ThrowIfNull(document);
         ProblemList problems = new();
-        try
+        if (!NullChecks.AllPresent(document, problems))
         {
-            CheckHeader(document, problems);
-            CheckTempo(document, problems);
-            CheckMarkers(document, problems);
-            CheckSections(document, problems);
-            CheckGroups(document, problems);
-            CheckBeatPattern(document.BeatPattern, problems);
-            TrackValidator.Check(document, problems);
+            return problems.ToList();
         }
-        catch (NullReferenceException)
-        {
-            // A required member or list item that is null breaks the contract the compiler checks, so say so once.
-            problems.Add("A required member or list item is null; every member a document needs must be set.");
-        }
+        CheckHeader(document, problems);
+        CheckTempo(document, problems);
+        CheckMarkers(document, problems);
+        CheckSections(document, problems);
+        CheckGroups(document, problems);
+        CheckBeatPattern(document.BeatPattern, problems);
+        TrackValidator.Check(document, problems);
         return problems.ToList();
     }
+
+    internal static string VersionProblem(int found) => $"version: expected {ProjectDocument.CurrentVersion}, found {found}.";
 
     private static void CheckHeader(ProjectDocument document, ProblemList problems)
     {
         if (document.Version != ProjectDocument.CurrentVersion)
         {
-            problems.Add($"version: expected {ProjectDocument.CurrentVersion}, found {document.Version}.");
+            problems.Add(VersionProblem(document.Version));
         }
         problems.Id(document.Id.Value, "id");
         problems.Id(document.Owner.Value, "owner");

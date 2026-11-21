@@ -21,6 +21,16 @@ public static class MediaJson
             string problem = JsonErrors.Describe(exception);
             throw new ProjectFormatException("The media record is not valid.", [problem], exception);
         }
+        catch (NotSupportedException exception)
+        {
+            string problem = JsonErrors.Describe(JsonErrors.FromNotSupported(exception));
+            throw new ProjectFormatException("The media record is not valid.", [problem], exception);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            string problem = JsonErrors.Clean(exception.Message);
+            throw new ProjectFormatException("The media record is not valid.", [problem], exception);
+        }
         Check(media);
         return media;
     }

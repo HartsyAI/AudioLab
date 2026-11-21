@@ -24,7 +24,9 @@ public sealed record ClipLyrics : IJsonOnDeserialized
     public string? Model { get; init; }
 
     /// <summary>Every other field, kept as it was written.</summary>
+    /// <remarks>Not a JSON member; it carries a name no file uses so a field called "extra" is kept, not swallowed.</remarks>
     [JsonIgnore]
+    [JsonPropertyName("$extra")]
     public ExtraFields Extra
     {
         get => _extra;

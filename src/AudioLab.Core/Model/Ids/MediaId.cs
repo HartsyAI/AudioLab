@@ -6,17 +6,19 @@ namespace AudioLab.Core.Model;
 [JsonConverter(typeof(IdJsonConverter<MediaId>))]
 public readonly record struct MediaId : IAllocatedId<MediaId>
 {
-    private MediaId(string value) => Value = value;
+    private readonly string? _value;
+
+    private MediaId(string value) => _value = value;
 
     /// <inheritdoc />
     public static string Prefix => "med";
 
     /// <inheritdoc />
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <inheritdoc />
     public static MediaId From(string value) => new(IdRules.Require(value));
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 }

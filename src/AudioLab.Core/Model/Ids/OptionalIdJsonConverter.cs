@@ -20,12 +20,12 @@ public sealed class OptionalIdJsonConverter<TId> : JsonConverter<TId?>
         }
         if (reader.TokenType != JsonTokenType.String)
         {
-            throw new JsonException($"An id of type {typeof(TId).Name} must be a string or null.");
+            throw new JsonException($"An id must be a string or null.");
         }
         string? value = reader.GetString();
         return value is not null && IdRules.IsValid(value)
             ? TId.From(value)
-            : throw new JsonException($"An id of type {typeof(TId).Name}: {IdRules.Description}");
+            : throw new JsonException(IdRules.Description);
     }
 
     /// <inheritdoc />

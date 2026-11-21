@@ -13,7 +13,7 @@ public sealed class ValueListJsonConverter<T> : JsonConverter<ValueList<T>>
     {
         if (reader.TokenType != JsonTokenType.StartArray)
         {
-            throw new JsonException($"A list of {typeof(T).Name} must be a JSON array.");
+            throw new JsonException($"A list must be a JSON array.");
         }
         JsonTypeInfo<T> info = (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
         List<T> items = [];
@@ -48,7 +48,11 @@ public sealed class ValueListJsonConverter<T> : JsonConverter<ValueList<T>>
         {
             throw JsonErrors.InItem(exception, index);
         }
-        JsonException none = new($"A list of {typeof(T).Name} cannot hold null.");
+        catch (NotSupportedException exception)
+        {
+            throw JsonErrors.InItem(JsonErrors.FromNotSupported(exception), index);
+        }
+        JsonException none = new($"A list cannot hold null.");
         return item ?? throw JsonErrors.InItem(none, index);
     }
 }

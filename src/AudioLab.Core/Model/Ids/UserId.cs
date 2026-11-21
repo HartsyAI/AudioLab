@@ -6,13 +6,15 @@ namespace AudioLab.Core.Model;
 [JsonConverter(typeof(IdJsonConverter<UserId>))]
 public readonly record struct UserId : IId<UserId>
 {
-    private UserId(string value) => Value = value;
+    private readonly string? _value;
+
+    private UserId(string value) => _value = value;
 
     /// <summary>The one user of the desktop door, which has no sign-in. No other door can produce this id.</summary>
     public static UserId Local { get; } = ForDoor("desktop", "local");
 
     /// <inheritdoc />
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <inheritdoc />
     public static UserId From(string value) => new(IdRules.Require(value));
@@ -28,11 +30,12 @@ public readonly record struct UserId : IId<UserId>
     {
         RequireWord(door, nameof(door));
         RequireWord(subject, nameof(subject));
-        return From($"{door}-{subject}");
+        string id = $"{door}-{subject}";
+        return IdRules.IsValid(id) ? From(id) : throw new ArgumentException(IdRules.Description, nameof(subject));
     }
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 
     private static void RequireWord(string value, string name)
     {

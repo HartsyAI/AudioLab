@@ -6,17 +6,19 @@ namespace AudioLab.Core.Model;
 [JsonConverter(typeof(IdJsonConverter<TrackId>))]
 public readonly record struct TrackId : IAllocatedId<TrackId>
 {
-    private TrackId(string value) => Value = value;
+    private readonly string? _value;
+
+    private TrackId(string value) => _value = value;
 
     /// <inheritdoc />
     public static string Prefix => "trk";
 
     /// <inheritdoc />
-    public string Value { get; }
+    public string Value => _value ?? string.Empty;
 
     /// <inheritdoc />
     public static TrackId From(string value) => new(IdRules.Require(value));
 
     /// <summary>The identifier text.</summary>
-    public override string ToString() => Value ?? string.Empty;
+    public override string ToString() => Value;
 }

@@ -13,6 +13,7 @@ public static class ProjectJson
         ProjectDocument document;
         try
         {
+            RequireVersion(json);
             document = JsonSerializer.Deserialize(json, ProjectJsonContext.Default.ProjectDocument)
                 ?? throw new ProjectFormatException("The project is empty.");
         }
@@ -21,6 +22,10 @@ public static class ProjectJson
             throw Refused(JsonErrors.Describe(exception), exception);
         }
         catch (NotSupportedException exception)
+        {
+            throw Refused(JsonErrors.Describe(JsonErrors.FromNotSupported(exception)), exception);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             throw Refused(JsonErrors.Clean(exception.Message), exception);
         }
@@ -37,7 +42,22 @@ public static class ProjectJson
         return JsonSerializer.Serialize(document, ProjectJsonContext.Default.ProjectDocument);
     }
 
-    private static ProjectFormatException Refused(string problem, Exception inner)
+    // A file of another version is named as such before its members are read, so a newer file with members this
+    // version does not know still says which version it is.
+    private static void RequireVersion(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind == JsonValueKind.Object
+            && document.RootElement.TryGetProperty("version", out JsonElement element)
+            && element.ValueKind == JsonValueKind.Number
+            && element.TryGetInt32(out int version)
+            && version != ProjectDocument.CurrentVersion)
+        {
+            throw Refused(ProjectValidator.VersionProblem(version), null);
+        }
+    }
+
+    private static ProjectFormatException Refused(string problem, Exception? inner)
     {
         return new ProjectFormatException("The project is not a valid version 4 document.", [problem], inner);
     }
