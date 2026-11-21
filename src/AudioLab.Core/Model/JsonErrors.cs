@@ -13,9 +13,14 @@ internal static class JsonErrors
     public static string Describe(JsonException exception)
     {
         string path = (exception.Path ?? "$") + (exception.Data[ItemKey] as string);
-        // The serializer names the .NET type it failed on; the reader of an error has no use for the namespace.
-        string message = Regex.Replace(BaseMessage(exception), @"\bAudioLab\.Core\.(?:Model|Migration)\.(?:V3)?", string.Empty);
-        return ProjectLimits.Shorten($"{path}: {message}");
+        return Clean($"{path}: {BaseMessage(exception)}");
+    }
+
+    /// <summary>A message without the .NET type names the serializer puts in it, cut to a readable length.</summary>
+    public static string Clean(string message)
+    {
+        string plain = Regex.Replace(message, @"\bAudioLab\.Core\.(?:Model|Migration)\.(?:V3)?", string.Empty);
+        return ProjectLimits.Shorten(plain);
     }
 
     /// <summary>The exception for a list item, which carries the item's index in front of the path inside it.</summary>

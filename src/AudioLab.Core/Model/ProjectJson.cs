@@ -29,7 +29,7 @@ public static class ProjectJson
         }
         catch (NotSupportedException exception)
         {
-            throw Refused(ProjectLimits.Shorten(exception.Message), exception);
+            throw Refused(JsonErrors.Clean(exception.Message), exception);
         }
         Check(document);
         return document;
