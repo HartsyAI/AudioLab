@@ -25,6 +25,8 @@ public sealed partial class PrimitivesPage
 
     private bool _nativeOpen;
 
+    private bool _nativeFormOpen;
+
     private string? _grid = "Bars";
 
     private string? _model;
@@ -42,6 +44,11 @@ public sealed partial class PrimitivesPage
     private void OpenNative()
     {
         _nativeOpen = true;
+    }
+
+    private void OpenNativeForm()
+    {
+        _nativeFormOpen = true;
     }
 
     private void OpenForm()

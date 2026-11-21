@@ -4,6 +4,10 @@
 
 .al-toast-root ::deep .al-toasts {
     position: fixed;
+    inset: auto;
+    overflow: visible;
+    border: 0;
+    background: transparent;
     right: var(--space-16);
     bottom: var(--space-16);
     z-index: var(--z-toast);

@@ -1,6 +1,7 @@
 <dialog id="@DialogId" class="al-native-dialog" aria-labelledby="@TitleId">
     <h2 id="@TitleId" class="al-native-title">@Title</h2>
     <p class="al-native-text">@Description</p>
+    @ChildContent
     <div class="al-native-actions">
         <AlButton OnClick="RequestCloseAsync">Cancel</AlButton>
         <AlButton Variant="AlButtonVariant.Danger" OnClick="ConfirmAsync">@ConfirmText</AlButton>

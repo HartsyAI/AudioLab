@@ -8,6 +8,15 @@
             <AlButton Variant="AlButtonVariant.Primary" OnClick="OpenForm" id="open-form">Rename project</AlButton>
             <AlButton OnClick="OpenNative" id="open-native">Delete (native dialog)</AlButton>
             <AlNativeDialog @bind-Open="_nativeOpen" Title="Delete project" Description="Built on the native dialog element and C#." ConfirmText="Delete project" OnConfirm="Deleted" />
+            <AlButton OnClick="OpenNativeForm" id="open-native-form">Native form dialog</AlButton>
+            <AlNativeDialog @bind-Open="_nativeFormOpen" Title="Export settings" ConfirmText="Export" OnConfirm="Renamed">
+                <div class="row">
+                    <AlSelect Label="Grid (in dialog)" Options="_grids" @bind-Value="_grid" />
+                    <AlCombobox Label="Model (in dialog)" Placeholder="Search models" Options="_models" @bind-Value="_model" />
+                    <AlPopover Label="Details"><span>Sample rate 48 kHz.</span></AlPopover>
+                    <AlButton OnClick="ShowSaved" id="dialog-toast">Toast from dialog</AlButton>
+                </div>
+            </AlNativeDialog>
             <AlDialog @bind-Open="_confirmOpen" Title="Delete project" Description="This removes the project and its media. It cannot be undone." ConfirmText="Delete project" ConfirmVariant="AlButtonVariant.Danger" OnConfirm="Deleted" />
             <AlDialog @bind-Open="_formOpen" Title="Rename project" ConfirmText="Rename" OnConfirm="Renamed">
                 <label class="field-label" for="project-name">Name</label>

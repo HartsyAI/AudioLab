@@ -32,6 +32,10 @@ public sealed partial class AlNativeDialog
     [Parameter, EditorRequired]
     public string ConfirmText { get; set; } = string.Empty;
 
+    /// <summary>Fields for a form dialog, placed between the text and the buttons.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
     /// <summary>Raised when the user confirms.</summary>
     [Parameter]
     public EventCallback OnConfirm { get; set; }
@@ -53,6 +57,7 @@ public sealed partial class AlNativeDialog
             {
                 _watching = true;
                 Overlay.OnClosed(DialogId, () => _ = InvokeAsync(ClosedAsync));
+                Overlay.KeepOpenWhileInnerOverlayIsExpanded(DialogId);
             }
             Overlay.ShowModal(DialogId);
         }

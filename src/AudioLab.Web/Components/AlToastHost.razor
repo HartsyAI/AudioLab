@@ -1,5 +1,5 @@
 <div class="al-toast-root">
-    <BitBhToastViewport Context="toast" class="al-toasts">
+    <BitBhToastViewport Id="@HostId" popover="manual" Context="toast" class="al-toasts">
         <BitBhToast Item="toast" data-variant="@toast.Variant" class="al-toast">
             <BitBhToastTitle class="al-toast-title">@toast.Title</BitBhToastTitle>
             @if (toast.Options.ActionLabel is not null)
