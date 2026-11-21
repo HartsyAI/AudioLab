@@ -35,7 +35,7 @@ public sealed class ProjectJsonRejectionTests
         { "id that is too long", "$.tracks[0].id", root => Track(root, 0)["id"] = new string('a', 65) },
         { "an empty id", "$.tracks[0].id", root => Track(root, 0)["id"] = string.Empty },
         { "missing required field", "$.tracks[0]|'volume'", root => Track(root, 0).AsObject().Remove("volume") },
-        { "null for a non-nullable field", "$.tracks[0].name|'Name'", root => Track(root, 0)["name"] = null },
+        { "null for a non-nullable field", "$.tracks[0].name: must not be null.", root => Track(root, 0)["name"] = null },
         { "text for a number", "$.tracks[0].pan", root => Track(root, 0)["pan"] = "left" },
         { "unknown enum name", "$.tracks[0].kind", root => Track(root, 0)["kind"] = "folder" },
         { "enum as an undefined number", "$.tracks[0].kind", root => Track(root, 0)["kind"] = 99 },
@@ -363,6 +363,32 @@ public sealed class ProjectJsonRejectionTests
         JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
         breakIt(root);
         ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(root.ToJsonString()));
+        AssertNothingInternal(description, error.Message);
+    }
+
+    public static TheoryData<string, string> MalformedTexts => new()
+    {
+        { "an unfinished object", "{" },
+        { "an empty text", "" },
+        { "not json", "not json" },
+        { "a trailing comma", "{\"version\":4,}" },
+        { "a leading comment", "// c" + Environment.NewLine + "{\"version\":4}" },
+        { "a missing value", "{\"version\":" },
+        { "a hundred open arrays", new string('[', 100) },
+        { "an unknown field nested too deep", "{\"version\":4,\"x\":" + new string('[', 100) + new string(']', 100) + "}" },
+    };
+
+    [Theory]
+    [MemberData(nameof(MalformedTexts))]
+    public void MalformedTextIsRefusedWithAMessageThatHasNoLineOrByteOrTypeName(string description, string text)
+    {
+        ProjectFormatException error = Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(text));
+        Assert.Contains("$", error.Message, StringComparison.Ordinal);
+        AssertNothingInternal(description, error.Message);
+    }
+
+    private static void AssertNothingInternal(string description, string message)
+    {
         string[] internals =
         [
             "AudioLab.", "ProjectDocument", "ClipLyrics", "ClipMeta", "ScoreMeta", "Instrument", "Effect", "ValueList",
@@ -370,7 +396,7 @@ public sealed class ProjectJsonRejectionTests
         ];
         foreach (string name in internals)
         {
-            Assert.True(!error.Message.Contains(name, StringComparison.Ordinal), $"{description} names {name}: {error.Message}");
+            Assert.True(!message.Contains(name, StringComparison.Ordinal), $"{description} names {name}: {message}");
         }
     }
 

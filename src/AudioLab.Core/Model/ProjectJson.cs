@@ -46,14 +46,27 @@ public static class ProjectJson
     // version does not know still says which version it is.
     private static void RequireVersion(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind == JsonValueKind.Object
-            && document.RootElement.TryGetProperty("version", out JsonElement element)
+        using JsonDocument? document = TryParse(json);
+        if (document?.RootElement is { ValueKind: JsonValueKind.Object } root
+            && root.TryGetProperty("version", out JsonElement element)
             && element.ValueKind == JsonValueKind.Number
             && element.TryGetInt32(out int version)
             && version != ProjectDocument.CurrentVersion)
         {
             throw Refused(ProjectValidator.VersionProblem(version), null);
+        }
+    }
+
+    // Null for text that is not JSON; the serializer reads it next and reports the same mistake with its path.
+    private static JsonDocument? TryParse(string json)
+    {
+        try
+        {
+            return JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

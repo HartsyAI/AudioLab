@@ -17,8 +17,6 @@ public sealed class ExtraFields : IEquatable<ExtraFields>
 
     private const long MaxPlainZeros = 30;
 
-    private const byte Backslash = 0x5C;
-
     private readonly ImmutableSortedDictionary<string, string> _fields;
 
     private ExtraFields(ImmutableSortedDictionary<string, string> fields) => _fields = fields;
@@ -108,7 +106,6 @@ public sealed class ExtraFields : IEquatable<ExtraFields>
     {
         try
         {
-            RequireWellFormedText(element);
             using MemoryStream stream = new();
             using (Utf8JsonWriter writer = new(stream))
             {
@@ -118,64 +115,9 @@ public sealed class ExtraFields : IEquatable<ExtraFields>
         }
         catch (InvalidOperationException exception)
         {
+            // The writer refuses text that is not valid UTF-16, such as an escaped surrogate with no partner.
             throw new ArgumentException("An unknown field holds text with an unpaired surrogate.", nameof(element), exception);
         }
-    }
-
-    // An escape such as a lone high surrogate is legal JSON that no UTF-8 text can hold; refuse it where it is kept.
-    private static void RequireWellFormedText(JsonElement element)
-    {
-        Utf8JsonReader reader = new(Encoding.UTF8.GetBytes(element.GetRawText()));
-        while (reader.Read())
-        {
-            if (reader.TokenType is JsonTokenType.String or JsonTokenType.PropertyName
-                && reader.ValueIsEscaped && !EscapesArePaired(reader.ValueSpan))
-            {
-                throw new InvalidOperationException("An unpaired surrogate.");
-            }
-        }
-    }
-
-    // Walks the backslash escapes of one JSON string: a high surrogate escape must be followed by a low one.
-    private static bool EscapesArePaired(ReadOnlySpan<byte> text)
-    {
-        int i = 0;
-        while (i < text.Length)
-        {
-            if (text[i] != Backslash)
-            {
-                i++;
-                continue;
-            }
-            if (text[i + 1] != (byte)'u')
-            {
-                i += 2;
-                continue;
-            }
-            int unit = HexUnit(text, i + 2);
-            if (unit is >= 0xDC00 and <= 0xDFFF)
-            {
-                return false;
-            }
-            if (unit is >= 0xD800 and <= 0xDBFF)
-            {
-                bool pairs = i + 11 < text.Length && text[i + 6] == Backslash && text[i + 7] == (byte)'u'
-                    && HexUnit(text, i + 8) is >= 0xDC00 and <= 0xDFFF;
-                if (!pairs)
-                {
-                    return false;
-                }
-                i += 6;
-            }
-            i += 6;
-        }
-        return true;
-    }
-
-    private static int HexUnit(ReadOnlySpan<byte> text, int at)
-    {
-        string digits = Encoding.ASCII.GetString(text.Slice(at, 4));
-        return int.TryParse(digits, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int unit) ? unit : -1;
     }
 
     private static void Write(Utf8JsonWriter writer, JsonElement element)

@@ -28,6 +28,7 @@ internal static partial class JsonErrors
         string plain = Regex.Replace(message, @"\bAudioLab\.Core\.Model\.", string.Empty);
         plain = MissingType().Replace(plain, "a 'type' member is required.");
         plain = NonStringType().Replace(plain, "'type' must be a string.");
+        plain = NullNotAllowed().Replace(plain, "must not be null.");
         plain = Unmapped().Replace(plain, "is not a member this version knows");
         plain = Unconverted().Replace(plain, "is not of the expected kind");
         plain = TypeSuffix().Replace(plain, string.Empty);
@@ -60,6 +61,9 @@ internal static partial class JsonErrors
     [GeneratedRegex(@"The '\$id', '\$ref' or '\$type' metadata properties must be JSON strings\.[^.]*\.?")]
     private static partial Regex NonStringType();
 
+    [GeneratedRegex(@"The (?:constructor parameter|property or field) '[^']*'(?: on type '[^']*')? doesn't allow (?:setting )?null values\.(?: Consider updating its nullability annotation\.)?")]
+    private static partial Regex NullNotAllowed();
+
     [GeneratedRegex(@"could not be mapped to any \.NET member contained in type '[^']*'")]
     private static partial Regex Unmapped();
 
@@ -83,10 +87,14 @@ internal static partial class JsonErrors
     [GeneratedRegex(@"(?:\.([^.\[\]]+)|\['([^']+)'\])$")]
     private static partial Regex LastStep();
 
-    // The serializer appends " Path: ... | LineNumber: ..." to a message; the path is shown separately.
+    // The serializer appends " Path: ... | LineNumber: ..." to a message and the reader " LineNumber: ...";
+    // the path is shown separately and a line or byte position means nothing to a person with a project file.
     private static string BaseMessage(JsonException exception)
     {
-        int at = exception.Message.IndexOf(" Path: ", StringComparison.Ordinal);
-        return at < 0 ? exception.Message : exception.Message[..at];
+        string message = exception.Message;
+        int path = message.IndexOf(" Path: ", StringComparison.Ordinal);
+        int line = message.IndexOf(" LineNumber: ", StringComparison.Ordinal);
+        int at = path < 0 ? line : line < 0 ? path : Math.Min(path, line);
+        return at < 0 ? message : message[..at];
     }
 }

@@ -62,6 +62,56 @@ public sealed class UnpairedSurrogateTests
         Assert.Throws<ProjectFormatException>(() => MediaJson.Read(json));
     }
 
+    [Theory]
+    [InlineData("udc00")]
+    [InlineData("ud800x")]
+    [InlineData("ud800" + "\ud800")]
+    [InlineData("udc00" + "\ud800")]
+    public void EveryWayToLeaveASurrogateUnpairedIsRefusedInAnUnknownValueAndName(string escape)
+    {
+        JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        Clip(root)["meta"]!["extra"] = Marker;
+        string asValue = root.ToJsonString().Replace(Marker, Backslash + escape, StringComparison.Ordinal);
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(asValue));
+        root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        Clip(root)["meta"]![Marker] = 1;
+        string asName = root.ToJsonString().Replace(Marker, Backslash + escape, StringComparison.Ordinal);
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(asName));
+    }
+
+    [Fact]
+    public void APairedSurrogateEscapeInAnUnknownValueIsKept()
+    {
+        JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        Clip(root)["meta"]!["extra"] = Marker;
+        string json = root.ToJsonString().Replace(Marker, Backslash + "ud83c" + Backslash + "udfb8", StringComparison.Ordinal);
+        ProjectDocument read = ProjectJson.Read(json);
+        Assert.Equal("" + (char)0xD83C + (char)0xDFB8, read.Tracks[0].Clips[0].Meta!.Extra["extra"].GetString());
+    }
+
+    [Fact]
+    public void ARawUnpairedSurrogateCharacterInTheInputIsRefusedWithAProjectFormatError()
+    {
+        JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
+        root["name"] = Marker;
+        string json = root.ToJsonString().Replace(Marker, "a" + (char)0xD800 + "b", StringComparison.Ordinal);
+        Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(json));
+    }
+
+    [Fact]
+    public void ARawUnpairedSurrogateCharacterInAMediaRecordIsRefusedWithAProjectFormatError()
+    {
+        MediaRecord record = new()
+        {
+            Id = MediaId.From("med_1"),
+            Owner = UserId.Local,
+            ContentType = "audio/wav",
+            Length = 10,
+        };
+        string json = MediaJson.Write(record).Replace("audio/wav", "audio/" + (char)0xD800, StringComparison.Ordinal);
+        Assert.Throws<ProjectFormatException>(() => MediaJson.Read(json));
+    }
+
     [Fact]
     public void ADocumentWithAnUnpairedSurrogateIsNotWritten()
     {
