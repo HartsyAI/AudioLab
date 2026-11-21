@@ -3,12 +3,10 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
-/// <summary>Tracks, clips, MIDI clips, automation and sends.</summary>
+/// <summary>Tracks, clips, automation and sends.</summary>
 internal static class V3Tracks
 {
-    private const string DefaultColor = "#4a9eff";
-
-    /// <summary>Gives every track and audio clip its new id first, so references that point forward still resolve.</summary>
+    /// <summary>Gives every track and every clip with audio its new id first, so forward references resolve.</summary>
     public static void Reserve(List<V3Track> raw, V3Context context)
     {
         for (int i = 0; i < raw.Count; i++)
@@ -23,37 +21,83 @@ internal static class V3Tracks
             {
                 throw V3Context.Fail($"{path}.id", $"the id {id} is used by two tracks, so sends to it are ambiguous.");
             }
-            foreach (V3Clip clip in (raw[i].Clips ?? []).Where(HasAudio))
+            List<V3Clip> clips = V3Context.Items(raw[i].Clips, $"{path}.clips");
+            for (int j = 0; j < clips.Count; j++)
             {
-                string clipId = clip.Id ?? string.Empty;
-                if (clipId.Length > 0 && !context.ClipIds.TryAdd(clipId, context.Ids.Next<ClipId>()))
+                string clipId = clips[j].Id ?? string.Empty;
+                bool playable = MissingAudio(clips[j], $"{path}.clips[{j}]", context) is null;
+                if (clipId.Length > 0 && playable && !context.ClipIds.TryAdd(clipId, context.Ids.Next<ClipId>()))
                 {
-                    context.Warn($"Two clips had the id {clipId}; links to it point at the first.");
+                    context.Warn($"{path}.clips[{j}] repeats the id {clipId}; links to it point at the first.");
                 }
             }
         }
     }
 
+    /// <summary>Converts every track, then re-points sends; a send to a bus the project lacks is dropped.</summary>
     public static List<Track> Convert(List<V3Track> raw, Dictionary<string, GroupId> groupIds, V3Context context)
     {
         HashSet<string> claimed = new(StringComparer.Ordinal);
         List<Track> tracks = [];
         for (int i = 0; i < raw.Count; i++)
         {
-            tracks.Add(ConvertTrack(raw[i], $"tracks[{i}]", groupIds, claimed, context));
+            tracks.Add(ConvertTrack(raw[i], i, groupIds, claimed, context));
         }
         return ConvertSends(raw, tracks, context);
     }
 
-    private static bool HasAudio(V3Clip clip) => !string.IsNullOrEmpty(clip.BlobKey);
+    /// <summary>Clears a score parent that leads back to its own clip, directly or through other clips.</summary>
+    public static List<Track> BreakScoreLinkLoops(List<Track> tracks, V3Context context)
+    {
+        Dictionary<ClipId, ClipId> parents = [];
+        foreach (AudioClip clip in tracks.SelectMany(track => track.Clips))
+        {
+            if (clip.Meta?.Score?.Parent is { } parent)
+            {
+                parents[clip.Id] = parent;
+            }
+        }
+        HashSet<ClipId> cleared = [];
+        Dictionary<ClipId, bool> settled = [];
+        foreach (ClipId start in parents.Keys)
+        {
+            List<ClipId> path = [];
+            ClipId? current = start;
+            while (current is { } clip && !settled.ContainsKey(clip))
+            {
+                settled[clip] = false;
+                path.Add(clip);
+                current = parents.TryGetValue(clip, out ClipId next) ? next : null;
+            }
+            if (current is { } hit && !settled[hit] && path.Contains(hit))
+            {
+                cleared.Add(path[^1]);
+            }
+            path.ForEach(visited => settled[visited] = true);
+        }
+        return cleared.Count == 0 ? tracks : [.. tracks.Select(track => ClearLinks(track, cleared, context))];
+    }
+
+    // The reason a clip has no audio to play, or null. The extension skips such a clip when it opens a project.
+    private static string? MissingAudio(V3Clip clip, string path, V3Context context)
+    {
+        if (string.IsNullOrEmpty(clip.BlobKey))
+        {
+            return "it has no audio key";
+        }
+        return context.IsAvailable(clip.BlobKey, $"{path}.blobKey")
+            ? null
+            : $"its audio '{clip.BlobKey}' is not among the project's audio files";
+    }
 
     private static Track ConvertTrack(
         V3Track raw,
-        string path,
+        int index,
         Dictionary<string, GroupId> groupIds,
         HashSet<string> claimed,
         V3Context context)
     {
+        string path = $"tracks[{index}]";
         TrackKind kind = raw.Kind switch
         {
             null or "audio" => TrackKind.Audio,
@@ -61,17 +105,12 @@ internal static class V3Tracks
             "bus" => TrackKind.Bus,
             _ => throw V3Context.Fail($"{path}.kind", $"'{raw.Kind}' is not audio, instrument or bus."),
         };
-        List<V3Clip> clips = [.. (raw.Clips ?? []).Where(HasAudio)];
-        if (clips.Count < (raw.Clips?.Count ?? 0))
-        {
-            context.Warn($"{path} had a clip with no audio; the extension skips those on open, so it was dropped.");
-        }
         return new Track
         {
             Id = context.TrackIds[raw.Id!],
-            Name = string.IsNullOrWhiteSpace(raw.Name) ? "Track" : raw.Name,
+            Name = string.IsNullOrWhiteSpace(raw.Name) ? $"Track {index + 1}" : raw.Name,
             Kind = kind,
-            Color = context.Color(raw.Color, DefaultColor, $"{path}.color")!,
+            Color = context.Color(raw.Color, ProjectDefaults.TrackColor(index), $"{path}.color")!,
             Volume = raw.Volume ?? 0.8,
             Pan = raw.Pan ?? 0,
             Muted = raw.Muted == true,
@@ -83,16 +122,20 @@ internal static class V3Tracks
             Input = ConvertInput(raw.Input, $"{path}.input"),
             TakeCount = raw.TakeCount ?? 0,
             Instrument = V3Sound.ConvertInstrument(raw.Instrument, $"{path}.instrument", context),
-            Clips = [.. clips.Select((clip, index) => ConvertClip(clip, $"{path}.clips[{index}]", claimed, context))],
-            MidiClips = [.. (raw.MidiClips ?? []).Select((clip, index) => V3Midi.ConvertClip(clip, $"{path}.midiClips[{index}]", context))],
-            Effects = [.. V3Sound.ConvertEffects(raw.Fx ?? [], $"{path}.fx", context)],
+            Clips = [.. ConvertClips(V3Context.Items(raw.Clips, $"{path}.clips"), path, claimed, context)],
+            MidiClips = [.. ConvertMidiClips(V3Context.Items(raw.MidiClips, $"{path}.midiClips"), path, context)],
+            Effects = [.. V3Sound.ConvertEffects(V3Context.Items(raw.Fx, $"{path}.fx"), $"{path}.fx", context)],
             Automation = ConvertAutomation(raw, path, context),
             Sends = [],
             View = ConvertView(raw, path),
         };
     }
 
-    private static GroupId? ConvertGroup(string? oldId, Dictionary<string, GroupId> groupIds, string path, V3Context context)
+    private static GroupId? ConvertGroup(
+        string? oldId,
+        Dictionary<string, GroupId> groupIds,
+        string path,
+        V3Context context)
     {
         if (string.IsNullOrEmpty(oldId))
         {
@@ -133,7 +176,7 @@ internal static class V3Tracks
             {
                 "mono" => new TrackInput(device, InputChannelMode.Mono),
                 "stereo" => new TrackInput(device, InputChannelMode.Stereo),
-                string other => throw V3Context.Fail($"{path}.channels", $"'{other}' is not mono, stereo or an input number."),
+                string other => throw V3Context.Fail($"{path}.channels", $"'{other}' is not mono, stereo or a number."),
                 null => new TrackInput(device, InputChannelMode.Mono),
             };
         }
@@ -144,19 +187,35 @@ internal static class V3Tracks
         throw V3Context.Fail($"{path}.channels", "must be mono, stereo or a whole input number from 1.");
     }
 
+    private static List<AudioClip> ConvertClips(
+        List<V3Clip> raw,
+        string trackPath,
+        HashSet<string> claimed,
+        V3Context context)
+    {
+        List<AudioClip> clips = [];
+        for (int i = 0; i < raw.Count; i++)
+        {
+            string path = $"{trackPath}.clips[{i}]";
+            if (MissingAudio(raw[i], path, context) is { } reason)
+            {
+                context.Warn($"{path} was dropped, as the extension does on open: {reason}.");
+                continue;
+            }
+            clips.Add(ConvertClip(raw[i], path, claimed, context));
+        }
+        return clips;
+    }
+
     private static AudioClip ConvertClip(V3Clip raw, string path, HashSet<string> claimed, V3Context context)
     {
-        if (string.IsNullOrEmpty(raw.BlobKey))
-        {
-            throw V3Context.Fail($"{path}.blobKey", "is missing, so the clip has no audio to refer to.");
-        }
-        bool keeps = !string.IsNullOrEmpty(raw.Id) && claimed.Add(raw.Id);
-        ClipId id = keeps ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
+        bool keepsId = !string.IsNullOrEmpty(raw.Id) && claimed.Add(raw.Id);
+        ClipId id = keepsId ? context.ClipIds[raw.Id!] : context.Ids.Next<ClipId>();
         return new AudioClip
         {
             Id = id,
             Name = raw.Name ?? string.Empty,
-            Media = context.MediaFor(raw.BlobKey),
+            Media = context.MediaFor(raw.BlobKey!, $"{path}.blobKey")!.Value,
             Start = raw.StartTime ?? 0,
             Duration = raw.Duration ?? 0,
             Offset = raw.Offset ?? 0,
@@ -200,6 +259,24 @@ internal static class V3Tracks
         return null;
     }
 
+    private static List<MidiClip> ConvertMidiClips(List<V3MidiClip> raw, string trackPath, V3Context context)
+    {
+        return [.. raw.Select((clip, index) => V3Midi.ConvertClip(clip, $"{trackPath}.midiClips[{index}]", context))];
+    }
+
+    private static Track ClearLinks(Track track, HashSet<ClipId> cleared, V3Context context)
+    {
+        AudioClip[] clips = [.. track.Clips.Select(clip => cleared.Contains(clip.Id) ? Cleared(clip, context) : clip)];
+        return track with { Clips = [.. clips] };
+    }
+
+    private static AudioClip Cleared(AudioClip clip, V3Context context)
+    {
+        context.Warn($"The score parents of the clip '{clip.Name}' lead back to it; its parent link was cleared.");
+        ClipMeta meta = clip.Meta!;
+        return clip with { Meta = meta with { Score = meta.Score! with { Parent = null } } };
+    }
+
     private static TrackAutomation ConvertAutomation(V3Track raw, string path, V3Context context)
     {
         AutomationMode mode = raw.AutomationMode switch
@@ -209,7 +286,7 @@ internal static class V3Tracks
             "latch" => AutomationMode.Latch,
             "write" => AutomationMode.Write,
             "off" => AutomationMode.Off,
-            _ => throw V3Context.Fail($"{path}.automationMode", $"'{raw.AutomationMode}' is not a known automation mode."),
+            _ => throw V3Context.Fail($"{path}.automationMode", $"'{raw.AutomationMode}' is not an automation mode."),
         };
         return new TrackAutomation
         {
@@ -235,27 +312,28 @@ internal static class V3Tracks
         };
     }
 
-    // A send to a bus the project does not have is dropped, and its bus is the track's new id.
     private static List<Track> ConvertSends(List<V3Track> raw, List<Track> tracks, V3Context context)
     {
         Dictionary<TrackId, TrackKind> kinds = tracks.ToDictionary(track => track.Id, track => track.Kind);
         List<Track> result = [];
         for (int i = 0; i < tracks.Count; i++)
         {
+            List<V3Send> rawSends = V3Context.Items(raw[i].Sends, $"tracks[{i}].sends");
             List<Send> sends = [];
             HashSet<TrackId> targets = [];
-            foreach (V3Send send in raw[i].Sends ?? [])
+            for (int j = 0; j < rawSends.Count; j++)
             {
-                string? reason = DropReason(send, tracks[i], kinds, targets, context);
+                string? reason = DropReason(rawSends[j], tracks[i], kinds, targets, context);
                 if (reason is null)
                 {
-                    TrackId bus = context.TrackIds[send.BusId!];
+                    TrackId bus = context.TrackIds[rawSends[j].BusId!];
                     targets.Add(bus);
+                    V3Send send = rawSends[j];
                     sends.Add(new Send(bus, send.Level ?? 0.5, send.Pre == true, send.Muted == true));
                 }
                 else
                 {
-                    context.Warn($"tracks[{i}] had a send that was dropped: {reason}.");
+                    context.Warn($"tracks[{i}].sends[{j}] was dropped: {reason}.");
                 }
             }
             result.Add(tracks[i] with { Sends = [.. sends] });

@@ -1,5 +1,10 @@
 {
   "version": 3,
+  "audio": {
+    "blob-1-100": { "type": "audio/wav", "size": 1000 },
+    "blob-2-200": { "type": "audio/webm;codecs=opus", "size": 2000 },
+    "blob-9-900": { "type": "audio/wav", "size": 300 }
+  },
   "projectName": "Synthetic v3 project",
   "bpm": 96,
   "tempoMap": [
@@ -151,6 +156,20 @@
           "name": "Never recorded",
           "startTime": 40,
           "duration": 0,
+          "offset": 0,
+          "trimEnd": 0,
+          "gain": 1,
+          "fadeIn": 0,
+          "fadeOut": 0,
+          "muted": false,
+          "color": null
+        },
+        {
+          "id": "clip-5",
+          "blobKey": "blob-lost-500",
+          "name": "Lost audio",
+          "startTime": 50,
+          "duration": 5,
           "offset": 0,
           "trimEnd": 0,
           "gain": 1,

@@ -5,6 +5,7 @@ namespace AudioLab.Core.Migration;
 /// <summary>Instruments and effects. A value the extension would have defaulted gets the same default here.</summary>
 internal static class V3Sound
 {
+    /// <summary>An instrument with the extension's defaults for what was left out; null when the track has none.</summary>
     public static Instrument? ConvertInstrument(V3Instrument? raw, string path, V3Context context)
     {
         if (raw is null)
@@ -19,6 +20,7 @@ internal static class V3Sound
         };
     }
 
+    /// <summary>An insert chain; an unknown effect or parameter is refused, a missing parameter takes its default.</summary>
     public static List<Effect> ConvertEffects(List<V3Fx> raw, string path, V3Context context)
     {
         List<Effect> effects = [];
@@ -27,7 +29,8 @@ internal static class V3Sound
             string fxPath = $"{path}[{i}]";
             V3Params values = new(raw[i].Params, fxPath);
             EffectId id = context.Ids.Next<EffectId>();
-            bool enabled = raw[i].Enabled ?? true;
+            // restoreProject copies the flag as it is, so a missing one reads as off
+            bool enabled = raw[i].Enabled == true;
             Effect effect = raw[i].Type switch
             {
                 "eq" => Eq(id, enabled, values),
@@ -45,8 +48,16 @@ internal static class V3Sound
 
     private static SynthInstrument ConvertSynth(V3Instrument raw, string path, V3Context context)
     {
-        WarnIgnored(path, "synth", "sampler", context, (nameof(raw.Name), raw.Name), (nameof(raw.SampleKey), raw.SampleKey),
-            (nameof(raw.SampleName), raw.SampleName), (nameof(raw.RootNote), raw.RootNote), (nameof(raw.OneShot), raw.OneShot));
+        WarnIgnored(
+            path,
+            "synth",
+            "sampler",
+            context,
+            ("name", raw.Name),
+            ("sampleKey", raw.SampleKey),
+            ("sampleName", raw.SampleName),
+            ("rootNote", raw.RootNote),
+            ("oneShot", raw.OneShot));
         return new SynthInstrument
         {
             Preset = string.IsNullOrEmpty(raw.Preset) ? "Custom" : raw.Preset,
@@ -68,14 +79,26 @@ internal static class V3Sound
 
     private static SamplerInstrument ConvertSampler(V3Instrument raw, string path, V3Context context)
     {
-        WarnIgnored(path, "sampler", "synth", context, (nameof(raw.Preset), raw.Preset), (nameof(raw.Osc1), raw.Osc1),
-            (nameof(raw.Osc2), raw.Osc2), (nameof(raw.Ratio2), raw.Ratio2), (nameof(raw.Mix2), raw.Mix2),
-            (nameof(raw.Detune), raw.Detune), (nameof(raw.Cutoff), raw.Cutoff), (nameof(raw.Resonance), raw.Resonance),
-            (nameof(raw.FilterEnv), raw.FilterEnv), (nameof(raw.Decay), raw.Decay), (nameof(raw.Sustain), raw.Sustain));
+        WarnIgnored(
+            path,
+            "sampler",
+            "synth",
+            context,
+            ("preset", raw.Preset),
+            ("osc1", raw.Osc1),
+            ("osc2", raw.Osc2),
+            ("ratio2", raw.Ratio2),
+            ("mix2", raw.Mix2),
+            ("detune", raw.Detune),
+            ("cutoff", raw.Cutoff),
+            ("resonance", raw.Resonance),
+            ("filterEnv", raw.FilterEnv),
+            ("decay", raw.Decay),
+            ("sustain", raw.Sustain));
         return new SamplerInstrument
         {
             Name = string.IsNullOrEmpty(raw.Name) ? "Sampler" : raw.Name,
-            Sample = string.IsNullOrEmpty(raw.SampleKey) ? null : context.MediaFor(raw.SampleKey),
+            Sample = SampleMedia(raw.SampleKey, path, context),
             SampleName = raw.SampleName ?? string.Empty,
             RootNote = OrDefault(raw.RootNote, 60),
             Attack = OrDefault(raw.Attack, 0.002),
@@ -86,13 +109,33 @@ internal static class V3Sound
     }
 
     // Changing a track's instrument replaces the object in the extension, so a leftover from the other kind is noise.
-    private static void WarnIgnored(string path, string kind, string other, V3Context context, params (string Name, object? Value)[] fields)
+    private static void WarnIgnored(
+        string path,
+        string kind,
+        string other,
+        V3Context context,
+        params (string Name, object? Value)[] fields)
     {
         string[] present = [.. fields.Where(field => field.Value is not null).Select(field => field.Name)];
         if (present.Length > 0)
         {
-            context.Warn($"{path} is a {kind} but had {other} fields ({string.Join(", ", present)}); they were ignored.");
+            string names = string.Join(", ", present);
+            context.Warn($"{path} is a {kind} but had {other} fields ({names}); they were ignored.");
         }
+    }
+
+    private static MediaId? SampleMedia(string? sampleKey, string path, V3Context context)
+    {
+        if (string.IsNullOrEmpty(sampleKey))
+        {
+            return null;
+        }
+        MediaId? media = context.MediaFor(sampleKey, $"{path}.sampleKey");
+        if (media is null)
+        {
+            context.Warn($"{path}: its sample '{sampleKey}' is not among the audio files; the sampler has no sample.");
+        }
+        return media;
     }
 
     private static OscillatorWave Wave(string? name, string path)
@@ -108,7 +151,10 @@ internal static class V3Sound
     }
 
     // The extension reads some synth fields with ||, so a stored 0 means "use the default" there.
-    private static double OrDefault(double? value, double fallback) => value is { } number && number != 0 ? number : fallback;
+    private static double OrDefault(double? value, double fallback)
+    {
+        return value is { } number && number != 0 ? number : fallback;
+    }
 
     private static int OrDefault(int? value, int fallback) => value is { } number && number != 0 ? number : fallback;
 

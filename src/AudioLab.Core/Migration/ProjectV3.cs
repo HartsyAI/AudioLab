@@ -2,14 +2,19 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Migration;
 
-// The shape of the extension's version 3 project file, from serializeProject and serializeTrack in audio-daw.js and
-// audio-daw-track.js. A field the extension might leave out is nullable; a field it never wrote is not here, so
-// the strict V3 context refuses it.
+// The shape of the extension's version 3 project file: serializeProject and serializeTrack (audio-daw.js,
+// audio-daw-track.js) plus what saveProjectToServer adds, the "audio" list (audio-daw.js:9663); projects saved before
+// audio moved to its own files carry "blobs" instead (read by openProjectFromServer, audio-daw.js:9707). A field the
+// extension might leave out is nullable; a field it never wrote is not here, so the strict V3 context refuses it.
 
 /// <summary>A version 3 project.</summary>
 internal sealed record V3Project
 {
     public int? Version { get; init; }
+
+    public Dictionary<string, V3AudioInfo>? Audio { get; init; }
+
+    public Dictionary<string, V3InlineBlob>? Blobs { get; init; }
 
     public string? ProjectName { get; init; }
 
@@ -42,6 +47,20 @@ internal sealed record V3Project
     public V3BeatPattern? BeatPattern { get; init; }
 
     public List<V3Track>? Tracks { get; init; }
+}
+
+internal sealed record V3AudioInfo
+{
+    public string? Type { get; init; }
+
+    public long? Size { get; init; }
+}
+
+internal sealed record V3InlineBlob
+{
+    public string? B64 { get; init; }
+
+    public string? Type { get; init; }
 }
 
 internal sealed record V3Tempo

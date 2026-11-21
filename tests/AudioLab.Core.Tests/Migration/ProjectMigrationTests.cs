@@ -20,7 +20,8 @@ public sealed class ProjectMigrationTests
         Assert.True(document.Metronome);
         Assert.Equal(0.7, document.MasterVolume);
         Assert.Equal(new TimeSignature(6, 8), document.TimeSignature);
-        Assert.Equal(new ProjectView { Ruler = RulerMode.Beats, EditMode = EditMode.Shuffle, Grid = "1/8" }, document.View);
+        ProjectView expected = new() { Ruler = RulerMode.Beats, EditMode = EditMode.Shuffle, Grid = "1/8" };
+        Assert.Equal(expected, document.View);
     }
 
     [Fact]
@@ -110,7 +111,9 @@ public sealed class ProjectMigrationTests
         ClipMeta orphan = result.Document.Tracks[0].Clips[2].Meta!;
         Assert.Null(orphan.Score!.Parent);
         Assert.Equal(new StemOf(null, "drums"), orphan.StemOf);
-        Assert.Contains(result.Warnings, warning => warning.Contains("meta.score.parent") && warning.Contains("cleared"));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains("meta.score.parent") && warning.Contains("cleared"));
     }
 
     [Fact]
@@ -118,7 +121,9 @@ public sealed class ProjectMigrationTests
     {
         MigrationResult result = Migrate();
         Assert.Equal(3, result.Document.Tracks[0].Clips.Count);
-        Assert.Contains(result.Warnings, warning => warning.Contains("clip with no audio"));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains("clips[3] was dropped") && warning.Contains("no audio key"));
     }
 
     [Fact]
@@ -133,8 +138,12 @@ public sealed class ProjectMigrationTests
     public void FieldsOfTheOtherInstrumentKindAreIgnoredWithAWarning()
     {
         MigrationResult result = Migrate();
-        Assert.Contains(result.Warnings, warning => warning.Contains("is a synth but had sampler fields (RootNote, OneShot)"));
-        Assert.Contains(result.Warnings, warning => warning.Contains("is a sampler but had synth fields (Preset)"));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.StartsWith("tracks[1].instrument is a synth but had sampler fields (rootNote, oneShot)", StringComparison.Ordinal));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.StartsWith("tracks[2].instrument is a sampler but had synth fields (preset)", StringComparison.Ordinal));
         Assert.IsType<SynthInstrument>(result.Document.Tracks[1].Instrument);
         Assert.IsType<SamplerInstrument>(result.Document.Tracks[2].Instrument);
     }
@@ -143,8 +152,10 @@ public sealed class ProjectMigrationTests
     public void TempoChangesAreCheckedSortedAndMadeUnique()
     {
         MigrationResult result = Migrate();
-        Assert.Equal([(4.0, 100.0), (8.0, 120.0)], result.Document.TempoMap.Select(change => (change.Time, change.Bpm)));
-        Assert.Contains(result.Warnings, warning => warning.Contains("tempo change"));
+        Assert.Equal(
+            [(4.0, 100.0), (8.0, 120.0)],
+            result.Document.TempoMap.Select(change => (change.Time, change.Bpm)));
+        Assert.Contains(result.Warnings, warning => warning.Contains("tempoMap[4] is a second change at 8 seconds"));
     }
 
     [Fact]
@@ -241,9 +252,11 @@ public sealed class ProjectMigrationTests
         TestJson.Track(root, 0)["color"] = "red;background:url(//evil)";
         TestJson.Clip(root)["color"] = "rgb(1,2,3)";
         MigrationResult result = ProjectMigration.FromV3(root.ToJsonString(), _owner, new SequentialIdService());
-        Assert.Equal("#4a9eff", result.Document.Tracks[0].Color);
+        Assert.Equal(ProjectDefaults.TrackColor(0), result.Document.Tracks[0].Color);
         Assert.Null(result.Document.Tracks[0].Clips[0].Color);
-        Assert.Contains(result.Warnings, warning => warning.Contains("tracks[0].color") && warning.Contains("default was used"));
+        Assert.Contains(
+            result.Warnings,
+            warning => warning.Contains("tracks[0].color") && warning.Contains("default was used"));
     }
 
     [Fact]
@@ -258,7 +271,7 @@ public sealed class ProjectMigrationTests
         Assert.Equal("1/8.", delay.Division);
         CompressorEffect compressor = Assert.IsType<CompressorEffect>(tracks[1].Effects[0]);
         Assert.Equal((-24.0, 4.0), (compressor.Threshold, compressor.Ratio));
-        Assert.True(Assert.IsType<ReverbEffect>(tracks[1].Effects[1]).Enabled);
+        Assert.False(Assert.IsType<ReverbEffect>(tracks[1].Effects[1]).Enabled);
         SynthInstrument synth = Assert.IsType<SynthInstrument>(tracks[1].Instrument);
         Assert.Equal((OscillatorWave.Triangle, 0.005, 0.5), (synth.Osc1, synth.Attack, synth.Gain));
         SamplerInstrument sampler = Assert.IsType<SamplerInstrument>(tracks[2].Instrument);
@@ -271,7 +284,8 @@ public sealed class ProjectMigrationTests
         Track vocal = Migrate().Document.Tracks[0];
         Assert.Equal([new AutomationPoint(1, 0.8), new AutomationPoint(4, 0.2)], vocal.Automation.Volume);
         Assert.Equal(AutomationMode.Touch, vocal.Automation.Mode);
-        Assert.Equal(new TrackView { Height = 80, AutomationVisible = true, AutomationParameter = AutomationParameter.Pan }, vocal.View);
+        TrackView expected = new() { Height = 80, AutomationVisible = true, AutomationParameter = AutomationParameter.Pan };
+        Assert.Equal(expected, vocal.View);
         Assert.Equal(2, vocal.TakeCount);
     }
 

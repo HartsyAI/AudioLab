@@ -5,14 +5,13 @@ namespace AudioLab.Core.Migration;
 /// <summary>MIDI clips and automation points. Times outside their clip or lane are repaired, not refused.</summary>
 internal static class V3Midi
 {
-    private const double MinLength = 0.05;
-
     private const int DefaultVelocity = 100;
 
+    /// <summary>A MIDI clip with fresh note ids; notes and controllers outside the clip are repaired or dropped.</summary>
     public static MidiClip ConvertClip(V3MidiClip raw, string path, V3Context context)
     {
-        double length = Math.Max(MinLength, raw.Length ?? 0);
-        List<MidiNote> notes = ConvertNotes(raw.Notes ?? [], length, path, context);
+        double length = Math.Max(MidiClip.MinLength, raw.Length ?? 0);
+        List<MidiNote> notes = ConvertNotes(V3Context.Items(raw.Notes, $"{path}.notes"), length, path, context);
         return new MidiClip
         {
             Id = context.Ids.Next<ClipId>(),
@@ -21,16 +20,17 @@ internal static class V3Midi
             Length = length,
             NextNoteId = new NoteId(notes.Count).Next(),
             Notes = [.. notes],
-            ControlChanges = [.. ConvertControllers(raw.Cc ?? [], length, path, context)],
+            ControlChanges = [.. ConvertControllers(V3Context.Items(raw.Cc, $"{path}.cc"), length, path, context)],
             Muted = raw.Muted == true,
             Color = context.Color(raw.Color, null, $"{path}.color"),
         };
     }
 
+    /// <summary>An automation lane in time order; points before the start move to 0.</summary>
     public static List<AutomationPoint> ConvertPoints(List<V3Point>? raw, string path, V3Context context)
     {
         List<AutomationPoint> points = [];
-        List<V3Point> source = raw ?? [];
+        List<V3Point> source = V3Context.Items(raw, path);
         int moved = 0;
         for (int i = 0; i < source.Count; i++)
         {
@@ -84,7 +84,11 @@ internal static class V3Midi
         return notes;
     }
 
-    private static List<MidiControlChange> ConvertControllers(List<V3Cc> raw, double length, string path, V3Context context)
+    private static List<MidiControlChange> ConvertControllers(
+        List<V3Cc> raw,
+        double length,
+        string path,
+        V3Context context)
     {
         List<MidiControlChange> changes = [];
         int moved = 0;
@@ -119,10 +123,11 @@ internal static class V3Midi
     private static int Whole(double? value, string path, V3Context context)
     {
         double number = value ?? throw V3Context.Fail(path, "is missing.");
-        double rounded = Math.Clamp(Math.Round(number), int.MinValue, int.MaxValue);
+        // JavaScript's Math.round, so 60.5 is 61 and not the even neighbour.
+        double rounded = Math.Clamp(Math.Floor(number + 0.5), int.MinValue, int.MaxValue);
         if (rounded != number)
         {
-            context.Warn($"{path} was {number} and was rounded to {rounded}.");
+            context.Warn($"{path} was {V3Context.Num(number)} and was rounded to {V3Context.Num(rounded)}.");
         }
         return (int)rounded;
     }

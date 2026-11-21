@@ -10,13 +10,15 @@ internal static class V3Migrator
 
     private const int DefaultSteps = 16;
 
+    /// <summary>Converts a version 3 project into a version 4 document, recording each change in the context.</summary>
     public static ProjectDocument Migrate(V3Project project, UserId owner, V3Context context)
     {
-        List<V3Group> rawGroups = project.Groups ?? [];
+        List<V3Group> rawGroups = V3Context.Items(project.Groups, "groups");
         List<TrackGroup> groups = V3Sections.ConvertGroups(rawGroups, context);
-        List<V3Track> rawTracks = project.Tracks ?? [];
+        List<V3Track> rawTracks = V3Context.Items(project.Tracks, "tracks");
         V3Tracks.Reserve(rawTracks, context);
         List<Track> tracks = V3Tracks.Convert(rawTracks, V3Sections.GroupIdsByOldId(rawGroups, groups), context);
+        tracks = V3Tracks.BreakScoreLinkLoops(tracks, context);
         return new ProjectDocument
         {
             Version = ProjectDocument.CurrentVersion,
@@ -24,13 +26,13 @@ internal static class V3Migrator
             Owner = owner,
             Name = string.IsNullOrWhiteSpace(project.ProjectName) ? "Untitled project" : project.ProjectName,
             Bpm = project.Bpm is { } bpm && bpm != 0 ? bpm : DefaultBpm,
-            TempoMap = [.. ConvertTempo(project.TempoMap ?? [], context)],
+            TempoMap = [.. ConvertTempo(V3Context.Items(project.TempoMap, "tempoMap"), context)],
             TimeSignature = ConvertSignature(project.TimeSignature),
             MasterVolume = project.MasterVolume ?? 1,
             MasterLimiter = project.MasterLimiterEnabled != false,
             Metronome = project.Metronome == true,
-            Markers = [.. ConvertMarkers(project.Markers ?? [], context)],
-            Sections = [.. V3Sections.ConvertSections(project.Sections ?? [], context)],
+            Markers = [.. ConvertMarkers(V3Context.Items(project.Markers, "markers"), context)],
+            Sections = [.. V3Sections.ConvertSections(V3Context.Items(project.Sections, "sections"), context)],
             Groups = [.. groups],
             BeatPattern = ConvertBeats(project.BeatPattern, context),
             Tracks = [.. tracks],
@@ -51,25 +53,25 @@ internal static class V3Migrator
 
     private static List<TempoChange> ConvertTempo(List<V3Tempo> raw, V3Context context)
     {
-        List<(double Time, double Bpm)> kept = [];
-        foreach (V3Tempo change in raw)
+        List<(int Index, double Time, double Bpm)> kept = [];
+        for (int i = 0; i < raw.Count; i++)
         {
-            if (change.T is > 0 && change.Bpm is > 0)
+            if (raw[i].T is > 0 && raw[i].Bpm is > 0)
             {
-                kept.Add((change.T.Value, change.Bpm.Value));
+                kept.Add((i, raw[i].T!.Value, raw[i].Bpm!.Value));
             }
             else
             {
-                context.Warn("A tempo change without a time above zero and a tempo above zero was dropped.");
+                context.Warn($"tempoMap[{i}] needs a time above 0 and a tempo above 0; it was dropped.");
             }
         }
         List<TempoChange> result = [];
         double previous = 0;
-        foreach ((double time, double bpm) in kept.OrderBy(change => change.Time))
+        foreach ((int index, double time, double bpm) in kept.OrderBy(change => change.Time))
         {
             if (time <= previous)
             {
-                context.Warn($"A second tempo change at {time} seconds was dropped.");
+                context.Warn($"tempoMap[{index}] is a second change at {V3Context.Num(time)} seconds; it was dropped.");
                 continue;
             }
             result.Add(new TempoChange(context.Ids.Next<TempoChangeId>(), time, bpm));
@@ -86,7 +88,7 @@ internal static class V3Migrator
             double time = raw[i].Time ?? throw V3Context.Fail($"markers[{i}].time", "is missing.");
             if (time < 0)
             {
-                context.Warn($"Marker {i + 1} was before the start and moved to 0.");
+                context.Warn($"markers[{i}] was before the start and moved to 0.");
                 time = 0;
             }
             string name = string.IsNullOrWhiteSpace(raw[i].Name) ? $"Marker {i + 1}" : raw[i].Name!;
@@ -121,7 +123,7 @@ internal static class V3Migrator
         };
         if (project.EditMode is not (null or "slip" or "grid" or "shuffle"))
         {
-            context.Warn($"The edit mode '{project.EditMode}' is unknown; {editMode} was used, as the extension does.");
+            context.Warn($"editMode '{project.EditMode}' is unknown; {editMode} was used, as the extension does.");
         }
         return new ProjectView
         {
@@ -131,32 +133,57 @@ internal static class V3Migrator
         };
     }
 
+    // The step count is checked before anything is sized by it: the extension offers 16 or 32.
     private static BeatPattern ConvertBeats(V3BeatPattern? raw, V3Context context)
     {
         int steps = raw?.Steps is { } count && count != 0 ? count : DefaultSteps;
+        if (steps < 1 || steps > ProjectLimits.MaxBeatSteps)
+        {
+            throw V3Context.Fail("beatPattern.steps", $"{steps} is not from 1 to {ProjectLimits.MaxBeatSteps}.");
+        }
+        List<V3BeatLane> rawLanes = V3Context.Items(raw?.Lanes, "beatPattern.lanes");
+        if (rawLanes.Count > ProjectLimits.MaxBeatLanes)
+        {
+            string limit = $"{rawLanes.Count} lanes is more than {ProjectLimits.MaxBeatLanes}.";
+            throw V3Context.Fail("beatPattern.lanes", limit);
+        }
         List<BeatLane> lanes = [];
-        List<V3BeatLane> rawLanes = raw?.Lanes ?? [];
         for (int i = 0; i < rawLanes.Count; i++)
         {
+            string path = $"beatPattern.lanes[{i}]";
             lanes.Add(new BeatLane
             {
                 Id = context.Ids.Next<BeatLaneId>(),
                 Name = rawLanes[i].Name ?? string.Empty,
-                Media = string.IsNullOrEmpty(rawLanes[i].BlobKey) ? null : context.MediaFor(rawLanes[i].BlobKey!),
+                Media = LaneMedia(rawLanes[i].BlobKey, path, context),
                 Gain = rawLanes[i].Gain ?? 1,
-                Steps = [.. ConvertSteps(rawLanes[i].Steps ?? [], steps, i, context)],
+                Steps = [.. ConvertSteps(rawLanes[i].Steps ?? [], steps, path, context)],
             });
         }
         return new BeatPattern { Steps = steps, Swing = raw?.Swing ?? 0, Lanes = [.. lanes] };
     }
 
-    private static List<bool> ConvertSteps(List<JsonElement> raw, int steps, int lane, V3Context context)
+    private static MediaId? LaneMedia(string? blobKey, string path, V3Context context)
+    {
+        if (string.IsNullOrEmpty(blobKey))
+        {
+            return null;
+        }
+        MediaId? media = context.MediaFor(blobKey, $"{path}.blobKey");
+        if (media is null)
+        {
+            context.Warn($"{path}: its audio '{blobKey}' is not among the audio files; the lane has no sample.");
+        }
+        return media;
+    }
+
+    private static List<bool> ConvertSteps(List<JsonElement> raw, int steps, string path, V3Context context)
     {
         if (raw.Skip(steps).Any(Truthy))
         {
-            context.Warn($"Beat lane {lane + 1} had steps beyond the pattern length; they never played and were dropped.");
+            context.Warn($"{path} had steps beyond the pattern length; they never played and were dropped.");
         }
-        return [.. Enumerable.Range(0, Math.Max(steps, 0)).Select(i => i < raw.Count && Truthy(raw[i]))];
+        return [.. Enumerable.Range(0, steps).Select(i => i < raw.Count && Truthy(raw[i]))];
     }
 
     // The extension reads a step with !!, so true, a non-zero number or a non-empty string is on.

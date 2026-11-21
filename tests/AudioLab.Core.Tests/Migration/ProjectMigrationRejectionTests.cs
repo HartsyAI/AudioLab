@@ -24,18 +24,18 @@ public sealed class ProjectMigrationRejectionTests
         ["effect parameter of the wrong type"] = "params.sync",
         ["duplicate track id"] = "used by two tracks",
         ["missing track id"] = "tracks[0].id",
-        ["unknown track kind"] = "kind",
-        ["unknown input channels"] = "channels",
-        ["input channel zero"] = "channels",
+        ["unknown track kind"] = "tracks[0].kind:",
+        ["unknown input channels"] = "tracks[0].input.channels:",
+        ["input channel zero"] = "tracks[0].input.channels:",
         ["unknown instrument type"] = "synth or sampler",
-        ["unknown oscillator"] = "osc1",
-        ["note without pitch"] = "pitch",
-        ["note pitch out of range"] = "pitch",
-        ["unknown automation mode"] = "automationMode",
-        ["unknown ruler"] = "rulerMode",
-        ["time signature of three numbers"] = "timeSignature",
-        ["time signature of 4/3"] = "timeSignature",
-        ["tempo out of range"] = "bpm",
+        ["unknown oscillator"] = "tracks[1].instrument.osc1:",
+        ["note without pitch"] = "tracks[1].midiClips[0].notes[0].pitch:",
+        ["note pitch out of range"] = ".pitch: 200 must be from 0 to 127",
+        ["unknown automation mode"] = "tracks[0].automationMode:",
+        ["unknown ruler"] = "rulerMode:",
+        ["time signature of three numbers"] = "timeSignature:",
+        ["time signature of 4/3"] = "timeSignature: the numerator",
+        ["tempo out of range"] = "bpm: 2000 must be from 1 to 1000",
     };
 
     /// <summary>Each row breaks the synthetic version 3 project one way.</summary>
@@ -71,7 +71,9 @@ public sealed class ProjectMigrationRejectionTests
 
     [Theory]
     [MemberData(nameof(BrokenFiles))]
-    public void AProjectTheMigrationCannotPreserveIsRefusedAndTheErrorSaysWhy(string description, Action<JsonObject> breakIt)
+    public void AProjectTheMigrationCannotPreserveIsRefusedAndTheErrorSaysWhy(
+        string description,
+        Action<JsonObject> breakIt)
     {
         JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));
         breakIt(root);
@@ -102,7 +104,7 @@ public sealed class ProjectMigrationRejectionTests
     }
 
     [Fact]
-    public void ARefusedProjectLeavesNoTraceInTheIdService()
+    public void AProjectRefusedForItsVersionAllocatesNoIds()
     {
         SequentialIdService ids = new();
         JsonObject root = Parse(V3Fixtures.Read(V3Fixtures.Full));
