@@ -9,11 +9,19 @@ public static class RestoredPackages
 
     private static readonly int[] _supportedVersions = [3, 4];
 
-    /// <summary>Every package, with its file list, that any project restored, transitive packages included.</summary>
+    /// <summary>Every package, with its file list, that any project of this repository restored, transitive packages included.</summary>
     /// <exception cref="InvalidOperationException">No project was found, or one has no restore output or an unreadable one.</exception>
     public static List<PackageListing> Read()
     {
-        List<string> projects = RepoFiles.WithExtensions(".csproj");
+        return Read(RepoFiles.Root);
+    }
+
+    /// <summary>Every package, with its file list, that any project under the src and tests folders of a root restored.</summary>
+    /// <param name="root">The folder that holds src and tests.</param>
+    /// <exception cref="InvalidOperationException">No project was found, or one has no restore output or an unreadable one.</exception>
+    public static List<PackageListing> Read(string root)
+    {
+        List<string> projects = RepoFiles.WithExtensionsIn(root, ".csproj");
         if (projects.Count == 0)
         {
             throw new InvalidOperationException("No .csproj was found under src or tests, so there is nothing to read packages from.");
@@ -21,11 +29,12 @@ public static class RestoredPackages
         Dictionary<string, PackageListing> found = [];
         foreach (string project in projects)
         {
-            string name = RepoFiles.Relative(project);
+            string name = Path.GetRelativePath(root, project).Replace('\\', '/');
             string assets = Path.Combine(Path.GetDirectoryName(project)!, "obj", AssetsFileName);
             if (!File.Exists(assets))
             {
-                throw new InvalidOperationException($"{name} has no obj/{AssetsFileName}; run 'dotnet restore' first.");
+                throw new InvalidOperationException(
+                    $"{name} has no obj/{AssetsFileName}; run 'dotnet restore' at the repository root. The project must be in AudioLab.slnx.");
             }
             foreach (PackageListing package in Parse(File.ReadAllText(assets), name))
             {
@@ -54,17 +63,33 @@ public static class RestoredPackages
             throw new InvalidOperationException($"The restore output of {project} has no libraries section.");
         }
         List<PackageListing> packages = [];
-        foreach (KeyValuePair<string, AssetsLibrary> library in assets.Libraries.Where(library => library.Value.Type == "package"))
+        foreach (KeyValuePair<string, AssetsLibrary?> library in assets.Libraries)
         {
-            int slash = library.Key.IndexOf('/', StringComparison.Ordinal);
-            if (slash <= 0)
+            AssetsLibrary entry = library.Value
+                ?? throw new InvalidOperationException($"The restore output of {project} has no content for '{library.Key}'.");
+            if (entry.Type == "project")
             {
-                throw new InvalidOperationException($"The restore output of {project} lists '{library.Key}' without an id and a version.");
+                continue;
             }
-            List<string> files = library.Value.Files
-                ?? throw new InvalidOperationException($"The restore output of {project} lists no files for the package {library.Key}.");
-            packages.Add(new PackageListing(library.Key[..slash], library.Key[(slash + 1)..], files, [project]));
+            if (entry.Type != "package")
+            {
+                string kind = $"'{entry.Type}', not a package or project";
+                throw new InvalidOperationException($"The restore output of {project} lists '{library.Key}' as {kind}.");
+            }
+            packages.Add(ToListing(library.Key, entry, project));
         }
         return packages;
+    }
+
+    private static PackageListing ToListing(string key, AssetsLibrary entry, string project)
+    {
+        int slash = key.IndexOf('/', StringComparison.Ordinal);
+        if (slash <= 0)
+        {
+            throw new InvalidOperationException($"The restore output of {project} lists '{key}' without an id and a version.");
+        }
+        List<string> files = entry.Files
+            ?? throw new InvalidOperationException($"The restore output of {project} lists no files for the package {key}.");
+        return new PackageListing(key[..slash], key[(slash + 1)..], files, [project]);
     }
 }

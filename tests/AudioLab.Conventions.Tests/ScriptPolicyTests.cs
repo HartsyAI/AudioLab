@@ -11,7 +11,7 @@ public sealed partial class ScriptPolicyTests
 
     private static readonly Lazy<List<PackageListing>> _restored = new(RestoredPackages.Read);
 
-    private static readonly string[] _markupExtensions = [".razor", ".cshtml", ".html"];
+    private static readonly string[] _markupExtensions = [".razor", ".cshtml", ".html", ".htm"];
 
     private static readonly string[] _interopIdentifiers = ["IJSRuntime", "IJSInProcessRuntime", "IJSObjectReference", "IJSInProcessObjectReference", "JSImport", "JSExport", "JSHost"];
 

@@ -82,4 +82,67 @@ public sealed class RestoredPackagesTests
         Assert.NotEmpty(xunit.Files);
         Assert.Contains(xunit.Projects, project => project.EndsWith("AudioLab.Conventions.Tests.csproj", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData("Package")]
+    [InlineData("weird")]
+    [InlineData("")]
+    public void LibraryOfAnUnknownTypeFailsInsteadOfBeingSkipped(string type)
+    {
+        string json = $$"""{ "version": 4, "libraries": { "Acme.Widgets/1.2.0": { "type": "{{type}}", "files": ["a.js"] } } }""";
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(json, Project));
+        Assert.Contains("Acme.Widgets/1.2.0", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LibraryWithoutATypeFails()
+    {
+        const string Json = """{ "version": 4, "libraries": { "Acme.Widgets/1.2.0": { "files": ["a.js"] } } }""";
+        Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(Json, Project));
+    }
+
+    [Fact]
+    public void NullLibraryEntryFailsWithAMessageNamingIt()
+    {
+        const string Json = """{ "version": 4, "libraries": { "Acme.Widgets/1.2.0": null } }""";
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => RestoredPackages.Parse(Json, Project));
+        Assert.Contains("Acme.Widgets/1.2.0", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadFindsAProjectNestedBelowTheFirstLevel()
+    {
+        using TempRepository repository = new();
+        repository.AddProject("src/Deep/Inner/Inner.csproj", Fixture);
+        repository.AddProject("tests/Top/Top.csproj", Fixture);
+        List<PackageListing> packages = RestoredPackages.Read(repository.Root);
+        PackageListing widgets = packages.Single(package => package.Id == "Acme.Widgets");
+        Assert.Equal(["src/Deep/Inner/Inner.csproj", "tests/Top/Top.csproj"], widgets.Projects.Order());
+    }
+
+    [Fact]
+    public void ReadFailsForAProjectWithoutRestoreOutput()
+    {
+        using TempRepository repository = new();
+        repository.AddProject("src/Deep/Inner/Inner.csproj", null);
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => RestoredPackages.Read(repository.Root));
+        Assert.Contains("src/Deep/Inner/Inner.csproj has no obj/project.assets.json", error.Message, StringComparison.Ordinal);
+        Assert.Contains("AudioLab.slnx", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReadFailsWhenThereAreNoProjects()
+    {
+        using TempRepository repository = new();
+        Assert.Throws<InvalidOperationException>(() => RestoredPackages.Read(repository.Root));
+    }
+
+    [Fact]
+    public void ReadIgnoresALeftoverObjFolderThatHasNoProject()
+    {
+        using TempRepository repository = new();
+        repository.AddProject("src/Live/Live.csproj", Fixture);
+        repository.AddAssets("src/Gone", Fixture.Replace("Acme.Widgets", "Acme.Stale", StringComparison.Ordinal));
+        Assert.DoesNotContain(RestoredPackages.Read(repository.Root), package => package.Id == "Acme.Stale");
+    }
 }
