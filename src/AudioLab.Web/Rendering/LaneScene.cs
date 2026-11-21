@@ -70,8 +70,7 @@ public sealed class LaneScene(SessionModel session, TimelineView view, DragContr
                 double clipWidth = view.ClipWidth(clip);
                 if (x + clipWidth >= 0 && x <= width)
                 {
-                    bool lifted = ReferenceEquals(clip, drag.Clip);
-                    PaintClip(backend, clip, colour, x, y + view.ClipInset, clipWidth, track.Muted || lifted ? 0.4 : 1, clip.Selected && !lifted);
+                    PaintClip(backend, clip, colour, x, y + view.ClipInset, clipWidth, track.Muted ? 0.4 : 1, clip.Selected);
                 }
             }
         }

@@ -9,8 +9,6 @@ public sealed partial class SvgClip : ComponentBase
 {
     private int _revision = -1;
 
-    private bool _lifted;
-
     private double _left = double.NaN;
 
     private double _top = double.NaN;
@@ -30,10 +28,6 @@ public sealed partial class SvgClip : ComponentBase
     /// <summary>Width of one bar in pixels.</summary>
     [Parameter]
     public double BarWidth { get; set; }
-
-    /// <summary>Whether a drag has lifted the clip, leaving this one dimmed where it was.</summary>
-    [Parameter]
-    public bool Hidden { get; set; }
 
     /// <summary>Whether the clip is the lifted copy that follows the pointer.</summary>
     [Parameter]
@@ -58,7 +52,7 @@ public sealed partial class SvgClip : ComponentBase
     [Inject]
     private WavePathCache Paths { get; set; } = null!;
 
-    private string CssClass => string.Join(' ', ["clip", Clip.Selected || Lifted ? "selected" : string.Empty, Lifted ? "lifted" : string.Empty, Track.Muted ? "muted" : string.Empty, Hidden ? "ghost" : string.Empty]);
+    private string CssClass => string.Join(' ', ["clip", Clip.Selected || Lifted ? "selected" : string.Empty, Lifted ? "lifted" : string.Empty, Track.Muted ? "muted" : string.Empty]);
 
     private string InlineStyle
     {
@@ -76,9 +70,8 @@ public sealed partial class SvgClip : ComponentBase
     {
         double left = Left ?? double.NaN;
         double top = Top ?? double.NaN;
-        bool changed = Revision != _revision || Hidden != _lifted || BarWidth != _bar || !left.Equals(_left) || !top.Equals(_top);
+        bool changed = Revision != _revision || BarWidth != _bar || !left.Equals(_left) || !top.Equals(_top);
         _revision = Revision;
-        _lifted = Hidden;
         _bar = BarWidth;
         _left = left;
         _top = top;
