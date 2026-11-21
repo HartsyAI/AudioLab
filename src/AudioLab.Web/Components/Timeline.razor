@@ -1,0 +1,42 @@
+<div id="timeline" class="timeline" tabindex="0" role="application" aria-label="Arrangement"
+     @onpointerdown="OnPointerDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp"
+     @onpointercancel="OnPointerCancel" @onkeydown="OnKeyDown">
+    <div class="grid" style="width: @(HeaderWidth + View.ContentWidth)px">
+        <div class="ruler">
+            <RulerRow Session="Session" BarWidth="View.BarWidth" />
+        </div>
+        <div class="headers">
+            @foreach (TrackModel track in Session.Tracks)
+            {
+                <TrackHeader Track="track" />
+            }
+        </div>
+        <div id="lanes" class="lanes" style="width: @(View.ContentWidth)px; height: @(View.ContentHeight)px">
+            @if (_ready)
+            {
+                @switch (Options.Renderer)
+                {
+                    case RendererKind.Svg:
+                        <SvgLaneSurface Virtualize="false" />
+                        break;
+                    case RendererKind.SvgVirtual:
+                        <SvgLaneSurface Virtualize="true" />
+                        break;
+                    case RendererKind.SkiaGl:
+                        <SkiaLaneSurface Gpu="true" />
+                        break;
+                    case RendererKind.SkiaCpu:
+                        <SkiaLaneSurface Gpu="false" />
+                        break;
+                    default:
+                        <CanvasLaneSurface />
+                        break;
+                }
+            }
+        </div>
+        <div class="corner">
+            <span class="caption">TRACKS</span>
+            <Button Size="ButtonSize.Small"><svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5 1.5v7M1.5 5h7"></path></svg><span>Add track</span></Button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,95 @@
+.generate {
+    flex: none;
+    width: 316px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-10);
+    padding: var(--space-12) var(--space-14) var(--space-14);
+    border-left: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.heading {
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-strong);
+}
+
+.prompt {
+    flex: none;
+    height: 66px;
+    box-sizing: border-box;
+    resize: none;
+    border: 0;
+    outline: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-8) var(--space-10);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    line-height: 1.45;
+}
+
+.fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-8);
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.field ::deep .button {
+    justify-content: space-between;
+    color: var(--text);
+    padding: 0 var(--space-8);
+}
+
+.stretch {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.label {
+    font-size: var(--font-size-label);
+    color: var(--text-faint);
+}
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+}
+
+.box {
+    width: 15px;
+    height: 15px;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.check-label {
+    font-size: var(--font-size-control);
+    color: var(--text-soft);
+}
+
+.grow {
+    flex: 1;
+}

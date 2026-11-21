@@ -1,0 +1,16 @@
+@using SkiaSharp.Views.Blazor
+@inherits LaneSurfaceBase
+
+<div class="canvas" style="width: @(View.ViewWidth)px; height: @(View.ViewHeight)px">
+    @if (_backend is not null)
+    {
+        @if (Gpu)
+        {
+            <SKGLView @ref="_glView" EnableRenderLoop="false" OnPaintSurface="OnPaintGl" style="width: 100%; height: 100%; display: block" />
+        }
+        else
+        {
+            <SKCanvasView @ref="_cpuView" EnableRenderLoop="false" OnPaintSurface="OnPaintCpu" style="width: 100%; height: 100%; display: block" />
+        }
+    }
+</div>

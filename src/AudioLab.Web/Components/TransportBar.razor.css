@@ -1,0 +1,89 @@
+.bar {
+    flex: none;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-14);
+    padding: 0 var(--space-14);
+    background: var(--surface-panel);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow-raised);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-10);
+}
+
+.logo {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.title {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.name {
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: -0.01em;
+}
+
+.saved {
+    font-size: var(--font-size-label);
+    color: var(--text-faint);
+}
+
+.toggles {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.spacer {
+    flex: 1;
+}
+
+.dim {
+    color: var(--text-dim);
+}
+
+.presence {
+    display: flex;
+    align-items: center;
+}
+
+.avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-round);
+    box-shadow: 0 0 0 2px var(--surface-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-micro);
+    font-weight: var(--font-weight-strong);
+}
+
+.you {
+    background: var(--surface-raised-active);
+    color: var(--text);
+}
+
+.agent {
+    margin-left: -6px;
+    background: var(--track-10);
+    color: var(--ink);
+}
+
+.export {
+    padding: 0 var(--space-2);
+}

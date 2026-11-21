@@ -1,0 +1,140 @@
+.strip {
+    flex: none;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    padding: var(--space-8);
+    border-right: 1px solid var(--line);
+}
+
+.master {
+    background: var(--surface-selected);
+}
+
+.head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+}
+
+.dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-xs);
+}
+
+.name {
+    min-width: 0;
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slots {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.slot {
+    height: 17px;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-6);
+    background: var(--surface-lane);
+    box-shadow: var(--shadow-well);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    line-height: 17px;
+    color: var(--text-soft);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.empty {
+    color: var(--text-faint);
+}
+
+.pan {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.readout {
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-dim);
+}
+
+.fader-row {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) 14px;
+    gap: var(--space-6);
+}
+
+.scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: var(--font-size-micro);
+    color: var(--text-faint);
+    text-align: right;
+}
+
+.track {
+    position: relative;
+}
+
+.slot-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    margin-left: -2px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+}
+
+.cap {
+    position: absolute;
+    left: 50%;
+    width: 28px;
+    height: 13px;
+    margin-left: -14px;
+    margin-bottom: -6px;
+    border-radius: var(--radius-sm);
+    background: var(--control-cap);
+    box-shadow: var(--shadow-cap);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notch {
+    width: 18px;
+    height: 1.5px;
+    background: var(--surface-raised);
+}
+
+.foot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.db {
+    flex: 1;
+    text-align: right;
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-strong);
+    color: var(--text-soft);
+}

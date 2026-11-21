@@ -1,0 +1,26 @@
+<div class="@CssClass">
+    <div class="strip" style="background: var(@Track.ColourToken)"></div>
+    <div class="number">@Track.Number</div>
+    <div class="main">
+        <div class="row">
+            <span class="name">@Track.Name</span>
+            <div class="toggles">
+                <TrackToggle Letter="M" AriaLabel="Mute" Tone="ToggleTone.Mute" On="@Track.Muted" />
+                <TrackToggle Letter="S" AriaLabel="Solo" Tone="ToggleTone.Solo" />
+                <TrackToggle Letter="R" AriaLabel="Record arm" Tone="ToggleTone.Record" On="@Track.Armed" />
+                <TrackToggle Letter="I" AriaLabel="Input monitor" Tone="ToggleTone.Go" On="@Track.Monitoring" />
+            </div>
+        </div>
+        <div class="row">
+            <span class="source">@Track.Source</span>
+            <div class="slot">
+                <div class="fill" style="width: @(Track.Volume)%"></div>
+                <div class="cap" style="left: @(Track.Volume)%"></div>
+            </div>
+            <span class="db">@Track.DbText</span>
+        </div>
+    </div>
+    <div class="meter">
+        <Meter Left="@Track.MeterLeft" Right="@Track.MeterRight" />
+    </div>
+</div>

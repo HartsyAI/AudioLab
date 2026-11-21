@@ -1,0 +1,58 @@
+.status {
+    flex: none;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 var(--space-12);
+    background: var(--surface-lane);
+    border-top: 1px solid var(--line);
+    font-size: var(--font-size-label);
+    color: var(--text-faint);
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+}
+
+.wide {
+    gap: var(--space-8);
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-sm);
+}
+
+.connected {
+    background: var(--go);
+}
+
+.agent {
+    background: var(--track-10);
+}
+
+.soft {
+    color: var(--text-dim);
+}
+
+.progress {
+    width: 88px;
+    height: 3px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-well);
+    overflow: hidden;
+}
+
+.done {
+    width: 42%;
+    height: 100%;
+    background: var(--accent);
+}
+
+.spacer {
+    flex: 1;
+}

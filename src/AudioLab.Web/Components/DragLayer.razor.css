@@ -1,0 +1,7 @@
+.landing {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+    pointer-events: none;
+}

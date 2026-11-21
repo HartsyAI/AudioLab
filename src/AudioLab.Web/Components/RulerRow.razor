@@ -1,0 +1,17 @@
+<div class="ruler" style="width: @(Width)px">
+    <div class="sections">
+        @foreach (SectionModel section in Sections)
+        {
+            <div class="section" style="@SectionStyle(section)">@section.Name</div>
+        }
+    </div>
+    <div class="bars">
+        <div class="loop" style="left: @(LoopLeft)px; width: @(LoopWidth)px"></div>
+        @for (int bar = 0; bar < BarCount; bar++)
+        {
+            int index = bar;
+            <span class="@BarClass(index)" style="left: @(index * BarWidth)px">@(ShowLabel(index) ? (index + 1).ToString() : string.Empty)</span>
+        }
+        <svg class="cap" width="11" height="8" viewBox="0 0 11 8" aria-hidden="true" style="left: @(HeadCapLeft)px"><polygon points="0,0 11,0 5.5,8" style="fill: var(--playhead)"></polygon></svg>
+    </div>
+</div>

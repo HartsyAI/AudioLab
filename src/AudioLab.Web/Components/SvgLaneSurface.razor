@@ -1,0 +1,20 @@
+@inherits LaneSurfaceBase
+
+<div class="surface" style="@BackgroundStyle">
+    @for (int t = FirstTrack; t <= LastTrack; t++)
+    {
+        TrackModel track = Session.Tracks[t];
+        <div class="@(track.Selected ? "lane selected" : "lane")" style="top: @(t * View.LaneHeight)px; height: @(View.LaneHeight)px">
+            @foreach (ClipModel clip in track.Clips)
+            {
+                @if (InWindow(clip))
+                {
+                    <SvgClip @key="clip.Id" Clip="clip" Track="track" BarWidth="View.BarWidth" LaneHeight="View.LaneHeight" Revision="clip.Revision" Hidden="@ReferenceEquals(Drag.Clip, clip)" />
+                }
+            }
+        </div>
+    }
+    <div class="loop" style="left: @(Session.LoopStartBar * View.BarWidth)px; width: @(Session.LoopBars * View.BarWidth)px"></div>
+    <div class="playhead" style="left: @(Math.Round(Session.PlayheadBar * View.BarWidth))px"></div>
+    <DragLayer />
+</div>

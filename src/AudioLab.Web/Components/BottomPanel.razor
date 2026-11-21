@@ -1,0 +1,17 @@
+<div class="panel">
+    <div class="tabs" role="tablist">
+        @foreach (string tab in Tabs)
+        {
+            <button type="button" role="tab" class="@(tab == "Mixer" ? "tab active" : "tab")" aria-selected="@(tab == "Mixer" ? "true" : "false")">@tab</button>
+        }
+    </div>
+    <div class="body">
+        <div class="strips">
+            @foreach (StripModel strip in Session.Strips)
+            {
+                <ChannelStrip Strip="strip" />
+            }
+        </div>
+        <GeneratePanel />
+    </div>
+</div>
