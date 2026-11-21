@@ -43,8 +43,8 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
-| D14 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
-| D15 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
+| D15 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
+| D16 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
 
 ## 3. Architecture
 
@@ -96,8 +96,8 @@ Rules:
 
 ## 5. The server-owned project
 
-- **Model.** A typed project document (`version: 4`), with a migration from the extension's `version: 3` JSON, tested
-  by round-tripping real saved projects. Ids are allocated by the server. Time is seconds plus a tempo map.
+- **Model.** A typed project document (`version: 4`), the only project format, tested by round trips and by the
+  rejection of invalid documents. Ids are allocated by the server. Time is seconds plus a tempo map.
   Ids are typed (`TrackId`, `ClipId`, `MediaId`, ...) and minted only by `IIdService`; the project and every media
   record carry the owner `UserId` (D12). JSON goes only through `ProjectJsonContext`, which refuses unknown members.
   Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` until the UI maps them to the twelve track tokens.
@@ -106,8 +106,8 @@ Rules:
     store maps an id to a name of its own and never puts a raw id in a path, and it takes the owner from the session
     that made the request, never from the `owner` a file names. A note id counts up inside its clip and
     `MidiClip.NextNoteId` never goes back, so the id of a deleted note is not reused.
-  - Immutability and equality are D15. Enums are written by exact name and refuse numbers and variants of a name.
-  - Compatibility is D14. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
+  - Immutability and equality are D16. Enums are written by exact name and refuse numbers and variants of a name.
+  - Compatibility is D15. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
     text holds no control or text-direction characters, and an error lists at most 100 problems of at most 300
     characters each.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
@@ -504,14 +504,14 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
 | 1 | Spikes O1, O2, O3 and O9, and the O10 evaluation, each closed in this file. |
-| 2 | Core and server: model with v3 migration, commands, history, store, hub, routes, and a minimal UI that opens a project. |
+| 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
 | 5 | The UI, one domain at a time: tempo, markers, sections and groups; tracks and mixer; clips and media; effects, automation, MIDI, piano roll and beats. |
 | 6 | Engine services and the model manager. |
 | 7 | Recording, native devices and the desktop shell. |
 | 8 | Voice agent and wake word. |
-| 9 | SwarmUI extension: child process, proxy, tab, then cutover. |
+| 9 | SwarmUI extension: child process, proxy, tab, then cutover; projects saved by the extension are not carried over, by owner decision. |
 | 10 | Hosting: accounts, quotas, the job queue. |
 
 ## 13. Change log
@@ -522,6 +522,5 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Interface design added and approved from the session mock: character and rules, layout, tokens, component catalogue, states and the tests that hold them (7.2 to 7.7); D13 decided; O10 opened. |
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
-| 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5). |
-| 2026-11-20 | Model hardened after review: immutable value-equal collections, id and colour rules, strict enums, ranges and size limits, per-clip note id counter (section 5). |
-| 2026-11-20 | Model hardened after a second review: extra-field and enum exactness, item paths in errors, list and text limits, id rules (lower case, no device names), D14 and D15 proposed (sections 2 and 5). |
+| 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5); D15 and D16 proposed. |
+| 2026-11-21 | Migration from the extension's `version: 3` project JSON dropped by owner decision: new project format only (sections 5 and 12). |
