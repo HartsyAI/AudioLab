@@ -42,7 +42,8 @@ public static class RestoredPackages
             string path = Path.Combine(RepoFiles.Root, folder);
             if (Directory.Exists(path))
             {
-                files.AddRange(Directory.EnumerateDirectories(path).Select(project => Path.Combine(project, "obj", AssetsFileName)).Where(File.Exists));
+                IEnumerable<string> projects = Directory.EnumerateDirectories(path).Where(project => Directory.EnumerateFiles(project, "*.csproj").Any());
+                files.AddRange(projects.Select(project => Path.Combine(project, "obj", AssetsFileName)).Where(File.Exists));
             }
         }
         return files;
