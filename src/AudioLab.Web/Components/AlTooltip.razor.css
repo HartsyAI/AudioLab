@@ -26,3 +26,7 @@
     color: var(--text-dim);
     font-family: var(--font-ui);
 }
+
+.al-tooltip-root ::deep .al-tooltip[hidden] {
+    display: none;
+}
