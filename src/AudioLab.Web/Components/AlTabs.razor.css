@@ -1,0 +1,39 @@
+.al-tabs-root {
+    display: contents;
+}
+
+.al-tabs-root ::deep .al-tab-list {
+    display: flex;
+    gap: var(--space-12);
+    border-bottom: 1px solid var(--line);
+}
+
+.al-tabs-root ::deep .al-tab {
+    min-height: var(--tab-height);
+    padding: 0 var(--space-4);
+    border: 0;
+    border-bottom: var(--space-2) solid transparent;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+}
+
+.al-tabs-root ::deep .al-tab[aria-selected="true"] {
+    border-bottom-color: var(--accent);
+    color: var(--text);
+    font-weight: var(--font-weight-strong);
+}
+
+.al-tabs-root ::deep .al-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.al-tabs-root ::deep .al-tab-panel {
+    padding: var(--space-12) 0;
+    color: var(--text-soft);
+    font-size: var(--font-size-body);
+}

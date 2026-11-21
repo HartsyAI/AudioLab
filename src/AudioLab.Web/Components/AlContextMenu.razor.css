@@ -1,0 +1,53 @@
+.al-context-root {
+    display: contents;
+}
+
+.al-context-root ::deep .al-context-area {
+    outline: none;
+}
+
+.al-context-root ::deep .al-context-area:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+.al-context-root ::deep .al-context-menu {
+    z-index: var(--z-popover);
+    min-width: 12rem;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+}
+
+.al-context-root ::deep .al-context-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-16);
+    min-height: var(--control-md);
+    padding: 0 var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-body);
+    cursor: default;
+}
+
+.al-context-root ::deep .al-context-item[data-active],
+.al-context-root ::deep .al-context-item:focus-visible {
+    outline: none;
+    background: var(--surface-raised-active);
+}
+
+.al-context-root ::deep .al-context-item[data-destructive] {
+    color: var(--record);
+}
+
+.al-context-root ::deep .al-context-item[aria-disabled="true"] {
+    opacity: 0.5;
+}
+
+.al-context-root ::deep .al-context-shortcut {
+    color: var(--text-faint);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-label);
+}

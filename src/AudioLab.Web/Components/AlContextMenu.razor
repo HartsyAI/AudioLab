@@ -1,0 +1,14 @@
+<div class="al-context-root">
+    <BitBhContextMenu>
+        <BitBhContextMenuTrigger class="al-context-area" tabindex="0">@ChildContent</BitBhContextMenuTrigger>
+        <BitBhContextMenuContent class="al-context-menu">
+            @foreach (AlMenuItem item in Ordered)
+            {
+                <BitBhContextMenuItem class="al-context-item" data-destructive="@item.Destructive" Label="@item.Label" Disabled="item.Disabled" OnClick="() => SelectAsync(item)">
+                    <span>@item.Label</span>
+                    <kbd class="al-context-shortcut">@item.Shortcut</kbd>
+                </BitBhContextMenuItem>
+            }
+        </BitBhContextMenuContent>
+    </BitBhContextMenu>
+</div>

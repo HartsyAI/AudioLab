@@ -1,0 +1,41 @@
+<BitBhTooltipProvider DelayDuration="400">
+    <main class="page">
+        <h1 class="page-title">Primitives proof</h1>
+        <p class="page-text">Every control below is a catalogue wrapper over Bit.Bheadless, styled by tokens only. Last action: <strong id="last-action">@LastAction</strong></p>
+
+        <section class="row" aria-label="Dialogs">
+            <AlButton OnClick="OpenConfirm" id="open-confirm">Delete project</AlButton>
+            <AlButton Variant="AlButtonVariant.Primary" OnClick="OpenForm" id="open-form">Rename project</AlButton>
+            <AlDialog @bind-Open="_confirmOpen" Title="Delete project" Description="This removes the project and its media. It cannot be undone." ConfirmText="Delete project" ConfirmVariant="AlButtonVariant.Danger" OnConfirm="Deleted" />
+            <AlDialog @bind-Open="_formOpen" Title="Rename project" ConfirmText="Rename" OnConfirm="Renamed">
+                <label class="field-label" for="project-name">Name</label>
+                <input id="project-name" class="field" type="text" value="Midnight Drive" />
+            </AlDialog>
+        </section>
+
+        <section class="row" aria-label="Menus">
+            <AlMenu Label="Track" Items="_trackItems" OnSelect="Chose" />
+            <AlContextMenu Items="_trackItems" OnSelect="Chose">
+                <div class="context-area">Right-click or press the menu key here</div>
+            </AlContextMenu>
+        </section>
+
+        <section class="row" aria-label="Selection">
+            <AlSelect Label="Grid" Options="_grids" @bind-Value="_grid" />
+            <AlCombobox Label="Model" Placeholder="Search models" Options="_models" @bind-Value="_model" />
+            <span class="page-text">Grid: <strong id="grid-value">@_grid</strong>, model: <strong id="model-value">@_model</strong></span>
+        </section>
+
+        <section class="row" aria-label="Popover, tooltip and toasts">
+            <AlPopover Label="Output settings"><span>Sample rate 48 kHz, 24 bit.</span></AlPopover>
+            <AlTooltip Name="Play" Shortcut="Space"><AlButton aria-label="Play">Play</AlButton></AlTooltip>
+            <AlButton OnClick="ShowSaved" id="show-toast">Show toast</AlButton>
+            <AlButton OnClick="ShowFailed" id="show-error">Show error</AlButton>
+        </section>
+
+        <AlTabs Tabs="_tabs">
+            <Panel Context="tab"><span>The @tab tab.</span></Panel>
+        </AlTabs>
+    </main>
+    <AlToastHost />
+</BitBhTooltipProvider>

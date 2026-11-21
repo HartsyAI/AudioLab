@@ -1,0 +1,44 @@
+.al-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background var(--motion-fast);
+}
+
+.al-button:hover {
+    background: var(--surface-raised-active);
+}
+
+.al-button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.al-button:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.al-button[data-variant="primary"] {
+    background: var(--accent);
+    color: var(--ink);
+    font-weight: var(--font-weight-strong);
+}
+
+.al-button[data-variant="danger"] {
+    background: var(--record);
+    color: var(--ink);
+    font-weight: var(--font-weight-strong);
+}

@@ -1,0 +1,28 @@
+.al-tooltip-root {
+    display: contents;
+}
+
+.al-tooltip-root ::deep .al-tooltip-trigger {
+    display: inline-flex;
+}
+
+.al-tooltip-root ::deep .al-tooltip {
+    z-index: var(--z-tooltip);
+    display: flex;
+    gap: var(--space-8);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+    font-size: var(--font-size-label);
+}
+
+.al-tooltip-root ::deep .al-tooltip-name {
+    font-weight: var(--font-weight-medium);
+}
+
+.al-tooltip-root ::deep .al-tooltip-shortcut {
+    color: var(--text-dim);
+    font-family: var(--font-ui);
+}

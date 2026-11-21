@@ -1,0 +1,38 @@
+.al-popover-root {
+    display: contents;
+}
+
+.al-popover-root ::deep .al-popover-button {
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+}
+
+.al-popover-root ::deep .al-popover-button:hover,
+.al-popover-root ::deep .al-popover-button[aria-expanded="true"] {
+    background: var(--surface-raised-active);
+}
+
+.al-popover-root ::deep .al-popover-button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.al-popover-root ::deep .al-popover {
+    z-index: var(--z-popover);
+    min-width: 14rem;
+    padding: var(--space-12);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+    font-size: var(--font-size-body);
+}

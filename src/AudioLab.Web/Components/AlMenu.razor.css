@@ -1,0 +1,81 @@
+.al-menu-root {
+    display: contents;
+}
+
+.al-menu-root ::deep .al-menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+}
+
+.al-menu-root ::deep .al-menu-button:hover,
+.al-menu-root ::deep .al-menu-button[aria-expanded="true"] {
+    background: var(--surface-raised-active);
+}
+
+.al-menu-root ::deep .al-menu-button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.al-menu-root ::deep .al-chevron {
+    width: var(--space-6);
+    height: var(--space-6);
+    margin-top: calc(var(--space-2) * -1);
+    border-right: var(--space-2) solid currentColor;
+    border-bottom: var(--space-2) solid currentColor;
+    transform: rotate(45deg);
+}
+
+.al-menu-root ::deep .al-menu {
+    z-index: var(--z-popover);
+    min-width: 12rem;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+}
+
+.al-menu-root ::deep .al-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-16);
+    min-height: var(--control-md);
+    padding: 0 var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-body);
+    cursor: default;
+}
+
+.al-menu-root ::deep .al-menu-item[data-active],
+.al-menu-root ::deep .al-menu-item:focus-visible {
+    outline: none;
+    background: var(--surface-raised-active);
+}
+
+.al-menu-root ::deep .al-menu-item[data-destructive] {
+    color: var(--record);
+}
+
+.al-menu-root ::deep .al-menu-item[aria-disabled="true"] {
+    opacity: 0.5;
+}
+
+.al-menu-root ::deep .al-menu-shortcut {
+    color: var(--text-faint);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-label);
+}

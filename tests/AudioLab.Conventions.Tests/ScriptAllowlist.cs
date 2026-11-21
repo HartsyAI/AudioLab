@@ -7,5 +7,10 @@ public static class ScriptAllowlist
     public static readonly ScriptAllowance[] Entries = [];
 
     /// <summary>Approved NuGet packages that ship script files, by package id. Adding one needs the owner's approval in the pull request that references the package.</summary>
-    public static readonly PackageScriptAllowance[] Packages = [];
+    public static readonly PackageScriptAllowance[] Packages =
+    [
+        new("Microsoft.AspNetCore.Components.WebAssembly", "The Blazor WebAssembly runtime loader (blazor.webassembly.js); the framework, not our code."),
+        new("Microsoft.AspNetCore.App.Internal.Assets", "Ships the Blazor runtime loaders (blazor.*.js) with the ASP.NET Core targeting assets; only blazor.webassembly.js is served."),
+        new("Bit.Bheadless", "Focus trap, outside-click, positioning and live-region behaviour for dialogs, menus, popovers and combo boxes; the browser has no C# binding for it. Evaluated in O10."),
+    ];
 }

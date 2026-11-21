@@ -1,0 +1,9 @@
+<div class="al-tooltip-root">
+    <BitBhTooltip>
+        <BitBhTooltipTrigger As="span" class="al-tooltip-trigger">@ChildContent</BitBhTooltipTrigger>
+        <BitBhTooltipContent class="al-tooltip" Anchor="@(new BitBhAnchorOptions { To = "bottom", Gap = 6 })">
+            <span class="al-tooltip-name">@Name</span>
+            <kbd class="al-tooltip-shortcut">@Shortcut</kbd>
+        </BitBhTooltipContent>
+    </BitBhTooltip>
+</div>

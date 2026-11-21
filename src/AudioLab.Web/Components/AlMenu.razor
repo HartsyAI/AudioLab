@@ -1,0 +1,17 @@
+<div class="al-menu-root">
+    <BitBhMenu>
+        <BitBhMenuButton class="al-menu-button">
+            @Label
+            <span class="al-chevron" aria-hidden="true"></span>
+        </BitBhMenuButton>
+        <BitBhMenuItems class="al-menu" Anchor="@("bottom start")">
+            @foreach (AlMenuItem item in Ordered)
+            {
+                <BitBhMenuItem class="al-menu-item" data-destructive="@item.Destructive" Disabled="item.Disabled" OnClick="() => SelectAsync(item)">
+                    <span>@item.Label</span>
+                    <kbd class="al-menu-shortcut">@item.Shortcut</kbd>
+                </BitBhMenuItem>
+            }
+        </BitBhMenuItems>
+    </BitBhMenu>
+</div>

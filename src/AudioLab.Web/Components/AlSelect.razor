@@ -1,0 +1,16 @@
+<div class="al-select-root">
+    <BitBhListbox TValue="string" Value="Value" ValueChanged="ValueChanged">
+        <BitBhListboxButton TValue="string" class="al-select-button" aria-label="@Label">
+            <Template Context="state">
+                <span>@(string.IsNullOrEmpty(state.Value) ? Placeholder : state.Value)</span>
+                <span class="al-chevron" aria-hidden="true"></span>
+            </Template>
+        </BitBhListboxButton>
+        <BitBhListboxOptions TValue="string" class="al-select-options" Anchor="@("bottom start")">
+            @foreach (string option in Options)
+            {
+                <BitBhListboxOption TValue="string" Value="@option" class="al-select-option">@option</BitBhListboxOption>
+            }
+        </BitBhListboxOptions>
+    </BitBhListbox>
+</div>

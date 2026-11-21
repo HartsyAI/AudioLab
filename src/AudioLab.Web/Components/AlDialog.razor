@@ -1,0 +1,14 @@
+<BitBhDialog Open="Open" OnClose="CloseAsync">
+    <div class="al-dialog-root">
+        <BitBhDialogBackdrop class="al-dialog-backdrop" />
+        <BitBhDialogPanel class="al-dialog">
+            <BitBhDialogTitle class="al-dialog-title">@Title</BitBhDialogTitle>
+            <BitBhDialogDescription class="al-dialog-text">@Description</BitBhDialogDescription>
+            @ChildContent
+            <div class="al-dialog-actions">
+                <AlButton OnClick="CloseAsync">@CancelText</AlButton>
+                <AlButton Variant="ConfirmVariant" OnClick="ConfirmAsync">@ConfirmText</AlButton>
+            </div>
+        </BitBhDialogPanel>
+    </div>
+</BitBhDialog>

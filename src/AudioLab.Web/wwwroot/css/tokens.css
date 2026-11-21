@@ -1,0 +1,113 @@
+/* Design tokens. DESIGN.md section 7.4 is the source; a test fails if this file differs. */
+:root {
+    /* Surfaces, deepest to highest. One cool graphite, stepped by lightness. */
+    --surface-well: #0d0f12;
+    --surface-lane: #14171b;
+    --surface-panel: #1b1e23;
+    --surface-selected: #23272e;
+    --surface-raised: #282c34;
+    --surface-raised-active: #30353d;
+
+    /* Lines. Regions are split by a line darker than both sides, never a lighter outline. */
+    --line: #08090b;
+    --lane-line: rgba(0, 0, 0, 0.5);
+    --grid-line: rgba(255, 255, 255, 0.03);
+    --grid-line-strong: rgba(255, 255, 255, 0.08);
+    --tick: rgba(255, 255, 255, 0.22);
+    --highlight: rgba(255, 255, 255, 0.06);
+
+    /* Text: neutral, four steps. */
+    --text: #e7e9ec;
+    --text-soft: #c9ced6;
+    --text-dim: #a8aeb7;
+    --text-faint: #8a919b;
+
+    /* State: the only saturated colours in the chrome. --ink is the text on any of them. */
+    --accent: #4a9df0;
+    --record: #f0524a;
+    --go: #45d18f;
+    --caution: #f3c94f;
+    --mute: #f29a4c;
+    --ink: #0b0d10;
+    --playhead: #ffffff;
+
+    /* Control parts. */
+    --control-fill: #59606b;
+    --control-cap: #d5dae0;
+
+    /* Identity: twelve track colours of similar weight, in hue order. */
+    --track-1: #ee6d86;
+    --track-2: #ef7d67;
+    --track-3: #ee9a55;
+    --track-4: #e3ad4f;
+    --track-5: #a9cf5b;
+    --track-6: #5fcf95;
+    --track-7: #4fcdb8;
+    --track-8: #4fbfdc;
+    --track-9: #6c93f2;
+    --track-10: #a487ee;
+    --track-11: #cf7de0;
+    --track-12: #e07ab5;
+
+    /* Type: Inter, seven sizes, three weights. */
+    --font-ui: Inter, "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --font-size-micro: 0.59375rem;
+    --font-size-label: 0.65625rem;
+    --font-size-control: 0.71875rem;
+    --font-size-body: 0.75rem;
+    --font-size-title: 0.8125rem;
+    --font-size-readout: 0.9375rem;
+    --font-size-heading: 1rem;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-strong: 600;
+
+    /* Space: 2-pixel steps, named by their pixel size. */
+    --space-2: 0.125rem;
+    --space-4: 0.25rem;
+    --space-6: 0.375rem;
+    --space-8: 0.5rem;
+    --space-10: 0.625rem;
+    --space-12: 0.75rem;
+    --space-14: 0.875rem;
+    --space-16: 1rem;
+    --space-24: 1.5rem;
+
+    /* Size: control heights and the fixed parts of the layout. */
+    --control-xs: 1.125rem;
+    --control-sm: 1.375rem;
+    --control-md: 1.75rem;
+    --control-lg: 2rem;
+    --bar-height: 3.25rem;
+    --tab-height: 2.125rem;
+    --status-height: 1.5rem;
+    --ruler-row: 1.375rem;
+    --lane-height: 4rem;
+    --header-column: 15.5rem;
+    --strip-width: 6.5rem;
+
+    /* Shape and depth. */
+    --radius-xs: 0.125rem;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-round: 999px;
+    --shadow-raised: inset 0 1px 0 var(--highlight);
+    --shadow-well: inset 0 0 0 1px var(--line), inset 0 2px 5px rgba(0, 0, 0, 0.55);
+    --shadow-cap: 0 2px 3px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    --shadow-overlay: 0 0 0 1px var(--line), 0 12px 32px rgba(0, 0, 0, 0.6);
+    --focus-ring: 0 0 0 2px var(--accent);
+
+    /* Stacking, lowest to highest. */
+    --z-lane-overlay: 10;
+    --z-sticky: 20;
+    --z-popover: 100;
+    --z-dialog: 200;
+    --z-toast: 300;
+    --z-tooltip: 400;
+
+    /* Motion. */
+    --motion-fast: 80ms;
+    --motion-base: 160ms;
+}

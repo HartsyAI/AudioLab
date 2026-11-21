@@ -1,0 +1,16 @@
+<div class="al-tabs-root">
+    <BitBhTabGroup class="al-tabs">
+        <BitBhTabList class="al-tab-list">
+            @foreach (string tab in Tabs)
+            {
+                <BitBhTab class="al-tab">@tab</BitBhTab>
+            }
+        </BitBhTabList>
+        <BitBhTabPanels>
+            @foreach (string tab in Tabs)
+            {
+                <BitBhTabPanel class="al-tab-panel">@Panel?.Invoke(tab)</BitBhTabPanel>
+            }
+        </BitBhTabPanels>
+    </BitBhTabGroup>
+</div>

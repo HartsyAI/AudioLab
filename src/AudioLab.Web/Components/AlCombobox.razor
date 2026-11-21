@@ -1,0 +1,12 @@
+<div class="al-combobox-root">
+    <BitBhCombobox TValue="string" Value="Value" ValueChanged="ValueChanged" OnQueryChange="SetQuery">
+        <BitBhComboboxInput TValue="string" class="al-combobox-input" aria-label="@Label" placeholder="@Placeholder" />
+        <BitBhComboboxOptions TValue="string" class="al-combobox-options" Anchor="@("bottom start")">
+            @foreach (string option in Matches)
+            {
+                <BitBhComboboxOption TValue="string" Value="@option" class="al-combobox-option">@option</BitBhComboboxOption>
+            }
+            <BitBhComboboxEmpty TValue="string" class="al-combobox-empty">No matches</BitBhComboboxEmpty>
+        </BitBhComboboxOptions>
+    </BitBhCombobox>
+</div>

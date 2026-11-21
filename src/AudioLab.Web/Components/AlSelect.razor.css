@@ -1,0 +1,69 @@
+.al-select-root {
+    display: contents;
+}
+
+.al-select-root ::deep .al-select-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+    min-width: 9rem;
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+}
+
+.al-select-root ::deep .al-select-button:hover,
+.al-select-root ::deep .al-select-button[aria-expanded="true"] {
+    background: var(--surface-raised-active);
+}
+
+.al-select-root ::deep .al-select-button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.al-select-root ::deep .al-chevron {
+    width: var(--space-6);
+    height: var(--space-6);
+    margin-top: calc(var(--space-2) * -1);
+    border-right: var(--space-2) solid currentColor;
+    border-bottom: var(--space-2) solid currentColor;
+    transform: rotate(45deg);
+}
+
+.al-select-root ::deep .al-select-options {
+    z-index: var(--z-popover);
+    min-width: 9rem;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+}
+
+.al-select-root ::deep .al-select-option {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-md);
+    padding: 0 var(--space-8);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-body);
+    cursor: default;
+}
+
+.al-select-root ::deep .al-select-option[data-active] {
+    background: var(--surface-raised-active);
+}
+
+.al-select-root ::deep .al-select-option[aria-selected="true"] {
+    font-weight: var(--font-weight-strong);
+}
