@@ -26,6 +26,17 @@ public sealed class BenchRunner(
         List<FrameStats> results = [];
         for (int run = 0; run < options.Runs; run++)
         {
+            if (options.Scenarios == "pickup")
+            {
+                results.Add(await RunPickupAsync(scroller));
+                continue;
+            }
+            if (options.Scenarios == "drag")
+            {
+                results.Add(await RunDragAsync(scroller));
+                results.Add(await RunPickupAsync(scroller));
+                continue;
+            }
             results.Add(await RunAsync(scroller, "scroll-horizontal", t => scroller.ScrollLeft = Sweep(t, 2400, view.ContentWidth - view.ViewWidth)));
             results.Add(await RunAsync(scroller, "scroll-vertical", t => scroller.ScrollTop = Sweep(t, 1200, view.ContentHeight - view.ViewHeight)));
             results.Add(await RunAsync(scroller, "scroll-diagonal", t =>
@@ -63,6 +74,46 @@ public sealed class BenchRunner(
         }
         double distance = seconds * speed % (2 * range);
         return distance <= range ? distance : (2 * range) - distance;
+    }
+
+    private async Task<FrameStats> RunPickupAsync(BrowserElement scroller)
+    {
+        scroller.ScrollLeft = 0;
+        scroller.ScrollTop = 0;
+        await Task.Delay(600);
+        ClipModel clip = view.Session.Clips.First(candidate => candidate.Name == "Rhythm guitar");
+        double startX = view.ClipLeft(clip) + 60;
+        double startY = (clip.Track * view.LaneHeight) + (view.LaneHeight / 2);
+        int lastStep = -1;
+        FrameStats stats = await RunFramesAsync("drag-pickup-and-drop", t =>
+        {
+            int step = (int)(t * 8);
+            if (step == lastStep)
+            {
+                return;
+            }
+            lastStep = step;
+            switch (step % 4)
+            {
+                case 0:
+                    drag.Begin(clip, startX, startY);
+                    break;
+                case 1:
+                    drag.Move(startX + 80, startY + 30);
+                    break;
+                case 2:
+                    drag.Move(startX, startY);
+                    break;
+                default:
+                    drag.Commit();
+                    break;
+            }
+        });
+        if (drag.Clip is not null)
+        {
+            drag.Cancel();
+        }
+        return stats;
     }
 
     private async Task<FrameStats> RunDragAsync(BrowserElement scroller)

@@ -27,6 +27,9 @@ public sealed record SpikeOptions
     /// <summary>How many times each scenario runs.</summary>
     public int Runs { get; init; } = 3;
 
+    /// <summary>Which scenarios the bench runs: all of them, only the two drags, or only picking a clip up and dropping it.</summary>
+    public string Scenarios { get; init; } = "all";
+
     /// <summary>Label stored with the result, for example the build flavour.</summary>
     public string Label { get; init; } = string.Empty;
 
@@ -51,6 +54,7 @@ public sealed record SpikeOptions
             Bench = query["bench"] == "1",
             Runs = (int)Number(query["runs"], 3),
             Label = query["label"] ?? string.Empty,
+            Scenarios = query["scenarios"] ?? "all",
         };
     }
 

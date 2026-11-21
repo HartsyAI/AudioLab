@@ -20,7 +20,8 @@
     z-index: var(--z-lane-overlay);
 }
 
-.muted {
+.muted,
+.ghost {
     opacity: 0.4;
 }
 

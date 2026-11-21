@@ -31,7 +31,7 @@ public sealed partial class SvgClip : ComponentBase
     [Parameter]
     public double BarWidth { get; set; }
 
-    /// <summary>Whether the clip is hidden because a drag has lifted it.</summary>
+    /// <summary>Whether a drag has lifted the clip, leaving this one dimmed where it was.</summary>
     [Parameter]
     public bool Hidden { get; set; }
 
@@ -58,7 +58,7 @@ public sealed partial class SvgClip : ComponentBase
     [Inject]
     private WavePathCache Paths { get; set; } = null!;
 
-    private string CssClass => string.Join(' ', ["clip", Clip.Selected || Lifted ? "selected" : string.Empty, Lifted ? "lifted" : string.Empty, Track.Muted ? "muted" : string.Empty]);
+    private string CssClass => string.Join(' ', ["clip", Clip.Selected || Lifted ? "selected" : string.Empty, Lifted ? "lifted" : string.Empty, Track.Muted ? "muted" : string.Empty, Hidden ? "ghost" : string.Empty]);
 
     private string InlineStyle
     {
@@ -67,7 +67,7 @@ public sealed partial class SvgClip : ComponentBase
             double left = Left ?? ((Clip.StartBar * BarWidth) + 1);
             double width = (Clip.LengthBars * BarWidth) - 2;
             string position = Top is double top ? $"top: {Format(top)}px; bottom: auto; height: {Format(LaneHeight - 9)}px" : string.Empty;
-            return $"--clip: var({Track.ColourToken}); left: {Format(left)}px; width: {Format(width)}px; {position}{(Hidden ? "; display: none" : string.Empty)}";
+            return $"--clip: var({Track.ColourToken}); left: {Format(left)}px; width: {Format(width)}px; {position}";
         }
     }
 
