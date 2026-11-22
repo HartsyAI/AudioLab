@@ -94,6 +94,6 @@ public sealed partial class PathSafetyTests
     [GeneratedRegex(@"\Ap[0-9a-f]{32}\.json\z")]
     private static partial Regex ProjectFileName();
 
-    [GeneratedRegex(@"\Ausers/u[0-9a-f]{32}/(projects|media)/[pm][0-9a-f]{32}\.(json|wav)\z")]
+    [GeneratedRegex(@"\Ausers/u[0-9a-f]{32}/(projects|media)/[pm][0-9a-f]{32}\.(json|wav|peaks)\z")]
     private static partial Regex RelativeLayout();
 }

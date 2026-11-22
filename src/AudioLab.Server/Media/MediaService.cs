@@ -40,11 +40,13 @@ public sealed class MediaService(
 
         MediaId id = ids.Next<MediaId>();
         string temp = root.Paths.MediaTempFile(user, id);
+        string tempPeaks = root.Paths.MediaPeaksTempFile(user, id);
         Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
         try
         {
             (long bytes, string hash) = await ReceiveAsync(body, temp, cancellationToken);
-            WavFormat format = await CheckAsync(temp, cancellationToken);
+            (WavFormat format, PeakData peaks) = await CheckAsync(temp, cancellationToken);
+            await WritePeaksAsync(tempPeaks, peaks, cancellationToken);
             MediaRecord record = new()
             {
                 Id = id,
@@ -60,12 +62,13 @@ public sealed class MediaService(
                 Sha256 = hash,
                 Created = time.GetUtcNow(),
             };
-            return await store.CommitAsync(record, temp, cancellationToken);
+            return await store.CommitAsync(record, temp, tempPeaks, cancellationToken);
         }
         finally
         {
-            // After a commit the file has been moved; this only removes what a failed or refused upload left.
+            // After a commit the files have been moved; this only removes what a failed or refused upload left.
             File.Delete(temp);
+            File.Delete(tempPeaks);
         }
     }
 
@@ -79,6 +82,10 @@ public sealed class MediaService(
         (IReadOnlyList<MediaRecord> records, int refused) = store.List(user);
         return new MediaListing([.. records.Select(MediaSummary.Of)], refused);
     }
+
+    /// <summary>Opens the peaks of a user's file for reading.</summary>
+    /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
+    public FileStream OpenPeaks(UserId user, MediaId id) => store.OpenPeaks(user, id);
 
     /// <summary>Opens the bytes of a user's file for reading.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
@@ -147,7 +154,21 @@ public sealed class MediaService(
             : (total, Convert.ToHexStringLower(hash.GetHashAndReset()));
     }
 
-    private static async Task<WavFormat> CheckAsync(string path, CancellationToken cancellationToken)
+    private static async Task WritePeaksAsync(string path, PeakData peaks, CancellationToken cancellationToken)
+    {
+        FileStreamOptions fileOptions = new()
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            Options = FileOptions.Asynchronous,
+        };
+        await using FileStream file = new(path, fileOptions);
+        await file.WriteAsync(PeakFile.Write(peaks), cancellationToken);
+        file.Flush(flushToDisk: true);
+    }
+
+    private static async Task<(WavFormat Format, PeakData Peaks)> CheckAsync(string path, CancellationToken cancellationToken)
     {
         FileStreamOptions fileOptions = new()
         {
@@ -159,6 +180,6 @@ public sealed class MediaService(
         await using FileStream file = new(path, fileOptions);
         WavFormat format = WavReader.Read(file);
         await WavReader.RequireFiniteAsync(file, format, cancellationToken);
-        return format;
+        return (format, await PeakComputer.ComputeAsync(file, format, cancellationToken));
     }
 }

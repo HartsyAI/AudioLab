@@ -27,6 +27,7 @@ public static class MediaRoutes
         media.MapPost("/", UploadAsync);
         media.MapGet("/{id}", Get);
         media.MapGet("/{id}/content", Content);
+        media.MapGet("/{id}/peaks", Peaks);
         media.MapDelete("/{id}", DeleteAsync);
     }
 
@@ -76,6 +77,22 @@ public static class MediaRoutes
         http.Response.Headers.XContentTypeOptions = "nosniff";
         EntityTagHeaderValue tag = new($"\"{record.Sha256}\"");
         return Results.File(stream, WavType, lastModified: record.Created, entityTag: tag, enableRangeProcessing: true);
+    }
+
+    // Peaks are made once, when the file is uploaded, so they are as unchanging as the bytes.
+    private static IResult Peaks(HttpContext http, string id, MediaService service)
+    {
+        if (!TryParse(id, out MediaId media))
+        {
+            return NotAnId();
+        }
+        UserId user = http.RequireUser();
+        MediaRecord record = service.Get(user, media);
+        FileStream stream = service.OpenPeaks(user, media);
+        http.Response.Headers.CacheControl = "private, max-age=31536000, immutable";
+        http.Response.Headers.XContentTypeOptions = "nosniff";
+        EntityTagHeaderValue tag = new($"\"{record.Sha256}-peaks{PeakFile.Version}\"");
+        return Results.File(stream, PeakFile.MediaType, lastModified: record.Created, entityTag: tag, enableRangeProcessing: true);
     }
 
     private static async Task<IResult> DeleteAsync(HttpContext http, string id, MediaService service, CancellationToken cancellationToken)

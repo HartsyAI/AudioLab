@@ -19,6 +19,35 @@ public static class TestWav
         return Riff(Format(encoding, channels, rate, extensible), Chunk("data", Samples(encoding, channels, frames, signal)));
     }
 
+    /// <summary>A whole file whose samples are exactly <paramref name="samples"/> (interleaved 16-bit values) in the encoding asked for.</summary>
+    public static byte[] FromShorts(SampleEncoding encoding, int channels, int rate, short[] samples)
+    {
+        int frames = samples.Length / channels;
+        byte[] data = Samples(encoding, channels, frames, (frame, channel) => 0);
+        int width = data.Length / samples.Length;
+        for (int index = 0; index < samples.Length; index++)
+        {
+            Span<byte> target = data.AsSpan(index * width, width);
+            switch (encoding)
+            {
+                case SampleEncoding.Pcm16:
+                    BinaryPrimitives.WriteInt16LittleEndian(target, samples[index]);
+                    break;
+                case SampleEncoding.Pcm24:
+                    target[0] = 0;
+                    BinaryPrimitives.WriteInt16LittleEndian(target[1..], samples[index]);
+                    break;
+                case SampleEncoding.Pcm32:
+                    BinaryPrimitives.WriteInt32LittleEndian(target, samples[index] << 16);
+                    break;
+                default:
+                    BinaryPrimitives.WriteSingleLittleEndian(target, samples[index] / 32768f);
+                    break;
+            }
+        }
+        return Riff(Format(encoding, channels, rate), Chunk("data", data));
+    }
+
     public static byte[] Format(SampleEncoding encoding, int channels, int rate, bool extensible = false)
     {
         int bits = encoding switch { SampleEncoding.Pcm16 => 16, SampleEncoding.Pcm24 => 24, _ => 32 };
