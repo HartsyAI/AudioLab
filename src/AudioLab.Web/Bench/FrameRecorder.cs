@@ -15,6 +15,8 @@ public sealed class FrameRecorder(IBrowser browser)
 
     private bool _running;
 
+    private int _generation;
+
     private Action<double>? _onFrame;
 
     /// <summary>Whether a recording is in progress.</summary>
@@ -29,7 +31,9 @@ public sealed class FrameRecorder(IBrowser browser)
         _clips = 0;
         _onFrame = onFrame;
         _running = true;
-        browser.RequestFrame(OnFrame);
+        _generation++;
+        int generation = _generation;
+        browser.RequestFrame(timestamp => OnFrame(timestamp, generation));
     }
 
     /// <summary>Forgets what was recorded so far, to leave the warm-up out of the statistics.</summary>
@@ -110,14 +114,14 @@ public sealed class FrameRecorder(IBrowser browser)
         return worst == double.MaxValue ? 0 : worst;
     }
 
-    private void OnFrame(double timestamp)
+    private void OnFrame(double timestamp, int generation)
     {
-        if (!_running)
+        if (!_running || generation != _generation)
         {
             return;
         }
         _onFrame?.Invoke(timestamp);
         _stamps.Add(timestamp);
-        browser.RequestFrame(OnFrame);
+        browser.RequestFrame(next => OnFrame(next, generation));
     }
 }
