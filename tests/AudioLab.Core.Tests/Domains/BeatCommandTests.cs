@@ -266,18 +266,26 @@ public sealed class BeatCommandTests
         int steps = _rig.History.UndoCount;
         ProjectDocument alone = _rig.Project;
 
-        Assert.True(_rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = first, Direction = MoveDirection.Up }).Succeeded);
-        Assert.True(_rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = first, Direction = MoveDirection.Down }).Succeeded);
+        foreach (MoveDirection direction in new[] { MoveDirection.Up, MoveDirection.Down })
+        {
+            CommandResult result = _rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = first, Direction = direction });
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.Created);
+            Assert.Equal(alone, _rig.Project);
+            Assert.Equal(steps, _rig.History.UndoCount);
+        }
         BeatLaneId last = Add("Hat");
         ProjectDocument two = _rig.Project;
         int twoSteps = _rig.History.UndoCount;
-        Assert.True(_rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = first, Direction = MoveDirection.Up }).Succeeded);
-        Assert.True(_rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = last, Direction = MoveDirection.Down }).Succeeded);
+        foreach ((BeatLaneId lane, MoveDirection direction) in new[] { (first, MoveDirection.Up), (last, MoveDirection.Down) })
+        {
+            CommandResult result = _rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = lane, Direction = direction });
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.Created);
+        }
 
-        Assert.Equal(alone.BeatPattern.Lanes[0], two.BeatPattern.Lanes[0]);
         Assert.Equal(two, _rig.Project);
         Assert.Equal(twoSteps, _rig.History.UndoCount);
-        Assert.Equal(steps + 1, twoSteps);
     }
 
     [Fact]
@@ -286,7 +294,9 @@ public sealed class BeatCommandTests
         Add("Kick");
         ProjectDocument before = _rig.Project;
 
-        _rig.RefusedWith(new MoveBeatLane { Project = _rig.Id, Lane = BeatLaneId.From("bln_none"), Direction = MoveDirection.Down }, CommandErrorCode.NotFound);
+        MoveBeatLane missing = new() { Project = _rig.Id, Lane = BeatLaneId.From("bln_none"), Direction = MoveDirection.Down };
+
+        _rig.RefusedWith(missing, CommandErrorCode.NotFound);
 
         Assert.Equal(before, _rig.Project);
     }

@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Moves a lane one place up or down in the drum pattern, which changes the order of its pads; at the top or bottom nothing changes.</summary>
+/// <summary>Moves a lane one place up or down in the drum pattern, which changes its pads' order; at either end nothing changes.</summary>
 public sealed record MoveBeatLane : Command
 {
     /// <summary>The drum lane to move.</summary>

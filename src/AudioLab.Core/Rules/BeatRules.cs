@@ -44,19 +44,12 @@ public static class BeatRules
         return trimmed.Length > PadNameLength ? trimmed[..PadNameLength] : trimmed;
     }
 
-    /// <summary>The lanes with one moved a place towards the first (up) or the last (down); a lane at that end, or one that is not there, leaves them as they were.</summary>
+    /// <summary>The lanes with one moved a place towards the first (up) or the last (down).</summary>
+    /// <remarks>A lane at that end, or one that is not there, leaves them as they were.</remarks>
     public static ValueList<BeatLane> Move(ValueList<BeatLane> lanes, BeatLaneId lane, MoveDirection direction)
     {
         ArgumentNullException.ThrowIfNull(lanes);
-        List<BeatLane> list = [.. lanes];
-        int from = list.FindIndex(candidate => candidate.Id == lane);
-        int to = from + (direction == MoveDirection.Down ? 1 : -1);
-        if (from < 0 || to < 0 || to >= list.Count)
-        {
-            return lanes;
-        }
-        (list[from], list[to]) = (list[to], list[from]);
-        return [.. list];
+        return StepMove.Swap(lanes, lanes.ToList().FindIndex(candidate => candidate.Id == lane), direction);
     }
 
     /// <summary>A lane's steps at a new length: the leading steps stay, new ones are off.</summary>

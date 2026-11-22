@@ -133,6 +133,8 @@ public sealed class CommandSchemaContractTests
 
         Assert.Equal(InstrumentPresets.Names, preset.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(["up", "down"], direction.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        JsonElement laneDirection = Property("beat_lane_move", "direction");
+        Assert.Equal(["up", "down"], laneDirection.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
     }
 
     [Fact]
