@@ -37,4 +37,30 @@ public sealed class LimiterTests
         Assert.True(Signals.Peak(loud.Left) <= Ceiling + 1e-6);
         Assert.True(Signals.Peak(loud.Left) > Ceiling - 0.01);
     }
+
+    [Fact]
+    public void ALoudRightChannelAloneIsLimitedAndTheGainReturnsToUnityAfterwards()
+    {
+        float[] silent = new float[Rendering.Rate * 4];
+        float[] right = new float[silent.Length];
+        for (int i = 0; i < Rendering.Rate / 2; i++)
+        {
+            right[i] = (float)(3 * Math.Sin(i * 0.3));
+        }
+        for (int i = Rendering.Rate * 2; i < right.Length; i++)
+        {
+            right[i] = 0.1f;
+        }
+        ProjectDocument document = TestProject.Create(TestProject.Track("t", TrackKind.Audio, TestProject.Clip("c", "m", 0, 4))) with
+        {
+            MasterLimiter = true,
+        };
+
+        RenderedAudio audio = Rendering.Render(document, new MemoryMedia().Add("m", Signals.Stereo(silent, right, Rendering.Rate)));
+
+        Assert.True(Signals.Peak(audio.Right.AsSpan(0, Rendering.Rate / 2)) <= Ceiling + 1e-6);
+        // The stereo pan law at the centre leaves the left silent and the right as it was; long after the burst the gain is back at one.
+        Assert.True(Signals.Peak(audio.Left) < 1e-6);
+        Assert.Equal(0.1f, audio.Right[(Rendering.Rate * 4) - 10], 5);
+    }
 }

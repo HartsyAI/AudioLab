@@ -20,4 +20,7 @@ public sealed record OfflineOptions
 
     /// <summary>Builds the sources of instrument tracks; without it those tracks are silent.</summary>
     public ITrackSourceFactory? Sources { get; init; }
+
+    /// <summary>Keeps decoded and resampled media between renders; its rate must be <see cref="SampleRate"/>.</summary>
+    public MediaCache? Cache { get; init; }
 }

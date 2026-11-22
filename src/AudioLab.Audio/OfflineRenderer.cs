@@ -13,7 +13,16 @@ public static class OfflineRenderer
         {
             throw new ArgumentOutOfRangeException(nameof(options), "The start and end must be finite times of at least 0.");
         }
-        RenderPlan plan = RenderPlan.Create(document, media, new PlanOptions { SampleRate = settings.SampleRate, Sources = settings.Sources });
+        if (settings.End is { } endTime && endTime < settings.Start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The end must not be before the start.");
+        }
+        RenderPlan plan = RenderPlan.Create(document, media, new PlanOptions
+        {
+            SampleRate = settings.SampleRate,
+            Sources = settings.Sources,
+            Cache = settings.Cache,
+        });
         long start = RenderPlan.Frames(settings.Start, settings.SampleRate);
         long finish = settings.End is { } given ? RenderPlan.Frames(given, settings.SampleRate) : plan.ContentFrames;
         long total = Math.Max(0, finish - start) + (settings.IncludeTail ? plan.TailFrames : 0);

@@ -3,8 +3,11 @@ namespace AudioLab.Audio;
 /// <summary>Converts audio to another sample rate with a windowed-sinc filter, once, when a render is prepared.</summary>
 internal static class Resampler
 {
-    private const int HalfTaps = 16;
+    private const int HalfTaps = 32;
     private const int Phases = 256;
+
+    // The cutoff sits just under half the lower rate, so the transition band ends at it and nothing above it can fold back.
+    private const double Guard = 0.97;
 
     /// <summary>The audio at <paramref name="rate"/>; the same instance when it already is.</summary>
     public static PcmAudio ToRate(PcmAudio source, int rate)
@@ -15,7 +18,7 @@ internal static class Resampler
             return source;
         }
         double ratio = (double)source.SampleRate / rate;
-        double cutoff = Math.Min(1, 1 / ratio);
+        double cutoff = Guard * Math.Min(1, 1 / ratio);
         double extent = HalfTaps / cutoff;
         int reach = (int)Math.Ceiling(extent);
         int taps = 2 * reach;

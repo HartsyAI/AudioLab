@@ -62,4 +62,26 @@ public sealed class LayerRuleTests
             [new AudibleSpan(ClipId.From("a"), 0, 3, false, false), new AudibleSpan(ClipId.From("b"), 2, 5, false, false)],
             spans);
     }
+
+    [Fact]
+    public void AClipThatStartsInsideTheFadeOutOfOneAboveItWhileFadingInCrossfadesToo()
+    {
+        // b is above a and fades out over 1 s into the fade-in of a: both are heard where they overlap.
+        IReadOnlyList<AudibleSpan> spans = LayerRules.AudibleSpans([Clip("a", 2, 3, fadeIn: 1), Clip("b", 0, 3, fadeOut: 1)]);
+
+        Assert.Equal(
+            [new AudibleSpan(ClipId.From("a"), 2, 5, false, false), new AudibleSpan(ClipId.From("b"), 0, 3, false, false)],
+            spans);
+    }
+
+    [Fact]
+    public void AnOverlapWithoutMatchingFadesIsStillACoverAndASliverLeftOverIsNotKept()
+    {
+        // b covers a up to a 1 ms sliver of a at its end, which is too short to play.
+        IReadOnlyList<AudibleSpan> spans = LayerRules.AudibleSpans([Clip("a", 0, 10), Clip("b", 4, 5.999)]);
+
+        Assert.Equal(
+            [new AudibleSpan(ClipId.From("a"), 0, 4, false, true), new AudibleSpan(ClipId.From("b"), 4, 4 + 5.999, false, false)],
+            spans);
+    }
 }
