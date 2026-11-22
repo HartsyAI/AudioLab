@@ -120,11 +120,11 @@ internal static class ClipCommands
         {
             return ClipEdits.NoClip(command.Clip);
         }
-        if (CommandChecks.Finite((nameof(command.Start), command.Start)) is { } refusal)
+        if (CommandChecks.Range(nameof(command.Start), command.Start, 0, ProjectLimits.MaxSeconds) is { } refusal)
         {
             return refusal;
         }
-        double start = Math.Max(0, command.Start);
+        double start = command.Start;
         Track source = document.Tracks[at.Track];
         TrackId targetId = command.Track ?? source.Id;
         int target = TrackIndex(document, targetId);
@@ -173,7 +173,7 @@ internal static class ClipCommands
         {
             return CommandChecks.Rejected("Only an audio clip is trimmed; set the length of a MIDI clip.");
         }
-        if (CommandChecks.Finite((nameof(command.Time), command.Time)) is { } refusal)
+        if (CommandChecks.Range(nameof(command.Time), command.Time, 0, ProjectLimits.MaxSeconds) is { } refusal)
         {
             return refusal;
         }
@@ -193,7 +193,7 @@ internal static class ClipCommands
         {
             return CommandChecks.Rejected("Only an audio clip is split.");
         }
-        if (CommandChecks.Finite((nameof(command.At), command.At)) is { } refusal)
+        if (CommandChecks.Range(nameof(command.At), command.At, 0, ProjectLimits.MaxSeconds) is { } refusal)
         {
             return refusal;
         }
@@ -293,7 +293,8 @@ internal static class ClipCommands
         }
         return !at.IsAudio
             ? ClipEdits.WrongKind(wantsAudio: true)
-            : CommandChecks.Finite((nameof(command.FadeIn), command.FadeIn), (nameof(command.FadeOut), command.FadeOut))
+            : CommandChecks.Range(nameof(command.FadeIn), command.FadeIn, 0, ProjectLimits.MaxSeconds)
+                ?? CommandChecks.Range(nameof(command.FadeOut), command.FadeOut, 0, ProjectLimits.MaxSeconds)
                 ?? ClipEdits.EditAudio(document, command.Clip, clip => ClipRules.SetFades(clip, command.FadeIn, command.FadeOut));
     }
 
@@ -307,12 +308,16 @@ internal static class ClipCommands
         {
             return ClipEdits.WrongKind(wantsAudio: false);
         }
-        if (CommandChecks.Finite((nameof(command.Length), command.Length)) is { } refusal)
+        if (CommandChecks.Range(nameof(command.Length), command.Length, MidiClip.MinLength, ProjectLimits.MaxSeconds) is { } refusal)
         {
             return refusal;
         }
-        double length = Math.Max(MidiClip.MinLength, command.Length);
-        return ClipEdits.Edit(document, command.Clip, clip => clip, clip => clip with { Length = length });
+        MidiClip held = document.Tracks[at.Track].MidiClips[at.MidiIndex];
+        if (held.Notes.Any(note => note.Start >= command.Length) || held.ControlChanges.Any(change => change.Time > command.Length))
+        {
+            return CommandChecks.Rejected("A note or controller event would fall outside the shorter clip; remove or move it first.");
+        }
+        return ClipEdits.Edit(document, command.Clip, clip => clip, clip => clip with { Length = command.Length });
     }
 
     private static CommandResult SetMuted(ProjectDocument document, SetClipMuted command, IIdService ids)
@@ -327,7 +332,7 @@ internal static class ClipCommands
             return ClipEdits.NoClip(command.Clip);
         }
         string name = command.Name.Trim();
-        return CommandChecks.TooLong(command.Name)
+        return CommandChecks.Named(command.Name)
             ?? ClipEdits.Edit(document, command.Clip, clip => clip with { Name = name }, clip => clip with { Name = name });
     }
 

@@ -102,15 +102,19 @@ public sealed class ClipCommandTests
     // ----- move
 
     [Fact]
-    public void AClipMovesInTimeAndStopsAtTheStartOfTheProject()
+    public void AClipMovesInTimeFromZeroOnAndANegativeOrHugeStartIsRefused()
     {
         ClipId id = AddAudio(_a, start: 5);
 
         _rig.Ok(new MoveClip { Project = _rig.Id, Clip = id, Start = 12 });
         Assert.Equal(12, Audio(id).Start);
-        _rig.Ok(new MoveClip { Project = _rig.Id, Clip = id, Start = -3 });
-
+        _rig.Ok(new MoveClip { Project = _rig.Id, Clip = id, Start = 0 });
         Assert.Equal(0, Audio(id).Start);
+
+        foreach (double start in new[] { -3, 2_000_000, double.NaN })
+        {
+            _rig.RefusedWith(new MoveClip { Project = _rig.Id, Clip = id, Start = start }, CommandErrorCode.Invalid);
+        }
     }
 
     [Fact]
@@ -231,7 +235,82 @@ public sealed class ClipCommandTests
 
         _rig.Ok(new TrimClip { Project = _rig.Id, Clip = id, Edge = ClipEdge.End, Time = 2 });
 
-        Assert.Equal((2.0, 2.0), (Audio(id).FadeIn, Audio(id).FadeOut));
+        Assert.Equal((2.0, 0.0), (Audio(id).FadeIn, Audio(id).FadeOut));
+    }
+
+    [Fact]
+    public void AnEdgeOutsideTheProjectsTimeIsRefused()
+    {
+        ClipId id = AddAudio(_a, 20, start: 10);
+
+        foreach (double time in new[] { -1, 2_000_000 })
+        {
+            _rig.RefusedWith(new TrimClip { Project = _rig.Id, Clip = id, Edge = ClipEdge.Start, Time = time }, CommandErrorCode.Invalid);
+            _rig.RefusedWith(new SplitClip { Project = _rig.Id, Clip = id, At = time }, CommandErrorCode.Invalid);
+        }
+        _rig.RefusedWith(new SetClipFades { Project = _rig.Id, Clip = id, FadeIn = -1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new SetClipFades { Project = _rig.Id, Clip = id, FadeOut = 2_000_000 }, CommandErrorCode.Invalid);
+    }
+
+    [Fact]
+    public void ALeftTrimToTheProjectStartKeepsTheClipValid()
+    {
+        AudioClip clip = ClipRuleTests.Make("clp_a", start: 2.71, duration: 40, offset: 21.89);
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [BlankProject.Track("trk_a") with { Clips = [clip] }] });
+
+        CommandResult result = rig.Run(new TrimClip { Project = rig.Id, Clip = clip.Id, Edge = ClipEdge.Start, Time = 0 });
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Message)));
+        AudioClip trimmed = rig.Project.Tracks[0].Clips[0];
+        Assert.True(trimmed.Start >= 0);
+        Assert.Equal(clip.Start - clip.Offset, trimmed.Start - trimmed.Offset, 9);
+    }
+
+    [Fact]
+    public void ARefusedFrameInsideAMoveDragChangesNothingAndTheDragGoesOn()
+    {
+        ClipId id = AddAudio(_a, start: 2);
+        GestureId drag = GestureId.From("move-drag");
+        int steps = _rig.History.UndoCount;
+
+        Assert.True(_rig.Run(new MoveClip { Project = _rig.Id, Clip = id, Start = 4 }, drag).Succeeded);
+        ProjectDocument before = _rig.Project;
+        Assert.False(_rig.Run(new MoveClip { Project = _rig.Id, Clip = id, Start = -1 }, drag).Succeeded);
+        Assert.Equal(before, _rig.Project);
+        Assert.True(_rig.Run(new MoveClip { Project = _rig.Id, Clip = id, Start = 6 }, drag).Succeeded);
+        _rig.History.EndGesture(ClientId.From("test-client"), drag);
+
+        Assert.Equal(6, Audio(id).Start);
+        Assert.Equal(steps + 1, _rig.History.UndoCount);
+    }
+
+    [Fact]
+    public void ARefusedFrameInsideATrimDragChangesNothingAndTheDragGoesOn()
+    {
+        ClipId id = AddAudio(_a, 20, start: 10);
+        GestureId drag = GestureId.From("trim-drag");
+        int steps = _rig.History.UndoCount;
+
+        Assert.True(_rig.Run(new TrimClip { Project = _rig.Id, Clip = id, Edge = ClipEdge.Start, Time = 12 }, drag).Succeeded);
+        ProjectDocument before = _rig.Project;
+        Assert.False(_rig.Run(new TrimClip { Project = _rig.Id, Clip = id, Edge = ClipEdge.Start, Time = double.NaN }, drag).Succeeded);
+        Assert.Equal(before, _rig.Project);
+        Assert.True(_rig.Run(new TrimClip { Project = _rig.Id, Clip = id, Edge = ClipEdge.Start, Time = 14 }, drag).Succeeded);
+        _rig.History.EndGesture(ClientId.From("test-client"), drag);
+
+        Assert.Equal(14, Audio(id).Start);
+        Assert.Equal(steps + 1, _rig.History.UndoCount);
+    }
+
+    [Fact]
+    public void ACopyOfAClipWithAVeryLongNameStillWorks()
+    {
+        ClipId id = AddAudio(_a, name: new string('n', 198));
+
+        ClipId copy = ClipId.From(_rig.Created(new DuplicateClip { Project = _rig.Id, Clip = id })[0]);
+
+        Assert.True(Audio(copy).Name.Length <= ProjectLimits.MaxName);
+        Assert.EndsWith(" (copy)", Audio(copy).Name, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -507,17 +586,20 @@ public sealed class ClipCommandTests
 
         rig.Ok(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = 8 });
         Assert.Equal(8, rig.Project.Tracks.First(track => track.Id == _keys).MidiClips[0].Length);
-        rig.RefusedWith(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = 2 }, CommandErrorCode.Invalid);
+        rig.RefusedWith(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = 2 }, CommandErrorCode.Rejected);
+        rig.RefusedWith(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = 3 }, CommandErrorCode.Rejected);
+        rig.Ok(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = 3.5 });
         rig.RefusedWith(new SetMidiClipLength { Project = rig.Id, Clip = id, Length = double.NaN }, CommandErrorCode.Invalid);
     }
 
     [Fact]
-    public void AMidiLengthBelowTheMinimumBecomesTheMinimumAndOnlyAMidiClipTakesIt()
+    public void AMidiLengthOutOfRangeIsRefusedAndOnlyAMidiClipTakesIt()
     {
         ClipId id = AddMidi(0, 4);
 
-        _rig.Ok(new SetMidiClipLength { Project = _rig.Id, Clip = id, Length = 0.001 });
-
+        _rig.RefusedWith(new SetMidiClipLength { Project = _rig.Id, Clip = id, Length = 0.001 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new SetMidiClipLength { Project = _rig.Id, Clip = id, Length = 2_000_000 }, CommandErrorCode.Invalid);
+        _rig.Ok(new SetMidiClipLength { Project = _rig.Id, Clip = id, Length = MidiClip.MinLength });
         Assert.Equal(MidiClip.MinLength, Midi(id).Length);
         _rig.RefusedWith(new SetMidiClipLength { Project = _rig.Id, Clip = AddAudio(_a), Length = 1 }, CommandErrorCode.Rejected);
         _rig.RefusedWith(new SetMidiClipLength { Project = _rig.Id, Clip = ClipId.From("clp_none"), Length = 1 }, CommandErrorCode.NotFound);
@@ -545,12 +627,12 @@ public sealed class ClipCommandTests
     }
 
     [Fact]
-    public void ANameMayBeEmptyButNotLongerThanTheSchemaAllowsAndAColourMustBeOne()
+    public void ARenameIsNotBlankNorLongerThanTheSchemaAllowsAndAColourMustBeOne()
     {
         ClipId id = AddAudio(_a);
 
-        _rig.Ok(new RenameClip { Project = _rig.Id, Clip = id, Name = "" });
-        Assert.Equal(string.Empty, Audio(id).Name);
+        _rig.RefusedWith(new RenameClip { Project = _rig.Id, Clip = id, Name = "" }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new RenameClip { Project = _rig.Id, Clip = id, Name = "   " }, CommandErrorCode.Rejected);
         _rig.RefusedWith(new RenameClip { Project = _rig.Id, Clip = id, Name = new string('n', 201) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new SetClipColor { Project = _rig.Id, Clip = id, Color = "blue" }, CommandErrorCode.Invalid);
     }

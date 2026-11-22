@@ -163,14 +163,14 @@ public sealed class ClipRuleTests
     }
 
     [Fact]
-    public void ATrimShortensFadesThatNoLongerFit()
+    public void ATrimShortensFadesThatNoLongerFitSoTheyNeverOverlap()
     {
         AudioClip clip = Clip() with { FadeIn = 8, FadeOut = 8 };
 
         AudioClip trimmed = ClipRules.TrimEnd(clip, 12);
 
         Assert.Equal(2.0, ClipRules.VisibleLength(trimmed));
-        Assert.Equal((2.0, 2.0), (trimmed.FadeIn, trimmed.FadeOut));
+        Assert.Equal((2.0, 0.0), (trimmed.FadeIn, trimmed.FadeOut));
     }
 
     [Fact]
@@ -188,6 +188,85 @@ public sealed class ClipRuleTests
         Assert.Equal((0.0, 0.0), (negative.FadeIn, negative.FadeOut));
         Assert.Equal((6.0, 4.0), (both.FadeIn, both.FadeOut));
         Assert.Equal((2.0, 3.0), (ClipRules.SetFades(clip, null, null).FadeIn, ClipRules.SetFades(clip, null, null).FadeOut));
+    }
+
+    [Fact]
+    public void BothFadesGivenAreKeptToTheClipInOrderWhateverTheOldFadesWere()
+    {
+        AudioClip shortOut = Make("clp_a", 0, 10) with { FadeIn = 2, FadeOut = 1 };
+        AudioClip longOut = Make("clp_a", 0, 10) with { FadeIn = 2, FadeOut = 8 };
+
+        AudioClip first = ClipRules.SetFades(shortOut, 6, 6);
+        AudioClip second = ClipRules.SetFades(longOut, 6, 6);
+        AudioClip greedy = ClipRules.SetFades(shortOut, 50, 50);
+
+        Assert.Equal((6.0, 4.0), (first.FadeIn, first.FadeOut));
+        Assert.Equal((first.FadeIn, first.FadeOut), (second.FadeIn, second.FadeOut));
+        Assert.Equal((10.0, 0.0), (greedy.FadeIn, greedy.FadeOut));
+    }
+
+    [Fact]
+    public void ALeftTrimToTheProjectStartLeavesAClipTheValidatorAccepts()
+    {
+        AudioClip clip = Make("clp_a", start: 2.71, duration: 40, offset: 21.89);
+
+        AudioClip trimmed = ClipRules.TrimStart(clip, 0);
+
+        Assert.True(trimmed.Start >= 0);
+        Assert.Equal(clip.Start - clip.Offset, trimmed.Start - trimmed.Offset, 9);
+        Assert.Equal(ClipRules.EndOf(clip), ClipRules.EndOf(trimmed), 9);
+    }
+
+    [Fact]
+    public void ALeftTrimNeverMakesAnInvalidClipWhateverTheStartAndOffset()
+    {
+        Random random = new(20261122);
+        for (int i = 0; i < 5000; i++)
+        {
+            double start = Math.Round(random.NextDouble() * 100, random.Next(0, 6));
+            double offset = Math.Round(random.NextDouble() * 60, random.Next(0, 6));
+            double trimEnd = Math.Round(random.NextDouble() * 5, random.Next(0, 6));
+            double duration = offset + trimEnd + 0.05 + (random.NextDouble() * 50);
+            AudioClip clip = Make("clp_a", start, duration, offset, trimEnd) with { FadeIn = random.NextDouble(), FadeOut = random.NextDouble() };
+            double edge = (random.NextDouble() * 220) - 60;
+
+            AudioClip trimmed = ClipRules.TrimStart(clip, edge);
+
+            Assert.True(trimmed.Start >= 0, $"start {start} offset {offset} edge {edge}: {trimmed.Start}");
+            Assert.True(trimmed.Offset >= 0 && ClipRules.VisibleLength(trimmed) >= ClipRules.MinClipLength - 1e-9);
+            Assert.True(trimmed.FadeIn + trimmed.FadeOut <= ClipRules.VisibleLength(trimmed) + 1e-9);
+            ProjectDocument document = BlankProject.Create() with { Tracks = [BlankProject.Track("trk_1") with { Clips = [trimmed] }] };
+            Assert.Empty(ProjectValidator.Validate(document));
+        }
+    }
+
+    [Theory]
+    [InlineData(194)]
+    [InlineData(195)]
+    [InlineData(200)]
+    public void ACopyOfALongNameStillFitsTheNameLimit(int length)
+    {
+        string name = new('n', length);
+
+        string copy = ClipRules.NextCopyName(name);
+        string again = ClipRules.NextCopyName(copy);
+
+        Assert.True(copy.Length <= ProjectLimits.MaxName);
+        Assert.EndsWith(" (copy)", copy, StringComparison.Ordinal);
+        Assert.StartsWith("n", copy, StringComparison.Ordinal);
+        Assert.True(again.Length <= ProjectLimits.MaxName);
+        Assert.EndsWith(" (copy 2)", again, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ACopyNameIsNeverCutInsideASurrogatePair()
+    {
+        string name = new string('n', ProjectLimits.MaxName - 8) + "😀😀😀";
+
+        string copy = ClipRules.NextCopyName(name);
+
+        Assert.True(copy.Length <= ProjectLimits.MaxName);
+        Assert.True(TextRules.IsWellFormed(copy));
     }
 
     [Theory]

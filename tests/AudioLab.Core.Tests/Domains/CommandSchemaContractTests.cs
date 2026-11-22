@@ -164,6 +164,13 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(["front", "back"], layer.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(ProjectLimits.MaxGain, gain.GetProperty("maximum").GetDouble());
         Assert.Equal(["clip", "edge", "project", "time"], Required("clip_trim"));
+        foreach ((string command, string member) in new[] { ("clip_move", "start"), ("clip_trim", "time"), ("clip_split", "at"), ("clip_set_fades", "fadeIn"), ("clip_set_fades", "fadeOut") })
+        {
+            JsonElement property = Property(command, member);
+            Assert.Equal((0.0, ProjectLimits.MaxSeconds), (property.GetProperty("minimum").GetDouble(), property.GetProperty("maximum").GetDouble()));
+        }
+        Assert.Equal(MidiClip.MinLength, Property("midi_clip_set_length", "length").GetProperty("minimum").GetDouble());
+        Assert.Equal(1, Property("clip_rename", "name").GetProperty("minLength").GetInt32());
         Assert.Equal(["clip", "project"], Required("clip_delete"));
     }
 

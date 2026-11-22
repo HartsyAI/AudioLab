@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using AudioLab.Core.Model;
 
@@ -11,8 +12,9 @@ public sealed record MoveClip : Command
     [Description("The clip to move.")]
     public required ClipId Clip { get; init; }
 
-    /// <summary>Where it starts, in seconds; a time before the start of the project becomes 0.</summary>
-    [Description("Where it starts, in seconds; a time before the start of the project becomes 0.")]
+    /// <summary>Where it starts, in seconds, from 0.</summary>
+    [Description("Where it starts, in seconds, from 0.")]
+    [Range(0, ProjectLimits.MaxSeconds)]
     public required double Start { get; init; }
 
     /// <summary>The track to move it to, an audio track for an audio clip and an instrument track for a MIDI clip; absent to stay.</summary>

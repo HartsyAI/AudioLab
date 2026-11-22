@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
@@ -10,7 +11,8 @@ public sealed record SplitClip : Command
     [Description("The audio clip to cut.")]
     public required ClipId Clip { get; init; }
 
-    /// <summary>Where to cut, in seconds on the timeline; more than 0.001 seconds inside the clip.</summary>
-    [Description("Where to cut, in seconds on the timeline; more than 0.001 seconds inside the clip.")]
+    /// <summary>Where to cut, in seconds on the timeline, from 0; more than 0.001 seconds inside the clip.</summary>
+    [Description("Where to cut, in seconds on the timeline, from 0; more than 0.001 seconds inside the clip.")]
+    [Range(0, ProjectLimits.MaxSeconds)]
     public required double At { get; init; }
 }

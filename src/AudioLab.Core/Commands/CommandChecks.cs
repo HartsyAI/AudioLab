@@ -18,6 +18,14 @@ internal static class CommandChecks
         return null;
     }
 
+    /// <summary>A refusal when a given number is not from <paramref name="min"/> to <paramref name="max"/>, which a number that is not finite never is.</summary>
+    public static CommandResult? Range(string name, double? value, double min, double max)
+    {
+        return value is { } number && !(number >= min && number <= max)
+            ? OutOfRange($"{name} must be from {min.ToString(System.Globalization.CultureInfo.InvariantCulture)} to {max.ToString(System.Globalization.CultureInfo.InvariantCulture)}.")
+            : null;
+    }
+
     /// <summary>A refusal for a name that is empty, only white space, or longer than a project keeps, measured as sent.</summary>
     public static CommandResult? Named(string? name)
     {

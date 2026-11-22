@@ -78,7 +78,8 @@ public static partial class ClipRules
         double lowest = Math.Max(0, clip.Offset - clip.Start);
         double highest = clip.Duration - clip.TrimEnd - MinClipLength;
         double offset = Math.Max(lowest, Math.Min(clip.Offset + (edge - clip.Start), highest));
-        return FitFades(clip with { Start = clip.Start + (offset - clip.Offset), Offset = offset });
+        // The sum rounds to a hair below 0 when the clamp is hit exactly; the validator would refuse it.
+        return FitFades(clip with { Start = Math.Max(0, clip.Start + (offset - clip.Offset)), Offset = offset });
     }
 
     /// <summary>Moves the end edge to <paramref name="edge"/> on the timeline, to at most the end of the file and at least the minimum length.</summary>
@@ -91,27 +92,33 @@ public static partial class ClipRules
     }
 
     /// <summary>Sets the fades as a drag does: each from 0 up to what is left of the clip after the other.</summary>
-    /// <remarks>A fade not given keeps its length.</remarks>
+    /// <remarks>A fade not given keeps its length. When both are given the fade in is kept to the clip and the fade out to what it leaves, so the result does not depend on the old fades.</remarks>
     public static AudioClip SetFades(AudioClip clip, double? fadeIn, double? fadeOut)
     {
         ArgumentNullException.ThrowIfNull(clip);
         double visible = VisibleLength(clip);
-        double inLength = fadeIn is { } wantedIn ? Math.Clamp(wantedIn, 0, Math.Max(0, visible - clip.FadeOut)) : clip.FadeIn;
+        double otherOut = fadeIn is not null && fadeOut is not null ? 0 : clip.FadeOut;
+        double inLength = fadeIn is { } wantedIn ? Math.Clamp(wantedIn, 0, Math.Max(0, visible - otherOut)) : clip.FadeIn;
         double outLength = fadeOut is { } wantedOut ? Math.Clamp(wantedOut, 0, Math.Max(0, visible - inLength)) : clip.FadeOut;
         return clip with { FadeIn = inLength, FadeOut = outLength };
     }
 
     /// <summary>"Foo" becomes "Foo (copy)", then "Foo (copy 2)", instead of stacking " (copy)" for ever.</summary>
+    /// <remarks>A long name is cut so the copy still fits the name limit.</remarks>
     public static string NextCopyName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
         Match match = CopySuffix().Match(name);
-        if (!match.Success)
+        int number = match.Success && match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 1;
+        string suffix = match.Success ? $" (copy {(number + 1).ToString(CultureInfo.InvariantCulture)})" : " (copy)";
+        string stem = match.Success ? match.Groups[1].Value : name;
+        int room = ProjectLimits.MaxName - suffix.Length;
+        if (stem.Length > room)
         {
-            return name + " (copy)";
+            // Never cut a surrogate pair in half: a lone half is not text a project keeps.
+            stem = stem[..(char.IsHighSurrogate(stem[room - 1]) ? room - 1 : room)];
         }
-        int number = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : 1;
-        return $"{match.Groups[1].Value} (copy {(number + 1).ToString(CultureInfo.InvariantCulture)})";
+        return stem + suffix;
     }
 
     /// <summary>The lowest-numbered name like "Clip 2" that no clip of the project uses yet.</summary>
@@ -133,11 +140,12 @@ public static partial class ClipRules
     /// <summary>A clip's metadata with only the lyrics kept, which is all a copy or the second half of a split carries; null when there are none.</summary>
     public static ClipMeta? LyricsOnly(ClipMeta? meta) => meta?.Lyrics is { } lyrics ? new ClipMeta { Lyrics = lyrics } : null;
 
-    // Each fade is at most what the clip plays.
+    // The fades never overlap: the fade in is kept to what the clip plays and the fade out to what it leaves.
     private static AudioClip FitFades(AudioClip clip)
     {
         double visible = VisibleLength(clip);
-        return clip with { FadeIn = Math.Min(clip.FadeIn, visible), FadeOut = Math.Min(clip.FadeOut, visible) };
+        double fadeIn = Math.Min(clip.FadeIn, visible);
+        return clip with { FadeIn = fadeIn, FadeOut = Math.Min(clip.FadeOut, visible - fadeIn) };
     }
 
     [GeneratedRegex(@"^(.*) \(copy(?: (\d+))?\)$", RegexOptions.CultureInvariant)]

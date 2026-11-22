@@ -11,8 +11,9 @@ public sealed record RenameClip : Command
     [Description("The clip to rename.")]
     public required ClipId Clip { get; init; }
 
-    /// <summary>The new name, up to 200 characters; it may be empty.</summary>
-    [Description("The new name, up to 200 characters; it may be empty.")]
+    /// <summary>The new name, 1 to 200 characters, not blank.</summary>
+    [Description("The new name, 1 to 200 characters, not blank.")]
+    [MinLength(1)]
     [MaxLength(ProjectLimits.MaxName)]
     public required string Name { get; init; }
 }

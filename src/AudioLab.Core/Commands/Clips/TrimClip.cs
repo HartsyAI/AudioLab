@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
@@ -15,7 +16,8 @@ public sealed record TrimClip : Command
     [Description("start moves the left edge and keeps the audio after it in place; end moves the right edge.")]
     public required ClipEdge Edge { get; init; }
 
-    /// <summary>Where the edge goes on the timeline, in seconds; kept inside the file, off the start of the project and at least 0.05 seconds from the other edge.</summary>
-    [Description("Where the edge goes on the timeline, in seconds; kept inside the file, off the start of the project and at least 0.05 seconds from the other edge.")]
+    /// <summary>Where the edge goes on the timeline, in seconds, from 0; the rule keeps it inside the file, off the start of the project and at least 0.05 seconds from the other edge.</summary>
+    [Description("Where the edge goes on the timeline, in seconds, from 0; the rule keeps it inside the file, off the start of the project and at least 0.05 seconds from the other edge.")]
+    [Range(0, ProjectLimits.MaxSeconds)]
     public required double Time { get; init; }
 }
