@@ -44,8 +44,18 @@ public sealed class SectionCommandTests
         _rig.RefusedWith(new AddSection { Project = _rig.Id, Start = 22 }, CommandErrorCode.Rejected);
     }
 
+    [Theory]
+    [InlineData(-1, 5)]
+    [InlineData(0, 0.05)]
+    [InlineData(0, 0)]
+    [InlineData(0, -2)]
+    public void ASectionBeforeTheStartOrShorterThanTheMinimumIsRefused(double start, double length)
+    {
+        _rig.RefusedWith(new AddSection { Project = _rig.Id, Start = start, Length = length }, CommandErrorCode.Rejected);
+    }
+
     [Fact]
-    public void ASectionNeedsRoomFortheMinimumLength()
+    public void ASectionNeedsRoomForTheMinimumLength()
     {
         _rig.Ok(new AddSection { Project = _rig.Id, Start = 0, Length = 10 });
         _rig.Ok(new AddSection { Project = _rig.Id, Start = 10.05, Length = 5 });

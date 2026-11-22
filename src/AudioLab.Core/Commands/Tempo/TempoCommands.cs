@@ -73,7 +73,7 @@ internal static class TempoCommands
         }
         double time = Math.Max(TimelineRules.MinTempoChangeTime, command.Time);
         TempoChange current = document.TempoMap.First(change => change.Id == command.Change);
-        if (Math.Abs(current.Time - time) < 1e-4)
+        if (Math.Abs(current.Time - time) < TimelineRules.TempoNoMove)
         {
             return CommandResult.Ok(document);
         }

@@ -20,9 +20,12 @@ public sealed class MarkerCommandTests
     }
 
     [Fact]
-    public void AMarkerBeforeTheStartIsPlacedAtTheStart()
+    public void AMarkerBeforeTheStartIsRefusedWhenAddedAndStopsAtTheStartWhenMoved()
     {
-        _rig.Ok(new AddMarker { Project = _rig.Id, Time = -4 });
+        _rig.RefusedWith(new AddMarker { Project = _rig.Id, Time = -4 }, CommandErrorCode.Rejected);
+        _rig.Ok(new AddMarker { Project = _rig.Id, Time = 5 });
+
+        _rig.Ok(new MoveMarker { Project = _rig.Id, Marker = _rig.Project.Markers[0].Id, Time = -4 });
 
         Assert.Equal(0, _rig.Project.Markers[0].Time);
     }

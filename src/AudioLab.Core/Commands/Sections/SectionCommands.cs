@@ -27,7 +27,15 @@ internal static class SectionCommands
         {
             return refusal;
         }
-        double start = Math.Max(0, command.Start);
+        if (command.Start < 0)
+        {
+            return CommandChecks.Rejected("A section starts at the beginning of the project or later.");
+        }
+        if (command.Length < Section.MinLength)
+        {
+            return CommandChecks.Rejected($"A section is at least {Section.MinLength} seconds long.");
+        }
+        double start = command.Start;
         double length = command.Length ?? TempoMap.From(document).BarsFrom(start, DefaultBars, document.TimeSignature);
         if (SectionRules.Fit(document.Sections, start, length) is not { } room)
         {

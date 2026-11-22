@@ -9,6 +9,9 @@ public static class TimelineRules
     /// <summary>The earliest a tempo change may start; a change at the start is the project tempo instead.</summary>
     public const double MinTempoChangeTime = 0.01;
 
+    /// <summary>A tempo change moved by less than this stays where it is, in seconds.</summary>
+    public const double TempoNoMove = 1e-4;
+
     /// <summary>A move smaller than this changes nothing, in seconds.</summary>
     public const double NoMove = 1e-6;
 }

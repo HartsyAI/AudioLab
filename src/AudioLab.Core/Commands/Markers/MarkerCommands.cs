@@ -23,7 +23,11 @@ internal static class MarkerCommands
         {
             return refusal;
         }
-        double time = Math.Max(0, command.Time);
+        if (command.Time < 0)
+        {
+            return CommandChecks.Rejected("A marker cannot be before the start.");
+        }
+        double time = command.Time;
         if (document.Markers.Any(marker => Math.Abs(marker.Time - time) < TimelineRules.SameSpot))
         {
             return CommandChecks.Rejected("There is already a marker here.");

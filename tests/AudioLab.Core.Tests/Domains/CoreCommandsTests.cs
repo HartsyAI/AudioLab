@@ -35,6 +35,19 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void NoMemberOfAnyCommandSchemaIsEmpty()
+    {
+        List<string> empty = [];
+
+        foreach (CommandDescriptor command in _registry.Commands)
+        {
+            SchemaWalk.Empty(command.Schema, command.Name, empty);
+        }
+
+        Assert.Empty(empty);
+    }
+
+    [Fact]
     public void TheDomainsShipTheirCommandsUnderStableNames()
     {
         Assert.Contains(_registry.Commands, command => command.Name == "tempo_change_add");
