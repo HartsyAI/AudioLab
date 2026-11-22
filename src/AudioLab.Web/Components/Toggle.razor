@@ -1,0 +1,11 @@
+<span class="toggle-root">
+    @if (Reason is not null)
+    {
+        <Tooltip Text="@Reason" Name="@Name" Disabled="true" class="toggle" data-tone="@ToneName" data-size="@SizeName" aria-pressed="@Pressed">@Label</Tooltip>
+    }
+    else
+    {
+        <button type="button" class="toggle" data-tone="@ToneName" data-size="@SizeName" aria-pressed="@Pressed" aria-label="@Name"
+                disabled="@Disabled" @onclick="OnClick">@Label</button>
+    }
+</span>

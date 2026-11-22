@@ -1,0 +1,7 @@
+<span class="status-item">
+    @if (Dot is StatusDot dot)
+    {
+        <span class="dot" data-dot="@dot.ToString().ToLowerInvariant()"></span>
+    }
+    <span class="text" data-soft="@(Soft ? "true" : "false")">@ChildContent</span>
+</span>

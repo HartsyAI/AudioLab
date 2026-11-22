@@ -1,0 +1,9 @@
+.mixer {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-color: var(--control-fill) var(--surface-panel);
+    scrollbar-width: thin;
+}

@@ -1,0 +1,6 @@
+.loading-note {
+    margin: var(--space-24);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+    text-align: center;
+}

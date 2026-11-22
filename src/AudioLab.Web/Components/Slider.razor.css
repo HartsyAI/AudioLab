@@ -1,0 +1,43 @@
+.slider {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-8);
+    min-width: 0;
+}
+
+.slot {
+    flex: 1;
+    position: relative;
+    height: 0.25rem;
+    border-radius: var(--radius-xs);
+    background: var(--surface-well);
+}
+
+.fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: var(--radius-xs);
+    background: var(--control-fill);
+}
+
+.cap {
+    position: absolute;
+    top: -0.25rem;
+    width: 0.25rem;
+    height: 0.75rem;
+    margin-left: -0.125rem;
+    border-radius: var(--radius-xs);
+    background: var(--control-cap);
+    box-shadow: var(--shadow-cap);
+}
+
+.value {
+    width: 2.125rem;
+    text-align: right;
+    color: var(--text-dim);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+}

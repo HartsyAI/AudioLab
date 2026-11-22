@@ -1,0 +1,14 @@
+<div class="bottom-panel">
+    <Tabs Names="Names" Label="Tools for the selection">
+        <TabContent Context="tab">
+            @if (tab == "Mixer")
+            {
+                <MixerPanel Document="Document" Selected="Selected" />
+            }
+            else
+            {
+                <EmptyState Heading="@tab" Message="@($"The {tab.ToLowerInvariant()} tab arrives in a later phase.")" />
+            }
+        </TabContent>
+    </Tabs>
+</div>

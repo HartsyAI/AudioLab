@@ -1,0 +1,38 @@
+<div id="timeline" class="timeline" role="region" aria-label="Arrangement">
+    <div class="grid" style="grid-template-columns: var(--header-column) @(LaneWidth)px; --rows: @Kinds.Count">
+        <div class="corner">
+            <span class="caption">TRACKS</span>
+            <Button Name="Add track" Disabled="@(!CanEdit)" DisabledReason="@AddTrackReason" OnClick="AddTrack">
+                <Icon Name="IconName.Plus" Size="10" />
+                <span>Add track</span>
+            </Button>
+        </div>
+        <div class="ruler">
+            @foreach (RulerRowKind kind in Kinds)
+            {
+                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors" />
+            }
+        </div>
+        <div class="headers" role="list" aria-label="Tracks">
+            @for (int index = 0; index < Document.Tracks.Count; index++)
+            {
+                Track track = Document.Tracks[index];
+                <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.Heights[index]" Selected="@(track.Id == Selection.Track)"
+                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" />
+            }
+        </div>
+        <div class="lanes">
+            @if (Document.Tracks.Count == 0)
+            {
+                <EmptyState Heading="No tracks yet" Message="Add a track, then put clips on it.">
+                    <Button Variant="ButtonVariant.Primary" Disabled="@(!CanEdit)" DisabledReason="@AddTrackReason" Name="Add track" OnClick="AddTrack">Add track</Button>
+                </EmptyState>
+            }
+            else
+            {
+                <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
+                             SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip" OnClipKey="ClipKeyAsync" />
+            }
+        </div>
+    </div>
+</div>

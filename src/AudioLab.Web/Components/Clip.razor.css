@@ -1,0 +1,65 @@
+.clip {
+    position: absolute;
+    top: var(--space-4);
+    bottom: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--clip) 17%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--clip) 50%, transparent);
+    outline: none;
+}
+
+.clip[data-selected="true"] {
+    background: color-mix(in srgb, var(--clip) 30%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--playhead);
+}
+
+.clip:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+.clip[data-dimmed="true"] {
+    opacity: 0.4;
+}
+
+.head {
+    flex: none;
+    height: 1rem;
+    padding: 0 var(--space-6);
+    overflow: hidden;
+    background: var(--clip);
+    color: var(--ink);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-strong);
+    line-height: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+path {
+    fill: var(--clip);
+}
+
+.note {
+    position: absolute;
+    height: 3px;
+    border-radius: var(--radius-xs);
+    background: var(--clip);
+}

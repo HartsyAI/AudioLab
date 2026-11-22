@@ -1,0 +1,29 @@
+.knob {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.disc {
+    fill: var(--surface-raised);
+    stroke: var(--line);
+    stroke-width: 1;
+}
+
+.rim {
+    fill: none;
+    stroke: var(--highlight);
+    stroke-width: 1;
+}
+
+.pointer {
+    stroke: var(--text);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.value {
+    color: var(--text-dim);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+}

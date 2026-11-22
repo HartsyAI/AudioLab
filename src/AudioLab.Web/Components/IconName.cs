@@ -26,4 +26,22 @@ public enum IconName
 
     /// <summary>A tick.</summary>
     Check,
+
+    /// <summary>A bar and a triangle pointing back: go to the start.</summary>
+    ToStart,
+
+    /// <summary>A square: stop.</summary>
+    Stop,
+
+    /// <summary>A triangle pointing forward: play.</summary>
+    Play,
+
+    /// <summary>A disc: record.</summary>
+    Record,
+
+    /// <summary>An arrow: the pointer tool.</summary>
+    Pointer,
+
+    /// <summary>An I-beam between two bars: the range tool.</summary>
+    Range,
 }

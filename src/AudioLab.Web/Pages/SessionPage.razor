@@ -1,0 +1,19 @@
+@page "/project/{Id}"
+
+@if (_document is not null)
+{
+    <SessionScreen Document="_document" Revision="_revision" CanEdit="false" ReadOnlyReason="@ReadOnly" Dot="StatusDot.Caution" State="Read-only snapshot" />
+}
+else if (_failure is not null)
+{
+    <AppBar />
+    <EmptyState Heading="The project could not be opened" Message="@_failure">
+        <Button Variant="ButtonVariant.Primary" OnClick="LoadAsync">Try again</Button>
+        <Button Href="">Back to your projects</Button>
+    </EmptyState>
+}
+else
+{
+    <AppBar />
+    <p class="loading-note" role="status">Opening project</p>
+}

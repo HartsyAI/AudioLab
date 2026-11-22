@@ -10,16 +10,7 @@
     }
     else
     {
-        <BitBhTooltip>
-            <BitBhTooltipTrigger As="button" type="@ButtonType" class="button" data-variant="@VariantName" aria-label="@Name"
-                                 aria-disabled="@AriaDisabled" @onclick="ClickAsync" @attributes="Attributes">@ChildContent</BitBhTooltipTrigger>
-            <BitBhTooltipContent class="tooltip" Anchor="@(new BitBhAnchorOptions { To = "bottom", Gap = 6 })">
-                <span class="tooltip-name">@TooltipText</span>
-                @if (Shortcut is not null && !Disabled)
-                {
-                    <kbd class="tooltip-shortcut">@Shortcut</kbd>
-                }
-            </BitBhTooltipContent>
-        </BitBhTooltip>
+        <Tooltip Text="@TooltipText" Name="@Name" Shortcut="@Shortcut" Disabled="Disabled" Submit="Submit" OnClick="OnClick"
+                 class="button" data-variant="@VariantName" @attributes="Attributes">@ChildContent</Tooltip>
     }
 </span>

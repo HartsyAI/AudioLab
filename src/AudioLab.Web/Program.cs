@@ -4,6 +4,7 @@ using AudioLab.Web;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session;
 using Bit.Bheadless;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -17,6 +18,9 @@ builder.Services.AddBitBheadlessServices();
 if (OperatingSystem.IsBrowser())
 {
     builder.Services.AddScoped<INativeOverlay, NativeOverlay>();
+    builder.Services.AddSingleton<ITokenReader, TokenReader>();
+    builder.Services.AddSingleton<IElementFocus, ElementFocus>();
+    builder.Services.AddSingleton<IKeyGuard, KeyGuard>();
 }
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(CoreCommands.CreateRegistry());
@@ -26,4 +30,8 @@ builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<SessionClient>();
 builder.Services.AddScoped<ProjectApi>();
 builder.Services.AddScoped<ProjectRenamer>();
+builder.Services.AddScoped<SessionSelection>();
+builder.Services.AddSingleton<WavePathCache>();
+builder.Services.AddSingleton(provider => new TrackColorMap(
+    [.. Enumerable.Range(1, 12).Select(number => provider.GetRequiredService<ITokenReader>().Read($"--track-{number}"))]));
 await builder.Build().RunAsync();

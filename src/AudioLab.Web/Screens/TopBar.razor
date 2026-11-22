@@ -1,0 +1,26 @@
+<header class="top-bar">
+    <div class="brand">
+        <a class="mark" href="" aria-label="AudioLab: all projects"><Icon Name="IconName.Logo" Size="16" /></a>
+        <div class="titles">
+            <h1 class="name">@Document.Name</h1>
+            <span class="sub">@Summary</span>
+        </div>
+    </div>
+    <Segmented Transport="true" Label="Transport" Items="TransportItems" Wide="play" />
+    <Counter Cells="Cells" />
+    <div class="toggles">
+        <Toggle Label="Loop" Name="Loop" Disabled="true" Reason="@NotYet" />
+        <Toggle Label="Click" Name="Click" On="Document.Metronome" Disabled="true" Reason="@NotYet" />
+        <Toggle Label="Punch" Name="Punch" Disabled="true" Reason="@NotYet" />
+        <Toggle Label="Follow" Name="Follow" Disabled="true" Reason="@NotYet" />
+    </div>
+    <div class="spacer"></div>
+    <Segmented Label="Tool" Items="ToolItems" Value="pointer" />
+    <Button Name="Grid" Disabled="true" DisabledReason="Changing the grid arrives with the tempo and grid screens.">
+        <span class="grid-label">Grid</span>
+        <span>@GridText</span>
+        <Icon Name="IconName.Chevron" Size="9" />
+    </Button>
+    <Presence Members="People" />
+    <Button Variant="ButtonVariant.Primary" Name="Export" Disabled="true" DisabledReason="Export arrives with the audio engine.">Export</Button>
+</header>

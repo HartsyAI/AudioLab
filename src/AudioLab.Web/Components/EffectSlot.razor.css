@@ -1,0 +1,21 @@
+.effect-slot {
+    height: 1.0625rem;
+    padding: 0 var(--space-6);
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--surface-lane);
+    box-shadow: var(--shadow-well);
+    color: var(--text-soft);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.0625rem;
+    white-space: nowrap;
+}
+
+.effect-slot[data-empty="true"] {
+    color: var(--text-faint);
+}
+
+.effect-slot[data-bypassed="true"] {
+    opacity: 0.5;
+}

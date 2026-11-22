@@ -1,0 +1,12 @@
+<div class="fader" role="img" aria-label="@($"{Label} {Text} dB")">
+    <div class="scale" aria-hidden="true">
+        @foreach (string mark in FaderScale.Labels)
+        {
+            <span>@mark</span>
+        }
+    </div>
+    <div class="track">
+        <div class="slot"></div>
+        <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
+    </div>
+</div>

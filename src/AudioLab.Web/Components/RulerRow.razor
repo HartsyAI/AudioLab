@@ -1,0 +1,30 @@
+<div class="row" data-kind="@Kind.ToString().ToLowerInvariant()" style="width: @(Width)px">
+    @switch (Kind)
+    {
+        case RulerRowKind.Sections:
+            @foreach (Section section in Document.Sections)
+            {
+                <div @key="section.Id" class="section" style="@SectionStyle(section)">@section.Name</div>
+            }
+            break;
+        case RulerRowKind.Bars:
+            @foreach (BarLine bar in Bars)
+            {
+                <span class="tick" data-strong="@(bar.Strong ? "true" : "false")" style="left: @(Left(bar.Time))px">@bar.Number</span>
+            }
+            <svg class="cap" width="11" height="8" viewBox="0 0 11 8" aria-hidden="true"><polygon points="0,0 11,0 5.5,8"></polygon></svg>
+            break;
+        case RulerRowKind.Time:
+            @foreach (double time in Times)
+            {
+                <span class="tick" data-strong="false" style="left: @(Left(time))px">@TimeText.Ruler(time)</span>
+            }
+            break;
+        case RulerRowKind.Markers:
+            @foreach (Marker marker in Document.Markers)
+            {
+                <span @key="marker.Id" class="marker" style="@MarkerStyle(marker)">@marker.Name</span>
+            }
+            break;
+    }
+</div>

@@ -1,0 +1,9 @@
+<div class="mixer" role="region" aria-label="Mixer">
+    @for (int index = 0; index < Document.Tracks.Count; index++)
+    {
+        Track track = Document.Tracks[index];
+        <ChannelStrip @key="track.Id" Name="@track.Name" ColorToken="@Colors.Token(track.Color)" Effects="Effects(track)" Pan="track.Pan"
+                      Volume="track.Volume" Muted="track.Muted" Soloed="track.Soloed" Selected="@(track.Id == Selected)" />
+    }
+    <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true" />
+</div>

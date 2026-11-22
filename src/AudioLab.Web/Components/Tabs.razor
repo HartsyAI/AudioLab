@@ -1,0 +1,16 @@
+<div class="tabs-root">
+    <BitBhTabGroup class="tabs">
+        <BitBhTabList class="tab-list" aria-label="@Label">
+            @foreach (string tab in Names)
+            {
+                <BitBhTab @key="tab" class="tab">@tab</BitBhTab>
+            }
+        </BitBhTabList>
+        <BitBhTabPanels class="tab-panels">
+            @foreach (string tab in Names)
+            {
+                <BitBhTabPanel @key="tab" class="tab-panel">@TabContent?.Invoke(tab)</BitBhTabPanel>
+            }
+        </BitBhTabPanels>
+    </BitBhTabGroup>
+</div>
