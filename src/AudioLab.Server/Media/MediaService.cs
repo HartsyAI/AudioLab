@@ -39,7 +39,7 @@ public sealed class MediaService(
             throw new MediaTooLargeException(options.MaxUploadBytes);
         }
         using MediaUpload upload = store.BeginUpload(user);
-        await upload.RequireRoomAsync(declaredLength ?? 0, cancellationToken);
+        await upload.AdmitAsync(declaredLength ?? 0, cancellationToken);
 
         MediaId id = ids.Next<MediaId>();
         string temp = root.Paths.MediaTempFile(user, id);

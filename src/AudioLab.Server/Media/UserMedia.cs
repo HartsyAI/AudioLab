@@ -19,5 +19,9 @@ internal sealed class UserMedia
 
     public int UploadsRunning { get; set; }
 
+    public int UploadsAdmitted { get; set; }
+
+    public SemaphoreSlim Admission { get; } = new(1, 1);
+
     public long UploadBytes { get; set; }
 }
