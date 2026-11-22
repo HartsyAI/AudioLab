@@ -1,4 +1,5 @@
 using AudioLab.Audio.Tests.Support;
+using AudioLab.Core.Model;
 
 namespace AudioLab.Audio.Tests;
 
@@ -74,5 +75,48 @@ public sealed class BlockSizeTests
         graph.Render(again, unused);
 
         Assert.Equal(first, again);
+    }
+
+    private static ProjectDocument WithAnEffectOnTheFirstTrack(AudioLab.Core.Rules.EffectKind kind)
+    {
+        ProjectDocument busy = BusyProject.Create();
+        Track first = busy.Tracks[0] with { Effects = [AudioLab.Core.Rules.EffectRules.Create(kind, EffectId.From("e"))] };
+
+        return busy with { Tracks = new ValueList<Track>([first, .. busy.Tracks.Skip(1)]) };
+    }
+
+    private static MixerGraph GraphWithAnInsertThatRemembers(int blockFrames) =>
+        new(
+            RenderPlan.Create(
+                WithAnEffectOnTheFirstTrack(AudioLab.Core.Rules.EffectKind.Saturation),
+                BusyProject.ResampledMedia(),
+                new PlanOptions { SampleRate = BusyProject.Rate, InsertBuilder = (effect, context) => new OnePoleInsert() }),
+            blockFrames);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(100)]
+    [InlineData(777)]
+    public void ResampledMediaAndAnInsertThatRemembersGiveTheSameAudioInAnyBlockSize(int blockFrames)
+    {
+        float[][] reference = [new float[4 * BusyProject.Rate], new float[4 * BusyProject.Rate]];
+        float[][] other = [new float[4 * BusyProject.Rate], new float[4 * BusyProject.Rate]];
+
+        GraphWithAnInsertThatRemembers(512).Render(reference[0], reference[1]);
+        GraphWithAnInsertThatRemembers(blockFrames).Render(other[0], other[1]);
+
+        Assert.Equal(reference[0], other[0]);
+        Assert.Equal(reference[1], other[1]);
+        Assert.True(Signals.Peak(reference[0]) > 0.05);
+    }
+
+    [Fact]
+    public void ResampledMediaAndAnInsertThatRemembersAllocateNothingWhileRendering()
+    {
+        MixerGraph graph = GraphWithAnInsertThatRemembers(512);
+        float[] left = new float[480];
+        float[] right = new float[480];
+
+        Assert.True(AllocationProbe.SettlesAtZero(() => graph.Render(left, right)));
     }
 }
