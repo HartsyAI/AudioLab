@@ -146,7 +146,7 @@ A command that is refused is an ordinary result with `isError: true`, not a prot
 |--------|---------|------------|
 | `malformed` | The arguments are not valid for the tool: a member missing, unknown or of the wrong type. | Fix the call from the tool's schema. |
 | `invalid` | A value is out of range, or the edit would leave a project that breaks the rules. | Use a value inside the range the schema states. |
-| `rejected` | A rule forbids it: nothing to undo, the project moved on since `expectedRevision`, or it cannot be opened. | Read again, choose another call. |
+| `rejected` | A rule forbids it: nothing to undo, the project moved on since `expectedRevision`, or it will not open. | Read again, then choose. |
 | `not_found` | The project, track, clip or other target does not exist (or is not yours). | List or read again; ids come from results. |
 | `limit` | A limit of the server was reached: a result or a project too large. | Do less in one call, or read the message. |
 
