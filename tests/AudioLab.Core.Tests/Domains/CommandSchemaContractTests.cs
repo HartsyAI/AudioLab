@@ -393,6 +393,28 @@ public sealed class CommandSchemaContractTests
         Assert.Contains("at least one", _registry.Find("project_set_view")!.Description);
     }
 
+    [Fact]
+    public void TheRangeCommandsBoundTheirTimesAndTracksAndTheNamingCommandNeedsNoSection()
+    {
+        foreach (string command in new[] { "range_delete", "range_split" })
+        {
+            JsonElement start = Property(command, "start");
+            JsonElement end = Property(command, "end");
+            JsonElement tracks = Property(command, "tracks");
+
+            Assert.Equal([0.0, ProjectLimits.MaxSeconds], [start.GetProperty("minimum").GetDouble(), start.GetProperty("maximum").GetDouble()]);
+            Assert.Equal(ProjectLimits.MaxSeconds, end.GetProperty("maximum").GetDouble());
+            Assert.Equal([1, ProjectLimits.MaxTracks], [tracks.GetProperty("minItems").GetInt32(), tracks.GetProperty("maxItems").GetInt32()]);
+            Assert.Equal(["end", "project", "start", "tracks"], Required(command));
+        }
+        Assert.Equal(["project"], Required("section_name_clips"));
+        JsonElement duration = Property("clip_replace_media", "duration");
+        double[] limits = [duration.GetProperty("minimum").GetDouble(), duration.GetProperty("maximum").GetDouble()];
+        Assert.Equal([ProjectLimits.Tolerance, ProjectLimits.MaxSeconds], limits);
+        Assert.Equal(["clip", "duration", "media", "project"], Required("clip_replace_media"));
+        Assert.True(Property("section_name_clips", "section").TryGetProperty("description", out _));
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];
