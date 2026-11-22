@@ -307,6 +307,32 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryRangeAndSectionNamingCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2);
+        AudioClip clip = track.Clips[0];
+        double middle = clip.Start + (ClipRules.VisibleLength(clip) / 2);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new DeleteRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
+            new SplitAtRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
+            new ReplaceClipMedia { Project = id, Clip = clip.Id, Media = MediaId.From("med_replacement"), Duration = clip.Duration + 5 },
+            new NameClipsAfterSections { Project = id },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();
