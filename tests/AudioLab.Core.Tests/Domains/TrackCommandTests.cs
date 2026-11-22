@@ -21,7 +21,7 @@ public sealed class TrackCommandTests
         Track track = _rig.Project.Tracks[0];
         Assert.Equal("trk_1001", id.Value);
         Assert.Equal(("Track 1", TrackKind.Audio, ProjectDefaults.TrackColor(0)), (track.Name, track.Kind, track.Color));
-        Assert.Equal((0.8, 0.0, 100.0), (track.Volume, track.Pan, track.View.Height));
+        Assert.Equal((0.8, 0.0, 64.0), (track.Volume, track.Pan, track.View.Height));
         Assert.Null(track.Instrument);
     }
 
