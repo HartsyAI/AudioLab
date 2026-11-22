@@ -1,0 +1,85 @@
+ENV|.NET 10.0.14|win-x64|browser=False|Vector.IsHardwareAccelerated=True|Vector<float>.Count=8|Vector128.IsHardwareAccelerated=True|audioSeconds=30|rounds=7
+PASS|allocation counter sees a 1 MiB array|delta=1048600
+PASS|own resample 48000->44100 taps=64 1 kHz tone matches the true ideal sine|max error 2.28E-004
+PASS|HI Resampler 48000->44100 taps=64 output length|1323000 vs 1323000
+PASS|HI Resampler 48000->44100 taps=64 equals own within 1e-5|max diff 0.00E+000
+PASS|HI Resampler 48000->44100 taps=64 1 kHz tone matches the true ideal sine|max error 2.28E-004
+PASS|HI Resampler.ResampleRange equals Resample on the slice|max diff 1.79E-007
+RESULT|Resampler.Resample|48000->44100 taps=64|own|median_ms=86.702|min_ms=85.659|ms_per_audio_s=2.890|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Resampler.Resample|48000->44100 taps=64|HartsyInference|median_ms=98.298|min_ms=97.347|ms_per_audio_s=3.277|alloc_bytes_per_run=0|ratio_vs_first=1.13
+RESULT|Resampler.Resample|48000->44100 taps=64|linear (not the same operation)|median_ms=3.533|min_ms=3.518|ms_per_audio_s=0.118|alloc_bytes_per_run=0|ratio_vs_first=0.04
+PASS|own resample 44100->48000 taps=64 1 kHz tone matches the true ideal sine|max error 2.24E-004
+PASS|HI Resampler 44100->48000 taps=64 output length|1440000 vs 1440000
+PASS|HI Resampler 44100->48000 taps=64 equals own within 1e-5|max diff 0.00E+000
+PASS|HI Resampler 44100->48000 taps=64 1 kHz tone matches the true ideal sine|max error 2.24E-004
+RESULT|Resampler.Resample|44100->48000 taps=64|own|median_ms=98.388|min_ms=95.979|ms_per_audio_s=3.280|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Resampler.Resample|44100->48000 taps=64|HartsyInference|median_ms=112.077|min_ms=109.007|ms_per_audio_s=3.736|alloc_bytes_per_run=0|ratio_vs_first=1.14
+PASS|own resample 48000->44100 taps=256 1 kHz tone matches the true ideal sine|max error 2.24E-004
+PASS|HI Resampler 48000->44100 taps=256 output length|1323000 vs 1323000
+PASS|HI Resampler 48000->44100 taps=256 equals own within 1e-5|max diff 0.00E+000
+PASS|HI Resampler 48000->44100 taps=256 1 kHz tone matches the true ideal sine|max error 2.24E-004
+RESULT|Resampler.Resample|48000->44100 taps=256|own|median_ms=328.700|min_ms=323.478|ms_per_audio_s=10.957|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Resampler.Resample|48000->44100 taps=256|HartsyInference|median_ms=345.579|min_ms=335.977|ms_per_audio_s=11.519|alloc_bytes_per_run=0|ratio_vs_first=1.05
+FINDING|own resample 48000->16000 taps=64: error against the true ideal 1 kHz sine is 3.27E-002 (it does not meet 5e-3); fitted delay -0.5000 input samples, amplitude 0.5000
+PASS|own resample 48000->16000 taps=64 1 kHz tone is the ideal sine delayed by -0.5 input sample, and only that|delay -0.5000 input samples, amplitude 0.5000, residual 9.00E-008
+PASS|HI Resampler 48000->16000 taps=64 output length|480000 vs 480000
+PASS|HI Resampler 48000->16000 taps=64 equals own within 1e-5|max diff 0.00E+000
+FINDING|HI Resampler 48000->16000 taps=64: error against the true ideal 1 kHz sine is 3.27E-002 (it does not meet 5e-3); fitted delay -0.5000 input samples, amplitude 0.5000
+PASS|HI Resampler 48000->16000 taps=64 1 kHz tone is the ideal sine delayed by -0.5 input sample, and only that|delay -0.5000 input samples, amplitude 0.5000, residual 9.00E-008
+RESULT|Resampler.Resample|48000->16000 taps=64|own|median_ms=31.151|min_ms=30.742|ms_per_audio_s=1.038|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Resampler.Resample|48000->16000 taps=64|HartsyInference|median_ms=35.372|min_ms=35.003|ms_per_audio_s=1.179|alloc_bytes_per_run=0|ratio_vs_first=1.14
+RESULT|Resampler.Create|48000->44100 taps=64|own|median_ms=0.574|min_ms=0.572|ms_per_audio_s=NaN|alloc_bytes_per_run=37696|ratio_vs_first=1.00
+RESULT|Resampler.Create|48000->44100 taps=64|HartsyInference|median_ms=0.576|min_ms=0.561|ms_per_audio_s=NaN|alloc_bytes_per_run=117696|ratio_vs_first=1.00
+PASS|HI StreamingResampler 480-frame blocks equal the whole-buffer output, one frame late|max diff 4.17E-007
+PASS|HI StreamingResampler.Process allocates nothing|0 bytes
+RESULT|StreamingResampler.Process|48000->44100 480-frame blocks|own (whole buffer, for scale)|median_ms=105.215|min_ms=88.209|ms_per_audio_s=3.507|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|StreamingResampler.Process|48000->44100 480-frame blocks|HartsyInference streaming|median_ms=16.340|min_ms=16.142|ms_per_audio_s=0.545|alloc_bytes_per_run=0|ratio_vs_first=0.16
+RESULT|StreamingResampler.Process|48000->44100 480-frame blocks|HartsyInference whole buffer|median_ms=111.320|min_ms=98.587|ms_per_audio_s=3.711|alloc_bytes_per_run=0|ratio_vs_first=1.06
+PASS|own wav reads back the rate|44100
+PASS|own wav duration|30
+PASS|HI WavFile.Read PCM16 stereo: rate and channels|44100 Hz 2 ch
+PASS|HI WavFile.Read PCM16 equals own sample for sample|max diff 0.00E+000, 1323000 frames
+PASS|HI WavFile.Read PCM24 matches the source within 24-bit rounding|max diff 1.19E-007
+PASS|HI WavFile.Read float32 matches the source exactly|max diff 0.00E+000
+PASS|HI WavFile.TryReadDurationSeconds|30 s
+PASS|HI WavFile.WriteMono16 bytes equal own|88244 vs 88244 bytes
+PASS|HI WavFile write then read is within 2 least significant bits (writes x32767, reads /32768)|max diff 3.60E-005 = 1.18 LSB
+PASS|HI WavFile.Read refuses a non-WAV by InvalidDataException|an exception, not a result
+RESULT|WavFile.TryReadDurationSeconds|100000 header reads|own|median_ms=0.222|min_ms=0.190|ms_per_audio_s=NaN|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|WavFile.TryReadDurationSeconds|100000 header reads|HartsyInference|median_ms=20.154|min_ms=1.083|ms_per_audio_s=NaN|alloc_bytes_per_run=0|ratio_vs_first=90.95
+RESULT|WavFile.Read|PCM16 stereo 44100 Hz, 5.0 MiB|own|median_ms=9.766|min_ms=6.722|ms_per_audio_s=0.326|alloc_bytes_per_run=10584088|ratio_vs_first=1.00
+RESULT|WavFile.Read|PCM16 stereo 44100 Hz, 5.0 MiB|HartsyInference|median_ms=15.855|min_ms=7.948|ms_per_audio_s=0.528|alloc_bytes_per_run=10649816|ratio_vs_first=1.62
+RESULT|WavFile.WriteMono16|1 s mono|own|median_ms=0.165|min_ms=0.144|ms_per_audio_s=0.165|alloc_bytes_per_run=264728|ratio_vs_first=1.00
+RESULT|WavFile.WriteMono16|1 s mono|HartsyInference|median_ms=0.108|min_ms=0.107|ms_per_audio_s=0.108|alloc_bytes_per_run=262696|ratio_vs_first=0.66
+PASS|own real FFT n=512: a tone centred on bin 100 peaks at bin 100|peak bin 100
+PASS|HI Fft.RealTransform n=512: a tone centred on bin 100 peaks at bin 100|peak bin 100
+INFO|HI Fft.RealTransform n=512 given an input longer than n (documented only as 'at least n'): throws ArgumentException
+PASS|HI Fft.Transform n=512 equals own within 1e-4 of the peak magnitude|relative max diff 0.00E+000
+RESULT|Fft.Transform (complex, in place)|n=512 hop=128, 374.9 frames per audio second|own|median_ms=103.091|min_ms=96.024|ms_per_audio_s=3.436|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Fft.Transform (complex, in place)|n=512 hop=128, 374.9 frames per audio second|HartsyInference|median_ms=115.656|min_ms=105.999|ms_per_audio_s=3.855|alloc_bytes_per_run=0|ratio_vs_first=1.12
+RESULT|Fft.RealTransform|n=512 hop=128, 374.9 frames per audio second|own|median_ms=106.557|min_ms=95.420|ms_per_audio_s=3.552|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Fft.RealTransform|n=512 hop=128, 374.9 frames per audio second|HartsyInference|median_ms=125.140|min_ms=108.444|ms_per_audio_s=4.171|alloc_bytes_per_run=0|ratio_vs_first=1.17
+PASS|own real FFT n=2048: a tone centred on bin 100 peaks at bin 100|peak bin 100
+PASS|HI Fft.RealTransform n=2048: a tone centred on bin 100 peaks at bin 100|peak bin 100
+INFO|HI Fft.RealTransform n=2048 given an input longer than n (documented only as 'at least n'): throws ArgumentException
+PASS|HI Fft.Transform n=2048 equals own within 1e-4 of the peak magnitude|relative max diff 0.00E+000
+RESULT|Fft.Transform (complex, in place)|n=2048 hop=512, 93.6 frames per audio second|own|median_ms=140.099|min_ms=133.176|ms_per_audio_s=4.670|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Fft.Transform (complex, in place)|n=2048 hop=512, 93.6 frames per audio second|HartsyInference|median_ms=135.169|min_ms=128.409|ms_per_audio_s=4.506|alloc_bytes_per_run=0|ratio_vs_first=0.96
+RESULT|Fft.RealTransform|n=2048 hop=512, 93.6 frames per audio second|own|median_ms=120.969|min_ms=111.690|ms_per_audio_s=4.032|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|Fft.RealTransform|n=2048 hop=512, 93.6 frames per audio second|HartsyInference|median_ms=152.205|min_ms=137.934|ms_per_audio_s=5.074|alloc_bytes_per_run=46141056|ratio_vs_first=1.26
+PASS|own FFT n=256 equals a double-precision DFT within 1e-5 of the peak|1.34E-007
+PASS|HI Fft.Transform n=256 equals a double-precision DFT within 1e-5 of the peak|1.34E-007
+PASS|HI Fft.Transform n=400 (not a power of two) equals a double-precision DFT within 1e-4 of the peak|1.87E-007
+RESULT|Fft.Transform (Bluestein, not a power of two)|n=400, 1000 frames|HartsyInference|median_ms=285.326|min_ms=134.013|ms_per_audio_s=NaN|alloc_bytes_per_run=8240000|ratio_vs_first=1.00
+PASS|HI Fft.Transform n=1000 (not a power of two) equals a double-precision DFT within 1e-4 of the peak|1.98E-007
+RESULT|Fft.Transform (Bluestein, not a power of two)|n=1000, 1000 frames|HartsyInference|median_ms=174.948|min_ms=133.885|ms_per_audio_s=NaN|alloc_bytes_per_run=16432000|ratio_vs_first=1.00
+PASS|HI HannWindow.Get(2048) equals the periodic Hann window|max diff 0.00E+000
+PASS|HI LoudnessNormalizer.PeakNormalize equals own|max diff 0.00E+000
+PASS|HI LoudnessNormalizer.RmsNormalize reaches the target RMS|rms 0.1000
+PASS|HI WaveCrossFade.Join length is the sum minus two overlaps|134400
+RESULT|WaveCrossFade.Join|3 x 1 s, 4800-sample cross-fade|HartsyInference|median_ms=0.278|min_ms=0.111|ms_per_audio_s=0.093|alloc_bytes_per_run=902448|ratio_vs_first=1.00
+RESULT|PeakNormalize|30 s mono (copy included)|own|median_ms=7.423|min_ms=6.058|ms_per_audio_s=0.247|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|PeakNormalize|30 s mono (copy included)|HartsyInference|median_ms=2.413|min_ms=2.042|ms_per_audio_s=0.080|alloc_bytes_per_run=0|ratio_vs_first=0.33
+RESULT|HannWindow lookup|1000000 lookups of n=2048|own (array held by the caller)|median_ms=2.302|min_ms=1.956|ms_per_audio_s=NaN|alloc_bytes_per_run=0|ratio_vs_first=1.00
+RESULT|HannWindow lookup|1000000 lookups of n=2048|HartsyInference HannWindow.Get (a lock per call)|median_ms=19.145|min_ms=15.916|ms_per_audio_s=NaN|alloc_bytes_per_run=0|ratio_vs_first=8.32
+DONE|0 failed assertions

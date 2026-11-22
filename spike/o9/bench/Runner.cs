@@ -110,15 +110,18 @@ public sealed class Runner(Action<string> log, double seconds, int rounds)
             float[] ownTone = new float[own.OutputLength(tone.Length)];
             own.Resample(tone, ownTone);
             int edge = taps * 4;
-            // With an integer decimation (up == 1) both filters are centred half an input sample early, so the ideal is shifted.
+            // The ideal is the true sine at the output rate. With an integer decimation (up == 1) both filters are centred half an
+            // input sample early, so that check cannot pass: it is reported as a finding, and the delay is fitted and checked.
             bool integerDecimation = inRate % outRate == 0;
-            float[] target = integerDecimation ? ShiftedSine(outRate, 1.0, 1000, -0.5 / inRate) : ideal;
-            float ownErr = Signals.MaxAbsDiff(ownTone, target, edge, ownTone.Length - edge);
+            float ownErr = Signals.MaxAbsDiff(ownTone, ideal, edge, ownTone.Length - edge);
             if (integerDecimation)
             {
-                log($"INFO|{name}: error against the unshifted ideal sine is {Signals.MaxAbsDiff(ownTone, ideal, edge, ownTone.Length - edge):E2}, against one half an input sample early {ownErr:E2}");
+                CheckDelay($"own resample {name}", ownTone, outRate, inRate, edge, ownErr);
             }
-            Check($"own resample {name} 1 kHz tone matches the ideal sine{(integerDecimation ? " half an input sample early" : "")}", ownErr < 5e-3f, $"max error {ownErr:E2}");
+            else
+            {
+                Check($"own resample {name} 1 kHz tone matches the true ideal sine", ownErr < 5e-3f, $"max error {ownErr:E2}");
+            }
             List<(string, Action)> impls = [("own", () => own.Resample(input, ownOut))];
 #if HI_RESAMPLER
             Resampler hi = Resampler.Create(inRate, outRate, taps);
@@ -128,8 +131,15 @@ public sealed class Runner(Action<string> log, double seconds, int rounds)
             float diff = Signals.MaxAbsDiff(hiOut, ownOut);
             Check($"HI Resampler {name} equals own within 1e-5", diff < 1e-5f, $"max diff {diff:E2}");
             float[] hiTone = hi.Resample(tone);
-            float hiErr = Signals.MaxAbsDiff(hiTone, target, edge, hiTone.Length - edge);
-            Check($"HI Resampler {name} 1 kHz tone matches the ideal sine", hiErr < 5e-3f, $"max error {hiErr:E2}");
+            float hiErr = Signals.MaxAbsDiff(hiTone, ideal, edge, hiTone.Length - edge);
+            if (integerDecimation)
+            {
+                CheckDelay($"HI Resampler {name}", hiTone, outRate, inRate, edge, hiErr);
+            }
+            else
+            {
+                Check($"HI Resampler {name} 1 kHz tone matches the true ideal sine", hiErr < 5e-3f, $"max error {hiErr:E2}");
+            }
             if (taps == 64 && inRate == 48000 && outRate == 44100)
             {
                 float[] slice = new float[2000];
@@ -444,14 +454,41 @@ public sealed class Runner(Action<string> log, double seconds, int rounds)
         }
     }
 
-    private static float[] ShiftedSine(int rate, double seconds, double freq, double delaySeconds)
+    /// <summary>
+    /// Fits A sin(2 pi f (t - d)) to a tone by projecting it on a sine and a cosine, and returns d in seconds. Positive d
+    /// is a late output, negative an early one. The amplitude and the error left after removing d come back as well.
+    /// </summary>
+    private static (double DelaySeconds, double Amplitude, double ResidualMax) FitTone(float[] x, int rate, double freq, int from, int to)
     {
-        float[] x = new float[(int)(rate * seconds)];
-        for (int i = 0; i < x.Length; i++)
+        double s = 0, c = 0;
+        double w = 2 * Math.PI * freq / rate;
+        for (int i = from; i < to; i++)
         {
-            x[i] = (float)(0.5 * Math.Sin(2 * Math.PI * freq * (i / (double)rate - delaySeconds)));
+            s += x[i] * Math.Sin(w * i);
+            c += x[i] * Math.Cos(w * i);
         }
-        return x;
+        double n = to - from;
+        double amp = 2 * Math.Sqrt(s * s + c * c) / n;
+        double phase = Math.Atan2(-c, s);
+        double residual = 0;
+        for (int i = from; i < to; i++)
+        {
+            residual = Math.Max(residual, Math.Abs(x[i] - amp * Math.Sin(w * i - phase)));
+        }
+        return (phase / (2 * Math.PI * freq), amp, residual);
+    }
+
+    /// <summary>
+    /// The true-ideal error of an integer decimation, as a finding, and a check that the output is the ideal tone with
+    /// one constant delay of half an input sample early and nothing else wrong.
+    /// </summary>
+    private void CheckDelay(string who, float[] tone, int outRate, int inRate, int edge, float trueIdealError)
+    {
+        (double delay, double amp, double residual) = FitTone(tone, outRate, 1000, edge, tone.Length - edge);
+        double delayInputSamples = delay * inRate;
+        log($"FINDING|{who}: error against the true ideal 1 kHz sine is {trueIdealError:E2} (it does not meet 5e-3); fitted delay {delayInputSamples:F4} input samples, amplitude {amp:F4}");
+        Check($"{who} 1 kHz tone is the ideal sine delayed by -0.5 input sample, and only that", Math.Abs(delayInputSamples + 0.5) < 0.02 && residual < 5e-3 && Math.Abs(amp - 0.5) < 5e-3,
+            $"delay {delayInputSamples:F4} input samples, amplitude {amp:F4}, residual {residual:E2}");
     }
 
     private static void Loop(int count, Action<int> body)
