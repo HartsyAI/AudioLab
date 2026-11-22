@@ -56,6 +56,7 @@ public sealed class GroupCommandTests
     public void GroupingNeedsRealTracksAndAtLeastOne()
     {
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [.. Enumerable.Repeat(_a, ProjectLimits.MaxTracks + 1)] }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a, TrackId.From("trk_none")] }, CommandErrorCode.NotFound);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a], Name = new string('g', 201) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a], Color = "red" }, CommandErrorCode.Invalid);
@@ -171,6 +172,24 @@ public sealed class GroupCommandTests
         _rig.Ok(new MoveTrack { Project = _rig.Id, Track = _a, Direction = MoveDirection.Down });
 
         Assert.Equal(["B", "C", "A", "D"], Order());
+    }
+
+    [Fact]
+    public void AGroupFaderDragsAsOneGestureAndAnUnknownGroupIsNotFoundBeforeTheValue()
+    {
+        GroupId id = Group(_a);
+        GestureId drag = GestureId.From("group-fader");
+        int steps = _rig.History.UndoCount;
+
+        foreach (double level in new[] { 0.9, 0.7, 0.5, 0.3 })
+        {
+            Assert.True(_rig.Run(new SetGroupVolume { Project = _rig.Id, Group = id, Volume = level }, drag).Succeeded, $"at {level}");
+        }
+        _rig.History.EndGesture(ClientId.From("test-client"), drag);
+
+        Assert.Equal(steps + 1, _rig.History.UndoCount);
+        Assert.Equal(0.3, _rig.Project.Groups[0].Volume);
+        _rig.RefusedWith(new SetGroupVolume { Project = _rig.Id, Group = GroupId.From("grp_none"), Volume = double.NaN }, CommandErrorCode.NotFound);
     }
 
     [Fact]

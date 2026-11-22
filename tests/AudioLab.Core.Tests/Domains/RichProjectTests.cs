@@ -61,7 +61,7 @@ public sealed class RichProjectTests
             new RenameTrack { Project = id, Track = keys.Id, Name = "Piano" },
             new SetTrackColor { Project = id, Track = keys.Id, Color = "#abcdef" },
             new MoveTrack { Project = id, Track = keys.Id, Direction = MoveDirection.Down },
-            new MoveTrack { Project = id, Track = guitar.Id, Direction = MoveDirection.Up },
+            new MoveTrack { Project = id, Track = vocals.Id, Direction = MoveDirection.Down },
             new SetTrackVolume { Project = id, Track = vocals.Id, Volume = 1.2 },
             new SetTrackPan { Project = id, Track = vocals.Id, Pan = 0.5 },
             new SetTrackMuted { Project = id, Track = keys.Id, Muted = true },
@@ -71,8 +71,8 @@ public sealed class RichProjectTests
             new AddSend { Project = id, Track = guitar.Id, Bus = bus.Id },
             new RemoveSend { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus },
             new SetSendLevel { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Level = 0.1 },
-            new SetSendPre { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Pre = true },
-            new SetSendMuted { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Muted = true },
+            new SetSendPre { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Pre = !vocals.Sends[0].Pre },
+            new SetSendMuted { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Muted = !vocals.Sends[0].Muted },
         ];
 
         foreach (Command command in commands)
@@ -81,6 +81,7 @@ public sealed class RichProjectTests
             CommandResult result = rig.Run(command);
             Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
             Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
         }
     }
 
@@ -138,6 +139,20 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void AddingAGroupToAProjectWithTheMostGroupsIsOutOfRange()
+    {
+        TrackGroup template = new() { Id = GroupId.From("grp_0"), Name = "G", Color = "#7a8cff", Collapsed = false, Tint = true, Muted = false, Soloed = false, Volume = 1 };
+        TrackGroup[] full = [.. Enumerable.Range(0, ProjectLimits.MaxSends).Select(index => template with { Id = GroupId.From($"grp_{index}") })];
+        Track member = BlankProject.Track("trk_1") with { Group = full[0].Id };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [member], Groups = [.. full] });
+
+        CommandResult result = rig.Refused(new CreateGroup { Project = rig.Id, Tracks = [member.Id] });
+
+        Assert.Equal(CommandErrorCode.Invalid, result.Errors[0].Code);
+        Assert.Contains("at most", result.Errors[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AddingATrackToAFullProjectIsOutOfRange()
     {
         Track[] full = [.. Enumerable.Range(0, ProjectLimits.MaxTracks).Select(index => BlankProject.Track($"trk_{index}"))];
@@ -146,6 +161,7 @@ public sealed class RichProjectTests
         CommandResult result = rig.Refused(new AddTrack { Project = rig.Id });
 
         Assert.Equal(CommandErrorCode.Invalid, result.Errors[0].Code);
+        Assert.Contains("at most", result.Errors[0].Message, StringComparison.Ordinal);
         Assert.Empty(result.Created);
     }
 }

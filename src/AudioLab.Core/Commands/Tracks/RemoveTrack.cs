@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Removes a track with its clips; sends into a removed bus go with it, and a group left empty goes too.</summary>
+/// <summary>Removes a track with its clips; sends into a removed bus go with it, a group left empty goes too, and the score-parent and stem links other clips had to its clips are cleared.</summary>
 public sealed record RemoveTrack : Command
 {
     /// <summary>The track to remove.</summary>

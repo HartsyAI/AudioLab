@@ -180,9 +180,12 @@ public sealed class TimelineBehaviourTests
     {
         _rig.Ok(new SetTempoBpm { Project = _rig.Id, Bpm = 1000 });
         _rig.Ok(new SetTimeSignature { Project = _rig.Id, Numerator = 1, Denominator = 32 });
+        _rig.Ok(new AddSection { Project = _rig.Id, Start = 0, Length = 0.5, Name = "Keep me" });
         _rig.Ok(new AddMarker { Project = _rig.Id, Time = 1 });
 
         _rig.RefusedWith(new SectionsFromMarkers { Project = _rig.Id }, CommandErrorCode.Rejected);
+
+        Assert.Equal("Keep me", Assert.Single(_rig.Project.Sections).Name);
     }
 
     [Fact]

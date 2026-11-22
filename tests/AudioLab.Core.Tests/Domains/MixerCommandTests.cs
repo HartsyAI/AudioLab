@@ -91,6 +91,46 @@ public sealed class MixerCommandTests
     }
 
     [Fact]
+    public void APanASendLevelAndTheMasterFaderEachDragAsOneGesture()
+    {
+        _rig.Ok(new AddSend { Project = _rig.Id, Track = _vocals, Bus = _reverb });
+        ClientId client = ClientId.From("test-client");
+        (string Name, Func<double, Command> Make, Func<double> Read, double Start)[] drags =
+        [
+            ("pan", level => new SetTrackPan { Project = _rig.Id, Track = _vocals, Pan = level }, () => Vocals.Pan, 0),
+            ("send", level => new SetSendLevel { Project = _rig.Id, Track = _vocals, Bus = _reverb, Level = level }, () => Vocals.Sends[0].Level, 0.5),
+            ("master", level => new SetMasterVolume { Project = _rig.Id, Volume = level }, () => _rig.Project.MasterVolume, 1),
+        ];
+
+        foreach ((string name, Func<double, Command> make, Func<double> read, double start) in drags)
+        {
+            GestureId drag = GestureId.From($"{name}-drag");
+            int steps = _rig.History.UndoCount;
+            foreach (double level in new[] { 0.2, 0.3, 0.4, 0.45 })
+            {
+                Assert.True(_rig.Run(make(level), drag).Succeeded, $"{name} at {level}");
+            }
+            _rig.History.EndGesture(client, drag);
+
+            Assert.Equal(steps + 1, _rig.History.UndoCount);
+            Assert.Equal(0.45, read());
+            _rig.History.Undo();
+            Assert.Equal(start, read());
+        }
+    }
+
+    [Fact]
+    public void AnUnknownTrackIsNotFoundBeforeTheValueIsChecked()
+    {
+        TrackId none = TrackId.From("trk_none");
+
+        _rig.RefusedWith(new SetTrackVolume { Project = _rig.Id, Track = none, Volume = double.NaN }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new SetTrackPan { Project = _rig.Id, Track = none, Pan = double.NaN }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new AddSend { Project = _rig.Id, Track = none, Bus = _reverb, Level = double.NaN }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new SetSendLevel { Project = _rig.Id, Track = _vocals, Bus = _reverb, Level = double.NaN }, CommandErrorCode.NotFound);
+    }
+
+    [Fact]
     public void AMixerEditOfAnUnknownTrackIsNotFound()
     {
         TrackId none = TrackId.From("trk_none");

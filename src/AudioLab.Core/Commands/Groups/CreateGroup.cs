@@ -8,10 +8,11 @@ namespace AudioLab.Core.Commands;
 /// <summary>Puts tracks in a new group, taking them out of any other; the server allocates the group's id.</summary>
 public sealed record CreateGroup : Command
 {
-    /// <summary>The tracks to group; at least one.</summary>
-    [Description("The tracks to group; at least one.")]
+    /// <summary>The tracks to group, from 1 to 1024.</summary>
+    [Description("The tracks to group, from 1 to 1024.")]
     [JsonConverter(typeof(ValueListJsonConverter<TrackId>))]
     [MinLength(1)]
+    [MaxLength(ProjectLimits.MaxTracks)]
     public required ValueList<TrackId> Tracks { get; init; }
 
     /// <summary>The group's name, up to 200 characters; "Group N" when absent or blank.</summary>

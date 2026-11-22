@@ -3,9 +3,6 @@ namespace AudioLab.Core.Model;
 /// <summary>The starting values shared by whatever creates sections, groups and tracks.</summary>
 public static class ProjectDefaults
 {
-    /// <summary>The colour of a group that has none.</summary>
-    public const string GroupColor = "#7a8cff";
-
     private static readonly string[] _sectionColors =
     [
         "#f4a261", "#f2c94c", "#b5d63d", "#5fcf80", "#2ec4b6", "#4cc9f0", "#4895ef", "#9d7bf0", "#d97ae0", "#ef6f91",

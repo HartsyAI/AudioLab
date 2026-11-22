@@ -84,7 +84,7 @@ public sealed class TrackCommandTests
     }
 
     [Fact]
-    public void RemovingATrackTakesItsSendsGroupAndClipsWithIt()
+    public void RemovingATrackTakesItsSendsAndGroupWithIt()
     {
         TrackId source = Add(name: "Source");
         TrackId other = Add(name: "Other");

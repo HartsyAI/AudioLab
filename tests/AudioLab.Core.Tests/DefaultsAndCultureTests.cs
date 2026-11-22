@@ -19,7 +19,6 @@ public sealed class DefaultsAndCultureTests
         Assert.Equal(ProjectDefaults.SectionColor(1), ProjectDefaults.SectionColor(11));
         Assert.Equal(ProjectDefaults.TrackColor(11), ProjectDefaults.TrackColor(-1));
         Assert.Equal(12, Enumerable.Range(0, 12).Select(ProjectDefaults.TrackColor).Distinct().Count());
-        Assert.True(ProjectColor.IsValid(ProjectDefaults.GroupColor));
     }
 
     [Theory]

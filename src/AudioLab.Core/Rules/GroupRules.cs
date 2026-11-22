@@ -65,7 +65,8 @@ public static class GroupRules
     {
         ArgumentNullException.ThrowIfNull(tracks);
         ArgumentNullException.ThrowIfNull(ids);
-        return Normalize(tracks.Select(track => ids.Contains(track.Id) ? track with { Group = group } : track), groups);
+        HashSet<TrackId> chosen = [.. ids];
+        return Normalize(tracks.Select(track => chosen.Contains(track.Id) ? track with { Group = group } : track), groups);
     }
 
     /// <summary>The track list as blocks, top to bottom; moving a block never splits a group.</summary>

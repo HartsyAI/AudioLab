@@ -10,15 +10,19 @@ internal static class TrackCommands
     {
         builder
             .Add("track_add", "Adds an empty track at the bottom and allocates its id.", json.AddTrack, Add)
-            .Add("track_remove", "Removes a track, the sends into it if it is a bus, and a group it leaves empty.", json.RemoveTrack, Remove)
+            .Add("track_remove", "Removes a track, the sends into it if it is a bus, a group it leaves empty, and the score-parent and stem links other clips had to its clips.", json.RemoveTrack, Remove)
             .Add("track_rename", "Renames a track.", json.RenameTrack, Rename)
-            .Add("track_set_color", "Recolours a track.", json.SetTrackColor, SetColor)
-            .Add("track_move", "Moves a track one step in the track list.", json.MoveTrack, Move);
+            .Add("track_set_color", "Recolours a track; its clips that have no colour of their own follow it.", json.SetTrackColor, SetColor)
+            .Add("track_move", "Moves a track one step in the track list; at the end of the list the command succeeds and changes nothing.", json.MoveTrack, Move);
     }
 
     private static CommandResult Add(ProjectDocument document, AddTrack command, IIdService ids)
     {
         TrackKind kind = command.Kind ?? TrackKind.Audio;
+        if (document.Tracks.Count >= ProjectLimits.MaxTracks)
+        {
+            return CommandChecks.OutOfRange($"A project has at most {ProjectLimits.MaxTracks} tracks.");
+        }
         if (CommandChecks.TooLong(command.Name) is { } tooLong)
         {
             return tooLong;

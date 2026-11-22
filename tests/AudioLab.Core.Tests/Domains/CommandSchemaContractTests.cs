@@ -135,12 +135,13 @@ public sealed class CommandSchemaContractTests
     }
 
     [Fact]
-    public void AListOfTracksNeedsAtLeastOneItem()
+    public void AListOfTracksNeedsOneToTheMostATrackLimitAllows()
     {
         foreach (string command in new[] { "group_create", "group_assign" })
         {
             JsonElement tracks = Property(command, "tracks");
             Assert.Equal(1, tracks.GetProperty("minItems").GetInt32());
+            Assert.Equal(ProjectLimits.MaxTracks, tracks.GetProperty("maxItems").GetInt32());
             Assert.False(tracks.TryGetProperty("minLength", out _));
         }
     }

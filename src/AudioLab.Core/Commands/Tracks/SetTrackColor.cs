@@ -4,7 +4,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Recolours a track and the clips that follow its colour.</summary>
+/// <summary>Recolours a track; its clips that have no colour of their own follow it.</summary>
 public sealed record SetTrackColor : Command
 {
     /// <summary>The track to colour.</summary>

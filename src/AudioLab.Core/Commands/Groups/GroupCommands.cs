@@ -19,11 +19,15 @@ internal static class GroupCommands
             .Add("group_set_muted", "Mutes or unmutes every member of a group.", json.SetGroupMuted, SetMuted)
             .Add("group_set_soloed", "Solos or unsolos every member of a group.", json.SetGroupSoloed, SetSoloed)
             .Add("group_set_volume", "Sets the gain multiplier of a group.", json.SetGroupVolume, SetVolume)
-            .Add("group_move", "Moves a whole group one step in the track list.", json.MoveGroup, Move);
+            .Add("group_move", "Moves a whole group one step in the track list; at the end of the list the command succeeds and changes nothing.", json.MoveGroup, Move);
     }
 
     private static CommandResult Create(ProjectDocument document, CreateGroup command, IIdService ids)
     {
+        if (document.Groups.Count >= ProjectLimits.MaxSends)
+        {
+            return CommandChecks.OutOfRange($"A project has at most {ProjectLimits.MaxSends} groups.");
+        }
         if (CommandChecks.TooLong(command.Name) is { } tooLong)
         {
             return tooLong;
@@ -103,7 +107,8 @@ internal static class GroupCommands
 
     private static CommandResult SetVolume(ProjectDocument document, SetGroupVolume command, IIdService ids)
     {
-        return CommandChecks.Finite((nameof(command.Volume), command.Volume))
+        return Exists(document, command.Group)
+            ?? CommandChecks.Finite((nameof(command.Volume), command.Volume))
             ?? Replace(document, command.Group, group => group with { Volume = command.Volume });
     }
 
@@ -115,6 +120,11 @@ internal static class GroupCommands
         }
         IReadOnlyList<Track>? moved = GroupRules.MoveGroup(document.Tracks, command.Group, command.Direction);
         return CommandResult.Ok(moved is null ? document : document with { Tracks = [.. moved] });
+    }
+
+    private static CommandResult? Exists(ProjectDocument document, GroupId id)
+    {
+        return document.Groups.Any(group => group.Id == id) ? null : CommandChecks.NotFound("group", id.Value);
     }
 
     private static ProjectDocument Apply(ProjectDocument document, GroupedTracks grouped)

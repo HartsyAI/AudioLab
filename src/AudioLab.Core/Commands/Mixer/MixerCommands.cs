@@ -26,13 +26,15 @@ internal static class MixerCommands
 
     private static CommandResult SetVolume(ProjectDocument document, SetTrackVolume command, IIdService ids)
     {
-        return CommandChecks.Finite((nameof(command.Volume), command.Volume))
+        return TrackEdits.Exists(document, command.Track)
+            ?? CommandChecks.Finite((nameof(command.Volume), command.Volume))
             ?? TrackEdits.Replace(document, command.Track, track => track with { Volume = command.Volume });
     }
 
     private static CommandResult SetPan(ProjectDocument document, SetTrackPan command, IIdService ids)
     {
-        return CommandChecks.Finite((nameof(command.Pan), command.Pan))
+        return TrackEdits.Exists(document, command.Track)
+            ?? CommandChecks.Finite((nameof(command.Pan), command.Pan))
             ?? TrackEdits.Replace(document, command.Track, track => track with { Pan = command.Pan });
     }
 
@@ -59,10 +61,6 @@ internal static class MixerCommands
 
     private static CommandResult AddSend(ProjectDocument document, AddSend command, IIdService ids)
     {
-        if (CommandChecks.Finite((nameof(command.Level), command.Level)) is { } refusal)
-        {
-            return refusal;
-        }
         Track? track = document.Tracks.FirstOrDefault(candidate => candidate.Id == command.Track);
         if (track is null)
         {
@@ -72,6 +70,10 @@ internal static class MixerCommands
         if (bus is null)
         {
             return CommandChecks.NotFound("track", command.Bus.Value);
+        }
+        if (CommandChecks.Finite((nameof(command.Level), command.Level)) is { } refusal)
+        {
+            return refusal;
         }
         if (track.Kind == TrackKind.Bus)
         {
@@ -96,7 +98,8 @@ internal static class MixerCommands
 
     private static CommandResult SetSendLevel(ProjectDocument document, SetSendLevel command, IIdService ids)
     {
-        return CommandChecks.Finite((nameof(command.Level), command.Level))
+        return FindSend(document, command.Track, command.Bus)
+            ?? CommandChecks.Finite((nameof(command.Level), command.Level))
             ?? EditSend(document, command.Track, command.Bus, remove: false, send => send with { Level = command.Level });
     }
 
@@ -108,6 +111,17 @@ internal static class MixerCommands
     private static CommandResult SetSendMuted(ProjectDocument document, SetSendMuted command, IIdService ids)
     {
         return EditSend(document, command.Track, command.Bus, remove: false, send => send with { Muted = command.Muted });
+    }
+
+    // A refusal when the track or its send to the bus does not exist; null when both do.
+    private static CommandResult? FindSend(ProjectDocument document, TrackId trackId, TrackId bus)
+    {
+        Track? track = document.Tracks.FirstOrDefault(candidate => candidate.Id == trackId);
+        if (track is null)
+        {
+            return CommandChecks.NotFound("track", trackId.Value);
+        }
+        return track.Sends.Any(send => send.Bus == bus) ? null : CommandChecks.NotFound("send to the bus", bus.Value);
     }
 
     // The send is found by its track and bus; the edit replaces it, or it is removed.
