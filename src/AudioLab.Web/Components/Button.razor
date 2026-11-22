@@ -1,16 +1,11 @@
 <span class="button-root">
     @if (Href is not null)
     {
-        <a class="button" href="@Href" data-variant="@VariantName" @attributes="Attributes">@ChildContent</a>
-    }
-    else if (Name is null)
-    {
-        <button type="@ButtonType" class="button" data-variant="@VariantName" disabled="@Disabled" @onclick="ClickAsync"
-                @attributes="Attributes">@ChildContent</button>
+        <a class="button" href="@Href" data-variant="@VariantName" title="@Hint" @attributes="Attributes">@ChildContent</a>
     }
     else
     {
-        <Tooltip Text="@TooltipText" Name="@Name" Shortcut="@Shortcut" Disabled="Disabled" Submit="Submit" OnClick="OnClick"
-                 class="button" data-variant="@VariantName" @attributes="Attributes">@ChildContent</Tooltip>
+        <button type="@ButtonType" class="button" data-variant="@VariantName" disabled="@NativelyDisabled" aria-disabled="@AriaDisabled"
+                aria-label="@Name" title="@Hint" @onclick="ClickAsync" @attributes="Attributes">@ChildContent</button>
     }
 </span>

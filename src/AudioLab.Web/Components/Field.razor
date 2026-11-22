@@ -1,5 +1,5 @@
 <label class="field">
     <span class="field-label">@Label</span>
     <input class="field-input" type="text" value="@Value" maxlength="@MaxLength" placeholder="@Placeholder" autocomplete="off"
-           @oninput="ChangedAsync" @attributes="Attributes" />
+           aria-invalid="@AriaInvalid" aria-describedby="@DescribedBy" @oninput="ChangedAsync" @attributes="Attributes" />
 </label>

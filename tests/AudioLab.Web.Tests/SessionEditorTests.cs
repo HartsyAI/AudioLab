@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the session editor tests.</summary>
 public sealed class SessionEditorTests
 {
     private readonly FakeProjectHub _hub = new();
@@ -20,6 +21,7 @@ public sealed class SessionEditorTests
 
     private string[] Applied() => [.. _hub.Sent.Select(sent => sent.Command)];
 
+    /// <summary>Each edit is one command under its wire name.</summary>
     [Fact]
     public async Task EachEditIsOneCommandUnderItsWireName()
     {
@@ -37,6 +39,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>A move is one gesture of one command with absolute targets and the gesture is closed after it.</summary>
     [Fact]
     public async Task AMoveIsOneGestureOfOneCommandWithAbsoluteTargetsAndTheGestureIsClosedAfterIt()
     {
@@ -57,6 +60,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>A move without a track change sends no track.</summary>
     [Fact]
     public async Task AMoveWithoutATrackChangeSendsNoTrack()
     {
@@ -71,6 +75,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>The servers reasons come back as words and nothing is thrown.</summary>
     [Fact]
     public async Task TheServersReasonsComeBackAsWordsAndNothingIsThrown()
     {
@@ -86,6 +91,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>An edit that creates something returns its ids.</summary>
     [Fact]
     public async Task AnEditThatCreatesSomethingReturnsItsIds()
     {
@@ -100,6 +106,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>An edit before the project is open or on a lost connection is refused not thrown.</summary>
     [Fact]
     public async Task AnEditBeforeTheProjectIsOpenOrOnALostConnectionIsRefusedNotThrown()
     {
@@ -121,6 +128,7 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>Undo and redo are steps for everyone and a nothing to undo reply is a success that changed nothing.</summary>
     [Fact]
     public async Task UndoAndRedoAreStepsForEveryoneAndANothingToUndoReplyIsASuccessThatChangedNothing()
     {

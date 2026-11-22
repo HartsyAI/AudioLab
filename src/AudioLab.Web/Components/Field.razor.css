@@ -5,7 +5,7 @@
 }
 
 .field-label {
-    color: var(--text-faint);
+    color: var(--text-dim);
     font-size: var(--font-size-label);
 }
 

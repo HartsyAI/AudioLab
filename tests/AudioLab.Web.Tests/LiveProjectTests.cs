@@ -5,17 +5,25 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the live project tests.</summary>
 public sealed class LiveProjectTests
 {
     private readonly FakeProjectHub _hub = new();
 
-    private LiveProject Live() => new(new FakeHubFactory(_hub), new CommandSender(CoreCommands.CreateRegistry()));
+    private FakeHubFactory _factory = null!;
+
+    private LiveProject Live()
+    {
+        _factory = new FakeHubFactory(_hub);
+        return new LiveProject(_factory, new CommandSender(CoreCommands.CreateRegistry()));
+    }
 
     private static ProjectChange Change(long revision, string name, string reason = "track_add")
     {
         return new ProjectChange("song", revision, ProjectJson.Write(Song.Empty() with { Name = name }), reason);
     }
 
+    /// <summary>Opening joins and holds the document and revision the join answered.</summary>
     [Fact]
     public async Task OpeningJoinsAndHoldsTheDocumentAndRevisionTheJoinAnswered()
     {
@@ -25,11 +33,13 @@ public sealed class LiveProjectTests
         await live.OpenAsync("song");
 
         Assert.Equal(["connect", "join song"], _hub.Calls);
+        Assert.True(_factory.Reconnects, "a screen's connection opens again by itself after a loss");
         Assert.Equal("Song", live.Document!.Name);
         Assert.Equal(4, live.Revision);
         Assert.Equal(HubState.Connected, live.State);
     }
 
+    /// <summary>Only a newer revision is applied and the newest sent out of order wins.</summary>
     [Fact]
     public async Task OnlyANewerRevisionIsAppliedAndTheNewestSentOutOfOrderWins()
     {
@@ -47,6 +57,7 @@ public sealed class LiveProjectTests
         Assert.Equal(1, raised);
     }
 
+    /// <summary>A change that arrives before the join answers is kept and applied after it if it is newer.</summary>
     [Fact]
     public async Task AChangeThatArrivesBeforeTheJoinAnswersIsKeptAndAppliedAfterItIfItIsNewer()
     {
@@ -65,6 +76,7 @@ public sealed class LiveProjectTests
         Assert.Equal(5, live.Revision);
     }
 
+    /// <summary>A change before the join that the join already covers is dropped.</summary>
     [Fact]
     public async Task AChangeBeforeTheJoinThatTheJoinAlreadyCoversIsDropped()
     {
@@ -82,6 +94,7 @@ public sealed class LiveProjectTests
         Assert.Equal(6, live.Revision);
     }
 
+    /// <summary>A send returns only once the revision it made has been applied.</summary>
     [Fact]
     public async Task ASendReturnsOnlyOnceTheRevisionItMadeHasBeenApplied()
     {
@@ -100,6 +113,7 @@ public sealed class LiveProjectTests
         Assert.Equal("Renamed", live.Document!.Name);
     }
 
+    /// <summary>A refused or unchanged command does not wait for a revision.</summary>
     [Fact]
     public async Task ARefusedOrUnchangedCommandDoesNotWaitForARevision()
     {
@@ -116,6 +130,7 @@ public sealed class LiveProjectTests
         Assert.True(unchanged.Succeeded);
     }
 
+    /// <summary>A deleted project is a problem the screen can show.</summary>
     [Fact]
     public async Task ADeletedProjectIsAProblemTheScreenCanShow()
     {
@@ -127,6 +142,7 @@ public sealed class LiveProjectTests
         Assert.Equal("This project was deleted.", live.Problem);
     }
 
+    /// <summary>A document this version cannot read is a problem and the last good one stays.</summary>
     [Fact]
     public async Task ADocumentThisVersionCannotReadIsAProblemAndTheLastGoodOneStays()
     {
@@ -140,6 +156,7 @@ public sealed class LiveProjectTests
         Assert.Equal("Song", live.Document!.Name);
     }
 
+    /// <summary>After the connection drops and returns the project is joined again and the answer is adopted.</summary>
     [Fact]
     public async Task AfterTheConnectionDropsAndReturnsTheProjectIsJoinedAgainAndTheAnswerIsAdopted()
     {
@@ -159,6 +176,7 @@ public sealed class LiveProjectTests
         Assert.Null(live.Problem);
     }
 
+    /// <summary>Every gesture id is new and fits the rule for ids.</summary>
     [Fact]
     public async Task EveryGestureIdIsNewAndFitsTheRuleForIds()
     {

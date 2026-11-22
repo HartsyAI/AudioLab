@@ -5,14 +5,16 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the rename and send tests.</summary>
 public sealed class RenameAndSendTests
 {
     private readonly FakeProjectHub _hub = new();
 
     private readonly CommandSender _sender = new(CoreCommands.CreateRegistry());
 
+    /// <summary>A rename joins sends the registrys wire name leaves and closes a connection that does not reconnect.</summary>
     [Fact]
-    public async Task ARenameJoinsSendsTheRegistrysWireNameAndLeavesByClosingTheConnection()
+    public async Task ARenameJoinsSendsTheRegistrysWireNameLeavesAndClosesAConnectionThatDoesNotReconnect()
     {
         FakeHubFactory factory = new(_hub);
 
@@ -24,9 +26,11 @@ public sealed class RenameAndSendTests
         Assert.Equal(["apply", "song-1", "project_rename"], apply[..3]);
         RenameProject sent = Assert.IsType<RenameProject>(CoreCommands.CreateRegistry().Parse("project_rename", apply[3]).Command);
         Assert.Equal("Night Drive", sent.Name);
-        Assert.Equal("dispose", _hub.Calls[^1]);
+        Assert.Equal(["leave song-1", "dispose"], _hub.Calls.TakeLast(2));
+        Assert.False(factory.Reconnects);
     }
 
+    /// <summary>A refusal is handed back not thrown and the connection is still closed.</summary>
     [Fact]
     public async Task ARefusalIsHandedBackNotThrownAndTheConnectionIsStillClosed()
     {
@@ -38,6 +42,7 @@ public sealed class RenameAndSendTests
         Assert.True(_hub.Disposed);
     }
 
+    /// <summary>A command that is not registered is a bug and is never sent.</summary>
     [Fact]
     public async Task ACommandThatIsNotRegisteredIsABugAndIsNeverSent()
     {
@@ -49,6 +54,7 @@ public sealed class RenameAndSendTests
         Assert.Empty(_hub.Calls);
     }
 
+    /// <summary>Refusal reasons are shown as the server gave them as one sentence.</summary>
     [Fact]
     public void RefusalReasonsAreShownAsTheServerGaveThemAsOneSentence()
     {

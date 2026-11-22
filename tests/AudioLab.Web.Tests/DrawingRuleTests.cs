@@ -3,6 +3,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the drawing rule tests.</summary>
 public sealed class DrawingRuleTests
 {
     private static readonly string[] _tokens =
@@ -11,6 +12,7 @@ public sealed class DrawingRuleTests
         "#4fcdb8", "#4fbfdc", "#6c93f2", "#a487ee", "#cf7de0", "#e07ab5",
     ];
 
+    /// <summary>Each of the twelve track colours maps to itself.</summary>
     [Fact]
     public void EachOfTheTwelveTrackColoursMapsToItself()
     {
@@ -22,6 +24,7 @@ public sealed class DrawingRuleTests
         }
     }
 
+    /// <summary>Another colour takes the nearest track colour and an unreadable one the first.</summary>
     [Fact]
     public void AnotherColourTakesTheNearestTrackColourAndAnUnreadableOneTheFirst()
     {
@@ -34,6 +37,7 @@ public sealed class DrawingRuleTests
         Assert.Equal(1, map.Nearest(null));
     }
 
+    /// <summary>The map needs twelve readable colours.</summary>
     [Fact]
     public void TheMapNeedsTwelveReadableColours()
     {
@@ -41,6 +45,7 @@ public sealed class DrawingRuleTests
         Assert.Throws<ArgumentException>(() => new TrackColorMap([.. _tokens[..11], "rgb(1, 2, 3)"]));
     }
 
+    /// <summary>The fader and the header slider share one taper.</summary>
     [Theory]
     [InlineData(1.0, 0.75, "0.0")]
     [InlineData(0.5011872336, 0.625, "-6.0")]
@@ -53,6 +58,7 @@ public sealed class DrawingRuleTests
         Assert.Equal(text, FaderScale.Text(gain));
     }
 
+    /// <summary>The placeholder waveform is the same for the same clip and different for another.</summary>
     [Fact]
     public void ThePlaceholderWaveformIsTheSameForTheSameClipAndDifferentForAnother()
     {
@@ -63,6 +69,7 @@ public sealed class DrawingRuleTests
         Assert.All(first, peak => Assert.InRange(peak, 0.03f, 1f));
     }
 
+    /// <summary>The path cache builds each clips path once at a given size.</summary>
     [Fact]
     public void ThePathCacheBuildsEachClipsPathOnceAtAGivenSize()
     {
@@ -77,6 +84,7 @@ public sealed class DrawingRuleTests
         Assert.StartsWith("M0,50 L0.0,", path, StringComparison.Ordinal);
     }
 
+    /// <summary>Midi notes are drawn within the clip with the highest pitch at the top.</summary>
     [Fact]
     public void MidiNotesAreDrawnWithinTheClipWithTheHighestPitchAtTheTop()
     {

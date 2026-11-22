@@ -60,7 +60,7 @@ public sealed class WebHubClientTests
     {
         await using RunningServer server = await RunningServer.StartAsync();
         ProjectSummary project = await CreateAsync(server);
-        SignalRProjectHub hub = new(new Uri(server.Client.BaseAddress!, server.HubPath));
+        SignalRProjectHub hub = new(new Uri(server.Client.BaseAddress!, server.HubPath), reconnects: false);
         await using (hub)
         {
             await hub.ConnectAsync();

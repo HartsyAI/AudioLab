@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
@@ -109,6 +110,12 @@ public static class ServerHost
         {
             json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(1, ApiJsonContext.Default);
+            // A resolver chain does not carry a context's own options, so a request body is read as strictly as the context reads it.
+            json.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+            json.SerializerOptions.RespectNullableAnnotations = true;
+            json.SerializerOptions.RespectRequiredConstructorParameters = true;
+            json.SerializerOptions.AllowDuplicateProperties = false;
+            json.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
         });
     }
 

@@ -2,8 +2,10 @@ using AudioLab.Web.Components;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the icon tests.</summary>
 public sealed class IconTests
 {
+    /// <summary>Every icon of the set has an outline.</summary>
     [Fact]
     public void EveryIconOfTheSetHasAnOutline()
     {

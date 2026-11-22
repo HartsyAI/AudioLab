@@ -3,6 +3,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the clip navigator tests.</summary>
 public sealed class ClipNavigatorTests
 {
     private readonly ProjectDocument _song = Song.Empty().With(
@@ -12,6 +13,7 @@ public sealed class ClipNavigatorTests
 
     private ClipId? Press(string from, string key) => ClipNavigator.Next(_song, ClipId.From(from), key);
 
+    /// <summary>Left and right walk the clips of a track in time order and stop at the ends.</summary>
     [Fact]
     public void LeftAndRightWalkTheClipsOfATrackInTimeOrderAndStopAtTheEnds()
     {
@@ -21,6 +23,7 @@ public sealed class ClipNavigatorTests
         Assert.Null(Press("b", "ArrowRight"));
     }
 
+    /// <summary>Home and end jump to the first and last clip of the track.</summary>
     [Fact]
     public void HomeAndEndJumpToTheFirstAndLastClipOfTheTrack()
     {
@@ -29,6 +32,7 @@ public sealed class ClipNavigatorTests
         Assert.Null(Press("a", "Home"));
     }
 
+    /// <summary>Up and down skip an empty track and land on the clip under the start or the nearest one.</summary>
     [Fact]
     public void UpAndDownSkipAnEmptyTrackAndLandOnTheClipUnderTheStartOrTheNearestOne()
     {
@@ -39,6 +43,7 @@ public sealed class ClipNavigatorTests
         Assert.Null(Press("c", "ArrowDown"));
     }
 
+    /// <summary>An unknown key or clip moves nowhere and the first clip is where the tab stop starts.</summary>
     [Fact]
     public void AnUnknownKeyOrClipMovesNowhereAndTheFirstClipIsWhereTheTabStopStarts()
     {
@@ -48,6 +53,7 @@ public sealed class ClipNavigatorTests
         Assert.Null(ClipNavigator.First(Song.Empty()));
     }
 
+    /// <summary>A midi clip is part of its tracks order.</summary>
     [Fact]
     public void AMidiClipIsPartOfItsTracksOrder()
     {
@@ -56,6 +62,7 @@ public sealed class ClipNavigatorTests
         Assert.Equal(ClipId.From("m1"), ClipNavigator.Next(document, ClipId.From("m0"), "ArrowRight"));
     }
 
+    /// <summary>A selection of something that was deleted is dropped.</summary>
     [Fact]
     public void ASelectionOfSomethingThatWasDeletedIsDropped()
     {

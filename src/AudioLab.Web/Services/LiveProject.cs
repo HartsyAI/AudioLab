@@ -50,7 +50,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(project);
         _project = project;
-        _hub = hubs.Create();
+        _hub = hubs.Create(reconnects: true);
         _hub.StateChanged += OnState;
         _hub.DocumentChanged += OnChange;
         _hub.ProjectDeleted += OnDeleted;

@@ -5,6 +5,7 @@ namespace AudioLab.Web.Tests;
 /// <summary>Builds small valid documents for the tests of the UI's rules.</summary>
 internal static class Song
 {
+    /// <summary>Empty.</summary>
     public static ProjectDocument Empty(double bpm = 120, IEnumerable<TempoChange>? changes = null)
     {
         return new ProjectDocument
@@ -28,18 +29,21 @@ internal static class Song
         };
     }
 
+    /// <summary>New track.</summary>
     public static Track NewTrack(string id, double height = 64, params AudioClip[] clips)
     {
         Track track = ProjectDefaults.NewTrack(TrackId.From(id), id, TrackKind.Audio, "#ee6d86");
         return track with { View = track.View with { Height = height }, Clips = [.. clips] };
     }
 
+    /// <summary>With midi.</summary>
     public static Track WithMidi(string id, params MidiClip[] clips)
     {
         Track track = ProjectDefaults.NewTrack(TrackId.From(id), id, TrackKind.Instrument, "#6c93f2", InstrumentPresets.CreateSynth("Soft Keys"));
         return track with { View = track.View with { Height = 64 }, MidiClips = [.. clips] };
     }
 
+    /// <summary>Audio.</summary>
     public static AudioClip Audio(string id, double start, double length)
     {
         return new AudioClip
@@ -58,6 +62,7 @@ internal static class Song
         };
     }
 
+    /// <summary>Midi.</summary>
     public static MidiClip Midi(string id, double start, double length, params MidiNote[] notes)
     {
         return new MidiClip
@@ -73,5 +78,6 @@ internal static class Song
         };
     }
 
+    /// <summary>With.</summary>
     public static ProjectDocument With(this ProjectDocument document, params Track[] tracks) => document with { Tracks = [.. tracks] };
 }

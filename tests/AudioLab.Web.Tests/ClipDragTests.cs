@@ -3,6 +3,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the clip drag tests.</summary>
 public sealed class ClipDragTests
 {
     private readonly ProjectDocument _song = Song.Empty().With(
@@ -17,6 +18,7 @@ public sealed class ClipDragTests
         return new ClipDrag(_song, ClipId.From(clip), geometry, layout, geometry.X(seconds) + 1, (row * 64) + 30);
     }
 
+    /// <summary>A press that never travels is a click and sends nothing.</summary>
     [Fact]
     public void APressThatNeverTravelsIsAClickAndSendsNothing()
     {
@@ -28,6 +30,7 @@ public sealed class ClipDragTests
         Assert.Null(click.Commit());
     }
 
+    /// <summary>The clip follows the pointer and lands on the grid with the servers rule.</summary>
     [Fact]
     public void TheClipFollowsThePointerAndLandsOnTheGridWithTheServersRule()
     {
@@ -41,6 +44,7 @@ public sealed class ClipDragTests
         Assert.Equal(new ClipMove(ClipId.From("a"), 11.125, null), drag.Commit());
     }
 
+    /// <summary>Releasing where the clip began sends nothing so undo and redo are left as they were.</summary>
     [Fact]
     public void ReleasingWhereTheClipBeganSendsNothingSoUndoAndRedoAreLeftAsTheyWere()
     {
@@ -54,6 +58,7 @@ public sealed class ClipDragTests
         Assert.Null(drag.Commit());
     }
 
+    /// <summary>An audio clip lands only on an audio track and stays on the last one it may use.</summary>
     [Fact]
     public void AnAudioClipLandsOnlyOnAnAudioTrackAndStaysOnTheLastOneItMayUse()
     {
@@ -67,6 +72,7 @@ public sealed class ClipDragTests
         Assert.Equal(new ClipMove(ClipId.From("a"), drag.TargetStart, TrackId.From("t3")), drag.Commit());
     }
 
+    /// <summary>A midi clip lands only on an instrument track.</summary>
     [Fact]
     public void AMidiClipLandsOnlyOnAnInstrumentTrack()
     {
@@ -78,6 +84,7 @@ public sealed class ClipDragTests
         Assert.Equal(1, drag.TargetRow);
     }
 
+    /// <summary>The clip is never carried before the start of the project or below the last track.</summary>
     [Fact]
     public void TheClipIsNeverCarriedBeforeTheStartOfTheProjectOrBelowTheLastTrack()
     {
@@ -90,12 +97,14 @@ public sealed class ClipDragTests
         Assert.True(drag.Top + drag.Height <= TrackLayout.Of(_song).Total);
     }
 
+    /// <summary>A drag of a clip that is not in the document is refused at once.</summary>
     [Fact]
     public void ADragOfAClipThatIsNotInTheDocumentIsRefusedAtOnce()
     {
         Assert.Throws<ArgumentException>(() => Press("missing", 1, 0));
     }
 
+    /// <summary>The keyboard nudges one grid step or to the next track of its kind.</summary>
     [Fact]
     public void TheKeyboardNudgesOneGridStepOrToTheNextTrackOfItsKind()
     {

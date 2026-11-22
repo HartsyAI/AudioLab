@@ -1,11 +1,12 @@
 @page "/"
+@using AudioLab.Web.Services
 
 <AppBar />
 <main class="projects">
     <div class="projects-column">
         <Panel Title="Projects">
             <Actions>
-                <Button Variant="ButtonVariant.Primary" OnClick="BeginCreate">
+                <Button Variant="NewProjectVariant" OnClick="BeginCreate">
                     <Icon Name="IconName.Plus" Size="10" />
                     <span>New project</span>
                 </Button>
@@ -18,7 +19,7 @@
                 else if (_failure is not null)
                 {
                     <EmptyState Heading="The projects could not be loaded" Message="@_failure">
-                        <Button Variant="ButtonVariant.Primary" OnClick="LoadAsync">Try again</Button>
+                        <Button Variant="ButtonVariant.Primary" OnClick="ReloadAsync">Try again</Button>
                     </EmptyState>
                 }
                 else if (_projects.Count == 0)
@@ -32,21 +33,24 @@
                     <ul class="project-list">
                         @foreach (ProjectSummary project in _projects)
                         {
-                            <li class="project" @key="project.Id" @onkeydown="press => KeyAsync(project, press)">
+                            <li class="project" @key="project.Id" @onkeydown="press => KeyDown(project, press)">
                                 <a class="project-name" href="project/@project.Id">@project.Name</a>
                                 <span class="project-when">@When(project)</span>
-                                <Menu Icon="true" Label="@($"Actions for {project.Name}")" Items="Actions"
-                                      OnSelect="item => ChooseAsync(project, item)" />
+                                <Button Variant="ButtonVariant.Icon" Name="@RenameName(project)" Shortcut="@Shortcuts.RenameProject.Display"
+                                        OnClick="() => BeginRename(project)">
+                                    <Icon Name="IconName.Pencil" />
+                                </Button>
+                                <Button Variant="ButtonVariant.Icon" Name="@DeleteName(project)" Shortcut="@Shortcuts.DeleteProject.Display"
+                                        OnClick="() => BeginDelete(project)">
+                                    <Icon Name="IconName.Trash" />
+                                </Button>
                             </li>
                         }
                     </ul>
                 }
                 @if (_refused > 0)
                 {
-                    <p class="projects-note">
-                        @(_refused == 1 ? "One stored file was left out because it is not a valid project."
-                            : $"{_refused} stored files were left out because they are not valid projects.")
-                    </p>
+                    <p class="projects-note">@RefusedText</p>
                 }
             </ChildContent>
         </Panel>
@@ -54,14 +58,15 @@
 </main>
 
 <Dialog Title="New project" ConfirmText="Create project" Open="_mode == ProjectDialog.Create" OpenChanged="EndDialog"
-        ConfirmDisabled="NameIsBlank || _busy" Error="@_error" OnConfirm="CreateAsync">
+        ConfirmDisabled="CannotConfirmName" ConfirmDisabledReason="@NameReason" Error="@_error" OnConfirm="CreateAsync">
     <Field Label="Name" @bind-Value="_name" />
 </Dialog>
 
 <Dialog Title="Rename project" ConfirmText="Rename project" Open="_mode == ProjectDialog.Rename" OpenChanged="EndDialog"
-        ConfirmDisabled="NameIsBlank || _busy" Error="@_error" OnConfirm="RenameAsync">
+        ConfirmDisabled="CannotConfirmName" ConfirmDisabledReason="@NameReason" Error="@_error" OnConfirm="RenameAsync">
     <Field Label="Name" @bind-Value="_name" />
 </Dialog>
 
 <Dialog Title="Delete project" ConfirmText="Delete project" ConfirmVariant="ButtonVariant.Danger" Open="_mode == ProjectDialog.Delete"
-        OpenChanged="EndDialog" ConfirmDisabled="_busy" Error="@_error" OnConfirm="DeleteAsync" Description="@DeleteText" />
+        OpenChanged="EndDialog" ConfirmDisabled="_busy" ConfirmDisabledReason="@BusyReason" Error="@_error" OnConfirm="DeleteAsync"
+        Description="@DeleteText" />

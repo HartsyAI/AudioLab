@@ -61,6 +61,7 @@
     min-height: 0;
 }
 
-.tabs-root ::deep .tab-panel[hidden] {
-    display: none;
+.tabs-root ::deep .tab-panel:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
