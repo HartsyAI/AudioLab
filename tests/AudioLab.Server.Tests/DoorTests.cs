@@ -18,22 +18,97 @@ public sealed class DoorTests
         DesktopDoor door = new();
         foreach (string address in new[] { "127.0.0.1", "::1", "127.9.9.9", "::ffff:127.0.0.1" })
         {
-            Assert.Equal(UserId.Local, door.Identify(Request(IPAddress.Parse(address))).User);
+            Assert.Equal(UserId.Local, door.Identify(Request(IPAddress.Parse(address), ("Host", "127.0.0.1:5280"))).User);
         }
         foreach (string address in new[] { "10.0.0.5", "192.168.1.2", "2001:db8::1" })
         {
-            DoorResult denied = door.Identify(Request(IPAddress.Parse(address)));
+            DoorResult denied = door.Identify(Request(IPAddress.Parse(address), ("Host", "127.0.0.1:5280")));
             Assert.Null(denied.User);
             Assert.Equal(StatusCodes.Status403Forbidden, denied.StatusCode);
         }
-        Assert.Null(door.Identify(Request(null)).User);
+        Assert.Null(door.Identify(Request(null, ("Host", "127.0.0.1:5280"))).User);
     }
 
     [Fact]
     public void DesktopDoorIgnoresAnIdentityHeader()
     {
-        DoorResult result = new DesktopDoor().Identify(Request(IPAddress.Loopback, ("X-AudioLab-User", "mallory")));
+        DoorResult result = new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", "localhost:5280"), ("X-AudioLab-User", "mallory")));
         Assert.Equal(UserId.Local, result.User);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1:5280")]
+    [InlineData("localhost:5280")]
+    [InlineData("LOCALHOST:5280")]
+    [InlineData("[::1]:5280")]
+    [InlineData("127.0.0.1")]
+    public void DesktopDoorAnswersALoopbackHost(string host)
+    {
+        Assert.Equal(UserId.Local, new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", host))).User);
+    }
+
+    [Theory]
+    [InlineData("evil.example")]
+    [InlineData("evil.example:5280")]
+    [InlineData("127.0.0.1.evil.example:5280")]
+    [InlineData("localhost.evil.example")]
+    [InlineData("192.168.1.4:5280")]
+    [InlineData("")]
+    public void DesktopDoorRefusesAForeignHostWhichIsHowDnsRebindingArrives(string host)
+    {
+        DoorResult denied = new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", host)));
+        Assert.Null(denied.User);
+        Assert.Equal(StatusCodes.Status403Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
+    public void DesktopDoorRefusesARequestWithNoOrRepeatedHost()
+    {
+        Assert.Null(new DesktopDoor().Identify(Request(IPAddress.Loopback)).User);
+        Assert.Null(new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Host", "127.0.0.1:5280"))).User);
+    }
+
+    [Theory]
+    [InlineData("http://evil.example")]
+    [InlineData("https://127.0.0.1:5280")]
+    [InlineData("http://127.0.0.1:5281")]
+    [InlineData("http://localhost:5280")]
+    [InlineData("null")]
+    [InlineData("file://")]
+    public void DesktopDoorRefusesAnOriginThatIsNotItsOwn(string origin)
+    {
+        DoorResult denied = new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Origin", origin)));
+        Assert.Null(denied.User);
+        Assert.Equal(StatusCodes.Status403Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
+    public void DesktopDoorAnswersItsOwnOriginAndAClientThatSendsNone()
+    {
+        DesktopDoor door = new();
+        Assert.Equal(UserId.Local, door.Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Origin", "http://127.0.0.1:5280"))).User);
+        Assert.Equal(UserId.Local, door.Identify(Request(IPAddress.Loopback, ("Host", "localhost:5280"), ("Origin", "http://LOCALHOST:5280"))).User);
+        Assert.Equal(UserId.Local, door.Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"))).User);
+        Assert.Null(door.Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Origin", "http://127.0.0.1:5280"), ("Origin", "http://127.0.0.1:5280"))).User);
+    }
+
+    [Theory]
+    [InlineData("cross-site")]
+    [InlineData("same-site")]
+    [InlineData("something-new")]
+    public void DesktopDoorRefusesARequestABrowserMarksAsFromAnotherSite(string site)
+    {
+        DoorResult denied = new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Sec-Fetch-Site", site)));
+        Assert.Null(denied.User);
+        Assert.Equal(StatusCodes.Status403Forbidden, denied.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("same-origin")]
+    [InlineData("none")]
+    public void DesktopDoorAnswersARequestABrowserMarksAsSameOriginOrUserInitiated(string site)
+    {
+        Assert.Equal(UserId.Local, new DesktopDoor().Identify(Request(IPAddress.Loopback, ("Host", "127.0.0.1:5280"), ("Sec-Fetch-Site", site))).User);
     }
 
     [Fact]
