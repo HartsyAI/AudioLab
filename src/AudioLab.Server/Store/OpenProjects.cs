@@ -1,3 +1,4 @@
+using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Server.Store;
@@ -8,7 +9,13 @@ namespace AudioLab.Server.Store;
 /// the table of locks. A session stays until it is closed, deleted or the server stops, because the hub will tie its
 /// lifetime to its clients. A session never leaves the registry before its unsaved changes are on disk.
 /// </remarks>
-public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeProvider time, ILogger<OpenProjects> logger)
+public sealed class OpenProjects(
+    ProjectStore store,
+    StoreOptions options,
+    TimeProvider time,
+    CommandRegistry registry,
+    IIdService ids,
+    ILogger<OpenProjects> logger)
     : IHostedService, IAsyncDisposable
 {
     private readonly object _table = new();
@@ -29,7 +36,7 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
                 if (SessionOf(entry) is not { } session)
                 {
                     ProjectDocument document = await store.ReadAsync(user, id, cancellationToken);
-                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, logger);
+                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, ids, logger);
                     SetSession(entry, session);
                 }
                 return session;
@@ -42,6 +49,15 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
         finally
         {
             Release(key, entry);
+        }
+    }
+
+    /// <summary>The session of an open project, or null when it is not open; it never opens the project.</summary>
+    public ProjectSession? SessionIfOpen(UserId user, ProjectId id)
+    {
+        lock (_table)
+        {
+            return _entries.TryGetValue(new SessionKey(user, id), out Entry? entry) ? entry.Session : null;
         }
     }
 

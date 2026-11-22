@@ -36,6 +36,10 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:MaxRequestBodyBytes must be 1024 to 16777216.");
         }
+        if (options.HubMaxMessageBytes is < 1024 or > 16 * 1024 * 1024)
+        {
+            problems.Add("AudioLab:HubMaxMessageBytes must be 1024 to 16777216.");
+        }
         ValidateStorage(options.Storage, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }

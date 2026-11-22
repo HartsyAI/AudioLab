@@ -5,7 +5,7 @@ using AudioLab.Server.Store;
 namespace AudioLab.Server.Services;
 
 /// <summary>Everything a user can do with their projects. Every method takes the user from the door; none reads an owner from a request.</summary>
-public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdService ids, TimeProvider time)
+public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdService ids, TimeProvider time, IProjectEvents events)
 {
     private readonly SemaphoreSlim _creating = new(1, 1);
 
@@ -61,6 +61,7 @@ public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdSer
         {
             throw new ProjectNotFoundException();
         }
+        await events.DeletedAsync(user, id, CancellationToken.None);
     }
 
     /// <summary>Saves a copy of the project, including its unsaved changes, as a new project of the same user; it does not open the original.</summary>
