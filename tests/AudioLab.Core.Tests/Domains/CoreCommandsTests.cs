@@ -87,6 +87,46 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheAutomationAndBeatCommandsExist()
+    {
+        string[] names =
+        [
+            "automation_point_add", "automation_point_move", "automation_point_delete", "automation_points_set_values",
+            "automation_write_commit", "automation_set_mode", "automation_set_view",
+            "beat_lane_add", "beat_lane_remove", "beat_lane_rename", "beat_lane_set_gain", "beat_lane_set_media",
+            "beat_lane_set_steps", "beat_pattern_set_steps", "beat_pattern_set_swing",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void AnAutomationAndABeatCommandReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult commit = _registry.Parse(
+            "automation_write_commit",
+            $$"""
+            {"project":"{{project}}","track":"trk_1","parameter":"pan","points":[{"time":1,"value":0.5},{"time":2,"value":-0.5}],"returnToOld":true}
+            """);
+        CommandParseResult values = _registry.Parse(
+            "automation_points_set_values",
+            $$"""{"project":"{{project}}","track":"trk_1","parameter":"volume","points":[{"index":0,"value":1.5}]}""");
+        CommandParseResult steps = _registry.Parse("beat_lane_set_steps", $$"""{"project":"{{project}}","lane":"bln_1","steps":[0,4,8],"on":true}""");
+        CommandParseResult noMedia = _registry.Parse("beat_lane_add", $$"""{"project":"{{project}}"}""");
+        CommandParseResult badLane = _registry.Parse("beat_lane_remove", $$"""{"project":"{{project}}","lane":"not an id"}""");
+        CommandParseResult badMode = _registry.Parse("automation_set_mode", $$"""{"project":"{{project}}","track":"trk_1","mode":"scribble"}""");
+
+        Assert.Equal([new WrittenPoint(1, 0.5), new WrittenPoint(2, -0.5)], Assert.IsType<CommitAutomationWrite>(commit.Command).Points);
+        Assert.Equal([new PointValue(0, 1.5)], Assert.IsType<SetAutomationValues>(values.Command).Points);
+        Assert.Equal([0, 4, 8], Assert.IsType<SetBeatLaneSteps>(steps.Command).Steps);
+        Assert.Null(Assert.IsType<AddBeatLane>(noMedia.Command).Media);
+        Assert.False(badLane.Succeeded);
+        Assert.False(badMode.Succeeded);
+    }
+
+    [Fact]
     public void ANoteListAndAnEffectCommandReadFromTheirJson()
     {
         string project = BlankProject.Create().Id.Value;
