@@ -12,7 +12,7 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
 {
     private const string ShimUrl = "audio-shim.js";
 
-    private const string RuntimeUrl = "worker/_framework/dotnet.js";
+    private readonly TaskCompletionSource _workerBooted = new();
 
     private readonly TaskCompletionSource _workerReady = new();
 
@@ -108,8 +108,10 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
         }
         else
         {
-            bridge.CreateWorker(ShimUrl, new Uri(origin, RuntimeUrl).ToString(), origin.ToString(), rate, options.ChunkFrames, options.MediaClips);
+            bridge.CreateWorker(ShimUrl);
             bridge.OnWorkerMessage(OnWorkerMessage);
+            await _workerBooted.Task;
+            bridge.InitWorker(origin.ToString(), rate, options.ChunkFrames, options.MediaClips);
             await _workerReady.Task;
             bridge.ConnectWorkerToNode();
         }
@@ -188,7 +190,11 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
     private void OnWorkerMessage(AudioMessage message)
     {
         string text = message.Text ?? string.Empty;
-        if (text.StartsWith("ready:", StringComparison.Ordinal))
+        if (text == "booted")
+        {
+            _workerBooted.TrySetResult();
+        }
+        else if (text.StartsWith("ready:", StringComparison.Ordinal))
         {
             _clips = JsonSerializer.Deserialize(text.AsSpan(6), AudioJsonContext.Default.ClipLoadResult);
             _workerReady.TrySetResult();
@@ -200,6 +206,7 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
         else if (text.StartsWith("error:", StringComparison.Ordinal))
         {
             _error = text;
+            _workerBooted.TrySetException(new InvalidOperationException(text));
             _workerReady.TrySetException(new InvalidOperationException(text));
         }
     }
@@ -246,7 +253,7 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
         };
         try
         {
-            using HttpResponseMessage response = await http.PostAsJsonAsync("report", report, PlaybackJsonContext.Default.RunReport);
+            using HttpResponseMessage response = await http.PostAsJsonAsync($"report?label={Uri.EscapeDataString(options.Label)}", report, PlaybackJsonContext.Default.RunReport);
             response.EnsureSuccessStatusCode();
         }
         catch (HttpRequestException exception)

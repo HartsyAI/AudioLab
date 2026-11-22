@@ -105,18 +105,23 @@ public sealed class AudioBridge : IAudioBridge, IDisposable
     public void StartMainThreadProducer() => AudioImports.PostTextToPort(NodePort, "go");
 
     /// <inheritdoc />
-    public void CreateWorker(string scriptUrl, string runtimeUrl, string origin, int sampleRate, int chunkFrames, int clipCount)
+    public void CreateWorker(string scriptUrl)
     {
         using JSObject options = NewObject();
-        options.SetProperty("type", "module");
+        options.SetProperty("type", "classic");
         _worker = AudioImports.Construct(Global("Worker"), [scriptUrl, options]);
+    }
+
+    /// <inheritdoc />
+    public void InitWorker(string origin, int sampleRate, int chunkFrames, int clipCount)
+    {
+        JSObject worker = _worker ?? throw new InvalidOperationException("The worker has not been created.");
         using JSObject init = NewObject();
-        init.SetProperty("runtime", runtimeUrl);
         init.SetProperty("origin", origin);
         init.SetProperty("rate", sampleRate);
         init.SetProperty("chunk", chunkFrames);
         init.SetProperty("clips", clipCount);
-        AudioImports.PostToWorker(_worker, init, []);
+        AudioImports.PostToWorker(worker, init, []);
     }
 
     /// <inheritdoc />

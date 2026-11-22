@@ -48,8 +48,11 @@ public interface IAudioBridge
     /// <summary>Tells the worklet that the page is its producer and it may ask for the first chunks.</summary>
     public void StartMainThreadProducer();
 
-    /// <summary>Starts the worker, which loads the engine and the clips and answers with text messages.</summary>
-    public void CreateWorker(string scriptUrl, string runtimeUrl, string origin, int sampleRate, int chunkFrames, int clipCount);
+    /// <summary>Starts the worker. Its runtime boots by itself and says "booted" when the exports are ready.</summary>
+    public void CreateWorker(string scriptUrl);
+
+    /// <summary>Tells a booted worker to load the clips and build the engine; it answers with a text message.</summary>
+    public void InitWorker(string origin, int sampleRate, int chunkFrames, int clipCount);
 
     /// <summary>Calls back for every message the worker sends the page.</summary>
     public void OnWorkerMessage(Action<AudioMessage> handler);

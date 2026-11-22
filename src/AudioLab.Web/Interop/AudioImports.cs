@@ -46,6 +46,6 @@ internal static partial class AudioImports
     [JSImport("globalThis.Worker.prototype.postMessage.call")]
     internal static partial void PostTextToWorker(JSObject worker, string message);
 
-    [JSImport("globalThis.Uint8Array.prototype.slice.call")]
-    internal static partial JSObject CopyBytes([JSMarshalAs<JSType.MemoryView>] Span<byte> view);
+    [JSImport("globalThis.Object")]
+    internal static partial JSObject CopyBytes([JSMarshalAs<JSType.Array<JSType.Number>>] byte[] bytes);
 }

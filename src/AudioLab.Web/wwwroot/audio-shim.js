@@ -54,18 +54,24 @@ if (typeof AudioWorkletProcessor === 'function') {
   });
 } else {
   let ex;
-  self.onmessage = async ({ data: m }) => {
+  const handle = async ({ data: m }) => {
     if (typeof m === 'string') { ex.StallNext(+m.slice(6)); return; }
     if (m.port) {
       m.port.onmessage = (e) => { for (let i = 0; i < e.data; i++) { const b = ex.RenderChunk(); m.port.postMessage(b, [b.buffer]); } };
       return;
     }
     try {
-      const { dotnet } = await import(m.runtime);
-      const runtime = await dotnet.create();
-      ex = (await runtime.getAssemblyExports('AudioLab.Audio.Worker.dll')).AudioLab.Web.Interop.Worker.WorkerExports;
       self.postMessage('ready:' + await ex.StartAsync(m.origin, m.rate, m.chunk, m.clips));
       setInterval(() => self.postMessage('engine:' + ex.ReadSnapshot()), 1000);
     } catch (err) { self.postMessage('error:' + err); }
   };
+  (async () => {
+    try {
+      const { dotnet } = await import(new URL('worker/_framework/dotnet.js', self.location).href);
+      const runtime = await dotnet.create();
+      ex = (await runtime.getAssemblyExports('AudioLab.Audio.Worker.dll')).AudioLab.Web.Interop.Worker.WorkerExports;
+      self.onmessage = handle;
+      self.postMessage('booted');
+    } catch (err) { self.postMessage('error:' + err); }
+  })();
 }

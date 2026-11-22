@@ -1,2 +1,2 @@
-// The worker's shim script starts this runtime and calls the exports directly; Main has nothing to do.
+// The worker shim script starts this runtime and calls the exports directly; Main has nothing to do.
 return 0;
