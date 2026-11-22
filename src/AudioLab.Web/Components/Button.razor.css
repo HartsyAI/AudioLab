@@ -47,9 +47,12 @@
     font-weight: var(--font-weight-strong);
 }
 
-.button-root ::deep .button[data-variant="primary"]:hover,
+.button-root ::deep .button[data-variant="primary"]:hover {
+    background: color-mix(in srgb, var(--accent) 88%, var(--text));
+}
+
 .button-root ::deep .button[data-variant="danger"]:hover {
-    filter: brightness(1.08);
+    background: color-mix(in srgb, var(--record) 88%, var(--text));
 }
 
 .button-root ::deep .button[data-variant="icon"] {
@@ -67,30 +70,14 @@
 .button-root ::deep .button:disabled:hover,
 .button-root ::deep .button[aria-disabled="true"]:hover {
     background: var(--surface-raised);
-    filter: none;
 }
 
-.button-root ::deep .tooltip {
-    z-index: var(--z-tooltip);
-    display: flex;
-    gap: var(--space-8);
-    padding: var(--space-4) var(--space-8);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    box-shadow: var(--shadow-overlay);
-    color: var(--text);
-    font-size: var(--font-size-label);
+.button-root ::deep .button[data-variant="primary"]:disabled:hover,
+.button-root ::deep .button[data-variant="primary"][aria-disabled="true"]:hover {
+    background: var(--accent);
 }
 
-.button-root ::deep .tooltip[hidden] {
-    display: none;
-}
-
-.button-root ::deep .tooltip-name {
-    font-weight: var(--font-weight-medium);
-}
-
-.button-root ::deep .tooltip-shortcut {
-    color: var(--text-dim);
-    font-family: var(--font-ui);
+.button-root ::deep .button[data-variant="danger"]:disabled:hover,
+.button-root ::deep .button[data-variant="danger"][aria-disabled="true"]:hover {
+    background: var(--record);
 }

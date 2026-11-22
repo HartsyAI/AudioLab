@@ -15,8 +15,13 @@ public sealed partial class NativeOverlay : INativeOverlay
     /// <inheritdoc />
     public void ShowModal(string dialogId)
     {
+        if (_openers.Remove(dialogId, out JSObject? previous))
+        {
+            previous?.Dispose();
+        }
         _openers[dialogId] = QuerySelector(":focus");
-        ShowModalOn(ById(dialogId));
+        using JSObject dialog = ById(dialogId);
+        ShowModalOn(dialog);
         foreach (string host in _hosts)
         {
             Lift(host);
@@ -26,17 +31,20 @@ public sealed partial class NativeOverlay : INativeOverlay
     /// <inheritdoc />
     public void Close(string dialogId)
     {
-        CloseOn(ById(dialogId));
+        using JSObject dialog = ById(dialogId);
+        CloseOn(dialog);
     }
 
     /// <inheritdoc />
     public void OnClosed(string dialogId, Action closed)
     {
-        AddListener(ById(dialogId), "close", () =>
+        using JSObject dialog = ById(dialogId);
+        AddListener(dialog, "close", () =>
         {
             if (_openers.Remove(dialogId, out JSObject? opener) && opener is not null)
             {
                 FocusOn(opener);
+                opener.Dispose();
             }
             closed();
         });
@@ -46,15 +54,21 @@ public sealed partial class NativeOverlay : INativeOverlay
     public void KeepOpenWhileInnerOverlayIsExpanded(string dialogId)
     {
         string selector = $"#{dialogId} [aria-expanded=\"true\"]";
-        JSObject dialog = ById(dialogId);
+        using JSObject dialog = ById(dialogId);
         bool expandedAtKeydown = false;
-        AddCapturingListener(dialog, "keydown", _ => expandedAtKeydown = QuerySelector(selector) is not null, true);
+        AddCapturingListener(dialog, "keydown", keydown =>
+        {
+            keydown.Dispose();
+            using JSObject? expanded = QuerySelector(selector);
+            expandedAtKeydown = expanded is not null;
+        }, true);
         AddCancelListener(dialog, "cancel", cancel =>
         {
             if (expandedAtKeydown)
             {
                 PreventDefault(cancel);
             }
+            cancel.Dispose();
         });
     }
 
@@ -70,7 +84,7 @@ public sealed partial class NativeOverlay : INativeOverlay
 
     private static void Lift(string popoverId)
     {
-        JSObject host = ById(popoverId);
+        using JSObject host = ById(popoverId);
         HidePopoverOn(host);
         ShowPopoverOn(host);
     }

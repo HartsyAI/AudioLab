@@ -51,6 +51,18 @@ public sealed class UiRouteTests
 
         Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync("/api/nothing")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync("/_framework/missing.js")).StatusCode);
+        // An address with a dot is a file, never a client-side route: no valid id holds a dot, so none is lost.
+        Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync("/project/song.1")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/_framework/blazor.server.js")]
+    [InlineData("/_framework/blazor.web.js")]
+    public async Task TheScriptsOfOtherBlazorHostingModelsAreNotServed(string address)
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync(address)).StatusCode);
     }
 
     [Fact]
@@ -65,5 +77,32 @@ public sealed class UiRouteTests
 
         Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await server.Client.GetAsync("/api/projects")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/project/song-1")]
+    [InlineData("/css/tokens.css")]
+    [InlineData("/_framework/blazor.webassembly.js")]
+    public async Task TheProgramForbidsFramingByAnotherOriginAndSniffing(string address)
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+
+        using HttpResponseMessage response = await server.Client.GetAsync(address);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("frame-ancestors 'self'", Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("SAMEORIGIN", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+    }
+
+    [Fact]
+    public async Task TheRoutesOfProjectsDoNotCarryTheFramingHeaders()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+
+        using HttpResponseMessage response = await server.Client.GetAsync("/api/projects");
+
+        Assert.False(response.Headers.Contains("X-Frame-Options"));
     }
 }
