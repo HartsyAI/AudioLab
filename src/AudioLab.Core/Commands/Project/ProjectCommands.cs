@@ -11,7 +11,7 @@ internal static class ProjectCommands
         builder
             .Add("project_rename", "Renames the project.", json.RenameProject, Rename)
             .Add("project_set_metronome", "Switches the metronome on or off.", json.SetMetronome, SetMetronome)
-            .Add("project_set_view", "Sets the ruler, the edit mode and the grid.", json.SetProjectView, SetView);
+            .Add("project_set_view", "Sets the ruler, the edit mode and the grid; at least one is required.", json.SetProjectView, SetView);
     }
 
     private static CommandResult Rename(ProjectDocument document, RenameProject command, IIdService ids)

@@ -91,14 +91,13 @@ public sealed class InstrumentCommandTests
         foreach (InstrumentParameter setting in InstrumentRules.Parameters(Synth))
         {
             SetInstrumentParameter set = new() { Project = _rig.Id, Track = _synth, Parameter = setting.Name, Value = setting.Min };
-            double span = setting.Max - setting.Min;
 
             _rig.Ok(set);
             Assert.Equal(setting.Min, setting.Get(Synth));
             _rig.Ok(set with { Value = setting.Max });
             Assert.Equal(setting.Max, setting.Get(Synth));
-            _rig.RefusedWith(set with { Value = setting.Min - (span / 100) }, CommandErrorCode.Invalid);
-            _rig.RefusedWith(set with { Value = setting.Max + (span / 100) }, CommandErrorCode.Invalid);
+            _rig.RefusedWith(set with { Value = double.BitDecrement(setting.Min) }, CommandErrorCode.Invalid);
+            _rig.RefusedWith(set with { Value = double.BitIncrement(setting.Max) }, CommandErrorCode.Invalid);
             _rig.RefusedWith(set with { Value = double.NaN }, CommandErrorCode.Invalid);
         }
     }
@@ -192,13 +191,25 @@ public sealed class InstrumentCommandTests
     [Fact]
     public void ASampleNameOverTheLimitIsInvalidAndASynthNeedsTheSamplerPresetFirst()
     {
-        SetSamplerSample set = new() { Project = _rig.Id, Track = _sampler, SampleName = "x" };
+        SetSamplerSample set = new() { Project = _rig.Id, Track = _sampler, Sample = MediaId.From("med_1"), SampleName = "x" };
 
         _rig.RefusedWith(set with { SampleName = new string('n', 201) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(set with { Track = _synth }, CommandErrorCode.Rejected);
         _rig.RefusedWith(set with { Track = TrackId.From("trk_none"), SampleName = new string('n', 201) }, CommandErrorCode.NotFound);
         _rig.Ok(set with { SampleName = new string('n', 200) });
         _rig.Ok(new SetInstrumentPreset { Project = _rig.Id, Track = _synth, Preset = InstrumentPresets.Sampler });
-        _rig.Ok(set with { Track = _synth, Sample = MediaId.From("med_1") });
+        _rig.Ok(set with { Track = _synth });
+    }
+
+    [Fact]
+    public void ANameWithNoSampleIsRejectedAndNoNameOrAnEmptyOneWithNoSampleClearsTheSampler()
+    {
+        _rig.Ok(new SetSamplerSample { Project = _rig.Id, Track = _sampler, Sample = MediaId.From("med_1"), SampleName = "Kick" });
+
+        _rig.RefusedWith(new SetSamplerSample { Project = _rig.Id, Track = _sampler, SampleName = "Kick" }, CommandErrorCode.Rejected);
+        _rig.Ok(new SetSamplerSample { Project = _rig.Id, Track = _sampler, SampleName = string.Empty });
+
+        Assert.Null(Sampler.Sample);
+        Assert.Equal(string.Empty, Sampler.SampleName);
     }
 }

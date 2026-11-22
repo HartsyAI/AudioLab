@@ -9,8 +9,8 @@ internal static class TrackSettingsCommands
     public static void Register(CommandRegistryBuilder builder, TrackCommandJsonContext json)
     {
         builder
-            .Add("track_set_armed", "Arms a track to record, or disarms it.", json.SetTrackArmed, SetArmed)
-            .Add("track_set_monitor", "Switches input monitoring through a track on or off.", json.SetTrackMonitor, SetMonitor)
+            .Add("track_set_armed", "Arms a track to record, or disarms it; live state, no undo step.", json.SetTrackArmed, SetArmed, undoable: false)
+            .Add("track_set_monitor", "Switches input monitoring; live state, no undo step.", json.SetTrackMonitor, SetMonitor, undoable: false)
             .Add("track_set_input", "Sets the device and the channels a track records from.", json.SetTrackInput, SetInput)
             .Add("track_set_height", "Sets the height of a track's lane.", json.SetTrackHeight, SetHeight)
             .Add("track_set_icon", "Sets the icon of a track, or removes it.", json.SetTrackIcon, SetIcon);
@@ -39,8 +39,8 @@ internal static class TrackSettingsCommands
             return CommandChecks.Rejected("Only an audio track has an input to choose; an instrument track plays MIDI and a bus has none.");
         }
         // The values come first: one outside what the project holds is invalid whatever the mode; only then must the mode and the number agree.
-        CommandResult? invalid = CommandChecks.Length(nameof(command.DeviceId), command.DeviceId, 512)
-            ?? CommandChecks.Range(nameof(command.Channel), command.Channel, 1, 256);
+        CommandResult? invalid = CommandChecks.Length(nameof(command.DeviceId), command.DeviceId, TrackRules.MaxDeviceIdLength)
+            ?? CommandChecks.Range(nameof(command.Channel), command.Channel, TrackRules.MinChannel, TrackRules.MaxChannel);
         if (invalid is not null)
         {
             return invalid;

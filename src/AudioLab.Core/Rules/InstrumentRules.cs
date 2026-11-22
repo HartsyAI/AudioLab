@@ -11,9 +11,6 @@ public static class InstrumentRules
     /// <summary>The highest MIDI note a sampler may be rooted at, and the highest pitch there is.</summary>
     public const int HighestNote = 127;
 
-    /// <summary>The longest sample name the old DAW kept, in characters; the project would hold up to a name's limit.</summary>
-    public const int SampleNameLength = 40;
-
     private static readonly IReadOnlyList<InstrumentParameter> _synth =
     [
         Synth("mix2", 0, 1, s => s.Mix2, (s, v) => s with { Mix2 = v }),
@@ -49,14 +46,6 @@ public static class InstrumentRules
     public static InstrumentParameter? Find(Instrument instrument, string name)
     {
         return Parameters(instrument).FirstOrDefault(setting => setting.Name == name);
-    }
-
-    /// <summary>The sample name the old DAW showed: trimmed and cut to <see cref="SampleNameLength"/> characters.</summary>
-    public static string SampleName(string source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        string trimmed = source.Trim();
-        return trimmed.Length > SampleNameLength ? trimmed[..SampleNameLength] : trimmed;
     }
 
     private static InstrumentParameter Synth(

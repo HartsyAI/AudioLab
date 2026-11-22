@@ -4,7 +4,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Sets how the arrangement opens: the ruler, the edit mode and the grid.</summary>
+/// <summary>Sets how the arrangement opens; give at least one of the ruler, the edit mode and the grid.</summary>
 public sealed record SetProjectView : Command
 {
     /// <summary>Which ruler shows first, time or beats; it keeps its value when absent.</summary>
@@ -15,9 +15,10 @@ public sealed record SetProjectView : Command
     [Description("How edits snap and move other material: slip, grid or shuffle; it keeps its value when absent.")]
     public EditMode? EditMode { get; init; }
 
-    /// <summary>The grid: auto (which follows the zoom of the view), bar, a note value such as 1/8 or 1/16t, or a.</summary>
+    /// <summary>The grid, one of the values listed; it keeps its value when absent.</summary>
     /// <remarks>
-    /// time such as 0.5s; it keeps its value when absent.
+    /// The grid: auto (which follows the zoom of the view), bar, a note value such as 1/8 or 1/16t, or a time
+    /// such as 0.5s; it keeps its value when absent.
     /// </remarks>
     [Description(
         "The grid: auto (which follows the zoom of the view), bar, a note value such as 1/8 or 1/16t, or a " +

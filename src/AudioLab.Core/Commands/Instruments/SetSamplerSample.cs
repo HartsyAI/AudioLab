@@ -17,8 +17,8 @@ public sealed record SetSamplerSample : Command
     [JsonConverter(typeof(OptionalIdJsonConverter<MediaId>))]
     public MediaId? Sample { get; init; }
 
-    /// <summary>The name shown for the sample, up to 200 characters; empty when absent.</summary>
-    [Description("The name shown for the sample, up to 200 characters; empty when absent.")]
+    /// <summary>The name shown for the sample, up to 200 characters; it needs a sample, and is empty when absent.</summary>
+    [Description("The name shown for the sample, up to 200 characters; it needs a sample, and is empty when absent.")]
     [MaxLength(ProjectLimits.MaxName)]
     public string? SampleName { get; init; }
 }

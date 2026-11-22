@@ -20,11 +20,10 @@ public sealed class SettingsRuleTests
 
         foreach (InstrumentParameter setting in InstrumentRules.Parameters(synth))
         {
-            double span = setting.Max - setting.Min;
             Assert.Empty(ProjectValidator.Validate(With(setting.Set(synth, setting.Min))));
             Assert.Empty(ProjectValidator.Validate(With(setting.Set(synth, setting.Max))));
-            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(synth, setting.Min - (span / 100)))));
-            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(synth, setting.Max + (span / 100)))));
+            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(synth, double.BitDecrement(setting.Min)))));
+            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(synth, double.BitIncrement(setting.Max)))));
             Assert.Equal(setting.Max, setting.Get(setting.Set(synth, setting.Max)));
         }
     }
@@ -36,15 +35,15 @@ public sealed class SettingsRuleTests
 
         foreach (InstrumentParameter setting in InstrumentRules.Parameters(sampler))
         {
-            double span = setting.Max - setting.Min;
             Assert.Empty(ProjectValidator.Validate(With(setting.Set(sampler, setting.Min))));
             Assert.Empty(ProjectValidator.Validate(With(setting.Set(sampler, setting.Max))));
-            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(sampler, setting.Min - (span / 100)))));
-            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(sampler, setting.Max + (span / 100)))));
+            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(sampler, double.BitDecrement(setting.Min)))));
+            Assert.NotEmpty(ProjectValidator.Validate(With(setting.Set(sampler, double.BitIncrement(setting.Max)))));
         }
         Assert.Empty(ProjectValidator.Validate(With(sampler with { RootNote = InstrumentRules.LowestNote })));
         Assert.Empty(ProjectValidator.Validate(With(sampler with { RootNote = InstrumentRules.HighestNote })));
         Assert.NotEmpty(ProjectValidator.Validate(With(sampler with { RootNote = InstrumentRules.HighestNote + 1 })));
+        Assert.NotEmpty(ProjectValidator.Validate(With(sampler with { RootNote = InstrumentRules.LowestNote - 1 })));
     }
 
     [Fact]
@@ -75,16 +74,6 @@ public sealed class SettingsRuleTests
         }
     }
 
-    [Theory]
-    [InlineData("kick", "kick")]
-    [InlineData("  a very long sample name that goes on and on  ", "a very long sample name that goes on and")]
-    [InlineData("", "")]
-    public void ASampleNameIsShownTrimmedAndCutToFortyCharacters(string source, string expected)
-    {
-        Assert.Equal(expected, InstrumentRules.SampleName(source));
-        Assert.True(InstrumentRules.SampleName(source).Length <= InstrumentRules.SampleNameLength);
-    }
-
     [Fact]
     public void OnlyAnAuxBusHasNoInputAndTheMenuHeightsAreInsideTheLimits()
     {
@@ -100,8 +89,8 @@ public sealed class SettingsRuleTests
         ProjectDocument Tall(double height) => BlankProject.Create() with { Tracks = [track with { View = track.View with { Height = height } }] };
         Assert.Empty(ProjectValidator.Validate(Tall(TrackRules.MinHeight)));
         Assert.Empty(ProjectValidator.Validate(Tall(TrackRules.MaxHeight)));
-        Assert.NotEmpty(ProjectValidator.Validate(Tall(TrackRules.MaxHeight + 1)));
-        Assert.NotEmpty(ProjectValidator.Validate(Tall(TrackRules.MinHeight - 1)));
+        Assert.NotEmpty(ProjectValidator.Validate(Tall(double.BitIncrement(TrackRules.MaxHeight))));
+        Assert.NotEmpty(ProjectValidator.Validate(Tall(double.BitDecrement(TrackRules.MinHeight))));
     }
 
     [Fact]

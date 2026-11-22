@@ -11,6 +11,15 @@ public static class TrackRules
     /// <summary>The highest lane height, in pixels at the default zoom.</summary>
     public const double MaxHeight = 2000;
 
+    /// <summary>The longest input device id, in characters.</summary>
+    public const int MaxDeviceIdLength = 512;
+
+    /// <summary>The lowest input channel number of a single channel.</summary>
+    public const int MinChannel = 1;
+
+    /// <summary>The highest input channel number of a single channel.</summary>
+    public const int MaxChannel = 256;
+
     /// <summary>The heights the track menu offers, by name.</summary>
     public static IReadOnlyList<(string Name, double Height)> HeightPresets { get; } =
         [("Tiny", 30), ("Compact", 44), ("Small", 64), ("Medium", 100), ("Large", 160)];

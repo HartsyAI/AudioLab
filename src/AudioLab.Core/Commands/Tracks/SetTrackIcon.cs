@@ -11,13 +11,15 @@ public sealed record SetTrackIcon : Command
     [Description("The track to edit.")]
     public required TrackId Track { get; init; }
 
-    /// <summary>A short text such as an emoji (up to 16 characters) or a png, jpeg or webp data URL of up to 60000.</summary>
+    /// <summary>A short text or a small image data URL, not empty; absent removes it.</summary>
     /// <remarks>
-    /// characters; absent removes it.
+    /// A short text such as an emoji (up to 16 characters) or a png, jpeg or webp data URL of up to 60000
+    /// characters, not empty; absent removes it.
     /// </remarks>
     [Description(
         "A short text such as an emoji (up to 16 characters) or a png, jpeg or webp data URL of up to 60000 " +
-        "characters; absent removes it.")]
+        "characters, not empty; absent removes it.")]
+    [MinLength(1)]
     [MaxLength(TrackIcon.MaxImageLength)]
     public string? Icon { get; init; }
 }

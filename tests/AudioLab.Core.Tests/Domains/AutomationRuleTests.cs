@@ -284,7 +284,8 @@ public sealed class AutomationRuleTests
         ValueList<AutomationPoint> merged = AutomationRules.Commit(lane, pass, AutomationParameter.Volume, returnToOld: true);
 
         Assert.True(merged.Select(point => point.Time).SequenceEqual(merged.Select(point => point.Time).Order()));
-        Assert.Equal(lane.Where(point => point.Time < 999).Count(), merged.Count(point => point.Time < 999));
+        Assert.Equal(lane.Where(point => point.Time < 999), merged.Where(point => point.Time < 999));
+        Assert.Equal(lane.Where(point => point.Time > 1021), merged.Where(point => point.Time > 1021));
     }
 
     [Fact]

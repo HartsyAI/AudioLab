@@ -37,6 +37,13 @@ public sealed class CommandRegistry
         return _byType.TryGetValue(command.GetType(), out CommandRegistration? entry) ? entry.Descriptor.Name : null;
     }
 
+    /// <summary>Whether history records the command as a step; false for live state, and for a type that is not registered.</summary>
+    public bool IsUndoable(Command command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return _byType.TryGetValue(command.GetType(), out CommandRegistration? entry) && entry.Descriptor.Undoable;
+    }
+
     /// <summary>Reads the command called <paramref name="name"/> from JSON; any fault of the text is a refusal.</summary>
     public CommandParseResult Parse(string name, string json)
     {

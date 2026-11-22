@@ -45,6 +45,38 @@ public sealed class TrackSettingsCommandTests
     }
 
     [Fact]
+    public void ArmingAndMonitoringAreLiveStateAndAddNoUndoStepAndUndoDoesNotTakeThemBack()
+    {
+        _rig.Ok(new SetTrackHeight { Project = _rig.Id, Track = _audio, Height = 120 });
+        int steps = _rig.History.UndoCount;
+
+        _rig.Ok(new SetTrackArmed { Project = _rig.Id, Track = _audio, Armed = true });
+        _rig.Ok(new SetTrackMonitor { Project = _rig.Id, Track = _keys, Monitor = true });
+        Assert.Equal(steps, _rig.History.UndoCount);
+        _rig.History.Undo();
+
+        Assert.Equal(100.0, Track(_audio).View.Height);
+        Assert.True(Track(_audio).Armed);
+        Assert.True(Track(_keys).Monitor);
+        _rig.History.Redo();
+        Assert.Equal(120.0, Track(_audio).View.Height);
+        Assert.True(Track(_audio).Armed);
+    }
+
+    [Fact]
+    public void ATrackBroughtBackByUndoIsNotArmedAndOnlyTheArmAndMonitorCommandsAreLiveState()
+    {
+        _rig.Ok(new SetTrackArmed { Project = _rig.Id, Track = _audio, Armed = true });
+        _rig.Ok(new RemoveTrack { Project = _rig.Id, Track = _audio });
+
+        _rig.History.Undo();
+
+        Assert.False(Track(_audio).Armed);
+        IEnumerable<string> live = CoreCommands.CreateRegistry().Commands.Where(command => !command.Undoable).Select(command => command.Name);
+        Assert.Equal(["track_set_armed", "track_set_monitor"], live.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void AnAuxBusHasNoInputToArmOrMonitorButTurningItOffIsAlwaysFine()
     {
         int steps = _rig.History.UndoCount;
@@ -79,14 +111,16 @@ public sealed class TrackSettingsCommandTests
 
         _rig.RefusedWith(single with { Channel = null }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channel = 0 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(single with { Channel = 257 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(single with { Channel = TrackRules.MaxChannel + 1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(single with { Channel = TrackRules.MinChannel - 1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channels = InputChannelMode.Mono }, CommandErrorCode.Rejected);
         _rig.RefusedWith(single with { Channels = InputChannelMode.Mono, Channel = 999 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(single with { Channels = InputChannelMode.Stereo, DeviceId = new string('d', 513) }, CommandErrorCode.Invalid);
+        string tooLong = new('d', TrackRules.MaxDeviceIdLength + 1);
+        _rig.RefusedWith(single with { Channels = InputChannelMode.Stereo, DeviceId = tooLong }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { DeviceId = new string('d', 513) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { DeviceId = string.Empty }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channels = (InputChannelMode)9, Channel = null }, CommandErrorCode.Invalid);
-        _rig.Ok(single with { Channel = 256, DeviceId = new string('d', 512) });
+        _rig.Ok(single with { Channel = TrackRules.MaxChannel, DeviceId = new string('d', TrackRules.MaxDeviceIdLength) });
     }
 
     [Fact]
@@ -114,8 +148,8 @@ public sealed class TrackSettingsCommandTests
         _rig.Ok(new SetTrackHeight { Project = _rig.Id, Track = _audio, Height = TrackRules.MaxHeight });
 
         SetTrackHeight tall = new() { Project = _rig.Id, Track = _audio, Height = 1 };
-        _rig.RefusedWith(tall with { Height = TrackRules.MinHeight - 0.1 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(tall with { Height = TrackRules.MaxHeight + 0.1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(tall with { Height = double.BitDecrement(TrackRules.MinHeight) }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(tall with { Height = double.BitIncrement(TrackRules.MaxHeight) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(tall with { Height = double.NaN }, CommandErrorCode.Invalid);
         _rig.RefusedWith(tall with { Track = TrackId.From("trk_none"), Height = double.NaN }, CommandErrorCode.NotFound);
     }

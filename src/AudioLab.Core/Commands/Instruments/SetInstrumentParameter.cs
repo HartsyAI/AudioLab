@@ -13,7 +13,8 @@ public sealed record SetInstrumentParameter : Command
 
     /// <summary>The setting's name, which must belong to the instrument's kind.</summary>
     /// <remarks>
-    /// a synth has them all, a sampler only attack, release and gain.
+    /// The setting's name, which must belong to the instrument's kind: a synth has them all, a sampler only
+    /// attack, release and gain.
     /// </remarks>
     [Description(
         "The setting's name, which must belong to the instrument's kind: a synth has them all, a sampler only " +
@@ -25,8 +26,9 @@ public sealed record SetInstrumentParameter : Command
 
     /// <summary>The new value, inside the setting's range.</summary>
     /// <remarks>
-    /// mix2 0 to 1, detune 0 to 50, cutoff 100 to 12000, resonance 0.3 to 15, filterEnv 0 to 3, attack 0.001 to
-    /// 2, decay 0.01 to 3, sustain 0 to 1, release 0.01 to 4 (a synth and a sampler alike), gain 0 to 1.
+    /// The new value, inside the setting's range: mix2 0 to 1, detune 0 to 50, cutoff 100 to 12000, resonance
+    /// 0.3 to 15, filterEnv 0 to 3, attack 0.001 to 2, decay 0.01 to 3, sustain 0 to 1, release 0.01 to 4 (a
+    /// synth and a sampler alike), gain 0 to 1.
     /// </remarks>
     [Description(
         "The new value, inside the setting's range: mix2 0 to 1, detune 0 to 50, cutoff 100 to 12000, " +

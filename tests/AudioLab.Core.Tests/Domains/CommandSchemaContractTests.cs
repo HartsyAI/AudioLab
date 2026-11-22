@@ -377,6 +377,19 @@ public sealed class CommandSchemaContractTests
         Assert.Equal([1.0, 2.0], Property("instrument_set_wave", "oscillator").GetProperty("enum").EnumerateArray().Select(item => item.GetDouble()));
     }
 
+    [Fact]
+    public void TheSettingsSchemasRefuseWhatTheValidatorRefusesAndSayThatAViewNeedsOnePart()
+    {
+        JsonElement device = Property("track_set_input", "deviceId");
+        JsonElement channel = Property("track_set_input", "channel");
+        Assert.Equal([1, TrackRules.MaxDeviceIdLength], [device.GetProperty("minLength").GetInt32(), device.GetProperty("maxLength").GetInt32()]);
+        Assert.Contains("not blank", device.GetProperty("description").GetString());
+        Assert.Equal(1, Property("track_set_icon", "icon").GetProperty("minLength").GetInt32());
+        double[] channels = [channel.GetProperty("minimum").GetDouble(), channel.GetProperty("maximum").GetDouble()];
+        Assert.Equal([(double)TrackRules.MinChannel, TrackRules.MaxChannel], channels);
+        Assert.Contains("at least one", _registry.Find("project_set_view")!.Description);
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];

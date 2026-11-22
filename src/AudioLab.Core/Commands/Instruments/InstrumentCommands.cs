@@ -90,6 +90,7 @@ internal static class InstrumentCommands
     {
         return Sampler(document, command.Track)
             ?? CommandChecks.Length(nameof(command.SampleName), command.SampleName, ProjectLimits.MaxName)
+            ?? (command.Sample is null && !string.IsNullOrEmpty(command.SampleName) ? CommandChecks.Rejected("A sample name needs a sample.") : null)
             ?? Change(
                 document,
                 command.Track,

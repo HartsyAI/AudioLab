@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Commands;
 
@@ -11,14 +12,16 @@ public sealed record SetTrackInput : Command
     [Description("The track to edit.")]
     public required TrackId Track { get; init; }
 
-    /// <summary>The input device, up to 512 characters; the system default when absent.</summary>
-    [Description("The input device, up to 512 characters; the system default when absent.")]
-    [MaxLength(512)]
+    /// <summary>The input device, 1 to 512 characters, not blank; the system default when absent.</summary>
+    [Description("The input device, 1 to 512 characters, not blank; the system default when absent.")]
+    [MinLength(1)]
+    [MaxLength(TrackRules.MaxDeviceIdLength)]
     public string? DeviceId { get; init; }
 
     /// <summary>Which channels are recorded.</summary>
     /// <remarks>
-    /// mono (the inputs summed), stereo (the first two) or single (one numbered input).
+    /// Which channels are recorded: mono (the inputs summed), stereo (the first two) or single (one numbered
+    /// input).
     /// </remarks>
     [Description(
         "Which channels are recorded: mono (the inputs summed), stereo (the first two) or single (one " +
@@ -27,6 +30,6 @@ public sealed record SetTrackInput : Command
 
     /// <summary>The 1-based input when Channels is single, 1 to 256; it must be absent for the other modes.</summary>
     [Description("The 1-based input when Channels is single, 1 to 256; it must be absent for the other modes.")]
-    [Range(1, 256)]
+    [Range(TrackRules.MinChannel, TrackRules.MaxChannel)]
     public int? Channel { get; init; }
 }
