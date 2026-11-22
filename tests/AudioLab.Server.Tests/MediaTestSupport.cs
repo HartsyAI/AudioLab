@@ -17,7 +17,7 @@ internal static class MediaTestSupport
         return ProjectId.From((await store.Service.CreateAsync(user, name, CancellationToken.None)).Id);
     }
 
-    /// <summary>Applies a command by wire name with the project filled in; <paramref name="members"/> is the rest of the JSON object, without braces.</summary>
+    /// <summary>Applies a command by wire name; <paramref name="members"/> is the rest of its JSON object, without braces.</summary>
     public static async Task<CommandReply> ApplyAsync(TestStore store, UserId user, ProjectId project, string name, string members = "")
     {
         string json = $"{{\"project\":\"{project.Value}\"" + (members.Length > 0 ? "," + members : string.Empty) + "}";
@@ -36,7 +36,8 @@ internal static class MediaTestSupport
     {
         string track = await AddTrackAsync(store, user, project);
         string length = (duration ?? media.Duration).ToString("R", CultureInfo.InvariantCulture);
-        CommandReply reply = await ApplyAsync(store, user, project, "clip_add", $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{length}");
+        string members = $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{length}";
+        CommandReply reply = await ApplyAsync(store, user, project, "clip_add", members);
         Assert.True(reply.Succeeded, string.Join("; ", reply.Errors.Select(error => error.Message)));
         return reply.Created.Single();
     }

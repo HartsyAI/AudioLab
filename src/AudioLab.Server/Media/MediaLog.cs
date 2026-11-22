@@ -12,6 +12,6 @@ internal static partial class MediaLog
     [LoggerMessage(EventId = 202, Level = LogLevel.Warning, Message = "The media file {File} could not be removed: {Reason}")]
     public static partial void NotRemoved(ILogger logger, string file, string reason);
 
-    [LoggerMessage(EventId = 203, Level = LogLevel.Error, Message = "The media folder could not be read: {Reason}; its files are treated as missing until it can.")]
+    [LoggerMessage(EventId = 203, Level = LogLevel.Error, Message = "The media folder could not be read: {Reason}; its files count as missing.")]
     public static partial void FolderUnreadable(ILogger logger, string reason);
 }

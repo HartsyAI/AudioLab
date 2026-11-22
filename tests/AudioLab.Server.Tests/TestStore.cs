@@ -56,7 +56,12 @@ public sealed class TestStore : IAsyncDisposable
 
     public StorePaths Paths => Root.Paths;
 
-    public static TestStore On(string folder, StoreOptions? options = null, CommandRegistry? registry = null, IProjectEvents? events = null, MediaOptions? media = null)
+    public static TestStore On(
+        string folder,
+        StoreOptions? options = null,
+        CommandRegistry? registry = null,
+        IProjectEvents? events = null,
+        MediaOptions? media = null)
     {
         return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions());
     }

@@ -80,7 +80,8 @@ public sealed class MediaRecordTests
     [Fact]
     public void ATimeThatIsNotUtcAndAnUnknownEnumAreRefused()
     {
-        Assert.Throws<ProjectFormatException>(() => MediaJson.Write(Valid with { Created = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.FromHours(2)) }));
+        DateTimeOffset local = new(2026, 1, 1, 0, 0, 0, TimeSpan.FromHours(2));
+        Assert.Throws<ProjectFormatException>(() => MediaJson.Write(Valid with { Created = local }));
         Assert.Throws<ProjectFormatException>(() => MediaJson.Write(Valid with { Encoding = (SampleEncoding)99 }));
     }
 

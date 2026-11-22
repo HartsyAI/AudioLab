@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Media;
@@ -14,6 +16,11 @@ namespace AudioLab.Server.Tests;
 public sealed class MediaRouteTests
 {
     private const string Secret = "0123456789abcdef0123456789abcdef";
+
+    private static Task<RunningServer> StartWith(string key, string value)
+    {
+        return RunningServer.StartAsync(new Dictionary<string, string?> { [key] = value });
+    }
 
     private static Dictionary<string, string?> Swarm() => new() { ["AudioLab:Door:Kind"] = "Swarm", ["AudioLab:Door:ProxySecret"] = Secret };
 
@@ -37,7 +44,12 @@ public sealed class MediaRouteTests
         return content;
     }
 
-    private static async Task<HttpResponseMessage> UploadAsync(RunningServer server, byte[] file, string name = "kick.wav", string? user = null, string type = "audio/wav")
+    private static async Task<HttpResponseMessage> UploadAsync(
+        RunningServer server,
+        byte[] file,
+        string name = "kick.wav",
+        string? user = null,
+        string type = "audio/wav")
     {
         ByteArrayContent content = new(file);
         content.Headers.ContentType = new MediaTypeHeaderValue(type);
@@ -177,7 +189,7 @@ public sealed class MediaRouteTests
     [Fact]
     public async Task AnOversizedUploadIsRefusedWhetherOrNotTheClientAnnouncesItsLength()
     {
-        await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Media:MaxUploadBytes"] = "2048" });
+        await using RunningServer server = await StartWith("AudioLab:Media:MaxUploadBytes", "2048");
         byte[] big = Wav(2000);
         Assert.True(big.Length > 2048);
 
@@ -198,7 +210,7 @@ public sealed class MediaRouteTests
     [Fact]
     public async Task AUploadLargerThanTheGlobalBodyLimitIsAcceptedBecauseTheRouteHasItsOwn()
     {
-        await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:MaxRequestBodyBytes"] = "2048" });
+        await using RunningServer server = await StartWith("AudioLab:MaxRequestBodyBytes", "2048");
         byte[] file = Wav(48000);
         Assert.True(file.Length > 100_000);
         MediaSummary summary = await UploadedAsync(server, file);
@@ -214,7 +226,8 @@ public sealed class MediaRouteTests
 
         using HttpResponseMessage missing = await SendAsync(server, HttpMethod.Get, "/api/media/med_nothing", "bob");
         string missingBody = await missing.Content.ReadAsStringAsync();
-        foreach ((HttpMethod method, string suffix) in new[] { (HttpMethod.Get, string.Empty), (HttpMethod.Get, "/content"), (HttpMethod.Delete, string.Empty) })
+        (HttpMethod, string)[] routes = [(HttpMethod.Get, string.Empty), (HttpMethod.Get, "/content"), (HttpMethod.Delete, string.Empty)];
+        foreach ((HttpMethod method, string suffix) in routes)
         {
             using HttpResponseMessage theirs = await SendAsync(server, method, $"/api/media/{alices.Id}{suffix}", "bob");
             using HttpResponseMessage nothing = await SendAsync(server, method, $"/api/media/med_nothing{suffix}", "bob");
@@ -228,14 +241,19 @@ public sealed class MediaRouteTests
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
         Assert.DoesNotContain(alices.Id, missingBody, StringComparison.Ordinal);
 
-        MediaListing bobs = (await (await SendAsync(server, HttpMethod.Get, "/api/media", "bob")).Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaListing))!;
-        Assert.Empty(bobs.Files);
-        Assert.Single((await (await SendAsync(server, HttpMethod.Get, "/api/media", "alice")).Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaListing))!.Files);
+        Assert.Empty((await ListAsync(server, "bob")).Files);
+        Assert.Single((await ListAsync(server, "alice")).Files);
         Assert.Equal(HttpStatusCode.OK, (await SendAsync(server, HttpMethod.Get, $"/api/media/{alices.Id}/content", "alice")).StatusCode);
     }
 
+    private static async Task<MediaListing> ListAsync(RunningServer server, string user)
+    {
+        using HttpResponseMessage response = await SendAsync(server, HttpMethod.Get, "/api/media", user);
+        return (await response.Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaListing))!;
+    }
+
     // The traceId a problem answer carries differs between requests; nothing else may.
-    private static string StripStatusDetail(string body) => System.Text.RegularExpressions.Regex.Replace(body, "\"traceId\":\"[^\"]*\"", string.Empty);
+    private static string StripStatusDetail(string body) => Regex.Replace(body, "\"traceId\":\"[^\"]*\"", string.Empty);
 
     [Fact]
     public async Task EveryMediaRouteIsBehindTheDoorAndOnlyHealthIsOutsideIt()
@@ -250,7 +268,8 @@ public sealed class MediaRouteTests
             (HttpMethod.Delete, "/api/media/med_1"),
         })
         {
-            using HttpResponseMessage noSecret = await server.Client.SendAsync(new HttpRequestMessage(method, path) { Content = method == HttpMethod.Post ? WavBody(Wav(100)) : null });
+            HttpContent? body = method == HttpMethod.Post ? WavBody(Wav(100)) : null;
+            using HttpResponseMessage noSecret = await server.Client.SendAsync(new HttpRequestMessage(method, path) { Content = body });
             Assert.Equal(HttpStatusCode.Forbidden, noSecret.StatusCode);
             using HttpRequestMessage secretOnly = new(method, path);
             secretOnly.Headers.Add("X-AudioLab-Secret", Secret);
@@ -293,7 +312,8 @@ public sealed class MediaRouteTests
             foreach (HttpMethod method in new[] { HttpMethod.Get, HttpMethod.Delete })
             {
                 using HttpResponseMessage response = await SendAsync(server, method, $"/api/media/{hostile}{suffix}");
-                Assert.True(response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed, $"{method} {hostile}{suffix} answered {(int)response.StatusCode}");
+                bool refused = response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed;
+                Assert.True(refused, $"{method} {hostile}{suffix} answered {(int)response.StatusCode}");
             }
         }
         Assert.Equal(before.Order(), Directory.GetFileSystemEntries(parent.Path).Order());
@@ -308,7 +328,8 @@ public sealed class MediaRouteTests
         MediaSummary summary = await UploadedAsync(server, Wav(), "../../../outside.wav");
         Assert.Equal("../../../outside.wav", summary.Name);
         Assert.Equal(["store"], Directory.GetFileSystemEntries(parent.Path).Select(entry => Path.GetFileName(entry)).ToArray());
-        foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Where(file => !file.EndsWith("store.lock", StringComparison.Ordinal)))
+        IEnumerable<string> all = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories);
+        foreach (string file in all.Where(file => !file.EndsWith("store.lock", StringComparison.Ordinal)))
         {
             Assert.Matches(@"^users/u[0-9a-f]{32}/media/m[0-9a-f]{32}\.(json|wav)$", Path.GetRelativePath(root, file).Replace('\\', '/'));
         }
@@ -319,7 +340,8 @@ public sealed class MediaRouteTests
     {
         await using RunningServer server = await RunningServer.StartAsync();
         byte[] file = Wav(48000);
-        MediaSummary[] summaries = await Task.WhenAll(Enumerable.Range(0, 8).Select(index => Task.Run(() => UploadedAsync(server, file, $"same-{index}.wav"))));
+        Task<MediaSummary>[] uploads = [.. Enumerable.Range(0, 8).Select(index => Task.Run(() => UploadedAsync(server, file, $"same-{index}.wav")))];
+        MediaSummary[] summaries = await Task.WhenAll(uploads);
         Assert.Equal(8, summaries.Select(summary => summary.Id).Distinct().Count());
         foreach (MediaSummary summary in summaries)
         {
@@ -339,11 +361,14 @@ public sealed class MediaRouteTests
 
         async Task<CommandReply> Apply(string name, string members)
         {
-            return await edits.ApplyAsync(UserId.Local, project, client, name, $"{{\"project\":\"{project.Value}\",{members}}}", null, CancellationToken.None);
+            string json = $"{{\"project\":\"{project.Value}\",{members}}}";
+            return await edits.ApplyAsync(UserId.Local, project, client, name, json, null, CancellationToken.None);
         }
 
         string track = (await Apply("track_add", "\"kind\":\"audio\"")).Created.Single();
-        string clip = (await Apply("clip_add", $"\"track\":\"{track}\",\"media\":\"{summary.Id}\",\"duration\":{summary.Duration.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}")).Created.Single();
+        string duration = summary.Duration.ToString("R", CultureInfo.InvariantCulture);
+        string add = $"\"track\":\"{track}\",\"media\":\"{summary.Id}\",\"duration\":{duration}";
+        string clip = (await Apply("clip_add", add)).Created.Single();
 
         using HttpResponseMessage refused = await server.Client.DeleteAsync($"/api/media/{summary.Id}");
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
@@ -359,7 +384,7 @@ public sealed class MediaRouteTests
     [Fact]
     public async Task AFullMediaQuotaIsAnswered409WithNoPath()
     {
-        await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Media:MaxFilesPerUser"] = "1" });
+        await using RunningServer server = await StartWith("AudioLab:Media:MaxFilesPerUser", "1");
         Assert.Equal(HttpStatusCode.Created, (await UploadAsync(server, Wav(100))).StatusCode);
         using HttpResponseMessage full = await UploadAsync(server, Wav(100));
         Assert.Equal(HttpStatusCode.Conflict, full.StatusCode);

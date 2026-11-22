@@ -84,7 +84,7 @@ public sealed class MediaStore : IMediaCatalog
         }
     }
 
-    /// <summary>Stores a file: renames its bytes into place, then writes its record, under the user's lock so the quota cannot be passed by a race.</summary>
+    /// <summary>Stores a file: renames its bytes into place, then writes its record, under the user's lock so no race passes the quota.</summary>
     /// <param name="record">The record of the file, with the id the temporary file's name was made from.</param>
     /// <param name="tempData">The finished temporary file; it is moved, so it must be on the same volume.</param>
     /// <param name="cancellationToken">Cancels the commit before the record is written.</param>
@@ -261,7 +261,8 @@ public sealed class MediaStore : IMediaCatalog
         using FileStream stream = new(path, options);
         if (stream.Length > MaxRecordBytes)
         {
-            throw new ProjectFormatException("The media record file is larger than a record can be.", ["file: the file is larger than a record can be."]);
+            string problem = "file: the file is larger than a record can be.";
+            throw new ProjectFormatException("The media record file is larger than a record can be.", [problem]);
         }
         byte[] bytes = new byte[stream.Length];
         stream.ReadExactly(bytes);

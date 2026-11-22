@@ -2,7 +2,7 @@ using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Media;
 
-/// <summary>Turns the media store's refusals into answers: 404 for a file the user does not have, 413 for too large, 422 for a file that is not accepted, 409 for a full quota or a file in use.</summary>
+/// <summary>Turns the media store's refusals into answers: 404 not the user's, 413 too large, 422 not accepted, 409 full or in use.</summary>
 public sealed class MediaErrorFilter(ILogger<MediaErrorFilter> logger) : IEndpointFilter
 {
     /// <inheritdoc />
@@ -26,7 +26,10 @@ public sealed class MediaErrorFilter(ILogger<MediaErrorFilter> logger) : IEndpoi
         }
         catch (MediaRejectedException exception)
         {
-            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "The file is not accepted.", detail: exception.Message);
+            return Results.Problem(
+                statusCode: StatusCodes.Status422UnprocessableEntity,
+                title: "The file is not accepted.",
+                detail: exception.Message);
         }
         catch (Exception exception) when (exception is MediaQuotaExceededException or MediaInUseException)
         {
@@ -37,7 +40,7 @@ public sealed class MediaErrorFilter(ILogger<MediaErrorFilter> logger) : IEndpoi
             StoreLog.IoFailed(logger, exception.GetType().Name, exception);
             return StoreIoErrors.IsDiskFull(exception)
                 ? Results.Problem(statusCode: StatusCodes.Status507InsufficientStorage, title: "The server has no room left to store media.")
-                : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "The media store is not available right now; try again.");
+                : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "The media store is not available; try again.");
         }
     }
 }

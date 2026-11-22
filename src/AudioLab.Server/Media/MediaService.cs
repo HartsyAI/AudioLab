@@ -5,7 +5,13 @@ using AudioLab.Server.Store;
 namespace AudioLab.Server.Media;
 
 /// <summary>Everything a user can do with their media files. Every method takes the user from the door; none reads an owner from a request.</summary>
-public sealed class MediaService(MediaStore store, MediaReferences references, StoreRoot root, IIdService ids, MediaOptions options, TimeProvider time)
+public sealed class MediaService(
+    MediaStore store,
+    MediaReferences references,
+    StoreRoot root,
+    IIdService ids,
+    MediaOptions options,
+    TimeProvider time)
 {
     private const int CopyBufferBytes = 80 * 1024;
 
@@ -143,7 +149,13 @@ public sealed class MediaService(MediaStore store, MediaReferences references, S
 
     private static async Task<WavFormat> CheckAsync(string path, CancellationToken cancellationToken)
     {
-        FileStreamOptions fileOptions = new() { Mode = FileMode.Open, Access = FileAccess.Read, Share = FileShare.Read, Options = FileOptions.Asynchronous };
+        FileStreamOptions fileOptions = new()
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.Read,
+            Options = FileOptions.Asynchronous,
+        };
         await using FileStream file = new(path, fileOptions);
         WavFormat format = WavReader.Read(file);
         await WavReader.RequireFiniteAsync(file, format, cancellationToken);

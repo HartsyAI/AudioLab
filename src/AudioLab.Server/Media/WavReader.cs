@@ -42,7 +42,7 @@ public static class WavReader
         long declared = BinaryPrimitives.ReadUInt32LittleEndian(riff[4..8]) + 8L;
         if (declared != length)
         {
-            throw Refuse(declared > length ? "the file is truncated: its header says it is longer" : "the file has bytes after the end of its RIFF data");
+            throw Refuse(declared > length ? "the file is truncated: its header says it is longer" : "the file has bytes after its RIFF data");
         }
 
         FormatChunk? format = null;

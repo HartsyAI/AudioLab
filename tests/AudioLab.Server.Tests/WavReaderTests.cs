@@ -47,7 +47,8 @@ public sealed class WavReaderTests
     [Fact]
     public void ALastChunkOfOddSizeMayLeaveOutItsPadByte()
     {
-        byte[] file = TestWav.Riff(TestWav.Format(SampleEncoding.Pcm16, 1, 48000), TestWav.Chunk("data", new byte[200]), TestWav.Chunk("note", [1, 2, 3]));
+        byte[] format = TestWav.Format(SampleEncoding.Pcm16, 1, 48000);
+        byte[] file = TestWav.Riff(format, TestWav.Chunk("data", new byte[200]), TestWav.Chunk("note", [1, 2, 3]));
         byte[] unpadded = file[..^1];
         BinaryPrimitives.WriteUInt32LittleEndian(unpadded.AsSpan(4), (uint)(unpadded.Length - 8));
         Assert.Equal(100, Read(unpadded).Frames);
@@ -75,7 +76,7 @@ public sealed class WavReaderTests
     [Fact]
     public void BytesAfterTheEndOfTheRiffDataAreRefused()
     {
-        Refused([.. TestWav.Build(SampleEncoding.Pcm16, 1, 48000, 100), 0, 0, 0, 0], "bytes after the end");
+        Refused([.. TestWav.Build(SampleEncoding.Pcm16, 1, 48000, 100), 0, 0, 0, 0], "bytes after its RIFF data");
     }
 
     [Fact]
@@ -176,7 +177,8 @@ public sealed class WavReaderTests
         byte[] guid = TestWav.Build(SampleEncoding.Pcm24, 2, 48000, 10, extensible: true);
         guid[12 + 8 + 30] = 0x99;
         Refused(guid, "sub-format");
-        byte[] shortExtension = TestWav.Riff(TestWav.Chunk("fmt ", [.. TestWav.Fmt(0xFFFE, 2, 48000, 192000, 4, 16), 0, 0]), TestWav.Chunk("data", new byte[40]));
+        byte[] shortFmt = TestWav.Chunk("fmt ", [.. TestWav.Fmt(0xFFFE, 2, 48000, 192000, 4, 16), 0, 0]);
+        byte[] shortExtension = TestWav.Riff(shortFmt, TestWav.Chunk("data", new byte[40]));
         Refused(shortExtension, "extensible");
     }
 
@@ -188,7 +190,8 @@ public sealed class WavReaderTests
             byte[] file = TestWav.Build(SampleEncoding.Float32, 2, 48000, 5000, (frame, _) => frame == 4321 ? bad : 0.25);
             using MemoryStream stream = new(file);
             WavFormat format = WavReader.Read(stream);
-            MediaRejectedException error = await Assert.ThrowsAsync<MediaRejectedException>(() => WavReader.RequireFiniteAsync(stream, format, CancellationToken.None));
+            Task Scan() => WavReader.RequireFiniteAsync(stream, format, CancellationToken.None);
+            MediaRejectedException error = await Assert.ThrowsAsync<MediaRejectedException>(Scan);
             Assert.Contains("not a finite number", error.Message, StringComparison.Ordinal);
         }
         byte[] good = TestWav.Build(SampleEncoding.Float32, 2, 48000, 5000, (frame, _) => frame % 2 == 0 ? 1e30 : -1e-40);

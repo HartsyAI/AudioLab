@@ -6,12 +6,18 @@ using Microsoft.Net.Http.Headers;
 
 namespace AudioLab.Server.Media;
 
-/// <summary>The media routes: parse, call <see cref="MediaService"/>, return. They sit behind the door, so the owner is always the session's user.</summary>
+/// <summary>The media routes: parse, call <see cref="MediaService"/>, return. Behind the door, so the owner is always the session's user.</summary>
 public static class MediaRoutes
 {
     private const string WavType = "audio/wav";
 
-    private static readonly HashSet<string> _wavTypes = new(StringComparer.OrdinalIgnoreCase) { WavType, "audio/x-wav", "audio/wave", "audio/vnd.wave" };
+    private static readonly HashSet<string> _wavTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        WavType,
+        "audio/x-wav",
+        "audio/wave",
+        "audio/vnd.wave",
+    };
 
     /// <summary>Maps /media into <paramref name="routes"/>, a group behind the door filter.</summary>
     public static void Map(IEndpointRouteBuilder routes)
@@ -29,9 +35,12 @@ public static class MediaRoutes
     // The body is the WAV file itself, not a form: it is streamed to disk, never held in memory.
     private static async Task<IResult> UploadAsync(HttpContext http, MediaService service, MediaOptions options, CancellationToken cancellationToken)
     {
-        if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? type) || !_wavTypes.Contains(type.MediaType.Value ?? string.Empty))
+        if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? type)
+            || !_wavTypes.Contains(type.MediaType.Value ?? string.Empty))
         {
-            return Results.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType, title: "Send the WAV file as the body with the content type audio/wav.");
+            return Results.Problem(
+                statusCode: StatusCodes.Status415UnsupportedMediaType,
+                title: "Send the WAV file as the body with the content type audio/wav.");
         }
         if (!http.Request.Query.TryGetValue("name", out StringValues names) || names.Count != 1)
         {
@@ -42,7 +51,8 @@ public static class MediaRoutes
         {
             limit.MaxRequestBodySize = options.MaxUploadBytes;
         }
-        MediaRecord record = await service.UploadAsync(http.RequireUser(), names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
+        UserId user = http.RequireUser();
+        MediaRecord record = await service.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
         return Results.Created($"{http.Request.PathBase}/api/media/{record.Id.Value}", MediaSummary.Of(record));
     }
 
@@ -63,7 +73,8 @@ public static class MediaRoutes
         FileStream stream = service.OpenContent(user, media);
         http.Response.Headers.CacheControl = "private, max-age=31536000, immutable";
         http.Response.Headers.XContentTypeOptions = "nosniff";
-        return Results.File(stream, WavType, lastModified: record.Created, entityTag: new EntityTagHeaderValue($"\"{record.Sha256}\""), enableRangeProcessing: true);
+        EntityTagHeaderValue tag = new($"\"{record.Sha256}\"");
+        return Results.File(stream, WavType, lastModified: record.Created, entityTag: tag, enableRangeProcessing: true);
     }
 
     private static async Task<IResult> DeleteAsync(HttpContext http, string id, MediaService service, CancellationToken cancellationToken)

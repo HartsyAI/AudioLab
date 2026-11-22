@@ -11,6 +11,11 @@ public sealed class MediaStoreTests
 {
     private static readonly CancellationToken _none = CancellationToken.None;
 
+    private static Task<MediaRecord> Send(TestStore store, Stream body, long? declared, string name = "a.wav")
+    {
+        return store.MediaFiles.UploadAsync(Users.Alice, name, body, declared, _none);
+    }
+
     private static string[] MediaFiles(TestStore store, UserId user)
     {
         string directory = store.Paths.MediaDirectory(user);
@@ -131,7 +136,7 @@ public sealed class MediaStoreTests
         {
             await Assert.ThrowsAsync<MediaRejectedException>(() => store.UploadAsync(Users.Alice, file));
         }
-        await Assert.ThrowsAsync<MediaRejectedException>(() => store.MediaFiles.UploadAsync(Users.Alice, "empty.wav", new MemoryStream(), null, _none));
+        await Assert.ThrowsAsync<MediaRejectedException>(() => Send(store, new MemoryStream(), null, "empty.wav"));
 
         Assert.Empty(MediaFiles(store, Users.Alice));
         Assert.Empty(store.MediaFiles.List(Users.Alice).Files);
@@ -173,11 +178,11 @@ public sealed class MediaStoreTests
         Assert.Equal(file.Length, exact.Bytes);
 
         // Announces nothing, as a chunked body does, and sends one byte too many.
-        await Assert.ThrowsAsync<MediaTooLargeException>(() => store.MediaFiles.UploadAsync(Users.Alice, "a.wav", new MemoryStream([.. file, 0]), null, _none));
+        await Assert.ThrowsAsync<MediaTooLargeException>(() => Send(store, new MemoryStream([.. file, 0]), null));
         // Announces less than it sends.
-        await Assert.ThrowsAsync<MediaTooLargeException>(() => store.MediaFiles.UploadAsync(Users.Alice, "a.wav", new MemoryStream([.. file, 0]), 10, _none));
+        await Assert.ThrowsAsync<MediaTooLargeException>(() => Send(store, new MemoryStream([.. file, 0]), 10));
         // Announces more than the limit: refused without reading a byte.
-        await Assert.ThrowsAsync<MediaTooLargeException>(() => store.MediaFiles.UploadAsync(Users.Alice, "a.wav", new ThrowingStream(), file.Length + 1L, _none));
+        await Assert.ThrowsAsync<MediaTooLargeException>(() => Send(store, new ThrowingStream(), file.Length + 1L));
 
         Assert.Equal(2, MediaFiles(store, Users.Alice).Length);
         Assert.Single(store.MediaFiles.List(Users.Alice).Files);
@@ -191,12 +196,13 @@ public sealed class MediaStoreTests
         await store.UploadAsync(Users.Alice, Wav());
         await store.UploadAsync(Users.Alice, Wav());
         await Assert.ThrowsAsync<MediaQuotaExceededException>(() => store.UploadAsync(Users.Alice, Wav()));
-        await Assert.ThrowsAsync<MediaQuotaExceededException>(() => store.MediaFiles.UploadAsync(Users.Alice, "a.wav", new ThrowingStream(), 10, _none));
+        await Assert.ThrowsAsync<MediaQuotaExceededException>(() => Send(store, new ThrowingStream(), 10));
         await store.UploadAsync(Users.Bob, Wav());
         Assert.Equal(4, MediaFiles(store, Users.Alice).Length);
 
         byte[] file = Wav();
-        await using TestStore sized = TestStore.On(Path.Combine(folder.Path, "sized"), media: new MediaOptions { MaxBytesPerUser = (file.Length * 2L) + 10, MaxUploadBytes = file.Length });
+        MediaOptions sizedOptions = new() { MaxBytesPerUser = (file.Length * 2L) + 10, MaxUploadBytes = file.Length };
+        await using TestStore sized = TestStore.On(Path.Combine(folder.Path, "sized"), media: sizedOptions);
         await sized.UploadAsync(Users.Alice, file);
         await sized.UploadAsync(Users.Alice, file);
         await Assert.ThrowsAsync<MediaQuotaExceededException>(() => sized.UploadAsync(Users.Alice, file));
@@ -209,7 +215,9 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         byte[] file = Wav(48000);
 
-        MediaRecord[] records = await Task.WhenAll(Enumerable.Range(0, 12).Select(index => Task.Run(() => store.UploadAsync(Users.Alice, file, $"same-{index}.wav"))));
+        Task<MediaRecord> Upload(int index) => Task.Run(() => store.UploadAsync(Users.Alice, file, $"same-{index}.wav"));
+        Task<MediaRecord>[] uploads = [.. Enumerable.Range(0, 12).Select(Upload)];
+        MediaRecord[] records = await Task.WhenAll(uploads);
 
         Assert.Equal(12, records.Select(record => record.Id).Distinct().Count());
         Assert.Single(records.Select(record => record.Sha256).Distinct());

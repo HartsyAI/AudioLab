@@ -70,7 +70,7 @@ public sealed class CommandHistory
     /// <summary>The name of the command that began the step Redo would reapply, or null when there is none.</summary>
     public string? RedoLabel => _redo.Count > 0 ? _redo[^1].Label : null;
 
-    /// <summary>Every document the history holds and could show again: the current one, each undo and redo step, and the start of each open gesture.</summary>
+    /// <summary>Every document the history could show again: the current one, each undo and redo step, and each open gesture's start.</summary>
     /// <remarks>A media store applies its reference rule to all of these, as an undo step can play a file the project no longer does.</remarks>
     public IEnumerable<ProjectDocument> HeldDocuments()
     {
