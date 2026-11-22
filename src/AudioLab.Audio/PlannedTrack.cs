@@ -14,6 +14,9 @@ internal sealed class PlannedTrack
     /// <summary>The track's own pan, from -1 to 1.</summary>
     public required double Pan { get; init; }
 
+    /// <summary>Whether the signal is the same on both channels at the fader, which gives it the mono pan law.</summary>
+    public required bool Mono { get; init; }
+
     /// <summary>Whether the direct output is heard once solo is counted; sends still run when it is not.</summary>
     public required bool SoloAudible { get; init; }
 

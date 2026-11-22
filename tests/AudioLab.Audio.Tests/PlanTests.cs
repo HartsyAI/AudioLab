@@ -105,6 +105,8 @@ public sealed class PlanTests
 
     private sealed class StubSource : ITrackSource
     {
+        public bool IsMono => false;
+
         public int Resets { get; private set; }
 
         public long LastStart { get; private set; }

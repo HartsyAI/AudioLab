@@ -107,11 +107,15 @@ public sealed class RenderPlan
         (PlannedClip[] clips, long[] latestEnds) = track.Kind == TrackKind.Audio
             ? PlanClips(track, cache, sampleRate)
             : (Array.Empty<PlannedClip>(), Array.Empty<long>());
+        ITrackSource? source = track.Kind == TrackKind.Instrument
+            ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2))
+            : null;
         return new PlannedTrack
         {
             BusSlot = track.Kind == TrackKind.Bus ? busSlots[track.Id] : -1,
             FaderGain = muted ? 0 : (float)MixRules.TrackLevel(track, document.Groups),
             Pan = track.Pan,
+            Mono = IsMono(track, clips, source),
             SoloAudible = soloAudible,
             VolumeLane = automated && track.Automation.Volume.Count > 0 ? track.Automation.Volume : null,
             PanLane = automated && track.Automation.Pan.Count > 0 ? track.Automation.Pan : null,
@@ -119,8 +123,18 @@ public sealed class RenderPlan
             Inserts = [.. track.Effects.Select(effect => (options.InsertBuilder ?? InsertFactory.Create)(effect, context)).OfType<IInsert>()],
             Clips = clips,
             LatestEnds = latestEnds,
-            Source = track.Kind == TrackKind.Instrument ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2)) : null,
+            Source = source,
         };
+    }
+
+    // A track that is the same on both channels is panned by the mono law, as a mono source was in the old DAW.
+    private static bool IsMono(Track track, PlannedClip[] clips, ITrackSource? source)
+    {
+        if (track.Kind == TrackKind.Bus)
+        {
+            return false;
+        }
+        return track.Kind == TrackKind.Instrument ? source?.IsMono == true : clips.All(clip => clip.Audio.ChannelCount == 1);
     }
 
     private static (PlannedClip[] Clips, long[] LatestEnds) PlanClips(Track track, MediaCache cache, int sampleRate)
