@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Exact pins. The 14 ids are the set publish-nuget.yml refuses to publish a partial release without. -->
+    <PackageVersion Include="HartsyInference" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Core" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Cuda" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Vulkan" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.ModelAssets" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Diffusion" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Audio" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Vision" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Video" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.World" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.ThreeD" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.LLM" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Engine" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="HartsyInference.Voice" Version="2.0.0-alpha.445" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,27 @@
+RESOURCES|HartsyInference.Core|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Core|2.0.0.0|420 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Cuda|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Cuda|2.0.0.0|42 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Vulkan|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Vulkan|2.0.0.0|124 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.ModelAssets|11 embedded resources|43.6 MiB
+LOAD|HartsyInference.ModelAssets|2.0.0.0|368 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Diffusion|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Diffusion|2.0.0.0|720 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Audio|14 embedded resources|13.5 MiB
+LOAD|HartsyInference.Audio|2.0.0.0|599 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Vision|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Vision|2.0.0.0|201 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Video|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Video|2.0.0.0|50 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.World|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.World|2.0.0.0|62 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.ThreeD|1 embedded resources|0.1 MiB
+LOAD|HartsyInference.ThreeD|2.0.0.0|449 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.LLM|5 embedded resources|0.5 MiB
+LOAD|HartsyInference.LLM|2.0.0.0|343 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Engine|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Engine|2.0.0.0|620 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+RESOURCES|HartsyInference.Voice|0 embedded resources|0.0 MiB
+LOAD|HartsyInference.Voice|2.0.0.0|9 public types|2.0.0-alpha.445+8286c7b9e771f2d1b37b7695a02a85d08be4daa2
+PASS|13 of 13 assemblies loaded on .NET 10.0.14

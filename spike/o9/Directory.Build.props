@@ -1,0 +1,9 @@
+<Project>
+  <!-- Isolated from the AudioLab solution: this spike has its own restore, pins and no style gate. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory).packages</RestorePackagesPath>
+  </PropertyGroup>
+</Project>

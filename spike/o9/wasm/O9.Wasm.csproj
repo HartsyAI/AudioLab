@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!-- Variant: None (page only) | Own (the straightforward code only) | Resampler | Wav | Fft | Other | All (HartsyInference.Audio calls).
+       Mode: Default (the SDK's trimming, HartsyInference assemblies copied whole) | Trim (TrimMode=full, every assembly trimmed) | Aot. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Variant Condition="'$(Variant)' == ''">All</Variant>
+    <Mode Condition="'$(Mode)' == ''">Default</Mode>
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+    <StaticWebAssetsFingerprintingEnabled>false</StaticWebAssetsFingerprintingEnabled>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>O9.Wasm</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Mode)' == 'Trim' or '$(Mode)' == 'Aot'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Mode)' == 'Aot'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Variant)' != 'None'">
+    <DefineConstants>$(DefineConstants);OWN</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Variant)' == 'Resampler' or '$(Variant)' == 'All'">
+    <DefineConstants>$(DefineConstants);HI_RESAMPLER</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Variant)' == 'Wav' or '$(Variant)' == 'All'">
+    <DefineConstants>$(DefineConstants);HI_WAV</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Variant)' == 'Fft' or '$(Variant)' == 'All'">
+    <DefineConstants>$(DefineConstants);HI_FFT</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Variant)' == 'Other' or '$(Variant)' == 'All'">
+    <DefineConstants>$(DefineConstants);HI_OTHER</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Variant)' != 'None' and '$(Variant)' != 'Own'">
+    <PackageReference Include="HartsyInference.Audio" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Variant)' != 'None'">
+    <Compile Include="..\bench\*.cs" Link="bench\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

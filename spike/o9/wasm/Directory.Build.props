@@ -1,0 +1,7 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <!-- One intermediate folder per configuration, so publishing several variants in a row never reuses another's objects. -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../obj-wasm/$(Variant)-$(Mode)/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
