@@ -338,6 +338,45 @@ public sealed class CommandSchemaContractTests
         Assert.Contains("between", Property("lyrics_set_word_time", "start").GetProperty("description").GetString());
     }
 
+    [Fact]
+    public void TheViewGridPresetAndSettingNamesInTheSchemasAreExactlyTheRulesOwn()
+    {
+        string[] grid = [.. Property("project_set_view", "grid").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        string[] presets = [.. Property("instrument_set_preset", "preset").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        JsonElement named = Property("instrument_set_parameter", "parameter").GetProperty("enum");
+        string[] settings = [.. named.EnumerateArray().Select(item => item.GetString()!)];
+
+        Assert.Equal(GridRules.Values, grid);
+        Assert.Equal(InstrumentPresets.Names, presets);
+        Assert.Equal(InstrumentRules.AllParameterNames, settings);
+        Assert.Equal(["project"], Required("project_set_view"));
+    }
+
+    [Fact]
+    public void TheInstrumentValueDescriptionStatesEverySettingsRangeAndTheTrackSettingsStateTheirs()
+    {
+        string description = Property("instrument_set_parameter", "value").GetProperty("description").GetString()!;
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+        SynthInstrument synth = InstrumentPresets.CreateSynth("Soft Keys");
+
+        foreach (InstrumentParameter setting in InstrumentRules.Parameters(synth))
+        {
+            string range = $"{setting.Name} {setting.Min.ToString("0.###", invariant)} to {setting.Max.ToString("0.###", invariant)}";
+            Assert.Contains(range, description, StringComparison.Ordinal);
+        }
+        JsonElement height = Property("track_set_height", "height");
+        JsonElement channel = Property("track_set_input", "channel");
+        JsonElement channels = Property("track_set_input", "channels").GetProperty("enum");
+        double[] limits = [height.GetProperty("minimum").GetDouble(), height.GetProperty("maximum").GetDouble()];
+        Assert.Equal([TrackRules.MinHeight, TrackRules.MaxHeight], limits);
+        Assert.Equal((1.0, 256.0), (channel.GetProperty("minimum").GetDouble(), channel.GetProperty("maximum").GetDouble()));
+        Assert.Equal(["mono", "stereo", "single"], channels.EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["project", "track"], Required("track_set_icon"));
+        Assert.Equal(["channels", "project", "track"], Required("track_set_input"));
+        Assert.Equal(TrackIcon.MaxImageLength, Property("track_set_icon", "icon").GetProperty("maxLength").GetInt32());
+        Assert.Equal([1.0, 2.0], Property("instrument_set_wave", "oscillator").GetProperty("enum").EnumerateArray().Select(item => item.GetDouble()));
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];

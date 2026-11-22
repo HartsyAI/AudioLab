@@ -266,6 +266,47 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryProjectTrackAndInstrumentSettingsCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track keys = sample.Tracks.First(track => track.Kind == TrackKind.Instrument && track.Instrument is SynthInstrument);
+        Track sampler = sample.Tracks.First(track => track.Instrument is SamplerInstrument);
+        Track audio = sample.Tracks.First(track => track.Kind == TrackKind.Audio);
+        SynthInstrument keySynth = (SynthInstrument)keys.Instrument!;
+        SamplerInstrument keySampler = (SamplerInstrument)sampler.Instrument!;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new RenameProject { Project = id, Name = "Renamed" },
+            new SetMetronome { Project = id, Enabled = !sample.Metronome },
+            new SetProjectView { Project = id, Ruler = sample.View.Ruler == RulerMode.Time ? RulerMode.Beats : RulerMode.Time },
+            new SetProjectView { Project = id, EditMode = sample.View.EditMode == EditMode.Grid ? EditMode.Slip : EditMode.Grid },
+            new SetProjectView { Project = id, Grid = sample.View.Grid == "1/8" ? "bar" : "1/8" },
+            new SetTrackArmed { Project = id, Track = audio.Id, Armed = !audio.Armed },
+            new SetTrackMonitor { Project = id, Track = audio.Id, Monitor = !audio.Monitor },
+            new SetTrackInput { Project = id, Track = audio.Id, DeviceId = "other-device", Channels = InputChannelMode.Single, Channel = 4 },
+            new SetTrackHeight { Project = id, Track = audio.Id, Height = audio.View.Height + 10 },
+            new SetTrackIcon { Project = id, Track = audio.Id, Icon = "\U0001F3A4" },
+            new SetInstrumentPreset { Project = id, Track = keys.Id, Preset = "Bell" },
+            new SetInstrumentPreset { Project = id, Track = keys.Id, Preset = InstrumentPresets.Sampler },
+            new SetInstrumentParameter { Project = id, Track = keys.Id, Parameter = "resonance", Value = keySynth.Resonance + 1 },
+            new SetOscillatorWave { Project = id, Track = keys.Id, Oscillator = 1, Wave = OscillatorWave.Square },
+            new SetSamplerRootNote { Project = id, Track = sampler.Id, Note = keySampler.RootNote + 1 },
+            new SetSamplerOneShot { Project = id, Track = sampler.Id, OneShot = !keySampler.OneShot },
+            new SetSamplerSample { Project = id, Track = sampler.Id, Sample = MediaId.From("med_other"), SampleName = "Other" },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();
