@@ -15,6 +15,7 @@ internal static class ClipCommands
             .Add("clip_trim", "Moves one edge of an audio clip without changing the audio.", json.TrimClip, Trim)
             .Add("clip_split", "Cuts an audio clip in two and allocates the right piece's id.", json.SplitClip, Split)
             .Add("clip_duplicate", "Copies an audio or MIDI clip onto its track and allocates the copy's id.", json.DuplicateClip, Duplicate)
+            .Add("clip_replace_media", "Makes an audio clip play another media file in the same place.", json.ReplaceClipMedia, ReplaceMedia)
             .Add("clip_delete", "Removes an audio or MIDI clip; shuffle edit mode closes the gap.", json.DeleteClip, Delete)
             .Add("clip_set_gain", "Sets the gain of an audio clip.", json.SetClipGain, SetGain)
             .Add("clip_set_fades", "Sets the fades of an audio clip.", json.SetClipFades, SetFades)
@@ -252,6 +253,27 @@ internal static class ClipCommands
             Start = command.Start ?? ClipRules.EndOf(source) + ClipRules.CopyGap,
         };
         return CommandResult.Ok(ClipEdits.WithTrack(document, at.Track, current => current with { MidiClips = [.. current.MidiClips, midiCopy] }), id.Value);
+    }
+
+    private static CommandResult ReplaceMedia(ProjectDocument document, ReplaceClipMedia command, IIdService ids)
+    {
+        if (ClipEdits.Find(document, command.Clip) is not { } at)
+        {
+            return ClipEdits.NoClip(command.Clip);
+        }
+        if (!at.IsAudio)
+        {
+            return ClipEdits.WrongKind(wantsAudio: true);
+        }
+        if (CommandChecks.Finite((nameof(command.Duration), command.Duration)) is { } refusal)
+        {
+            return refusal;
+        }
+        if (!(command.Duration >= ProjectLimits.Tolerance) || command.Duration > ProjectLimits.MaxSeconds)
+        {
+            return CommandChecks.OutOfRange($"A media file is longer than 0 and at most {ProjectLimits.MaxSeconds} seconds.");
+        }
+        return ClipEdits.EditAudio(document, command.Clip, clip => ClipRules.ReplaceMedia(clip, command.Media, command.Duration));
     }
 
     private static CommandResult Delete(ProjectDocument document, DeleteClip command, IIdService ids)

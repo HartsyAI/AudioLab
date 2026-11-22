@@ -99,7 +99,7 @@ internal static class RangeCommands
         {
             return invalid;
         }
-        return end - start < RangeRules.MinLength
+        return end - start < RangeRules.MinLength - ProjectLimits.Tolerance
             ? CommandChecks.OutOfRange($"The range must be at least {RangeRules.MinLength} seconds long.")
             : null;
     }

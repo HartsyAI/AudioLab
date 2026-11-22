@@ -5,7 +5,7 @@ namespace AudioLab.Core.Rules;
 /// <summary>The range rules of the old DAW: what a range delete and a range split do to the clips of a track. Times are seconds.</summary>
 public static class RangeRules
 {
-    /// <summary>The shortest range, and the shortest piece of a clip a range delete leaves.</summary>
+    /// <summary>The shortest range, and the shortest piece of a clip a range delete leaves; a length within a billionth of it counts.</summary>
     public const double MinLength = 0.001;
 
     /// <summary>Clips that touch a range only within this many seconds are not cut by it.</summary>
@@ -47,8 +47,8 @@ public static class RangeRules
                 continue;
             }
             double clipEnd = ClipRules.EndOf(clip);
-            bool left = start - clip.Start >= MinLength;
-            bool right = clipEnd - end >= MinLength;
+            bool left = start - clip.Start >= MinLength - ProjectLimits.Tolerance;
+            bool right = clipEnd - end >= MinLength - ProjectLimits.Tolerance;
             if (left)
             {
                 kept.Add(LeftPiece(clip, start));
@@ -114,7 +114,13 @@ public static class RangeRules
         ArgumentNullException.ThrowIfNull(section);
         ArgumentNullException.ThrowIfNull(trackName);
         string name = $"{section.Name} - {trackName}";
-        return name.Length > ProjectLimits.MaxName ? name[..ProjectLimits.MaxName].TrimEnd() : name;
+        if (name.Length <= ProjectLimits.MaxName)
+        {
+            return name;
+        }
+        // Never cut a surrogate pair in half: a lone half is not text a project keeps.
+        int room = char.IsHighSurrogate(name[ProjectLimits.MaxName - 1]) ? ProjectLimits.MaxName - 1 : ProjectLimits.MaxName;
+        return name[..room].TrimEnd();
     }
 
     private static bool Inside(MidiClip clip, double start, double end)

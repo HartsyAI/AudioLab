@@ -318,6 +318,7 @@ public sealed class RichProjectTests
         [
             new DeleteRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
             new SplitAtRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
+            new ReplaceClipMedia { Project = id, Clip = clip.Id, Media = MediaId.From("med_replacement"), Duration = clip.Duration + 5 },
             new NameClipsAfterSections { Project = id },
         ];
 

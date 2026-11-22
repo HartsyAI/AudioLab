@@ -405,6 +405,10 @@ public sealed class CommandSchemaContractTests
             Assert.Equal(["end", "project", "start", "tracks"], Required(command));
         }
         Assert.Equal(["project"], Required("section_name_clips"));
+        JsonElement duration = Property("clip_replace_media", "duration");
+        double[] limits = [duration.GetProperty("minimum").GetDouble(), duration.GetProperty("maximum").GetDouble()];
+        Assert.Equal([ProjectLimits.Tolerance, ProjectLimits.MaxSeconds], limits);
+        Assert.Equal(["clip", "duration", "media", "project"], Required("clip_replace_media"));
         Assert.True(Property("section_name_clips", "section").TryGetProperty("description", out _));
     }
 

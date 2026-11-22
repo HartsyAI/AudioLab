@@ -19,6 +19,7 @@ namespace AudioLab.Core.Commands;
 [JsonSerializable(typeof(SplitClip))]
 [JsonSerializable(typeof(DuplicateClip))]
 [JsonSerializable(typeof(DeleteClip))]
+[JsonSerializable(typeof(ReplaceClipMedia))]
 [JsonSerializable(typeof(SetClipGain))]
 [JsonSerializable(typeof(SetClipFades))]
 [JsonSerializable(typeof(SetMidiClipLength))]

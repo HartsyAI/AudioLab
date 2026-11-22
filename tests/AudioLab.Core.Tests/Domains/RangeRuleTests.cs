@@ -108,6 +108,16 @@ public sealed class RangeRuleTests
     }
 
     [Fact]
+    public void APieceOfExactlyAMillisecondIsKeptEvenWhenTheSubtractionFallsAHairShort()
+    {
+        AudioClip clip = Clip("a", 2, 10);
+
+        Assert.Equal(2, RangeRules.Delete([clip], 2.001, 6, false, NewId).Count);
+        Assert.Equal(2, RangeRules.Delete([clip], 4, 11.999, false, NewId).Count);
+        Assert.Single(RangeRules.Delete([clip], 4, 11.9995, false, NewId));
+    }
+
+    [Fact]
     public void ShuffleClosesTheGapForEveryClipFromTheEndOnIncludingTheRightPiece()
     {
         AudioClip across = Clip("across", 2, 10);
@@ -172,5 +182,18 @@ public sealed class RangeRuleTests
         Assert.Equal("Drop 1 - supersaw", RangeRules.ClipName(drop, "supersaw"));
         Assert.Equal(ProjectLimits.MaxName, RangeRules.ClipName(long1, new string('t', 150)).Length);
         Assert.StartsWith(new string('s', 150) + " - ", RangeRules.ClipName(long1, new string('t', 150)));
+    }
+
+    [Fact]
+    public void ACutThroughASurrogatePairLeavesWholeTextTheProjectKeeps()
+    {
+        string emoji = "\U0001F3B8";
+        Section drop = new() { Id = SectionId.From("sec_1"), Name = new string('s', 199) + emoji, Start = 0, End = 8, Color = "#ff0000" };
+
+        string name = RangeRules.ClipName(drop, "Drums");
+
+        Assert.True(TextRules.IsClean(name));
+        Assert.True(name.Length <= ProjectLimits.MaxName);
+        Assert.Equal(new string('s', 199), name);
     }
 }

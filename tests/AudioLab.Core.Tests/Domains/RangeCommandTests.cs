@@ -169,7 +169,7 @@ public sealed class RangeCommandTests
         _rig.RefusedWith(Delete(4, 4, _drums), CommandErrorCode.Invalid);
         _rig.RefusedWith(Delete(6, 4, _drums), CommandErrorCode.Invalid);
         _rig.RefusedWith(Delete(4, 4.0005, _drums), CommandErrorCode.Invalid);
-        _rig.Ok(Delete(4, 4.002, _drums));
+        _rig.Ok(Delete(4, 4.001, _drums));
     }
 
     [Fact]
@@ -188,6 +188,25 @@ public sealed class RangeCommandTests
 
         Assert.Equal(CommandErrorCode.Invalid, refused.Errors[0].Code);
         Assert.Contains("at most", refused.Errors[0].Message);
+    }
+
+    [Fact]
+    public void ARefusedDeleteUsesNoIdSoTheNextOneIsTheNextInLine()
+    {
+        Track full = BlankProject.Track("trk_full") with
+        {
+            Clips = [.. Enumerable.Range(0, ProjectLimits.MaxClips).Select(i => Clip($"f{i}", 0, 10))],
+        };
+        Track small = BlankProject.Track("trk_small") with { Clips = [Clip("s1", 0, 10)] };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [small, full] });
+        TrackId fullId = TrackId.From("trk_full");
+        TrackId smallId = TrackId.From("trk_small");
+
+        rig.RefusedWith(new DeleteRange { Project = rig.Id, Start = 4, End = 6, Tracks = [smallId, fullId] }, CommandErrorCode.Invalid);
+        rig.RefusedWith(new SplitAtRange { Project = rig.Id, Start = 4, End = 6, Tracks = [smallId, fullId] }, CommandErrorCode.Invalid);
+        IReadOnlyList<string> created = rig.Created(new DeleteRange { Project = rig.Id, Start = 4, End = 6, Tracks = [smallId] });
+
+        Assert.Equal(["clp_1001"], created);
     }
 
     [Theory]
@@ -224,8 +243,9 @@ public sealed class RangeCommandTests
 
         Assert.Equal([(2.0, 4.0), (4.0, 11.0), (11.0, 12.0), (20.0, 24.0)], Spans(Track(_drums)));
         Assert.Equal([(1.0, 4.0), (4.0, 6.0), (8.0, 11.0), (11.0, 12.0)], Spans(Track(_bass)));
-        Assert.Equal(4, created.Count);
-        Assert.Equal(created.Count, created.Distinct().Count());
+        Assert.Equal(["clp_1001", "clp_1002", "clp_1003", "clp_1004"], created);
+        Assert.Equal(["d1", "clp_1001", "clp_1002", "d2"], Track(_drums).Clips.Select(clip => clip.Id.Value));
+        Assert.Equal(["b1", "clp_1003", "b2", "clp_1004"], Track(_bass).Clips.Select(clip => clip.Id.Value));
     }
 
     [Fact]

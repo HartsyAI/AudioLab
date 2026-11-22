@@ -207,6 +207,11 @@ public sealed class CoreCommandsTests
     {
         string project = BlankProject.Create().Id.Value;
 
+        CommandParseResult replace = _registry.Parse(
+            "clip_replace_media",
+            $$"""{"project":"{{project}}","clip":"clp_1","media":"med_2","duration":12.5}""");
+        Assert.Equal(12.5, Assert.IsType<ReplaceClipMedia>(replace.Command).Duration);
+
         CommandParseResult delete = _registry.Parse("range_delete", $$"""{"project":"{{project}}","start":4,"end":6.5,"tracks":["trk_1","trk_2"]}""");
         CommandParseResult name = _registry.Parse("section_name_clips", $$"""{"project":"{{project}}"}""");
         CommandParseResult bad = _registry.Parse("range_split", $$"""{"project":"{{project}}","start":4,"end":6.5}""");

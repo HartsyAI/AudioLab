@@ -70,6 +70,29 @@ public static partial class ClipRules
         return (left, right);
     }
 
+    /// <summary>The clip playing another media file in the same place, keeping the part it played as far as the new file allows.</summary>
+    /// <remarks>
+    /// The start, name, colour, gain and mute stay. The offset and the visible length stay unless the new file is shorter, then they are cut
+    /// to it, and fades that no longer fit are shortened. The lyrics go, because their times are seconds of the old file; the score and
+    /// stem records stay, since they say where the clip came from and a caller sets them again when that changed. The same file and length
+    /// change nothing.
+    /// </remarks>
+    public static AudioClip ReplaceMedia(AudioClip clip, MediaId media, double duration)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Media == media && clip.Duration == duration)
+        {
+            return clip;
+        }
+        double visible = VisibleLength(clip);
+        double offset = Math.Min(clip.Offset, Math.Max(0, duration - MinClipLength));
+        double kept = Math.Min(visible, duration - offset);
+        ClipMeta? meta = clip.Meta is null ? null : clip.Meta with { Lyrics = null };
+        bool empty = meta is { Score: null, StemOf: null } && meta.Extra.IsEmpty;
+        double trimEnd = duration - offset - kept;
+        return FitFades(clip with { Media = media, Duration = duration, Offset = offset, TrimEnd = trimEnd, Meta = empty ? null : meta });
+    }
+
     /// <summary>Moves the start edge to <paramref name="edge"/> on the timeline.</summary>
     /// <remarks>The audio after it stays where it was; the clip cannot start before 0 or shrink below <see cref="MinClipLength"/>. Fades that no longer fit are shortened.</remarks>
     public static AudioClip TrimStart(AudioClip clip, double edge)
