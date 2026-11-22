@@ -9,10 +9,13 @@ internal static class ReverbImpulse
     private const int CalibrationRate = 44100;
     private const double MinPower = 0.000125;
 
+    /// <summary>How many frames the impulse of a room of <paramref name="size"/> seconds has.</summary>
+    public static int LengthFor(double size, int sampleRate) => Math.Max(64, (int)Math.Floor((size * sampleRate) + 0.5));
+
     /// <summary>The impulse of one channel (0 left, 1 right) for a room of <paramref name="size"/> seconds and a decay exponent.</summary>
     public static float[] Create(double size, double decay, int channel, int sampleRate)
     {
-        int length = Math.Max(64, (int)Math.Floor((size * sampleRate) + 0.5));
+        int length = LengthFor(size, sampleRate);
         double seedValue = (Math.Floor((size * 1000) + 0.5) * 7919) + (Math.Floor((decay * 100) + 0.5) * 31) + channel + 1;
         uint state = unchecked((uint)(long)seedValue);
         float[] impulse = new float[length];

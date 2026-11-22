@@ -69,16 +69,21 @@ public sealed class StemTests
         IReadOnlyList<Stem> stems = StemExporter.Render(document, _media, Options());
         Stem dry = stems.Single(stem => stem.Name == "t1");
         Stem echo = stems.Single(stem => stem.Name == "echo");
+        Track plain = document.Tracks[0] with { Sends = [], Volume = 1, Pan = 0 };
+        OfflineOptions same = Options() with { TailFrames = dry.Audio.Frames - Rate };
 
-        // The pre-fader send of t1 into "echo" is 0.3 of the track after its delay, before its fader and pan.
-        RenderedAudio alone = OfflineRenderer.Render(
-            document with { Tracks = new ValueList<Track>([document.Tracks[0] with { Sends = [] }]) },
-            _media,
-            Options() with { TailFrames = dry.Audio.Frames - 8000 });
+        ProjectDocument withFader = document with { Tracks = new ValueList<Track>([document.Tracks[0] with { Sends = [] }]) };
+        RenderedAudio fader = OfflineRenderer.Render(withFader, _media, same);
+        RenderedAudio beforeFader = OfflineRenderer.Render(document with { Tracks = new ValueList<Track>([plain]) }, _media, same);
 
-        Assert.Equal(alone.Left, dry.Audio.Left);
-        Assert.True(Signals.Peak(echo.Audio.Left) > 0);
+        // The track's stem has its fader and pan; the pre-fader send of 0.3 into "echo" is the track after its delay and before both.
+        Assert.Equal(fader.Left, dry.Audio.Left);
         Assert.Equal(dry.Audio.Frames, echo.Audio.Frames);
+        for (int i = 0; i < echo.Audio.Frames; i++)
+        {
+            Assert.Equal(0.3f * beforeFader.Left[i], echo.Audio.Left[i], 1e-5);
+            Assert.Equal(0.3f * beforeFader.Right[i], echo.Audio.Right[i], 1e-5);
+        }
     }
 
     [Fact]
@@ -258,5 +263,158 @@ public sealed class StemTests
 
         Assert.Equal(3 * Rate, stem.Audio.Frames);
         Assert.True(Signals.Peak(stem.Audio.Left.AsSpan(2 * Rate)) > 0.1);
+    }
+
+    private sealed class Throwing : ITrackSource, ITrackSourceFactory
+    {
+        public bool IsMono => false;
+
+        public double TailSeconds => 0;
+
+        public void Reset()
+        {
+        }
+
+        public void Render(long startFrame, Span<float> left, Span<float> right) => throw new InvalidOperationException("the source failed");
+
+        public ITrackSource? Create(ProjectDocument document, Track track, AudioFormat format, IPlanMedia media) =>
+            track.Id.Value == "bad" ? this : null;
+    }
+
+    private static ProjectDocument TwoTracksTheSecondOfWhichFails() =>
+        TestProject.Create(
+            TestProject.Track("good", TrackKind.Audio, TestProject.Clip("c1", "a", 0, 1)),
+            TestProject.Track("bad", TrackKind.Instrument) with
+            {
+                MidiClips = new ValueList<MidiClip>(
+                [
+                    new MidiClip
+                    {
+                        Id = ClipId.From("m1"),
+                        Name = "m",
+                        Start = 0,
+                        Length = 1,
+                        Muted = false,
+                        Notes = [],
+                        ControlChanges = [],
+                        NextNoteId = NoteId.First,
+                    },
+                ]),
+            });
+
+    [Fact]
+    public void AFailureAfterTheFirstByteLeavesAFileWithNoCentralDirectoryThatNoReaderTakesAsComplete()
+    {
+        using MemoryStream zip = new();
+        OfflineOptions options = Options() with { Sources = new Throwing() };
+
+        Assert.Throws<InvalidOperationException>(
+            () => StemExporter.WriteZip(TwoTracksTheSecondOfWhichFails(), _media, zip, new WavOptions(), options));
+
+        byte[] bytes = zip.ToArray();
+        Assert.True(bytes.Length > 100);
+        Assert.Equal(-1, bytes.AsSpan().IndexOf(new byte[] { 0x50, 0x4B, 0x01, 0x02 }));
+        Assert.Throws<InvalidDataException>(() => new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read));
+    }
+
+    [Fact]
+    public void AStemTooLargeForAWavFileIsRefusedBeforeAnythingIsWritten()
+    {
+        using MemoryStream zip = new();
+        OfflineOptions huge = Options() with { SampleRate = 48000, End = 200000 };
+        MemoryMedia silence = new MemoryMedia().Add("z", Signals.Constant(0, 1, 48000));
+        ProjectDocument document = TestProject.Create(TestProject.Track("t", TrackKind.Audio, TestProject.Clip("c", "z", 0, 1)));
+
+        WavOptions wav = new() { Format = WavFormat.Pcm24 };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => StemExporter.WriteZip(document, silence, zip, wav, huge));
+        Assert.Equal(0, zip.Length);
+    }
+
+    [Fact]
+    public void MediaThatIsMissingForTheSecondStemFailsBeforeTheFirstByte()
+    {
+        using MemoryStream zip = new();
+        ProjectDocument document = TestProject.Create(
+            TestProject.Track("one", TrackKind.Audio, TestProject.Clip("c1", "a", 0, 1)),
+            TestProject.Track("two", TrackKind.Audio, TestProject.Clip("c2", "gone", 0, 1)));
+
+        Assert.Throws<MissingMediaException>(() => StemExporter.WriteZip(document, _media, zip, new WavOptions(), Options()));
+        Assert.Equal(0, zip.Length);
+    }
+
+    [Fact]
+    public async Task TheAsynchronousZipIsTheSameBytesAndWorksOnAStreamThatRefusesSynchronousWrites()
+    {
+        ProjectDocument document = Project();
+        using MemoryStream sync = new();
+        AsyncOnlyStream asyncOnly = new();
+
+        StemExporter.WriteZip(document, _media, sync, new WavOptions(), Options());
+        await StemExporter.WriteZipAsync(document, _media, asyncOnly, new WavOptions(), Options());
+
+        Assert.Equal(sync.ToArray(), asyncOnly.Bytes);
+    }
+
+    [Fact]
+    public async Task ACancelledExportStopsAndLeavesNoCentralDirectory()
+    {
+        using CancellationTokenSource source = new();
+        AsyncOnlyStream output = new() { OnWrite = bytes => { if (bytes > 2000) { source.Cancel(); } } };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => StemExporter.WriteZipAsync(Project(), _media, output, new WavOptions(), Options(), null, source.Token));
+
+        Assert.Equal(-1, output.Bytes.AsSpan().IndexOf(new byte[] { 0x50, 0x4B, 0x01, 0x02 }));
+    }
+
+    [Fact]
+    public void ATrackWhoseClipsAreAllMutedHasNoStem()
+    {
+        ProjectDocument document = TestProject.Create(
+            TestProject.Track("loud", TrackKind.Audio, TestProject.Clip("c1", "a", 0, 1)),
+            TestProject.Track("silent", TrackKind.Audio, TestProject.Clip("c2", "a", 0, 1) with { Muted = true }));
+
+        Assert.Equal(["loud"], StemExporter.StemTracks(document).Select(id => id.Value));
+    }
+
+    [Fact]
+    public void ALongNameIsNotCutInsideACharacterAndTextOrderingCharactersAreReplaced()
+    {
+        string emoji = string.Concat(Enumerable.Repeat("\U0001F3B5", 60));
+        string name = StemExporter.FileName(1, emoji);
+        string bidi = StemExporter.FileName(2, "a\u202Eb\u2066c\u200Fd");
+
+        Assert.True(name.Length <= 3 + 100 + 4);
+        Assert.False(char.IsHighSurrogate(name[^5]));
+        Assert.Equal("02 a_b_c_d.wav", bidi);
+    }
+
+    [Fact]
+    public void ASizingPlanReportsTheSameTailAsTheRealOne()
+    {
+        ProjectDocument document = EffectsProject.Create();
+        PlanOptions real = new() { SampleRate = BusyProject.Rate };
+        PlanOptions sizing = real with { SizingOnly = true };
+
+        RenderPlan whole = RenderPlan.Create(document, BusyProject.Media(), real);
+        RenderPlan light = RenderPlan.Create(document, BusyProject.Media(), sizing);
+
+        Assert.Equal(whole.TailFrames, light.TailFrames);
+        Assert.Equal(whole.TailIsCut, light.TailIsCut);
+        Assert.True(light.TailFrames > 0);
+    }
+
+    [Fact]
+    public void ANegativeTailIsRefused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => OfflineRenderer.Render(Project(), _media, Options() with { TailFrames = -1 }));
+    }
+
+    [Fact]
+    public void TheCheckValueOfAZipEntryIsTheStandardCrc32()
+    {
+        Assert.Equal(0xCBF43926u, Crc32.Update(0, "123456789"u8));
+        Assert.Equal(Crc32.Update(0, "123456789"u8), Crc32.Update(Crc32.Update(0, "1234"u8), "56789"u8));
     }
 }

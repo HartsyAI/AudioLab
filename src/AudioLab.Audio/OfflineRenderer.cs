@@ -13,6 +13,7 @@ public static class OfflineRenderer
         return Render(plan, settings);
     }
 
+    /// <summary>The options of the plan an offline render makes.</summary>
     internal static PlanOptions PlanOptionsOf(OfflineOptions settings) =>
         new()
         {
@@ -22,6 +23,7 @@ public static class OfflineRenderer
             Cache = settings.Cache,
         };
 
+    /// <summary>The options, or the defaults when there are none; throws when the range or the tail is not one a render can have.</summary>
     internal static OfflineOptions Validate(OfflineOptions? options)
     {
         OfflineOptions settings = options ?? new OfflineOptions();
@@ -32,6 +34,10 @@ public static class OfflineRenderer
         if (settings.End is { } endTime && endTime < settings.Start)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "The end must not be before the start.");
+        }
+        if (settings.TailFrames is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The tail cannot be negative.");
         }
         return settings;
     }

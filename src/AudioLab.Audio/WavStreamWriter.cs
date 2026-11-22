@@ -5,8 +5,10 @@ namespace AudioLab.Audio;
 
 /// <summary>Writes stereo float audio to a stream as a WAV file, block by block, with the header sized from the frame count given up front.</summary>
 /// <remarks>
-/// Integer samples are scaled by the power of two that fills the range, rounded (after dither, when asked) and clamped; a clamped sample
-/// is counted in <see cref="ClippedSamples"/>. The file is plain RIFF, so it holds at most 4 GiB.
+/// The constructor only checks the size; <see cref="WriteHeader"/> or <see cref="WriteHeaderAsync"/> writes the first byte. A stream that
+/// refuses synchronous writes, as a response body does, takes the asynchronous members. Integer samples are scaled by the power of two that
+/// fills the range, rounded (after dither, when asked) and clamped; a clamped sample is counted in <see cref="ClippedSamples"/>. The file
+/// is plain RIFF, so it holds at most 4 GiB; 16-bit and 24-bit files are format tag 1 and 32-bit float is format tag 3.
 /// </remarks>
 public sealed class WavStreamWriter
 {
@@ -14,6 +16,7 @@ public sealed class WavStreamWriter
     private const int ChunkFrames = 4096;
 
     private readonly Stream _stream;
+    private readonly int _sampleRate;
     private readonly WavFormat _format;
     private readonly DitherKind _dither;
     private readonly long _totalFrames;
@@ -22,8 +25,9 @@ public sealed class WavStreamWriter
     private uint _stateLeft;
     private uint _stateRight;
     private long _written;
+    private bool _headerWritten;
 
-    /// <summary>Writes the header of a file of <paramref name="frames"/> stereo frames at <paramref name="sampleRate"/>.</summary>
+    /// <summary>Prepares a file of <paramref name="frames"/> stereo frames at a rate, refusing one that is too large.</summary>
     public WavStreamWriter(Stream stream, int sampleRate, long frames, WavOptions options)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -32,24 +36,16 @@ public sealed class WavStreamWriter
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sampleRate, AudioFormat.MaxSampleRate);
         ArgumentOutOfRangeException.ThrowIfNegative(frames);
         _stream = stream;
+        _sampleRate = sampleRate;
         _format = options.Format;
         _dither = options.Dither;
         _totalFrames = frames;
-        _bytesPerSample = options.Format switch
-        {
-            WavFormat.Pcm16 => 2,
-            WavFormat.Pcm24 => 3,
-            _ => 4,
-        };
-        if (RiffSize(frames * Channels * _bytesPerSample, options.Format == WavFormat.Float32) > uint.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(frames), "A WAV file cannot hold more than 4 GiB.");
-        }
+        _bytesPerSample = BytesPerSample(options.Format);
+        SizeOf(frames, options);
         _buffer = new byte[ChunkFrames * Channels * _bytesPerSample];
         // Two generators that never share a state, however the seed is chosen.
         _stateLeft = (options.Seed * 2) + 0x9E3779B9;
         _stateRight = (options.Seed * 2) + 0x7F4A7C15;
-        WriteHeader(sampleRate);
     }
 
     /// <summary>How many samples were pulled back to the edge of the integer range because they went past it.</summary>
@@ -61,17 +57,40 @@ public sealed class WavStreamWriter
     /// <summary>What was found in the samples written so far.</summary>
     public WavResult Result => new(ClippedSamples, NonFiniteSamples);
 
+    /// <summary>The size in bytes of a file of <paramref name="frames"/> stereo frames; throws when that is more than a WAV file can hold.</summary>
+    public static long SizeOf(long frames, WavOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentOutOfRangeException.ThrowIfNegative(frames);
+        bool isFloat = options.Format == WavFormat.Float32;
+        long size = RiffSize(frames * Channels * BytesPerSample(options.Format), isFloat) + 8;
+        if (size - 8 > uint.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frames), "A WAV file cannot hold more than 4 GiB.");
+        }
+        return size;
+    }
+
+    /// <summary>Writes the header; this and the frames after it must come in order.</summary>
+    public void WriteHeader()
+    {
+        byte[] header = BuildHeader();
+        _stream.Write(header, 0, header.Length);
+        _headerWritten = true;
+    }
+
+    /// <summary>Writes the header to a stream that takes asynchronous writes.</summary>
+    public async ValueTask WriteHeaderAsync(CancellationToken cancellationToken = default)
+    {
+        byte[] header = BuildHeader();
+        await _stream.WriteAsync(header, cancellationToken).ConfigureAwait(false);
+        _headerWritten = true;
+    }
+
     /// <summary>Writes the next frames, which must not run past the count given to the constructor.</summary>
     public void Write(ReadOnlySpan<float> left, ReadOnlySpan<float> right)
     {
-        if (left.Length != right.Length)
-        {
-            throw new ArgumentException("The left and right buffers must have the same length.", nameof(right));
-        }
-        if (_written + left.Length > _totalFrames)
-        {
-            throw new InvalidOperationException("More frames were written than the header announced.");
-        }
+        Check(left.Length, right.Length);
         for (int from = 0; from < left.Length; from += ChunkFrames)
         {
             int count = Math.Min(ChunkFrames, left.Length - from);
@@ -81,20 +100,68 @@ public sealed class WavStreamWriter
         _written += left.Length;
     }
 
+    /// <summary>Writes the next frames to a stream that takes asynchronous writes.</summary>
+    public async ValueTask WriteAsync(ReadOnlyMemory<float> left, ReadOnlyMemory<float> right, CancellationToken cancellationToken = default)
+    {
+        Check(left.Length, right.Length);
+        for (int from = 0; from < left.Length; from += ChunkFrames)
+        {
+            int count = Math.Min(ChunkFrames, left.Length - from);
+            Encode(left.Span.Slice(from, count), right.Span.Slice(from, count));
+            await _stream.WriteAsync(_buffer.AsMemory(0, count * Channels * _bytesPerSample), cancellationToken).ConfigureAwait(false);
+        }
+        _written += left.Length;
+    }
+
     /// <summary>Checks that every announced frame was written, and flushes the stream.</summary>
     public void Complete()
     {
-        if (_written != _totalFrames)
-        {
-            throw new InvalidOperationException($"The header announced {_totalFrames} frames and {_written} were written.");
-        }
+        CheckComplete();
         _stream.Flush();
+    }
+
+    /// <summary>Checks that every announced frame was written, and flushes a stream that takes asynchronous writes.</summary>
+    public async ValueTask CompleteAsync(CancellationToken cancellationToken = default)
+    {
+        CheckComplete();
+        await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     // A float file has an 18-byte format chunk and a fact chunk, as the format asks of anything that is not PCM.
     private static long RiffSize(long dataSize, bool isFloat) => 4 + (8 + (isFloat ? 18 : 16)) + (isFloat ? 8 + 4 : 0) + 8 + dataSize;
 
-    private void WriteHeader(int sampleRate)
+    private static int BytesPerSample(WavFormat format) => format switch
+    {
+        WavFormat.Pcm16 => 2,
+        WavFormat.Pcm24 => 3,
+        _ => 4,
+    };
+
+    private void Check(int leftLength, int rightLength)
+    {
+        if (leftLength != rightLength)
+        {
+            throw new ArgumentException("The left and right buffers must have the same length.", "right");
+        }
+        if (!_headerWritten)
+        {
+            throw new InvalidOperationException("The header must be written before the frames.");
+        }
+        if (_written + leftLength > _totalFrames)
+        {
+            throw new InvalidOperationException("More frames were written than the header announced.");
+        }
+    }
+
+    private void CheckComplete()
+    {
+        if (_written != _totalFrames)
+        {
+            throw new InvalidOperationException($"The header announced {_totalFrames} frames and {_written} were written.");
+        }
+    }
+
+    private byte[] BuildHeader()
     {
         long dataSize = _totalFrames * Channels * _bytesPerSample;
         bool isFloat = _format == WavFormat.Float32;
@@ -109,8 +176,8 @@ public sealed class WavStreamWriter
         WriteUInt32(bytes, ref at, isFloat ? 18u : 16u);
         WriteUInt16(bytes, ref at, isFloat ? (ushort)3 : (ushort)1);
         WriteUInt16(bytes, ref at, Channels);
-        WriteUInt32(bytes, ref at, (uint)sampleRate);
-        WriteUInt32(bytes, ref at, (uint)(sampleRate * Channels * _bytesPerSample));
+        WriteUInt32(bytes, ref at, (uint)_sampleRate);
+        WriteUInt32(bytes, ref at, (uint)(_sampleRate * Channels * _bytesPerSample));
         WriteUInt16(bytes, ref at, (ushort)(Channels * _bytesPerSample));
         WriteUInt16(bytes, ref at, (ushort)(_bytesPerSample * 8));
         if (isFloat)
@@ -122,7 +189,7 @@ public sealed class WavStreamWriter
         }
         WriteText(bytes, ref at, "data");
         WriteUInt32(bytes, ref at, (uint)dataSize);
-        _stream.Write(header, 0, header.Length);
+        return header;
     }
 
     private void Encode(ReadOnlySpan<float> left, ReadOnlySpan<float> right)

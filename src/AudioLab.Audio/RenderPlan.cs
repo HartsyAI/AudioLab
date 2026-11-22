@@ -157,6 +157,8 @@ public sealed class RenderPlan
         (PlannedClip[] clips, long[] latestEnds) = track.Kind == TrackKind.Audio
             ? PlanClips(track, cache, sampleRate)
             : (Array.Empty<PlannedClip>(), Array.Empty<long>());
+        Func<Effect, InsertContext, IInsert?> insertBuilder = options.InsertBuilder
+            ?? (options.SizingOnly ? InsertFactory.CreateTailOnly : InsertFactory.Create);
         ITrackSource? source = track.Kind == TrackKind.Instrument
             ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2), cache)
             : null;
@@ -170,7 +172,7 @@ public sealed class RenderPlan
             VolumeLane = automated && track.Automation.Volume.Count > 0 ? track.Automation.Volume : null,
             PanLane = automated && track.Automation.Pan.Count > 0 ? track.Automation.Pan : null,
             Sends = [.. sends],
-            Inserts = [.. track.Effects.Select(effect => (options.InsertBuilder ?? InsertFactory.Create)(effect, context)).OfType<IInsert>()],
+            Inserts = [.. track.Effects.Select(effect => insertBuilder(effect, context)).OfType<IInsert>()],
             Clips = clips,
             LatestEnds = latestEnds,
             Source = source,

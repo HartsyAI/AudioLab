@@ -16,7 +16,8 @@ internal sealed class DelayInsert : IInsert
     private const double GlideSeconds = 0.015;
     // A Butterworth low-pass has no peak, so the loop cannot gain whatever the feedback.
     private const double ToneQDb = -3.0103;
-    private const double MaxTailSeconds = 30;
+    /// <summary>The longest a delay is made to ring, in seconds.</summary>
+    public const double MaxTailSeconds = 30;
     private const double SilenceDb = -60;
 
     private readonly TempoStep[] _steps;
@@ -104,7 +105,8 @@ internal sealed class DelayInsert : IInsert
         Math.Min(DelayLimitSeconds, effect.Sync ? EffectRules.SyncedDelayTime(effect.Division, bpm) : effect.Time);
 
     // The echoes fall by the feedback each time, so the delay rings until they are 60 dB down.
-    private static double UncutTailFor(DelayEffect effect, InsertContext context)
+    /// <summary>How long a delay would ring if nothing cut it.</summary>
+    public static double UncutTailFor(DelayEffect effect, InsertContext context)
     {
         double longest = context.TempoSteps.Max(step => TargetSeconds(effect, step.Bpm));
         double feedback = Math.Min(0.9, effect.Feedback);

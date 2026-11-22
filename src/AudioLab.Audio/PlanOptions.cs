@@ -18,6 +18,9 @@ public sealed record PlanOptions
     /// <summary>Shares decoded, cleaned and resampled media between plans; its rate must be the plan's, and the plan's source is not asked.</summary>
     public MediaCache? Cache { get; init; }
 
+    /// <summary>Whether the plan is only for its lengths: effects are built to report their tails and latency and make no sound.</summary>
+    internal bool SizingOnly { get; init; }
+
     /// <summary>Replaces how effects become inserts, so a test can run its own insert.</summary>
     internal Func<Effect, InsertContext, IInsert?>? InsertBuilder { get; init; }
 }

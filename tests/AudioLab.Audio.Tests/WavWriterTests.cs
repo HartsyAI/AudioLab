@@ -173,6 +173,8 @@ public sealed class WavWriterTests
         using MemoryStream stream = new();
         WavStreamWriter writer = new(stream, Rate, 4, new WavOptions());
 
+        Assert.Throws<InvalidOperationException>(() => writer.Write(new float[3], new float[3]));
+        writer.WriteHeader();
         Assert.Throws<InvalidOperationException>(() => writer.Write(new float[5], new float[5]));
         writer.Write(new float[3], new float[3]);
         Assert.Throws<InvalidOperationException>(writer.Complete);
@@ -205,5 +207,38 @@ public sealed class WavWriterTests
             sum += error * error;
         }
         return Math.Sqrt(sum / samples.Length);
+    }
+
+    [Theory]
+    [InlineData(WavFormat.Pcm16, 1073741814L, 1073741815L)]
+    [InlineData(WavFormat.Pcm24, 715827876L, 715827877L)]
+    public void TheRiffLimitIsExactlyAtTheLastFrameThatFits(WavFormat format, long fits, long tooMany)
+    {
+        WavOptions options = new() { Format = format };
+
+        Assert.True(WavStreamWriter.SizeOf(fits, options) - 8 <= uint.MaxValue);
+        Assert.Throws<ArgumentOutOfRangeException>(() => WavStreamWriter.SizeOf(tooMany, options));
+        using MemoryStream stream = new();
+        _ = new WavStreamWriter(stream, Rate, fits, options);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WavStreamWriter(stream, Rate, tooMany, options));
+        Assert.Equal(0, stream.Length);
+    }
+
+    [Fact]
+    public async Task TheAsynchronousPathWritesTheSameBytesToAStreamThatRefusesSynchronousWrites()
+    {
+        float[] samples = [.. Enumerable.Range(0, 9000).Select(i => (float)(0.4 * Math.Sin(i * 0.02)))];
+        RenderedAudio audio = Audio(samples);
+        WavOptions options = new() { Format = WavFormat.Pcm16, Dither = DitherKind.Triangular };
+        using MemoryStream expected = new();
+        WavExporter.Write(audio, expected, options);
+        AsyncOnlyStream asyncOnly = new();
+
+        WavStreamWriter writer = new(asyncOnly, Rate, audio.Frames, options);
+        await writer.WriteHeaderAsync();
+        await writer.WriteAsync(audio.Left, audio.Right);
+        await writer.CompleteAsync();
+
+        Assert.Equal(expected.ToArray(), asyncOnly.Bytes);
     }
 }
