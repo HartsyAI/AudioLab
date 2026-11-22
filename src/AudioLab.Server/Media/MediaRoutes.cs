@@ -26,7 +26,7 @@ public static class MediaRoutes
         media.MapGet("/", List);
         media.MapPost("/", UploadAsync);
         media.MapGet("/{id}", Get);
-        media.MapGet("/{id}/content", Content);
+        media.MapMethods("/{id}/content", ["GET", "HEAD"], Content);
         media.MapDelete("/{id}", DeleteAsync);
     }
 

@@ -22,8 +22,10 @@ public sealed class TestStore : IAsyncDisposable
         Ids = new IdService();
         Registry = registry ?? new CommandRegistryBuilder().Build();
         Open = new OpenProjects(Projects, Options, Time, Registry, Ids, NullLogger<OpenProjects>.Instance);
-        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), NullLogger<MediaStore>.Instance);
-        MediaFiles = new MediaService(Media, new MediaReferences(Open, Projects), Root, Ids, mediaOptions, Time);
+        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), mediaOptions, NullLogger<MediaStore>.Instance);
+        Media.SweepOrphans();
+        MediaReferences references = new(Open, Projects, NullLogger<MediaReferences>.Instance);
+        MediaFiles = new MediaService(Media, references, Root, Ids, mediaOptions, Time, NullLogger<MediaService>.Instance);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
         Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions());
     }

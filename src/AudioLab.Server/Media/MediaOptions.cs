@@ -9,6 +9,9 @@ public sealed record MediaOptions
     /// <summary>The most media files one user may keep.</summary>
     public int MaxFilesPerUser { get; init; } = 5000;
 
+    /// <summary>The most uploads one user may have running at once.</summary>
+    public int MaxConcurrentUploadsPerUser { get; init; } = 4;
+
     /// <summary>The most bytes of media one user may keep; the default is 20 GiB.</summary>
     public long MaxBytesPerUser { get; init; } = 20L * 1024 * 1024 * 1024;
 }

@@ -32,7 +32,7 @@ public static class TestWav
         Fmt(0xFFFE, channels, rate, rate * blockAlign, blockAlign, bits).CopyTo(body, 0);
         BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(16), 22);
         BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(18), (ushort)bits);
-        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(20), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(20), (1u << channels) - 1);
         BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(24), tag);
         byte[] tail = [0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71];
         tail.CopyTo(body, 26);
