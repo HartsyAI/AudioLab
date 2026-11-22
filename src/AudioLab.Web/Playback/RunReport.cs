@@ -44,6 +44,9 @@ public sealed record RunReport
     /// <summary>The ring's size in frames.</summary>
     public required int CapacityFrames { get; init; }
 
+    /// <summary>The ring plus the context's base and output latency, in milliseconds: the output buffering the pass line limits to 100.</summary>
+    public required double TotalBufferMs { get; init; }
+
     /// <summary>The ring's size in milliseconds.</summary>
     public required double CapacityMs { get; init; }
 

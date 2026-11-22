@@ -84,6 +84,8 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
     private async Task StartAsync()
     {
         bridge.CreateContext();
+        await bridge.ResumeAsync();
+        await Task.Delay(500);
         SampleRate = bridge.SampleRate;
         int rate = (int)SampleRate;
         _budgetMs = options.BufferMs;
@@ -96,7 +98,6 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
         await bridge.AddModuleAsync(ShimUrl);
         bridge.CreateNode(_capacity, options.ChunkFrames);
         bridge.OnNodeMessage(OnNodeMessage);
-        await bridge.ResumeAsync();
         Uri origin = new(http.BaseAddress!, ".");
         if (options.Engine == "main")
         {
@@ -236,6 +237,7 @@ public sealed class PlaybackRun(IAudioBridge bridge, IBrowser browser, SpikeOpti
             BufferBudgetMs = _budgetMs,
             CapacityFrames = _capacity,
             CapacityMs = _capacity * 1000 / rate,
+            TotalBufferMs = (_capacity * 1000 / rate) + (SampleRate > 0 ? (bridge.BaseLatency + bridge.OutputLatency) * 1000 : 0),
             MaxFillMs = Stats.MaxFill * 1000 / rate,
             ChunkFrames = options.ChunkFrames,
             WallSeconds = _wall.Elapsed.TotalSeconds,
