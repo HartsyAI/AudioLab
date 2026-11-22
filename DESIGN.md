@@ -736,7 +736,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | Phase | Outcome |
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
-| 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14 stays Proposed until the owner decides; Proposed is not closed. |
+| 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14 and D17 (O2) stay Proposed until the owner decides; Proposed is not closed. D17 also waits on a Firefox drag rerun on an idle machine. |
 | 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
@@ -760,4 +760,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-21 | Migration from the extension's `version: 3` project JSON dropped by owner decision: new project format only (sections 5 and 12). |
 | 2026-11-21 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
-| 2026-11-21 | O2 closed: D17 proposes DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D15; 7.1 states how C# reads tokens. |
+| 2026-11-21 | O2 recorded as D17 (Proposed, Firefox dragging not shown to hold): DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D17; 7.1 states how C# reads tokens. |
