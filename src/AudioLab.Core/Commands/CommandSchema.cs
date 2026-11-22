@@ -54,8 +54,15 @@ internal static class CommandSchema
                 ["items"] = WithoutNull(JsonSchemaExporter.GetJsonSchemaAsNode(item, _options)),
             };
         }
+        if (schema is JsonObject node && node["additionalProperties"] is not null && HasExtensionData(context.TypeInfo))
+        {
+            node["additionalProperties"] = true;
+        }
         return schema;
     }
+
+    // A type that keeps the members it does not know (D15) accepts them, so its schema must not forbid them.
+    private static bool HasExtensionData(JsonTypeInfo info) => info.Properties.Any(property => property.IsExtensionData);
 
     // A list holds no null and the command itself is never null, but the exporter marks reference types as nullable.
     private static JsonNode WithoutNull(JsonNode schema)

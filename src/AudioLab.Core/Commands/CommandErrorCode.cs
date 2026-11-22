@@ -27,6 +27,10 @@ public enum CommandErrorCode
     [JsonStringEnumMemberName("rejected")]
     Rejected,
 
+    /// <summary>A limit of the server was reached, such as the most gestures a project may have open at once.</summary>
+    [JsonStringEnumMemberName("limit")]
+    Limit,
+
     /// <summary>The edit would leave a document that breaks the project rules; the message is the validator's.</summary>
     [JsonStringEnumMemberName("invalid")]
     Invalid,

@@ -9,6 +9,9 @@ namespace AudioLab.Core.Commands;
 /// </remarks>
 public sealed class CommandHistory
 {
+    /// <summary>The most gestures that may be open at once, one per client; the next is refused.</summary>
+    public const int MaxOpenGestures = 64;
+
     /// <summary>The number of undo steps kept when none is asked for.</summary>
     public const int DefaultDepth = 100;
 
@@ -76,14 +79,15 @@ public sealed class CommandHistory
     /// <summary>Applies a command; a refusal changes nothing, and a command that changes nothing adds no step.</summary>
     /// <remarks>
     /// A client has at most one open gesture, so another client's commands never close it. A command that carries the
-    /// client's open gesture id merges into that gesture. A different gesture id, or none, from the same client closes
-    /// it first. A gesture's undo step is recorded, and the redo steps are cleared, when the gesture closes with a
+    /// client's open gesture id merges into that gesture. A command that was accepted with a different gesture id, or
+    /// none, closes it first, even if it changes nothing. A gesture's undo step is recorded, and the redo steps are cleared, when the gesture closes with a
     /// change; one that ends where it began leaves the history exactly as it was.
     /// </remarks>
     /// <param name="command">The command to apply.</param>
     /// <param name="client">Who sent it, as the hub names the connection.</param>
     /// <param name="gesture">The client's id for the gesture the command belongs to, or null for a single edit.</param>
     /// <exception cref="ArgumentException">The client id or the gesture id is <c>default</c>.</exception>
+    /// <returns>The result; opening a gesture past <see cref="MaxOpenGestures"/> is refused with <see cref="CommandErrorCode.Limit"/>.</returns>
     public CommandResult Apply(Command command, ClientId client, GestureId? gesture = null)
     {
         RequireClient(client);
@@ -91,26 +95,31 @@ public sealed class CommandHistory
         {
             throw new ArgumentException("A gesture id is required; pass null for a single edit.", nameof(gesture));
         }
+        int index = _open.FindIndex(open => open.Client == client);
+        if (gesture is not null && index < 0 && _open.Count >= MaxOpenGestures)
+        {
+            return CommandResult.Refuse(CommandErrorCode.Limit, $"{MaxOpenGestures} gestures are already open in this project.");
+        }
         CommandResult result = _registry.Execute(Current, command, _ids);
         if (result.Document is not { } edited)
         {
             return result;
         }
+        if (index >= 0 && gesture != _open[index].Id)
+        {
+            Close(index);
+            index = -1;
+        }
         if (edited == Current)
         {
             return result;
         }
-        string label = _registry.NameOf(command) ?? string.Empty;
-        int index = _open.FindIndex(open => open.Client == client);
-        if (index >= 0 && gesture == _open[index].Id)
+        if (index >= 0)
         {
             Current = edited;
             return result;
         }
-        if (index >= 0)
-        {
-            Close(index);
-        }
+        string label = _registry.NameOf(command) ?? string.Empty;
         if (gesture is { } id)
         {
             _open.Add(new OpenGesture(client, id, label, Current));

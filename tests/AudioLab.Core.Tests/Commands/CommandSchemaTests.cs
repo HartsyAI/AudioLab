@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
@@ -95,6 +97,21 @@ public sealed class CommandSchemaTests
     }
 
     [Fact]
+    public void ATypeThatKeepsUnknownMembersAcceptsThemAndOtherTypesRefuseThem()
+    {
+        Type[] withExtras = [.. typeof(ProjectDocument).Assembly.GetTypes().Where(HasExtensionData)];
+
+        Assert.Contains(typeof(ClipMeta), withExtras);
+        foreach (Type type in withExtras)
+        {
+            JsonElement schema = CommandSchema.For(ProjectJsonContext.Default.Options.GetTypeInfo(type));
+            Assert.True(schema.GetProperty("additionalProperties").GetBoolean(), type.Name);
+        }
+        JsonElement track = CommandSchema.For(ProjectJsonContext.Default.Track);
+        Assert.False(track.GetProperty("additionalProperties").GetBoolean());
+    }
+
+    [Fact]
     public void ANoteIdIsAWholeNumberFromOne()
     {
         JsonElement note = CommandSchema.For(ProjectJsonContext.Default.MidiClip)
@@ -102,6 +119,12 @@ public sealed class CommandSchemaTests
 
         Assert.Equal("integer", note.GetProperty("type").GetString());
         Assert.Equal(1, note.GetProperty("minimum").GetInt32());
+    }
+
+    private static bool HasExtensionData(Type type)
+    {
+        const BindingFlags Everything = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        return type.GetMembers(Everything).Any(member => member.GetCustomAttribute<JsonExtensionDataAttribute>() is not null);
     }
 
     // A node that says nothing about its value, which is what an unhandled custom converter yields.

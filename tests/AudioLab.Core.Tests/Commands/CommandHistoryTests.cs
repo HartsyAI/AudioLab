@@ -206,6 +206,59 @@ public sealed class CommandHistoryTests
     }
 
     [Fact]
+    public void AnAcceptedCommandThatChangesNothingStillClosesItsClientsOtherGesture()
+    {
+        GestureId drag = GestureId.From("drag");
+        _history.Apply(Bpm(101), _a, drag);
+
+        _history.Apply(new NothingCommand { Project = _initial.Id }, _b);
+        Assert.Equal(drag, _history.OpenGestureOf(_a));
+        _history.Apply(new NothingCommand { Project = _initial.Id }, _a, drag);
+        Assert.Equal(drag, _history.OpenGestureOf(_a));
+        _history.Apply(new NothingCommand { Project = _initial.Id }, _a);
+
+        Assert.Null(_history.OpenGestureOf(_a));
+        Assert.Equal(1, _history.UndoCount);
+    }
+
+    [Fact]
+    public void AnEditByAnotherClientInsideAGestureIsItsOwnStepAndUndoingTheGestureRevertsItToo()
+    {
+        GestureId drag = GestureId.From("drag");
+        _history.Apply(Bpm(101), _a, drag);
+        ProjectDocument partial = _history.Current;
+        _history.Apply(Marker("From B"), _b);
+        _history.Apply(Bpm(102), _a, drag);
+        _history.EndGesture(_a, drag);
+
+        Assert.Equal(2, _history.UndoCount);
+        Assert.Equal(_initial, _history.Undo());
+        Assert.Equal(partial, _history.Undo());
+        Assert.Null(_history.Undo());
+    }
+
+    [Fact]
+    public void AtMostSixtyFourGesturesAreOpenAndTheNextIsRefusedWithALimitError()
+    {
+        for (int i = 0; i < CommandHistory.MaxOpenGestures; i++)
+        {
+            _history.Apply(Marker($"m{i}"), ClientId.From($"client-{i}"), GestureId.From("drag"));
+        }
+        ProjectDocument before = _history.Current;
+        ClientId late = ClientId.From("client-late");
+
+        CommandResult refused = _history.Apply(Marker("late"), late, GestureId.From("drag"));
+
+        Assert.Equal(CommandErrorCode.Limit, Assert.Single(refused.Errors).Code);
+        Assert.Equal(before, _history.Current);
+        Assert.Null(_history.OpenGestureOf(late));
+        Assert.True(_history.Apply(Marker("single"), late).Succeeded);
+        Assert.True(_history.Apply(Marker("again"), ClientId.From("client-0"), GestureId.From("next")).Succeeded);
+        _history.ReleaseClient(ClientId.From("client-1"));
+        Assert.True(_history.Apply(Marker("fits"), late, GestureId.From("drag")).Succeeded);
+    }
+
+    [Fact]
     public void ACommandThatChangesNothingAddsNoStepAndKeepsRedo()
     {
         _history.Apply(Bpm(130), _a);
