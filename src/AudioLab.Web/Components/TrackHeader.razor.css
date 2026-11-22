@@ -45,6 +45,10 @@
     white-space: nowrap;
 }
 
+.name {
+    cursor: text;
+}
+
 .toggles {
     display: flex;
     gap: var(--space-4);

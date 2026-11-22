@@ -18,8 +18,8 @@
     <div class="foot">
         @if (!Master)
         {
-            <Toggle Track="true" Label="M" Name="@($"Mute {Name}")" Tone="ToggleTone.Mute" On="Muted" />
-            <Toggle Track="true" Label="S" Name="@($"Solo {Name}")" Tone="ToggleTone.Caution" On="Soloed" />
+            <Toggle Track="true" Label="M" Name="@($"Mute {Name}")" Tone="ToggleTone.Mute" On="Muted" Disabled="!Editable" OnClick="MuteAsync" />
+            <Toggle Track="true" Label="S" Name="@($"Solo {Name}")" Tone="ToggleTone.Caution" On="Soloed" Disabled="!Editable" OnClick="SoloAsync" />
         }
         <span class="db">@VolumeText</span>
     </div>

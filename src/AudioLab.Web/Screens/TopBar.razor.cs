@@ -17,6 +17,10 @@ public sealed partial class TopBar
     [Parameter, EditorRequired]
     public ProjectDocument Document { get; set; } = null!;
 
+    /// <summary>What the screen can do to the project.</summary>
+    [Parameter, EditorRequired]
+    public SessionActions Actions { get; set; } = null!;
+
     private static IReadOnlyList<SegmentItem> TransportItems { get; } =
     [
         new("start", "Go to start", IconName.ToStart, Reason: NoPlayback),

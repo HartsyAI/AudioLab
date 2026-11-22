@@ -6,6 +6,12 @@
             <span class="sub">@Summary</span>
         </div>
     </div>
+    <div class="history">
+        <Button Variant="ButtonVariant.Icon" Name="Undo" Shortcut="@Shortcuts.Undo.Display" Disabled="@(!Actions.CanEdit)"
+                DisabledReason="@Actions.Reason" OnClick="Actions.Undo"><Icon Name="IconName.Undo" Size="14" /></Button>
+        <Button Variant="ButtonVariant.Icon" Name="Redo" Shortcut="@Shortcuts.Redo.Display" Disabled="@(!Actions.CanEdit)"
+                DisabledReason="@Actions.Reason" OnClick="Actions.Redo"><Icon Name="IconName.Redo" Size="14" /></Button>
+    </div>
     <Segmented Transport="true" Label="Transport" Items="TransportItems" Wide="play" />
     <Counter Cells="Cells" />
     <div class="toggles">

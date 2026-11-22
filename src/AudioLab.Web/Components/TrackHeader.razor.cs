@@ -11,6 +11,8 @@ public sealed partial class TrackHeader
 
     private bool _selected;
 
+    private bool _editable;
+
     private double _height;
 
     private string? _color;
@@ -37,6 +39,22 @@ public sealed partial class TrackHeader
     [Parameter, EditorRequired]
     public string ColorToken { get; set; } = string.Empty;
 
+    /// <summary>Whether the toggles act; when not, they are disabled.</summary>
+    [Parameter]
+    public bool Editable { get; set; }
+
+    /// <summary>Raised with the track when its mute toggle is pressed.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnMute { get; set; }
+
+    /// <summary>Raised with the track when its solo toggle is pressed.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnSolo { get; set; }
+
+    /// <summary>Raised with the track when its name is double-clicked.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnRename { get; set; }
+
     /// <summary>Raised with the track when its header is pressed.</summary>
     [Parameter]
     public EventCallback<TrackId> OnSelect { get; set; }
@@ -53,14 +71,21 @@ public sealed partial class TrackHeader
     protected override bool ShouldRender()
     {
         bool changed = !ReferenceEquals(_drawn, Track) && !Equals(_drawn, Track);
-        changed |= Selected != _selected || Height != _height || ColorToken != _color || Index != _index;
+        changed |= Editable != _editable || Selected != _selected || Height != _height || ColorToken != _color || Index != _index;
         _drawn = Track;
         _selected = Selected;
+        _editable = Editable;
         _height = Height;
         _color = ColorToken;
         _index = Index;
         return changed;
     }
+
+    private Task MuteAsync() => OnMute.InvokeAsync(Track.Id);
+
+    private Task SoloAsync() => OnSolo.InvokeAsync(Track.Id);
+
+    private Task RenameAsync() => OnRename.InvokeAsync(Track.Id);
 
     private Task SelectAsync()
     {

@@ -28,17 +28,9 @@ public sealed partial class Timeline : IDisposable
     [Parameter, EditorRequired]
     public ProjectDocument Document { get; set; } = null!;
 
-    /// <summary>Whether the arrangement may be edited; when not, the controls that would edit it say why they do nothing.</summary>
-    [Parameter]
-    public bool CanEdit { get; set; }
-
-    /// <summary>Why the arrangement cannot be edited now.</summary>
-    [Parameter]
-    public string? ReadOnlyReason { get; set; }
-
-    /// <summary>Raised when the user asks for a new track.</summary>
-    [Parameter]
-    public EventCallback OnAddTrack { get; set; }
+    /// <summary>What the screen can do to the project; when it cannot edit, the controls that would say why they do nothing.</summary>
+    [Parameter, EditorRequired]
+    public SessionActions Actions { get; set; } = null!;
 
     [Inject]
     private SessionSelection Selection { get; set; } = default!;
@@ -52,6 +44,15 @@ public sealed partial class Timeline : IDisposable
     [Inject]
     private IKeyGuard Guard { get; set; } = default!;
 
+    [Inject]
+    private IPointerTracker Pointer { get; set; } = default!;
+
+    [Inject]
+    private IElementMetrics Metrics { get; set; } = default!;
+
+    [Inject]
+    private ClipDragState Drags { get; set; } = default!;
+
     private TimelineGeometry Geometry => TimelineGeometry.Default;
 
     private TrackLayout Layout => _layout;
@@ -63,8 +64,6 @@ public sealed partial class Timeline : IDisposable
     private double LaneWidth => Math.Round(Geometry.Width(_length));
 
     private ClipId? TabStop => Selection.Clip ?? _tabStop;
-
-    private string? AddTrackReason => CanEdit ? null : ReadOnlyReason;
 
     private IReadOnlyList<RulerRowKind> Kinds
     {
@@ -126,7 +125,7 @@ public sealed partial class Timeline : IDisposable
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private Task AddTrack() => OnAddTrack.InvokeAsync();
+    private Task AddTrack() => Actions.AddTrack();
 
     private void SelectTrack(TrackId track) => Selection.SelectTrack(track);
 
@@ -142,12 +141,58 @@ public sealed partial class Timeline : IDisposable
 
     private async Task ClipKeyAsync((ClipId Clip, KeyboardEventArgs Key) press)
     {
+        if (press.Key.AltKey)
+        {
+            if (Actions.CanEdit && ClipMoves.Nudge(Document, press.Clip, press.Key.Key) is { } nudge)
+            {
+                await Actions.MoveClip(nudge);
+            }
+            return;
+        }
         ClipId? target = ClipNavigator.Next(Document, press.Clip, press.Key.Key);
         if (target is { } next)
         {
             SelectClip(next);
             await Task.Yield();
             Focus.Focus(Components.Clip.IdOf(next));
+        }
+    }
+
+    // A press on a clip selects it and, when the project can be edited, may become a drag; nothing is sent until the release.
+    private Task ClipPointerDownAsync((ClipId Clip, PointerEventArgs Press) down)
+    {
+        SelectClip(down.Clip);
+        (double Left, double Top)? origin = Metrics.Origin("lane-surface");
+        if (!Actions.CanEdit || origin is not { } at)
+        {
+            return Task.CompletedTask;
+        }
+        double left = at.Left;
+        double top = at.Top;
+        ClipDrag drag = new(Document, down.Clip, Geometry, Layout, down.Press.ClientX - left, down.Press.ClientY - top);
+        Drags.Begin(drag);
+        Pointer.Begin(
+            (x, y) =>
+            {
+                drag.Move(x - left, y - top);
+                Drags.Moved();
+            },
+            (x, y) =>
+            {
+                drag.Move(x - left, y - top);
+                _ = InvokeAsync(() => ReleaseAsync(drag));
+            },
+            () => Drags.End());
+        return Task.CompletedTask;
+    }
+
+    private async Task ReleaseAsync(ClipDrag drag)
+    {
+        ClipMove? move = drag.Commit();
+        Drags.End();
+        if (move is { } send)
+        {
+            await Actions.MoveClip(send);
         }
     }
 

@@ -1,3 +1,4 @@
+using AudioLab.Core.Model;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
@@ -9,6 +10,22 @@ public sealed partial class ChannelStrip
     private const int VisibleSlots = 2;
 
     private string? _shown;
+
+    /// <summary>The track this strip belongs to, or null for the master.</summary>
+    [Parameter]
+    public TrackId? Track { get; set; }
+
+    /// <summary>Whether mute and solo act; when not, they are disabled.</summary>
+    [Parameter]
+    public bool Editable { get; set; }
+
+    /// <summary>Raised with the track when mute is pressed.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnMute { get; set; }
+
+    /// <summary>Raised with the track when solo is pressed.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnSolo { get; set; }
 
     /// <summary>The track's or the master's name.</summary>
     [Parameter, EditorRequired]
@@ -71,11 +88,15 @@ public sealed partial class ChannelStrip
         }
     }
 
+    private Task MuteAsync() => Track is { } track ? OnMute.InvokeAsync(track) : Task.CompletedTask;
+
+    private Task SoloAsync() => Track is { } track ? OnSolo.InvokeAsync(track) : Task.CompletedTask;
+
     /// <inheritdoc />
     protected override bool ShouldRender()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Name}:{effect.Enabled}"));
-        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}";
+        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}";
         bool same = now == _shown;
         _shown = now;
         return !same;

@@ -63,3 +63,10 @@ path {
     border-radius: var(--radius-xs);
     background: var(--clip);
 }
+
+.clip[data-lifted="true"] {
+    z-index: var(--z-lane-overlay);
+    box-shadow: inset 0 0 0 1.5px var(--playhead), var(--shadow-overlay);
+    cursor: grabbing;
+    pointer-events: none;
+}

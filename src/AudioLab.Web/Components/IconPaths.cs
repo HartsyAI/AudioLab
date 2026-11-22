@@ -26,6 +26,8 @@ internal static class IconPaths
             IconName.Play => "M7.5 4.4 19.8 12 7.5 19.6Z",
             IconName.Record => "M12 5.4a6.6 6.6 0 1 0 0 13.2 6.6 6.6 0 0 0 0-13.2Z",
             IconName.Pointer => "M5.4 3 19 13.6l-5.6.8 3.2 6.2-2.1 1-3.1-6.3-5.6 4.4Z",
+            IconName.Undo => "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
+            IconName.Redo => "m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13",
             IconName.Range => "M7.7 3.4h8.6M12 3.4v17.2M7.7 20.6h8.6",
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "That icon is not in the set."),
         };

@@ -1,4 +1,5 @@
 using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Web.Services;
 
@@ -12,6 +13,16 @@ public sealed class FakeProjectHub : IProjectHub
     public CommandReply Reply { get; set; } = new(true, true, 2, [], []);
 
     public bool Disposed { get; private set; }
+
+    public List<(string Command, string Json, string? Gesture)> Sent { get; } = [];
+
+    public Exception? ThrowOnApply { get; set; }
+
+    public string JoinDocument { get; set; } = ProjectJson.Write(Song.Empty());
+
+    public long JoinRevision { get; set; } = 1;
+
+    public Func<Task>? BeforeJoinReturns { get; set; }
 
     public event Action<HubState>? StateChanged;
 
@@ -38,10 +49,14 @@ public sealed class FakeProjectHub : IProjectHub
         return Task.CompletedTask;
     }
 
-    public Task<JoinReply> JoinAsync(string project, CancellationToken cancellationToken = default)
+    public async Task<JoinReply> JoinAsync(string project, CancellationToken cancellationToken = default)
     {
         Calls.Add($"join {project}");
-        return Task.FromResult(new JoinReply(project, 1, "{}"));
+        if (BeforeJoinReturns is { } before)
+        {
+            await before();
+        }
+        return new JoinReply(project, JoinRevision, JoinDocument);
     }
 
     public Task LeaveAsync(string project, CancellationToken cancellationToken = default)
@@ -57,6 +72,11 @@ public sealed class FakeProjectHub : IProjectHub
         string? gesture = null,
         CancellationToken cancellationToken = default)
     {
+        if (ThrowOnApply is { } failure)
+        {
+            throw failure;
+        }
+        Sent.Add((command, json, gesture));
         Calls.Add($"apply {project} {command} {json} {gesture}".TrimEnd());
         return Task.FromResult(Reply);
     }
