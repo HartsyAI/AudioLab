@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="NAudio.Core" Version="3.3.0" />
+    <PackageVersion Include="NAudio.Wasapi" Version="3.3.0" />
+    <PackageVersion Include="NAudio.Asio" Version="3.3.0" />
+    <PackageVersion Include="NAudio.Midi" Version="3.3.0" />
+    <PackageVersion Include="NAudio.WinMM" Version="3.3.0" />
+    <PackageVersion Include="PortAudioSharp2" Version="1.0.6" />
+    <PackageVersion Include="Hexa.NET.MiniAudio" Version="1.0.1" />
+    <PackageVersion Include="Xt.Audio" Version="2.1.0" />
+    <PackageVersion Include="RtMidi.Net" Version="2.0.0" />
+    <PackageVersion Include="Melanchall.DryWetMidi" Version="8.0.3" />
+  </ItemGroup>
+</Project>
