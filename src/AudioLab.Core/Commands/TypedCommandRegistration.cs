@@ -19,6 +19,12 @@ internal sealed class TypedCommandRegistration<TCommand>(
     }
 
     /// <inheritdoc />
+    public override string Write(Command command)
+    {
+        return JsonSerializer.Serialize((TCommand)command, json);
+    }
+
+    /// <inheritdoc />
     public override CommandParseResult Parse(string text)
     {
         try

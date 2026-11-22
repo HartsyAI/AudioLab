@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AudioLab.Core;
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
@@ -26,7 +27,7 @@ public sealed class RouteTests
         await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:PathBase"] = "/audiolab" });
         Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/audiolab/health")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/health")).StatusCode);
-        SessionInfo? session = await server.Client.GetFromJsonAsync("/audiolab/api/session", ServerJsonContext.Default.SessionInfo);
+        SessionInfo? session = await server.Client.GetFromJsonAsync("/audiolab/api/session", ApiJsonContext.Default.SessionInfo);
         Assert.Equal(new SessionInfo("desktop", UserId.Local.Value), session);
     }
 
@@ -34,7 +35,7 @@ public sealed class RouteTests
     public async Task TheDesktopDoorNamesTheLocalUser()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        SessionInfo? session = await server.Client.GetFromJsonAsync("/api/session", ServerJsonContext.Default.SessionInfo);
+        SessionInfo? session = await server.Client.GetFromJsonAsync("/api/session", ApiJsonContext.Default.SessionInfo);
         Assert.Equal(new SessionInfo("desktop", "desktop-local"), session);
     }
 
@@ -44,7 +45,7 @@ public sealed class RouteTests
         await using RunningServer server = await RunningServer.StartAsync(SwarmSettings());
         using HttpRequestMessage request = Proxied("/api/session", "alice");
         using HttpResponseMessage response = await server.Client.SendAsync(request);
-        SessionInfo? session = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.SessionInfo);
+        SessionInfo? session = await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.SessionInfo);
         Assert.Equal(new SessionInfo("swarm", ProxyDoor.UserFor("swarm", "alice").Value), session);
     }
 

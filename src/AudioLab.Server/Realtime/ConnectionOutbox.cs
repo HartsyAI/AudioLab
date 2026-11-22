@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using AudioLab.Core.Realtime;
 using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Server.Realtime;

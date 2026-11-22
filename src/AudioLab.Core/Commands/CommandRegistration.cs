@@ -15,6 +15,9 @@ internal abstract class CommandRegistration(CommandDescriptor descriptor)
     /// <summary>Reads the command from strict JSON; a bad text is a refusal, never an exception.</summary>
     public abstract CommandParseResult Parse(string json);
 
+    /// <summary>Writes the command as the strict JSON that <see cref="Parse"/> reads.</summary>
+    public abstract string Write(Command command);
+
     /// <summary>The error a bad command text gives, in one line that says where it happened.</summary>
     protected static CommandParseResult Malformed(JsonException exception)
     {

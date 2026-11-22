@@ -1,5 +1,7 @@
 using System.Text.Json;
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
@@ -100,7 +102,11 @@ public static class ServerHost
             hub.EnableDetailedErrors = false;
         }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
         services.AddProblemDetails();
-        services.ConfigureHttpJsonOptions(json => json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default));
+        services.ConfigureHttpJsonOptions(json =>
+        {
+            json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(1, ApiJsonContext.Default);
+        });
     }
 
     private static void MapPipeline(WebApplication app, AudioLabOptions options)
@@ -116,6 +122,6 @@ public static class ServerHost
         RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
-        app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
+        app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
     }
 }

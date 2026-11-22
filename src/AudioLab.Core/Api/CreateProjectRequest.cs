@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Services;
+namespace AudioLab.Core.Api;
 
 /// <summary>The body of a request to create a project. The owner is never part of it: it comes from the door.</summary>
 /// <param name="Name">The new project's name.</param>

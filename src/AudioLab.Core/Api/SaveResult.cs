@@ -1,4 +1,4 @@
-namespace AudioLab.Server.Services;
+namespace AudioLab.Core.Api;
 
 /// <summary>What a save answers: the revision that is now on disk.</summary>
 /// <param name="Id">The project's id.</param>

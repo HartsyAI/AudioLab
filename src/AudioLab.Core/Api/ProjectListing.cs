@@ -1,4 +1,4 @@
-namespace AudioLab.Server.Store;
+namespace AudioLab.Core.Api;
 
 /// <summary>A user's projects, and how many stored files the store refused to list because they are not valid.</summary>
 /// <param name="Projects">The valid projects, newest first.</param>

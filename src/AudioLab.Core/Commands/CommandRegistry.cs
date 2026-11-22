@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
@@ -35,6 +36,21 @@ public sealed class CommandRegistry
     {
         ArgumentNullException.ThrowIfNull(command);
         return _byType.TryGetValue(command.GetType(), out CommandRegistration? entry) ? entry.Descriptor.Name : null;
+    }
+
+    /// <summary>Writes a command as its wire name and the strict JSON the server reads, or returns false when its type is not registered.</summary>
+    public bool TryWrite(Command command, [NotNullWhen(true)] out string? name, [NotNullWhen(true)] out string? json)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (_byType.TryGetValue(command.GetType(), out CommandRegistration? entry))
+        {
+            name = entry.Descriptor.Name;
+            json = entry.Write(command);
+            return true;
+        }
+        name = null;
+        json = null;
+        return false;
     }
 
     /// <summary>Whether history records the command as a step; false for live state, and for a type that is not registered.</summary>

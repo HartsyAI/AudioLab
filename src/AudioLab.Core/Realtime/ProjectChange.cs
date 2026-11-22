@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>A new revision of a project, sent to every client that joined it, whoever made the change.</summary>
 /// <param name="Project">The project's id.</param>

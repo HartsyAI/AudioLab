@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>Source-generated JSON for the hub's messages, for the server and for a .NET client alike. Documents travel as <c>ProjectJson</c> text inside them.</summary>
 [JsonSourceGenerationOptions(

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>The answer to a command, an undo or a redo, to the client that sent it. Everyone, the sender included, also hears <c>DocumentChanged</c>.</summary>
 /// <param name="Succeeded">Whether it was applied; a refused command changes nothing and has errors.</param>

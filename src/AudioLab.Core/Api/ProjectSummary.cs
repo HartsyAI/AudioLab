@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Store;
+namespace AudioLab.Core.Api;
 
 /// <summary>One project in a user's list.</summary>
 /// <param name="Id">The project's id.</param>

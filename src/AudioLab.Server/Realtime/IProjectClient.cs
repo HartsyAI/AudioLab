@@ -1,3 +1,5 @@
+using AudioLab.Core.Realtime;
+
 namespace AudioLab.Server.Realtime;
 
 /// <summary>What the server calls on a client that has joined a project. The method names are the names on the wire.</summary>
