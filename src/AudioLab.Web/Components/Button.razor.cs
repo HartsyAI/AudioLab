@@ -2,26 +2,26 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue button: default, primary, danger or icon; with a name it also carries the tooltip of its name and shortcut.</summary>
+/// <summary>The catalogue button: default, primary, danger or icon. A named button also carries its name and shortcut as its title.</summary>
 public sealed partial class Button
 {
     /// <summary>Which of the looks the button takes.</summary>
     [Parameter]
     public ButtonVariant Variant { get; set; }
 
-    /// <summary>Whether the button does nothing; with a name, the tooltip says why.</summary>
+    /// <summary>Whether the button does nothing; a named button stays focusable, and its title says why.</summary>
     [Parameter]
     public bool Disabled { get; set; }
 
-    /// <summary>Why the button is disabled, in one sentence; the tooltip shows it in place of the name.</summary>
+    /// <summary>Why the button is disabled, in one sentence; the title shows it in place of the name.</summary>
     [Parameter]
     public string? DisabledReason { get; set; }
 
-    /// <summary>The control's name: its accessible name and the first line of its tooltip. Required for an icon button.</summary>
+    /// <summary>The control's name: its accessible name and its title. Required for an icon button.</summary>
     [Parameter]
     public string? Name { get; set; }
 
-    /// <summary>The shortcut the tooltip shows, as the shortcut registry writes it.</summary>
+    /// <summary>The shortcut the title shows after the name, as the shortcut registry writes it.</summary>
     [Parameter]
     public string? Shortcut { get; set; }
 
@@ -49,9 +49,22 @@ public sealed partial class Button
 
     private string ButtonType => Submit ? "submit" : "button";
 
-    private string? AriaDisabled => Disabled ? "true" : null;
+    // A button with a name stays focusable while it is disabled, so a keyboard user can read why in its title.
+    private bool NativelyDisabled => Disabled && Name is null;
 
-    private string TooltipText => Disabled && DisabledReason is not null ? DisabledReason : Name ?? string.Empty;
+    private string? AriaDisabled => Disabled && Name is not null ? "true" : null;
+
+    private string? Hint
+    {
+        get
+        {
+            if (Disabled && DisabledReason is not null)
+            {
+                return DisabledReason;
+            }
+            return Name is null ? null : Shortcut is null ? Name : $"{Name} ({Shortcut})";
+        }
+    }
 
     private Task ClickAsync()
     {

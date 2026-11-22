@@ -1,14 +1,20 @@
+@implements IDisposable
+
 <div class="toast-root">
-    <BitBhToastViewport Id="@HostId" popover="manual" Context="toast" class="toasts">
-        <BitBhToast Item="toast" data-variant="@toast.Variant" class="toast">
-            <BitBhToastTitle class="toast-title">@toast.Title</BitBhToastTitle>
-            @if (toast.Options.ActionLabel is not null)
-            {
-                <BitBhToastAction class="toast-action" />
-            }
-            <BitBhToastClose aria-label="Dismiss notification" class="toast-close">
-                <Icon Name="IconName.Close" Size="10" />
-            </BitBhToastClose>
-        </BitBhToast>
-    </BitBhToastViewport>
+    <div id="@HostId" popover="manual" class="toasts" role="region" aria-label="Notifications">
+        @foreach (ToastItem toast in Toasts.Items)
+        {
+            <div @key="toast.Id" class="toast" data-variant="@VariantOf(toast)" role="@RoleOf(toast)">
+                <span class="toast-title">@toast.Message</span>
+                @if (toast.Undo is not null)
+                {
+                    <button type="button" class="toast-action" @onclick="() => Toasts.UndoAsync(toast.Id)">Undo</button>
+                }
+                <button type="button" class="toast-close" aria-label="Dismiss notification" title="Dismiss notification"
+                        @onclick="() => Toasts.Dismiss(toast.Id)">
+                    <Icon Name="IconName.Close" Size="10" />
+                </button>
+            </div>
+        }
+    </div>
 </div>

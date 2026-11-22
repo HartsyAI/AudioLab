@@ -1,6 +1,7 @@
 namespace AudioLab.Web.Components;
 
 /// <summary>The outline of each icon on a 24 by 24 grid, drawn as a stroke in the current text colour.</summary>
+/// <remarks>The paths are Lucide's, except the logo (ISC licence; the notice is wwwroot/icons/LICENSE.txt).</remarks>
 internal static class IconPaths
 {
     /// <summary>The path data of an icon.</summary>

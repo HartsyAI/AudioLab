@@ -41,12 +41,17 @@
     border-left: var(--space-4) solid var(--caution);
 }
 
+/* Red means recording or destroying (7.2), so a failure takes the caution colour; the words and the alert role say it is a failure. */
 .toast-root ::deep .toast[data-variant="error"] {
-    border-left: var(--space-4) solid var(--record);
+    border-left: var(--space-4) solid var(--caution);
 }
 
 .toast-root ::deep .toast[data-variant="info"] {
     border-left: var(--space-4) solid var(--accent);
+}
+
+.toast-root ::deep .toasts:empty {
+    display: none;
 }
 
 .toast-root ::deep .toast-title {
