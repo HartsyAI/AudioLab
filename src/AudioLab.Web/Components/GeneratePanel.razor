@@ -1,0 +1,27 @@
+<aside class="generate">
+    <div class="top">
+        <span class="heading">Generate</span>
+        <Segmented Compact="true">
+            <Button Kind="ButtonKind.Chosen" Size="ButtonSize.Compact">Music</Button>
+            <Button Kind="ButtonKind.Bare" Size="ButtonSize.Compact">Speech</Button>
+            <Button Kind="ButtonKind.Bare" Size="ButtonSize.Compact">Sound</Button>
+        </Segmented>
+    </div>
+    <textarea class="prompt" aria-label="Prompt" rows="3">Warm analog bassline that follows the chorus chords, tight and a little behind the beat</textarea>
+    <div class="fields">
+        <div class="field">
+            <span class="label">Model</span>
+            <Button Kind="ButtonKind.Select"><span class="stretch">ACE-Step</span><svg width="9" height="9" viewBox="0 0 10 10" fill="none" style="stroke: var(--text-faint)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5l3 3 3-3"></path></svg></Button>
+        </div>
+        <div class="field">
+            <span class="label">Length</span>
+            <Button Kind="ButtonKind.Select"><span class="stretch">Loop range, 4 bars</span><svg width="9" height="9" viewBox="0 0 10 10" fill="none" style="stroke: var(--text-faint)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5l3 3 3-3"></path></svg></Button>
+        </div>
+    </div>
+    <div class="check">
+        <div class="box"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="stroke: var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.2l2 2 4-4.4"></path></svg></div>
+        <span class="check-label">Match project tempo and key</span>
+    </div>
+    <div class="grow"></div>
+    <Button Kind="ButtonKind.Primary" Size="ButtonSize.Large">Generate to Bass</Button>
+</aside>

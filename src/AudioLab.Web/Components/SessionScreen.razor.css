@@ -1,0 +1,14 @@
+.session {
+    height: 100%;
+    min-height: 820px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface-lane);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+}

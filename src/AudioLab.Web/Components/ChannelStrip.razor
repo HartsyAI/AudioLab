@@ -1,0 +1,29 @@
+<div class="@CssClass" style="width: @(Strip.Width)px">
+    <div class="head">
+        <div class="dot" style="background: var(@Strip.ColourToken)"></div>
+        <span class="name">@Strip.Name</span>
+    </div>
+    <div class="slots">
+        @foreach (string slot in Strip.Slots)
+        {
+            <div class="@(slot.Length == 0 ? "slot empty" : "slot")">@(slot.Length == 0 ? "Add effect" : slot)</div>
+        }
+    </div>
+    <div class="pan">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" style="fill: var(--surface-raised); stroke: var(--line)" stroke-width="1"></circle><circle cx="12" cy="12" r="9" fill="none" style="stroke: var(--highlight)" stroke-width="1"></circle><line x1="12" y1="12" x2="12" y2="4.5" style="stroke: var(--text)" stroke-width="2" stroke-linecap="round" transform="rotate(@Strip.Pan 12 12)"></line></svg>
+        <span class="readout">@Strip.PanText</span>
+    </div>
+    <div class="fader-row">
+        <div class="scale"><span>+6</span><span>0</span><span>-12</span><span>-24</span><span>-48</span></div>
+        <div class="track">
+            <div class="slot-line"></div>
+            <div class="cap" style="bottom: @(Strip.Fader)%"><div class="notch"></div></div>
+        </div>
+        <Meter Left="@Strip.MeterLeft" Right="@Strip.MeterRight" />
+    </div>
+    <div class="foot">
+        <TrackToggle Letter="M" AriaLabel="Mute" Tone="ToggleTone.Mute" On="@Strip.Muted" />
+        <TrackToggle Letter="S" AriaLabel="Solo" Tone="ToggleTone.Solo" />
+        <span class="db">@Strip.DbText</span>
+    </div>
+</div>

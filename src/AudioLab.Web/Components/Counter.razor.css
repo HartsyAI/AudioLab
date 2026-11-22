@@ -1,0 +1,8 @@
+.counter {
+    display: flex;
+    align-items: stretch;
+    height: 36px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+}

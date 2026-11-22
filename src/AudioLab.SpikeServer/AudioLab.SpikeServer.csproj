@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The O1 spike's test server: serves the published page and worker, generates the clips, and keeps the page's reports. Not for merge. -->
+  <PropertyGroup>
+    <RootNamespace>AudioLab.SpikeServer</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

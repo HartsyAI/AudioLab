@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- Hosts the engine in a web worker. The shim script starts this runtime and calls the exports in WorkerExports. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AudioLab.Web.Interop.Worker</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WasmFingerprintDotnetJs>false</WasmFingerprintDotnetJs>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudioLab.Audio\AudioLab.Audio.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AudioLab.Web\Interop\Worker\WorkerExports.cs" Link="WorkerExports.cs" />
+  </ItemGroup>
+
+</Project>

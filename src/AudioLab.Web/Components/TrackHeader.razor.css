@@ -1,0 +1,101 @@
+.header {
+    display: grid;
+    grid-template-columns: 4px 26px minmax(0, 1fr) 18px;
+    height: 64px;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.selected {
+    background: var(--surface-selected);
+}
+
+.number {
+    padding-top: var(--space-14);
+    text-align: center;
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-faint);
+}
+
+.main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-8);
+    min-width: 0;
+    padding-right: var(--space-10);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+}
+
+.name {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.toggles {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.source {
+    width: 78px;
+    font-size: var(--font-size-label);
+    color: var(--text-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slot {
+    flex: 1;
+    position: relative;
+    height: 4px;
+    border-radius: var(--radius-xs);
+    background: var(--surface-well);
+}
+
+.fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: var(--radius-xs);
+    background: var(--control-fill);
+}
+
+.cap {
+    position: absolute;
+    top: -4px;
+    width: 4px;
+    height: 12px;
+    margin-left: -2px;
+    border-radius: var(--radius-xs);
+    background: var(--control-cap);
+    box-shadow: var(--shadow-cap);
+}
+
+.db {
+    width: 34px;
+    text-align: right;
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-dim);
+}
+
+.meter {
+    display: flex;
+    padding: var(--space-8) var(--space-6) var(--space-8) 0;
+}

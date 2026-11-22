@@ -1,0 +1,18 @@
+<footer class="status">
+    <div class="item"><div class="dot connected"></div><span class="soft">Connected</span></div>
+    <div class="item"><div class="dot agent"></div><span>Agent is editing Drums</span></div>
+    <div class="item wide"><span>Separating stems: Guitar</span><div class="progress"><div class="done"></div></div><span class="soft">42%</span></div>
+    <div class="spacer"></div>
+    @if (Playback.Phase != "idle")
+    {
+        <span id="engine-phase">@Playback.Phase</span>
+    }
+    else if (Options.Engine is "main" or "worker")
+    {
+        <Button Id="start-audio" Size="ButtonSize.Small" OnClick="Start">Start @Options.Engine engine</Button>
+    }
+    <span>@RateText</span>
+    <span>@FillText</span>
+    <span id="engine-load">@LoadText</span>
+    <span id="engine-dropouts">@DropoutText</span>
+</footer>

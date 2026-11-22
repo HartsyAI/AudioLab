@@ -1,0 +1,34 @@
+.cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: 0 var(--space-12);
+    border-right: 1px solid var(--surface-panel);
+}
+
+.cell:last-child {
+    border-right: 0;
+}
+
+.large {
+    padding: 0 var(--space-14);
+}
+
+.caption {
+    font-size: var(--font-size-micro);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+}
+
+.value {
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-strong);
+    color: var(--text-soft);
+}
+
+.large .value {
+    font-size: var(--font-size-readout);
+    color: var(--text);
+}

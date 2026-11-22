@@ -1,0 +1,40 @@
+.toggle {
+    flex: none;
+    width: 20px;
+    height: var(--control-xs);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text-dim);
+    box-shadow: var(--shadow-raised);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-strong);
+}
+
+.toggle:hover {
+    background: var(--surface-raised-active);
+}
+
+.toggle:focus-visible {
+    outline: 0;
+    box-shadow: var(--focus-ring);
+}
+
+.on {
+    color: var(--ink);
+}
+
+.mute {
+    background: var(--mute);
+}
+
+.solo {
+    background: var(--caution);
+}
+
+.record {
+    background: var(--record);
+}
+
+.go {
+    background: var(--go);
+}

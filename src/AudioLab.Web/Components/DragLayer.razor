@@ -1,0 +1,5 @@
+@if (Drag.Clip is ClipModel clip)
+{
+    <div class="landing" style="left: @(Format((Drag.TargetBar * View.BarWidth) + 1))px; top: @(Format((Drag.TargetTrack * View.LaneHeight) + View.ClipInset))px; width: @(Format(View.ClipWidth(clip)))px; height: @(Format(View.ClipHeight))px"></div>
+    <SvgClip Clip="clip" Track="View.Session.Tracks[clip.Track]" BarWidth="View.BarWidth" Lifted="true" Left="Drag.X" Top="Drag.Y" LaneHeight="View.LaneHeight" Revision="clip.Revision" />
+}

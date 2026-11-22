@@ -1,0 +1,38 @@
+.surface {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    background-color: var(--surface-lane);
+}
+
+.lane {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--lane-line);
+}
+
+.selected {
+    background: color-mix(in srgb, var(--playhead) 3%, transparent);
+}
+
+.loop {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    pointer-events: none;
+}
+
+.playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--playhead);
+    pointer-events: none;
+}
