@@ -16,18 +16,22 @@ public sealed class MediaStore : IMediaCatalog
 {
     private const int MaxRecordBytes = 8192;
 
+    private static readonly TimeSpan _retryAfter = TimeSpan.FromSeconds(5);
+
     private static readonly UTF8Encoding _strictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly StoreRoot _root;
     private readonly IMediaQuota _quota;
+    private readonly TimeProvider _time;
     private readonly ILogger<MediaStore> _logger;
     private readonly ConcurrentDictionary<UserId, UserMedia> _users = new();
 
     /// <summary>Opens the media of the store and removes bytes that have no record, which only a crash leaves.</summary>
-    public MediaStore(StoreRoot root, IMediaQuota quota, ILogger<MediaStore> logger)
+    public MediaStore(StoreRoot root, IMediaQuota quota, TimeProvider time, ILogger<MediaStore> logger)
     {
         _root = root;
         _quota = quota;
+        _time = time;
         _logger = logger;
         MediaLog.OrphansSwept(logger, SweepOrphans());
     }
@@ -53,11 +57,22 @@ public sealed class MediaStore : IMediaCatalog
     }
 
     /// <summary>Reads the user's media folder if that has not been done, off the caller's thread, so a later lookup does not wait.</summary>
-    public Task PrepareAsync(UserId user) => Task.Run(() => Loaded(user));
+    public Task PrepareAsync(UserId user)
+    {
+        UserMedia media = _users.GetOrAdd(user, _ => new UserMedia());
+        lock (media.Sync)
+        {
+            if (media.Loaded && media.Unreadable.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
+        }
+        return Task.Run(() => Loaded(user));
+    }
 
-    /// <summary>A user's file.</summary>
+    /// <summary>A user's file, also while its delete is pending: only a new reference to it is refused, not a read.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
-    public MediaRecord Get(UserId user, MediaId id) => Find(user, id) ?? throw new MediaNotFoundException();
+    public MediaRecord Get(UserId user, MediaId id) => FindIncludingPendingDelete(user, id) ?? throw new MediaNotFoundException();
 
     /// <summary>A user's files, newest first, and how many stored records were refused as invalid.</summary>
     public (IReadOnlyList<MediaRecord> Records, int Refused) List(UserId user)
@@ -68,7 +83,6 @@ public sealed class MediaStore : IMediaCatalog
             List<MediaRecord> records =
             [
                 .. media.Entries.Values
-                    .Where(entry => !entry.PendingDelete)
                     .Select(entry => entry.Record)
                     .OrderByDescending(record => record.Created)
                     .ThenBy(record => record.Id.Value, StringComparer.Ordinal),
@@ -241,6 +255,11 @@ public sealed class MediaStore : IMediaCatalog
             if (!media.Loaded)
             {
                 media.Loaded = Load(user, media);
+                media.LastAttempt = _time.GetUtcNow();
+            }
+            else if (media.Unreadable.Count > 0 && _time.GetUtcNow() - media.LastAttempt >= _retryAfter)
+            {
+                RetryUnreadable(user, media);
             }
         }
         return media;
@@ -265,9 +284,22 @@ public sealed class MediaStore : IMediaCatalog
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             media.Entries.Clear();
+            media.Unreadable.Clear();
             media.Refused = 0;
             MediaLog.FolderUnreadable(_logger, exception.GetType().Name);
             return false;
+        }
+    }
+
+    private void RetryUnreadable(UserId user, UserMedia media)
+    {
+        string[] files = [.. media.Unreadable];
+        media.Unreadable.Clear();
+        media.Refused -= files.Length;
+        media.LastAttempt = _time.GetUtcNow();
+        foreach (string file in files)
+        {
+            LoadRecord(user, media, file);
         }
     }
 
@@ -293,8 +325,9 @@ public sealed class MediaStore : IMediaCatalog
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // One file another process holds must not hide the rest of the user's media.
+            // One file another process holds must not hide the rest of the user's media, and is read again later.
             media.Refused++;
+            media.Unreadable.Add(file);
             MediaLog.RecordRefused(_logger, name, exception.GetType().Name);
         }
     }
@@ -430,5 +463,9 @@ public sealed class MediaStore : IMediaCatalog
         public bool Loaded { get; set; }
 
         public int Refused { get; set; }
+
+        public List<string> Unreadable { get; } = [];
+
+        public DateTimeOffset LastAttempt { get; set; }
     }
 }

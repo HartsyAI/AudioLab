@@ -146,6 +146,46 @@ public sealed class MediaStoreTests
     }
 
     [Fact]
+    public async Task ARecordFileAnotherProcessHeldIsReadAgainOnceItIsReleased()
+    {
+        using TempFolder folder = new();
+        MediaRecord held;
+        await using (TestStore first = TestStore.On(folder.Path))
+        {
+            held = await first.UploadAsync(Users.Alice, Wav(), "held.wav");
+        }
+        await using TestStore store = TestStore.On(folder.Path);
+        FileStream hold = new(MediaStoreFile(folder, held), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Equal(1, store.MediaFiles.List(Users.Alice).Refused);
+        await hold.DisposeAsync();
+
+        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        store.Time.Advance(TimeSpan.FromSeconds(6));
+        Assert.Equal(held, store.Media.Find(Users.Alice, held.Id));
+        Assert.Equal(0, store.MediaFiles.List(Users.Alice).Refused);
+        Assert.Single(store.MediaFiles.List(Users.Alice).Files);
+    }
+
+    [Fact]
+    public async Task AFileWhoseDeleteIsPendingCanStillBeReadListedAndDownloaded()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        byte[] file = Wav();
+        MediaRecord record = await store.UploadAsync(Users.Alice, file);
+
+        Assert.NotNull(store.Media.BeginDelete(Users.Alice, record.Id));
+
+        Assert.Equal(record.Id.Value, store.MediaFiles.Get(Users.Alice, record.Id).Id.Value);
+        Assert.Equal([record.Id.Value], store.MediaFiles.List(Users.Alice).Files.Select(summary => summary.Id));
+        Assert.Equal(file, await ReadAllAsync(store.MediaFiles.OpenContent(Users.Alice, record.Id)));
+        Assert.NotEmpty(await ReadAllAsync(store.MediaFiles.OpenPeaks(Users.Alice, record.Id)));
+        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+    }
+
+    [Fact]
     public async Task AFileThatIsNotAcceptedLeavesNothingBehind()
     {
         using TempFolder folder = new();

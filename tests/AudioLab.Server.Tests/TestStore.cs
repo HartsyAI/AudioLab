@@ -21,7 +21,7 @@ public sealed class TestStore : IAsyncDisposable
         Projects = new ProjectStore(Root, NullLogger<ProjectStore>.Instance);
         Ids = new IdService();
         Registry = registry ?? new CommandRegistryBuilder().Build();
-        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), NullLogger<MediaStore>.Instance);
+        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), Time, NullLogger<MediaStore>.Instance);
         Open = new OpenProjects(Projects, Options, Time, Registry, Media, Ids, NullLogger<OpenProjects>.Instance);
         MediaFiles = new MediaService(Media, new MediaReferences(Open, Projects), Root, Ids, mediaOptions, Time);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);

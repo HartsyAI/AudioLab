@@ -265,6 +265,7 @@ public sealed class MediaRouteTests
             (HttpMethod.Post, "/api/media?name=a.wav"),
             (HttpMethod.Get, "/api/media/med_1"),
             (HttpMethod.Get, "/api/media/med_1/content"),
+            (HttpMethod.Get, "/api/media/med_1/peaks"),
             (HttpMethod.Delete, "/api/media/med_1"),
         })
         {
