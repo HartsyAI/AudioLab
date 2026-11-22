@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Configuration;
+using AudioLab.Server.Media;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,7 +11,7 @@ namespace AudioLab.Server.Tests;
 /// <summary>The whole store stack on a folder, with a clock a test moves and a write observer a test can set.</summary>
 public sealed class TestStore : IAsyncDisposable
 {
-    private TestStore(string folder, StoreOptions options, CommandRegistry? registry, IProjectEvents? events)
+    private TestStore(string folder, StoreOptions options, CommandRegistry? registry, IProjectEvents? events, MediaOptions mediaOptions)
     {
         Folder = folder;
         Options = options with { Root = folder };
@@ -19,9 +20,10 @@ public sealed class TestStore : IAsyncDisposable
         Root = new StoreRoot(Options, atomic, NullLogger<StoreRoot>.Instance);
         Projects = new ProjectStore(Root, NullLogger<ProjectStore>.Instance);
         Ids = new IdService();
-        Media = new MediaStore(Root, Ids);
         Registry = registry ?? new CommandRegistryBuilder().Build();
         Open = new OpenProjects(Projects, Options, Time, Registry, Ids, NullLogger<OpenProjects>.Instance);
+        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), NullLogger<MediaStore>.Instance);
+        MediaFiles = new MediaService(Media, new MediaReferences(Open, Projects), Root, Ids, mediaOptions, Time);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
         Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions());
     }
@@ -40,6 +42,8 @@ public sealed class TestStore : IAsyncDisposable
 
     public MediaStore Media { get; }
 
+    public MediaService MediaFiles { get; }
+
     public OpenProjects Open { get; }
 
     public ProjectService Service { get; }
@@ -52,9 +56,15 @@ public sealed class TestStore : IAsyncDisposable
 
     public StorePaths Paths => Root.Paths;
 
-    public static TestStore On(string folder, StoreOptions? options = null, CommandRegistry? registry = null, IProjectEvents? events = null)
+    public static TestStore On(string folder, StoreOptions? options = null, CommandRegistry? registry = null, IProjectEvents? events = null, MediaOptions? media = null)
     {
-        return new TestStore(folder, options ?? new StoreOptions(), registry, events);
+        return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions());
+    }
+
+    /// <summary>Uploads a file as a user would, through the service, with the body arriving as a stream.</summary>
+    public Task<MediaRecord> UploadAsync(UserId user, byte[] file, string name = "kick.wav")
+    {
+        return MediaFiles.UploadAsync(user, name, new MemoryStream(file), file.Length, CancellationToken.None);
     }
 
     public string ProjectFile(UserId user, string projectId) => Paths.ProjectFile(user, ProjectId.From(projectId));

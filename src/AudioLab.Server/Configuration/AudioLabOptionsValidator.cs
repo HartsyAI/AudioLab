@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AudioLab.Core.Model;
+using AudioLab.Server.Media;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
@@ -46,6 +47,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
             problems.Add("AudioLab:HubSendTimeout must be 100 milliseconds to 5 minutes.");
         }
         ValidateStorage(options.Storage, problems);
+        ValidateMedia(options.Media, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 
@@ -66,6 +68,22 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         if (storage.MaxProjectsPerUser < 1)
         {
             problems.Add("AudioLab:Storage:MaxProjectsPerUser must be at least 1.");
+        }
+    }
+
+    private static void ValidateMedia(MediaOptions media, List<string> problems)
+    {
+        if (media.MaxUploadBytes is < 1024 or > MediaValidator.MaxLength)
+        {
+            problems.Add($"AudioLab:Media:MaxUploadBytes must be 1024 to {MediaValidator.MaxLength}.");
+        }
+        if (media.MaxFilesPerUser < 1)
+        {
+            problems.Add("AudioLab:Media:MaxFilesPerUser must be at least 1.");
+        }
+        if (media.MaxBytesPerUser < media.MaxUploadBytes)
+        {
+            problems.Add("AudioLab:Media:MaxBytesPerUser must be at least MaxUploadBytes.");
         }
     }
 
