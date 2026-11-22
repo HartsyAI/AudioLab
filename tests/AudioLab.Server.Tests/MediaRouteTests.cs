@@ -71,6 +71,19 @@ public sealed class MediaRouteTests
         return await server.Client.SendAsync(request);
     }
 
+    private static async Task<HttpStatusCode?> StatusOrResetAsync(Func<Task<HttpResponseMessage>> send)
+    {
+        try
+        {
+            using HttpResponseMessage response = await send();
+            return response.StatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
     private static string[] Media(RunningServer server) => Directory.GetFiles(server.StoreFolder, "m*", SearchOption.AllDirectories);
 
     [Fact]
@@ -269,13 +282,15 @@ public sealed class MediaRouteTests
         byte[] big = Wav(2000);
         Assert.True(big.Length > 2048);
 
-        using HttpResponseMessage announced = await UploadAsync(server, big);
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, announced.StatusCode);
+        // The server may close the connection before the client has sent its body, so a reset is as good as the 413.
+        HttpStatusCode? announced = await StatusOrResetAsync(() => UploadAsync(server, big));
+        Assert.True(announced is null or HttpStatusCode.RequestEntityTooLarge, $"announced: {announced}");
 
         using ChunkedContent chunked = new(big);
         chunked.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-        using HttpResponseMessage unannounced = await server.Client.PostAsync("/api/media?name=big.wav", chunked);
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, unannounced.StatusCode);
+        HttpStatusCode? unannounced = await StatusOrResetAsync(() => server.Client.PostAsync("/api/media?name=big.wav", chunked));
+        Assert.True(unannounced is null or HttpStatusCode.RequestEntityTooLarge, $"unannounced: {unannounced}");
+        Assert.Empty(Media(server));
 
         byte[] fits = Wav(400);
         Assert.True(fits.Length <= 2048);
