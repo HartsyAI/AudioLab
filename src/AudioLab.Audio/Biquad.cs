@@ -7,14 +7,17 @@ internal sealed class Biquad
     private double _s1;
     private double _s2;
 
+    /// <summary>Makes a section with the given coefficients and nothing in its state.</summary>
     public Biquad(BiquadCoefficients coefficients) => _coefficients = coefficients;
 
+    /// <summary>Forgets the signal that went through.</summary>
     public void Reset()
     {
         _s1 = 0;
         _s2 = 0;
     }
 
+    /// <summary>Filters one sample.</summary>
     public float Process(float input)
     {
         BiquadCoefficients c = _coefficients;
@@ -25,6 +28,7 @@ internal sealed class Biquad
         return (float)y;
     }
 
+    /// <summary>Filters a block in place.</summary>
     public void Process(Span<float> samples)
     {
         for (int i = 0; i < samples.Length; i++)

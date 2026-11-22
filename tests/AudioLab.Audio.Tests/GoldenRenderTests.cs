@@ -44,6 +44,14 @@ public sealed class GoldenRenderTests
             Run(((ReverbEffect)New(EffectKind.Reverb, "r")) with { Size = 0.4, Decay = 3, Predelay = 0.01, Mix = 0.4 }));
 
     [Fact]
+    public void ReverbLongEnoughToUseEveryStageOfTheConvolverAt48Kilohertz()
+    {
+        ReverbEffect room = ((ReverbEffect)New(EffectKind.Reverb, "r")) with { Size = 0.5, Decay = 3, Predelay = 0.01, Mix = 0.4 };
+
+        GoldenFile.Check("reverb48", EffectRig.Run(room, GoldenInput.Create(48000, 0.1), tail: true));
+    }
+
+    [Fact]
     public void Saturation() =>
         GoldenFile.Check(
             "saturation",

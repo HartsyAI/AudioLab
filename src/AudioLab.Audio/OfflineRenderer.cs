@@ -35,6 +35,10 @@ public static class OfflineRenderer
         MixerGraph graph = new(plan, settings.BlockFrames);
         graph.Seek(start);
         graph.Render(left, right);
+        if (settings.IncludeTail && plan.TailIsCut)
+        {
+            TailFade.Apply(left, right, 0, total, TailFade.FramesAt(settings.SampleRate));
+        }
         return new RenderedAudio(plan.Format, left, right);
     }
 }

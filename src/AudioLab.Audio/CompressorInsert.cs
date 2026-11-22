@@ -36,6 +36,10 @@ internal sealed class CompressorInsert : IInsert
         for (int i = 0; i < left.Length; i++)
         {
             float peak = Math.Max(Math.Max(Math.Abs(left[i]), Math.Abs(right[i])), Silence);
+            if (!float.IsFinite(peak))
+            {
+                peak = Silence;
+            }
             double target = ReductionFor(DbPerNeper * Math.Log(peak));
             double coefficient = target < _reduction ? _attack : _release;
             _reduction = target + ((_reduction - target) * coefficient);

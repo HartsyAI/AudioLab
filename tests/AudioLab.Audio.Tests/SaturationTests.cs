@@ -49,17 +49,61 @@ public sealed class SaturationTests
     }
 
     [Fact]
-    public void TheAntiAliasingKeepsFoldedHarmonicsBelowThoseOfAPlainShaper()
+    public void TheHarmonicsThatFoldBackAreFarBelowTheFundamentalAndBelowThoseOfAPlainShaper()
     {
         // 11 kHz at 48 kHz: its third harmonic, 33 kHz, folds down to 15 kHz.
         float[] input = Signals.Sine(11000, 1, 48000, 0.9).Channel(0).ToArray();
-        double k = 10;
-        float[] plain = input.Select(x => (float)(Math.Tanh(k * x) / Math.Tanh(k))).ToArray();
+        float[] plain = input.Select(x => (float)(Math.Tanh(10 * x) / Math.Tanh(10))).ToArray();
 
         RenderedAudio audio = EffectRig.Run(Effect(drive: 1), new PcmAudio(48000, [input]));
-        double antialiased = Signals.Level(audio.Left.AsSpan(24000), 15000);
-        double naive = Signals.Level(plain.AsSpan(24000), 15000);
+        double fundamental = Signals.Level(audio.Left.AsSpan(24000), 11000);
+        double folded = Signals.Level(audio.Left.AsSpan(24000), 15000);
+        double plainFolded = Signals.Level(plain.AsSpan(24000), 15000) / Signals.Level(plain.AsSpan(24000), 11000);
 
-        Assert.True(antialiased < naive * 0.5, $"{antialiased} against {naive}");
+        Assert.True(folded / fundamental < 0.003, $"folded {folded / fundamental} of the fundamental");
+        Assert.True(folded / fundamental < 0.1 * plainFolded);
+    }
+
+    [Fact]
+    public void ForSmallSignalsTheResponseIsFlatToThreeQuartersOfNyquistAndTheDelayIsTheReportedLatency()
+    {
+        // At drive 0 and a small level the curve is a straight line of slope 1 / tanh(1), so only the filters shape the sound.
+        double slope = 1 / Math.Tanh(1);
+        foreach (double hertz in new[] { 1000.0, 5000, 10000, 15000, 18000 })
+        {
+            RenderedAudio audio = EffectRig.Run(Effect(), Signals.Sine(hertz, 1, 48000, 0.01));
+            double gain = Signals.Level(audio.Left.AsSpan(24000), hertz) / 0.01 / slope;
+
+            Assert.InRange(20 * Math.Log10(gain), -0.5, 0.5);
+        }
+        RenderedAudio impulse = EffectRig.Run(Effect(), EffectRig.Impulses(48000, 0.1, 0.01), tail: true);
+        int peak = Enumerable.Range(0, impulse.Frames).MaxBy(i => Math.Abs(impulse.Left[i]));
+
+        Assert.Equal(480 + SaturationInsert.Latency, peak);
+    }
+
+    [Fact]
+    public void WithTheMixHalfwayTheDryAndTheWetBlendWithoutAComb()
+    {
+        // The wet signal of a small tone is the dry one made 1 / tanh(1) times as large, so the blend must stay flat at every frequency.
+        double blend = 0.5 + (0.5 / Math.Tanh(1));
+        foreach (double hertz in new[] { 1000.0, 10000, 17000 })
+        {
+            RenderedAudio audio = EffectRig.Run(Effect(mix: 0.5), Signals.Sine(hertz, 1, 48000, 0.01));
+            double gain = Signals.Level(audio.Left.AsSpan(24000), hertz) / 0.01 / blend;
+
+            Assert.InRange(20 * Math.Log10(gain), -0.5, 0.5);
+        }
+    }
+
+    [Fact]
+    public void TheEffectRingsForItsLatencyAfterItsInput()
+    {
+        RenderPlan plan = RenderPlan.Create(
+            TestProject.Create(TestProject.Track("t", TrackKind.Audio, TestProject.Clip("c", "m", 0, 1)) with { Effects = [Effect()] }),
+            new MemoryMedia().Add("m", Signals.Constant(0, 1, 48000)),
+            new PlanOptions { SampleRate = 48000 });
+
+        Assert.Equal(SaturationInsert.Latency, plan.TailFrames);
     }
 }
