@@ -22,7 +22,7 @@ public sealed class TempoMap
     {
         ArgumentNullException.ThrowIfNull(changes);
         List<(double Time, double Bpm, double Beat)> segments = [(0, StartTempo(bpm), 0)];
-        foreach (TempoChange change in changes.Where(change => change.Time > 1e-6 && change.Bpm > 0).OrderBy(change => change.Time))
+        foreach (TempoChange change in changes.Where(change => double.IsFinite(change.Time) && double.IsFinite(change.Bpm) && change.Time > 1e-6 && change.Bpm > 0).OrderBy(change => change.Time))
         {
             (double time, double tempo, double beat) = segments[^1];
             segments.Add((change.Time, change.Bpm, beat + ((change.Time - time) * tempo / 60)));

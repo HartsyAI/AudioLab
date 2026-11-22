@@ -112,6 +112,40 @@ public sealed class CommandSchemaContractTests
         Assert.DoesNotMatch(pattern, "#abcd");
     }
 
+    [Fact]
+    public void FadersAndPansHaveTheirRanges()
+    {
+        JsonElement volume = Property("mixer_set_track_volume", "volume");
+        JsonElement pan = Property("mixer_set_track_pan", "pan");
+        JsonElement send = Property("mixer_send_set_level", "level");
+
+        Assert.Equal((0.0, ProjectLimits.MaxGain), (volume.GetProperty("minimum").GetDouble(), volume.GetProperty("maximum").GetDouble()));
+        Assert.Equal((-1.0, 1.0), (pan.GetProperty("minimum").GetDouble(), pan.GetProperty("maximum").GetDouble()));
+        Assert.Equal(ProjectLimits.MaxGain, send.GetProperty("maximum").GetDouble());
+    }
+
+    [Fact]
+    public void AnInstrumentPresetListsTheNamesWeShipAndADirectionListsUpAndDown()
+    {
+        JsonElement preset = Property("track_add", "preset");
+        JsonElement direction = Property("track_move", "direction");
+
+        Assert.Equal(InstrumentPresets.Names, preset.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["up", "down"], direction.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void AListOfTracksNeedsOneToTheMostATrackLimitAllows()
+    {
+        foreach (string command in new[] { "group_create", "group_assign" })
+        {
+            JsonElement tracks = Property(command, "tracks");
+            Assert.Equal(1, tracks.GetProperty("minItems").GetInt32());
+            Assert.Equal(ProjectLimits.MaxTracks, tracks.GetProperty("maxItems").GetInt32());
+            Assert.False(tracks.TryGetProperty("minLength", out _));
+        }
+    }
+
     private JsonElement Property(string command, string member)
     {
         return _registry.Find(command)!.Schema.GetProperty("properties").GetProperty(member);

@@ -1,0 +1,167 @@
+using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
+
+namespace AudioLab.Core.Tests;
+
+// The domain commands against a project that uses every part of the model, not an empty one.
+public sealed class RichProjectTests
+{
+    private static ProjectDocument Sample() => SampleProject.Create(UserId.Local);
+
+    private static AudioClip Clip(string id, ClipMeta? meta = null)
+    {
+        return new AudioClip
+        {
+            Id = ClipId.From(id),
+            Name = id,
+            Media = MediaId.From("med_1"),
+            Start = 0,
+            Duration = 10,
+            Offset = 0,
+            TrimEnd = 0,
+            Gain = 1,
+            FadeIn = 0,
+            FadeOut = 0,
+            Muted = false,
+            Meta = meta,
+        };
+    }
+
+    [Fact]
+    public void EveryGroupTrackAndMixerCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track vocals = sample.Tracks.First(track => track.Sends.Count > 0);
+        Track keys = sample.Tracks.First(track => track.Kind == TrackKind.Instrument);
+        Track bus = sample.Tracks.First(track => track.Kind == TrackKind.Bus);
+        Track guitar = sample.Tracks.First(track => track.Group is not null);
+        GroupId band = sample.Groups[0].Id;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new CreateGroup { Project = id, Tracks = [vocals.Id, keys.Id] },
+            new AssignToGroup { Project = id, Tracks = [vocals.Id], Group = band },
+            new AssignToGroup { Project = id, Tracks = [guitar.Id] },
+            new Ungroup { Project = id, Group = band },
+            new RenameGroup { Project = id, Group = band, Name = "Rhythm" },
+            new SetGroupColor { Project = id, Group = band, Color = "#123456" },
+            new SetGroupCollapsed { Project = id, Group = band, Collapsed = false },
+            new SetGroupTint { Project = id, Group = band, Tint = true },
+            new SetGroupMuted { Project = id, Group = band, Muted = true },
+            new SetGroupSoloed { Project = id, Group = band, Soloed = false },
+            new SetGroupVolume { Project = id, Group = band, Volume = 2 },
+            new MoveGroup { Project = id, Group = band, Direction = MoveDirection.Up },
+            new AddTrack { Project = id },
+            new AddTrack { Project = id, Kind = TrackKind.Bus },
+            new AddTrack { Project = id, Kind = TrackKind.Instrument, Preset = "Organ" },
+            new RemoveTrack { Project = id, Track = vocals.Id },
+            new RemoveTrack { Project = id, Track = bus.Id },
+            new RemoveTrack { Project = id, Track = guitar.Id },
+            new RenameTrack { Project = id, Track = keys.Id, Name = "Piano" },
+            new SetTrackColor { Project = id, Track = keys.Id, Color = "#abcdef" },
+            new MoveTrack { Project = id, Track = keys.Id, Direction = MoveDirection.Down },
+            new MoveTrack { Project = id, Track = vocals.Id, Direction = MoveDirection.Down },
+            new SetTrackVolume { Project = id, Track = vocals.Id, Volume = 1.2 },
+            new SetTrackPan { Project = id, Track = vocals.Id, Pan = 0.5 },
+            new SetTrackMuted { Project = id, Track = keys.Id, Muted = true },
+            new SetTrackSoloed { Project = id, Track = keys.Id, Soloed = true },
+            new SetMasterVolume { Project = id, Volume = 0.5 },
+            new SetMasterLimiter { Project = id, Enabled = false },
+            new AddSend { Project = id, Track = guitar.Id, Bus = bus.Id },
+            new RemoveSend { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus },
+            new SetSendLevel { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Level = 0.1 },
+            new SetSendPre { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Pre = !vocals.Sends[0].Pre },
+            new SetSendMuted { Project = id, Track = vocals.Id, Bus = vocals.Sends[0].Bus, Muted = !vocals.Sends[0].Muted },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void RemovingATrackOfTheSampleProjectKeepsItsGroupsAndSendsConsistent()
+    {
+        CommandRig rig = new(Sample());
+        Track guitar = rig.Project.Tracks.First(track => track.Group is not null);
+        Track bus = rig.Project.Tracks.First(track => track.Kind == TrackKind.Bus);
+
+        rig.Ok(new RemoveTrack { Project = rig.Id, Track = guitar.Id });
+        Assert.Empty(rig.Project.Groups);
+        rig.Ok(new RemoveTrack { Project = rig.Id, Track = bus.Id });
+
+        Assert.All(rig.Project.Tracks, track => Assert.DoesNotContain(track.Sends, send => send.Bus == bus.Id));
+    }
+
+    [Fact]
+    public void RemovingATrackClearsTheLinksOtherClipsHadToItsClips()
+    {
+        ClipMeta linked = new()
+        {
+            Score = new ScoreMeta { Abc = "X:1", Parent = ClipId.From("clp_y"), Label = "v2" },
+            StemOf = new StemOf(ClipId.From("clp_y"), "vocals"),
+        };
+        Track x = BlankProject.Track("trk_x") with { Clips = [Clip("clp_x", linked)] };
+        Track y = BlankProject.Track("trk_y") with { Clips = [Clip("clp_y")] };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [x, y] });
+        ProjectDocument before = rig.Project;
+
+        rig.Ok(new RemoveTrack { Project = rig.Id, Track = y.Id });
+
+        ClipMeta cleared = rig.Project.Tracks[0].Clips[0].Meta!;
+        Assert.Null(cleared.Score!.Parent);
+        Assert.Equal("v2", cleared.Score.Label);
+        Assert.Null(cleared.StemOf!.Value.ClipId);
+        Assert.Equal("vocals", cleared.StemOf.Value.Stem);
+        rig.History.Undo();
+        Assert.Equal(before, rig.Project);
+    }
+
+    [Fact]
+    public void LinksToClipsThatRemainAreKept()
+    {
+        ClipMeta linked = new() { Score = new ScoreMeta { Parent = ClipId.From("clp_y") } };
+        Track x = BlankProject.Track("trk_x") with { Clips = [Clip("clp_x", linked)] };
+        Track y = BlankProject.Track("trk_y") with { Clips = [Clip("clp_y")] };
+        Track z = BlankProject.Track("trk_z");
+
+        IReadOnlyList<Track> result = ClipLinks.ClearDangling([x, y, z]);
+
+        Assert.Same(x, result[0]);
+        Assert.Same(z, result[2]);
+        Assert.Equal(ClipId.From("clp_y"), result[0].Clips[0].Meta!.Score!.Parent);
+    }
+
+    [Fact]
+    public void AddingAGroupToAProjectWithTheMostGroupsIsOutOfRange()
+    {
+        TrackGroup template = new() { Id = GroupId.From("grp_0"), Name = "G", Color = "#7a8cff", Collapsed = false, Tint = true, Muted = false, Soloed = false, Volume = 1 };
+        TrackGroup[] full = [.. Enumerable.Range(0, ProjectLimits.MaxSends).Select(index => template with { Id = GroupId.From($"grp_{index}") })];
+        Track member = BlankProject.Track("trk_1") with { Group = full[0].Id };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [member], Groups = [.. full] });
+
+        CommandResult result = rig.Refused(new CreateGroup { Project = rig.Id, Tracks = [member.Id] });
+
+        Assert.Equal(CommandErrorCode.Invalid, result.Errors[0].Code);
+        Assert.Contains("at most", result.Errors[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddingATrackToAFullProjectIsOutOfRange()
+    {
+        Track[] full = [.. Enumerable.Range(0, ProjectLimits.MaxTracks).Select(index => BlankProject.Track($"trk_{index}"))];
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [.. full] });
+
+        CommandResult result = rig.Refused(new AddTrack { Project = rig.Id });
+
+        Assert.Equal(CommandErrorCode.Invalid, result.Errors[0].Code);
+        Assert.Contains("at most", result.Errors[0].Message, StringComparison.Ordinal);
+        Assert.Empty(result.Created);
+    }
+}

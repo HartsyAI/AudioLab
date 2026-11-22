@@ -1,3 +1,5 @@
+using AudioLab.Core.Model;
+
 namespace AudioLab.Core.Commands;
 
 /// <summary>The checks every handler makes before it edits, each answering with the refusal to return, or null when all is well.</summary>
@@ -16,10 +18,18 @@ internal static class CommandChecks
         return null;
     }
 
-    /// <summary>A refusal for a name that is empty or only white space.</summary>
+    /// <summary>A refusal for a name that is empty, only white space, or longer than a project keeps, measured as sent.</summary>
     public static CommandResult? Named(string? name)
     {
-        return string.IsNullOrWhiteSpace(name) ? Rejected("The name must not be blank.") : null;
+        return string.IsNullOrWhiteSpace(name) ? Rejected("The name must not be blank.") : TooLong(name);
+    }
+
+    /// <summary>A refusal for an optional name longer than a project keeps, measured as sent; absent and blank names pass.</summary>
+    public static CommandResult? TooLong(string? name)
+    {
+        return name is { Length: > ProjectLimits.MaxName }
+            ? OutOfRange($"The name is at most {ProjectLimits.MaxName} characters.")
+            : null;
     }
 
     /// <summary>The target of a command does not exist.</summary>

@@ -88,20 +88,27 @@ internal static class CommandSchema
                     node["maximum"] = Convert.ToDouble(range.Maximum, CultureInfo.InvariantCulture);
                     break;
                 case MinLengthAttribute min:
-                    node["minLength"] = min.Length;
+                    node[IsArray(node) ? "minItems" : "minLength"] = min.Length;
                     break;
                 case MaxLengthAttribute max:
-                    node["maxLength"] = max.Length;
+                    node[IsArray(node) ? "maxItems" : "maxLength"] = max.Length;
                     break;
                 case RegularExpressionAttribute pattern:
                     node["pattern"] = pattern.Pattern;
                     break;
                 case AllowedValuesAttribute allowed:
-                    node["enum"] = new JsonArray([.. allowed.Values.Select(value => JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture)))]);
+                    node["enum"] = new JsonArray([.. allowed.Values.Select(AllowedValue)]);
                     break;
             }
         }
         return schema;
+    }
+
+    private static bool IsArray(JsonObject node) => node["type"] is JsonValue type && type.GetValue<string>() == "array";
+
+    private static JsonNode? AllowedValue(object? value)
+    {
+        return value is string text ? JsonValue.Create(text) : JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture));
     }
 
     // A type that keeps the members it does not know (D15) accepts them, so its schema must not forbid them.

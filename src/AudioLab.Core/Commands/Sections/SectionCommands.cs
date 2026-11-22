@@ -35,6 +35,10 @@ internal static class SectionCommands
         {
             return CommandChecks.OutOfRange($"A section is at least {Section.MinLength} seconds long.");
         }
+        if (CommandChecks.TooLong(command.Name) is { } tooLong)
+        {
+            return tooLong;
+        }
         double start = command.Start;
         double length = command.Length ?? TempoMap.From(document).BarsFrom(start, DefaultBars, document.TimeSignature);
         if (SectionRules.Fit(document.Sections, start, length) is not { } room)
@@ -59,18 +63,18 @@ internal static class SectionCommands
         {
             return refusal;
         }
-        if (command.Edit != SectionEdit.End && command.Start is null)
-        {
-            return CommandChecks.Rejected("start is required to move a section or its start edge.");
-        }
-        if (command.Edit == SectionEdit.End && command.End is null)
-        {
-            return CommandChecks.Rejected("end is required to move a section's end edge.");
-        }
         Section? current = document.Sections.FirstOrDefault(section => section.Id == command.Section);
         if (current is null)
         {
             return CommandChecks.NotFound("section", command.Section.Value);
+        }
+        if (command.Edit != SectionEdit.End && command.Start is null)
+        {
+            return CommandChecks.OutOfRange("start is required to move a section or its start edge.");
+        }
+        if (command.Edit == SectionEdit.End && command.End is null)
+        {
+            return CommandChecks.OutOfRange("end is required to move a section's end edge.");
         }
         SectionSpan span = SectionRules.Constrain(
             document.Sections, command.Section, command.Start ?? current.Start, command.End ?? current.End, command.Edit);
