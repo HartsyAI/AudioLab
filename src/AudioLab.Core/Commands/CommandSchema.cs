@@ -97,11 +97,16 @@ internal static class CommandSchema
                     node["pattern"] = pattern.Pattern;
                     break;
                 case AllowedValuesAttribute allowed:
-                    node["enum"] = new JsonArray([.. allowed.Values.Select(value => JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture)))]);
+                    node["enum"] = new JsonArray([.. allowed.Values.Select(AllowedValue)]);
                     break;
             }
         }
         return schema;
+    }
+
+    private static JsonNode? AllowedValue(object? value)
+    {
+        return value is string text ? JsonValue.Create(text) : JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture));
     }
 
     // A type that keeps the members it does not know (D15) accepts them, so its schema must not forbid them.

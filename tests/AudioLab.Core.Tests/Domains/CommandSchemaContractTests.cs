@@ -112,6 +112,28 @@ public sealed class CommandSchemaContractTests
         Assert.DoesNotMatch(pattern, "#abcd");
     }
 
+    [Fact]
+    public void FadersAndPansHaveTheirRanges()
+    {
+        JsonElement volume = Property("mixer_set_track_volume", "volume");
+        JsonElement pan = Property("mixer_set_track_pan", "pan");
+        JsonElement send = Property("send_set_level", "level");
+
+        Assert.Equal((0.0, ProjectLimits.MaxGain), (volume.GetProperty("minimum").GetDouble(), volume.GetProperty("maximum").GetDouble()));
+        Assert.Equal((-1.0, 1.0), (pan.GetProperty("minimum").GetDouble(), pan.GetProperty("maximum").GetDouble()));
+        Assert.Equal(ProjectLimits.MaxGain, send.GetProperty("maximum").GetDouble());
+    }
+
+    [Fact]
+    public void AnInstrumentPresetListsTheNamesWeShipAndADirectionListsUpAndDown()
+    {
+        JsonElement preset = Property("track_add", "preset");
+        JsonElement direction = Property("track_move", "direction");
+
+        Assert.Equal(InstrumentPresets.Names, preset.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["up", "down"], direction.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
     private JsonElement Property(string command, string member)
     {
         return _registry.Find(command)!.Schema.GetProperty("properties").GetProperty(member);

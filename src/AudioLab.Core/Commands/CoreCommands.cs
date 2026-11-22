@@ -19,5 +19,9 @@ public static class CoreCommands
         TempoCommands.Register(builder, timeline);
         MarkerCommands.Register(builder, timeline);
         SectionCommands.Register(builder, timeline);
+        TrackCommandJsonContext tracks = TrackCommandJsonContext.Default;
+        GroupCommands.Register(builder, tracks);
+        TrackCommands.Register(builder, tracks);
+        MixerCommands.Register(builder, tracks);
     }
 }
