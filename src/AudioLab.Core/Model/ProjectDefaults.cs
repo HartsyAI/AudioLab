@@ -20,7 +20,8 @@ public static class ProjectDefaults
     /// <summary>The colour of the track at <paramref name="index"/>: the design's twelve track tokens, in order.</summary>
     public static string TrackColor(int index) => _trackColors[Wrap(index, _trackColors.Length)];
 
-    /// <summary>A new empty track with the old DAW's starting values: fader 0.8 (a bus 1), centred, 100 pixels tall, mono input.</summary>
+    /// <summary>A new empty track: fader 0.8 (a bus 1), centred, 64 pixels tall, mono input.</summary>
+    /// <remarks>Fader, pan and input are the old DAW's starting values; the height is the session design's lane height (DESIGN.md 7.3).</remarks>
     public static Track NewTrack(TrackId id, string name, TrackKind kind, string color, Instrument? instrument = null)
     {
         return new Track
@@ -43,7 +44,7 @@ public static class ProjectDefaults
             Effects = [],
             Automation = new TrackAutomation { Mode = AutomationMode.Read, Volume = [], Pan = [] },
             Sends = [],
-            View = new TrackView { Height = 100, AutomationVisible = false, AutomationParameter = AutomationParameter.Volume },
+            View = new TrackView { Height = 64, AutomationVisible = false, AutomationParameter = AutomationParameter.Volume },
         };
     }
 
