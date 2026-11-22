@@ -11,8 +11,12 @@ namespace AudioLab.Core.Rules;
 /// </remarks>
 public static class MediaRules
 {
-    /// <summary>How far a clip's duration may differ from its media file's, in seconds.</summary>
-    public const double DurationTolerance = 0.001;
+    /// <summary>How far a clip's duration may differ from its media file's: one sample period at the file's rate, plus a nanosecond.</summary>
+    public static double DurationTolerance(MediaRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return (1.0 / record.SampleRate) + ProjectLimits.Tolerance;
+    }
 
     /// <summary>The refusal for a media file that is missing and for one that is another user's, which must not differ (D12).</summary>
     public const string NotFoundMessage = "There is no such media file.";
@@ -21,7 +25,7 @@ public static class MediaRules
     /// <remarks>
     /// A media file that <paramref name="before"/> does not already reference must be found, as the owner's, by
     /// <see cref="IMediaCatalog.Find"/>. A clip that is new or whose media or duration changed must have the file's duration within
-    /// <see cref="DurationTolerance"/>. A file that the document already names may be mid-delete, which only hides it from new
+    /// <see cref="DurationTolerance"/> at the file's own rate. A file that the document already names may be mid-delete, which only hides it from new
     /// references, so it is looked up with <see cref="IMediaCatalog.FindIncludingPendingDelete"/>.
     /// </remarks>
     public static CommandError? VerifyChange(ProjectDocument before, ProjectDocument after, IMediaCatalog catalog)
@@ -97,12 +101,13 @@ public static class MediaRules
 
     private static string? DurationProblem(AudioClip clip, MediaRecord record)
     {
-        if (Math.Abs(clip.Duration - record.Duration) <= DurationTolerance)
+        double tolerance = DurationTolerance(record);
+        if (Math.Abs(clip.Duration - record.Duration) <= tolerance)
         {
             return null;
         }
         string given = clip.Duration.ToString("R", CultureInfo.InvariantCulture);
         string actual = record.Duration.ToString("R", CultureInfo.InvariantCulture);
-        return $"the clip's duration of {given} s is not the media file's {actual} s, within {DurationTolerance} s.";
+        return $"the clip's duration of {given} s is not the media file's {actual} s, within one sample period ({tolerance:G3} s).";
     }
 }

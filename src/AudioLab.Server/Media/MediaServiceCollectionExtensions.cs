@@ -15,7 +15,9 @@ public static class MediaServiceCollectionExtensions
         services.AddSingleton<MediaStore>();
         services.AddSingleton<IMediaCatalog>(provider => provider.GetRequiredService<MediaStore>());
         services.AddSingleton<MediaReferences>();
+        services.AddSingleton<PeakRebuilder>();
         services.AddSingleton<MediaService>();
+        services.AddHostedService<MediaStartup>();
         return services;
     }
 }

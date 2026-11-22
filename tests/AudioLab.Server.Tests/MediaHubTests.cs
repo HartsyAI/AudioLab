@@ -3,8 +3,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
 using AudioLab.Server.Json;
-using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Services;
 

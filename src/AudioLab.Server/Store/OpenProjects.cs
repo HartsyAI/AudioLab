@@ -57,7 +57,7 @@ public sealed class OpenProjects(
     }
 
     /// <summary>Refuses a document that names media its owner does not have, or plays them at another length than the file has.</summary>
-    /// <remarks>A document from a file the store read has not been through a command, so nothing has checked it. Missing and foreign are told alike.</remarks>
+    /// <remarks>A document read from a file has not been through a command. A missing file and another user's are told alike.</remarks>
     /// <exception cref="ProjectFormatException">The document names such media; the problems are listed.</exception>
     public async Task RequireMediaAsync(ProjectDocument document, CancellationToken cancellationToken)
     {

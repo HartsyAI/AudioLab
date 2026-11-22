@@ -45,21 +45,21 @@ public sealed class MediaRulesTests
     public void AClipsDurationMustBeTheFilesWithinTheStatedTolerance()
     {
         ProjectDocument before = _rig.Project;
-        Assert.Equal(0.001, MediaRules.DurationTolerance);
+        Assert.Equal((1.0 / 48000) + 1e-9, MediaRules.DurationTolerance(_kick));
 
         Assert.Null(Verify(before, Add("med_kick", 2.5)));
         _rig.History.Undo();
-        Assert.Null(Verify(before, Add("med_kick", 2.5009)));
+        Assert.Null(Verify(before, Add("med_kick", 2.50002)));
         _rig.History.Undo();
-        Assert.Null(Verify(before, Add("med_kick", 2.4991)));
+        Assert.Null(Verify(before, Add("med_kick", 2.49998)));
         _rig.History.Undo();
 
-        CommandError? longer = Verify(before, Add("med_kick", 2.5011));
+        CommandError? longer = Verify(before, Add("med_kick", 2.50003));
         _rig.History.Undo();
-        CommandError? shorter = Verify(before, Add("med_kick", 2.4989));
+        CommandError? shorter = Verify(before, Add("med_kick", 2.49997));
         Assert.Equal(CommandErrorCode.Rejected, longer?.Code);
         Assert.Equal(CommandErrorCode.Rejected, shorter?.Code);
-        Assert.Contains("2.5011", longer?.Message, StringComparison.Ordinal);
+        Assert.Contains("2.50003", longer?.Message, StringComparison.Ordinal);
         Assert.Contains("2.5", longer?.Message, StringComparison.Ordinal);
     }
 

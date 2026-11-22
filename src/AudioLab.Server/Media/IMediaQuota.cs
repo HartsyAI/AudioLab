@@ -6,8 +6,10 @@ namespace AudioLab.Server.Media;
 public interface IMediaQuota
 {
     /// <summary>Why <paramref name="user"/> may not store <paramref name="incomingBytes"/> more, or null when they may.</summary>
+    /// <remarks>The usage counts what the user has stored and what their other uploads have received so far.</remarks>
     /// <param name="user">The user the door resolved.</param>
     /// <param name="usage">What the user already has.</param>
     /// <param name="incomingBytes">The size of the file, or 0 when it is not known yet.</param>
-    public string? Refusal(UserId user, MediaUsage usage, long incomingBytes);
+    /// <param name="cancellationToken">Cancels the question.</param>
+    public ValueTask<string?> RefusalAsync(UserId user, MediaUsage usage, long incomingBytes, CancellationToken cancellationToken);
 }

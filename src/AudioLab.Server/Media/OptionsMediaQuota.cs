@@ -6,16 +6,17 @@ namespace AudioLab.Server.Media;
 public sealed class OptionsMediaQuota(MediaOptions options) : IMediaQuota
 {
     /// <inheritdoc />
-    public string? Refusal(UserId user, MediaUsage usage, long incomingBytes)
+    public ValueTask<string?> RefusalAsync(UserId user, MediaUsage usage, long incomingBytes, CancellationToken cancellationToken)
     {
+        string? refusal = null;
         if (usage.Files >= options.MaxFilesPerUser)
         {
-            return $"You already have {options.MaxFilesPerUser} media files, the most allowed; delete one first.";
+            refusal = $"You already have {options.MaxFilesPerUser} media files, the most allowed; delete one first.";
         }
-        if (usage.Bytes + incomingBytes > options.MaxBytesPerUser)
+        else if (usage.Bytes + incomingBytes > options.MaxBytesPerUser)
         {
-            return $"This file would take your media past {options.MaxBytesPerUser} bytes, the most allowed; delete some first.";
+            refusal = $"This file would take your media past {options.MaxBytesPerUser} bytes, the most allowed; delete some first.";
         }
-        return null;
+        return ValueTask.FromResult(refusal);
     }
 }

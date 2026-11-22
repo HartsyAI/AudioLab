@@ -1,6 +1,5 @@
-using AudioLab.Core.Model;
 
-namespace AudioLab.Server.Media;
+namespace AudioLab.Core.Model;
 
 /// <summary>What a client is told about one of its own media files. The owner is left out: a response never names a user.</summary>
 /// <param name="Id">The id a clip, a drum lane or a sampler names.</param>

@@ -77,10 +77,10 @@ public sealed partial class MediaCommandTests
         await RefusedAsync(store, project, "clip_add", Add(own.Id.Value, own.Duration - 0.002), CommandErrorCode.Rejected);
         await RefusedAsync(store, project, "clip_add", Add(own.Id.Value, 600), CommandErrorCode.Rejected);
 
-        CommandReply within = await OkAsync(store, project, "clip_add", Add(own.Id.Value, own.Duration + 0.0005));
+        CommandReply within = await OkAsync(store, project, "clip_add", Add(own.Id.Value, own.Duration + 0.00002));
         AudioClip clip = (await DocumentAsync(store, project)).Tracks.Single().Clips.Single();
         Assert.Equal(within.Created.Single(), clip.Id.Value);
-        Assert.Equal(own.Duration + 0.0005, clip.Duration);
+        Assert.Equal(own.Duration + 0.00002, clip.Duration);
         Assert.Equal(own.Id, clip.Media);
     }
 
@@ -287,6 +287,22 @@ public sealed partial class MediaCommandTests
         Assert.False(reply.Succeeded);
         Assert.Equal(CommandErrorCode.NotFound, reply.Errors.Single().Code);
         Assert.NotNull(await AddClipAsync(store, Users.Alice, alices, own));
+    }
+
+    [Fact]
+    public async Task AProjectStillOpensAndEditsWhenThePeakFileOfItsMediaIsMissingOrDamaged()
+    {
+        using TempFolder folder = new();
+        (TestStore store, ProjectId project, MediaRecord own, _) = await StartAsync(folder);
+        await using TestStore scope = store;
+        string clip = await AddClipAsync(store, Users.Alice, project, own);
+        await store.Service.SaveAsync(Users.Alice, project, _none);
+        await store.Open.CloseAsync(Users.Alice, project, _none);
+        File.Delete(store.Paths.MediaPeaksFile(Users.Alice, own.Id));
+
+        Assert.Single((await DocumentAsync(store, project)).Tracks.Single().Clips);
+        await OkAsync(store, project, "clip_move", $"\"clip\":\"{clip}\",\"start\":2");
+        Assert.Equal(own, store.Media.Find(Users.Alice, own.Id));
     }
 
     [GeneratedRegex("\"duration\":[0-9.]+")]
