@@ -326,10 +326,12 @@ public sealed class MediaStore : IMediaCatalog
         return new FileStream(path, options);
     }
 
-    // Called by MediaUpload: what the user has, plus what their other uploads have received, plus what this one has.
+    // Called by MediaUpload: what the user has, plus what their other admitted uploads have received; an upload is
+    // counted only once it was admitted, so one that is about to be refused takes nothing from the others.
     internal async ValueTask<string?> UploadRefusalAsync(
         UserId user,
         UserMedia media,
+        bool admitted,
         long ownBytes,
         long incoming,
         CancellationToken cancellationToken)
@@ -337,7 +339,9 @@ public sealed class MediaStore : IMediaCatalog
         MediaUsage usage;
         lock (media.Sync)
         {
-            usage = new MediaUsage(media.Entries.Count + media.UploadsRunning - 1, media.TotalBytes + media.UploadBytes - ownBytes);
+            usage = new MediaUsage(
+                media.Entries.Count + media.UploadsAdmitted - (admitted ? 1 : 0),
+                media.TotalBytes + media.UploadBytes - ownBytes);
         }
         return await _quota.RefusalAsync(user, usage, incoming, cancellationToken);
     }
