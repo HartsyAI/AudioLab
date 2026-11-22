@@ -11,6 +11,7 @@ internal static class BeatCommands
         builder
             .Add("beat_lane_add", "Adds a lane to the drum pattern and allocates its id.", json.AddBeatLane, AddLane)
             .Add("beat_lane_remove", "Removes a lane from the drum pattern.", json.RemoveBeatLane, RemoveLane)
+            .Add("beat_lane_move", "Moves a drum lane one place up or down in the pattern.", json.MoveBeatLane, MoveLane)
             .Add("beat_lane_rename", "Renames a drum lane.", json.RenameBeatLane, RenameLane)
             .Add("beat_lane_set_gain", "Sets the gain of a drum lane.", json.SetBeatLaneGain, SetGain)
             .Add("beat_lane_set_media", "Sets the sample a drum lane plays.", json.SetBeatLaneMedia, SetMedia)
@@ -44,6 +45,11 @@ internal static class BeatCommands
     private static CommandResult RemoveLane(ProjectDocument document, RemoveBeatLane command, IIdService ids)
     {
         return Edit(document, command.Lane, lanes => [.. lanes.Where(lane => lane.Id != command.Lane)]);
+    }
+
+    private static CommandResult MoveLane(ProjectDocument document, MoveBeatLane command, IIdService ids)
+    {
+        return Edit(document, command.Lane, lanes => BeatRules.Move(lanes, command.Lane, command.Direction));
     }
 
     private static CommandResult RenameLane(ProjectDocument document, RenameBeatLane command, IIdService ids)
