@@ -239,6 +239,60 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(["effect", "parameter", "project", "track", "value"], Required("effect_set_parameter"));
     }
 
+    [Fact]
+    public void AnAutomationValueStatesBothLanesRangesAndTheSchemaBoundIsTheirUnion()
+    {
+        foreach ((string command, string member) in new[] { ("automation_point_add", "value"), ("automation_point_move", "value") })
+        {
+            JsonElement value = Property(command, member);
+            Assert.Equal((-1.0, AutomationRules.VolumeMax), (value.GetProperty("minimum").GetDouble(), value.GetProperty("maximum").GetDouble()));
+            string description = value.GetProperty("description").GetString()!;
+            Assert.Contains($"volume {AutomationRules.Min(AutomationParameter.Volume)} to {AutomationRules.Max(AutomationParameter.Volume)}", description);
+            Assert.Contains($"pan {AutomationRules.Min(AutomationParameter.Pan)} to {AutomationRules.Max(AutomationParameter.Pan)}", description);
+        }
+        Assert.Equal(["volume", "pan"], Property("automation_point_add", "parameter").GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(
+            ["read", "touch", "latch", "write", "off"],
+            Property("automation_set_mode", "mode").GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["parameter", "project", "time", "track", "value"], Required("automation_point_add"));
+        Assert.DoesNotContain("visible", Required("automation_set_view"));
+    }
+
+    [Fact]
+    public void ThePointListsOfAutomationCommandsAreBoundedAndDescribeTheirItems()
+    {
+        foreach (string command in new[] { "automation_points_set_values", "automation_write_commit" })
+        {
+            JsonElement points = Property(command, "points");
+            Assert.Equal(1, points.GetProperty("minItems").GetInt32());
+            Assert.Equal(ProjectLimits.MaxListItems, points.GetProperty("maxItems").GetInt32());
+            JsonElement properties = points.GetProperty("items").GetProperty("properties");
+            Assert.All(properties.EnumerateObject(), property => Assert.True(property.Value.TryGetProperty("description", out _), property.Name));
+            Assert.All(properties.EnumerateObject(), property => Assert.True(property.Value.TryGetProperty("maximum", out _), property.Name));
+        }
+        JsonElement items = Property("automation_points_set_values", "points").GetProperty("items");
+        Assert.Equal(["index", "value"], items.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
+        Assert.Equal(ProjectLimits.MaxListItems - 1, Property("automation_point_move", "index").GetProperty("maximum").GetInt32());
+    }
+
+    [Fact]
+    public void TheBeatCommandsStateTheValidatorsRangesAndTheStepList()
+    {
+        JsonElement steps = Property("beat_pattern_set_steps", "steps");
+        JsonElement swing = Property("beat_pattern_set_swing", "swing");
+        JsonElement gain = Property("beat_lane_set_gain", "gain");
+        JsonElement list = Property("beat_lane_set_steps", "steps");
+
+        Assert.Equal((1.0, (double)ProjectLimits.MaxBeatSteps), (steps.GetProperty("minimum").GetDouble(), steps.GetProperty("maximum").GetDouble()));
+        Assert.Equal((0.0, 1.0), (swing.GetProperty("minimum").GetDouble(), swing.GetProperty("maximum").GetDouble()));
+        Assert.Equal((0.0, ProjectLimits.MaxGain), (gain.GetProperty("minimum").GetDouble(), gain.GetProperty("maximum").GetDouble()));
+        Assert.Equal((1, ProjectLimits.MaxBeatSteps), (list.GetProperty("minItems").GetInt32(), list.GetProperty("maxItems").GetInt32()));
+        Assert.Equal(["lane", "on", "project", "steps"], Required("beat_lane_set_steps"));
+        Assert.DoesNotContain("media", Required("beat_lane_add"));
+        Assert.DoesNotContain("name", Required("beat_lane_add"));
+        Assert.Equal(ProjectLimits.MaxName, Property("beat_lane_add", "name").GetProperty("maxLength").GetInt32());
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];

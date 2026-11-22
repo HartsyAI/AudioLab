@@ -120,6 +120,72 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryAutomationCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Automation.Volume.Count >= 2 && candidate.Automation.Pan.Count >= 2);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new AddAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, Time = 2, Value = 1.2 },
+            new AddAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Time = 3, Value = 0.25 },
+            new MoveAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, Index = 0, Time = 0.5, Value = 0.3 },
+            new DeleteAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Index = 1 },
+            new SetAutomationValues
+            {
+                Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Points = [new PointValue(0, 0.5), new PointValue(1, -0.5)],
+            },
+            new CommitAutomationWrite
+            {
+                Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, ReturnToOld = true,
+                Points = [new WrittenPoint(1, 1.5), new WrittenPoint(2, 1.6)],
+            },
+            new SetAutomationMode { Project = id, Track = track.Id, Mode = AutomationMode.Off },
+            new SetAutomationView { Project = id, Track = track.Id, Visible = !track.View.AutomationVisible },
+            new SetAutomationView { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EveryBeatCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        BeatLane kick = sample.BeatPattern.Lanes.First(lane => lane.Media is not null);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new AddBeatLane { Project = id, Name = "Clap", Media = MediaId.From("med_clap") },
+            new RemoveBeatLane { Project = id, Lane = kick.Id },
+            new RenameBeatLane { Project = id, Lane = kick.Id, Name = "Thump" },
+            new SetBeatLaneGain { Project = id, Lane = kick.Id, Gain = 0.4 },
+            new SetBeatLaneMedia { Project = id, Lane = kick.Id },
+            new SetBeatLaneSteps { Project = id, Lane = kick.Id, Steps = [1, 2], On = true },
+            new SetBeatLaneSteps { Project = id, Lane = kick.Id, Steps = [0], On = false },
+            new SetBeatSteps { Project = id, Steps = 2 },
+            new SetBeatSteps { Project = id, Steps = 64 },
+            new SetBeatSwing { Project = id, Swing = 0.4 },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();
