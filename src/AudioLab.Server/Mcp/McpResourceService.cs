@@ -56,7 +56,10 @@ public sealed class McpResourceService(ProjectService projects, AudioLabOptions 
     }
 
     /// <summary>Reads a project's document.</summary>
-    /// <exception cref="McpProtocolException">The uri is not a project's, the user has no such project, or the document is too long.</exception>
+    /// <exception cref="McpProtocolException">
+    /// A resource has no error result, so a refusal is a protocol error: <c>InvalidParams</c> for a uri that is not a project's or a document
+    /// over the limit, <c>ResourceNotFound</c> for a project the user does not have, <c>InternalError</c> when the store cannot be read.
+    /// </exception>
     public async Task<ReadResourceResult> ReadAsync(UserId user, string uri, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(uri);
@@ -80,7 +83,7 @@ public sealed class McpResourceService(ProjectService projects, AudioLabOptions 
         string json = ProjectJson.Write(snapshot.Document);
         if (json.Length > options.Mcp.MaxDocumentChars)
         {
-            throw new McpProtocolException(options.Mcp.DocumentTooLarge, McpErrorCode.InvalidRequest);
+            throw new McpProtocolException($"{options.Mcp.DocumentTooLarge} Read it in parts with the get_project tool.", McpErrorCode.InvalidParams);
         }
         return new ReadResourceResult { Contents = [new TextResourceContents { Uri = uri, MimeType = DocumentMimeType, Text = json }] };
     }

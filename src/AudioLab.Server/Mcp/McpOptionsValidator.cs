@@ -16,5 +16,13 @@ public static class McpOptionsValidator
         {
             problems.Add($"AudioLab:Mcp:MaxDocumentChars must be {McpOptions.MinDocumentChars} to {McpOptions.MaxDocumentCharsLimit}.");
         }
+        if (options.MaxResultChars is < McpOptions.MinResultChars or > McpOptions.MaxResultCharsLimit)
+        {
+            problems.Add($"AudioLab:Mcp:MaxResultChars must be {McpOptions.MinResultChars} to {McpOptions.MaxResultCharsLimit}.");
+        }
+        if (options.MaxConcurrentCallsPerUser is < 1 or > McpOptions.MaxConcurrentCallsLimit)
+        {
+            problems.Add($"AudioLab:Mcp:MaxConcurrentCallsPerUser must be 1 to {McpOptions.MaxConcurrentCallsLimit}.");
+        }
     }
 }

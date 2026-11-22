@@ -18,6 +18,7 @@ public static class McpEndpoints
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddHttpContextAccessor();
+        services.AddSingleton(provider => new McpCallLimiter(provider.GetRequiredService<AudioLabOptions>().Mcp.MaxConcurrentCallsPerUser));
         services.AddSingleton<McpToolCatalog>();
         services.AddSingleton<McpToolService>();
         services.AddSingleton<McpResourceService>();
@@ -45,7 +46,7 @@ public static class McpEndpoints
         return services;
     }
 
-    /// <summary>Maps the endpoint into <paramref name="api"/>, a group that carries <see cref="DoorRequired"/>, with the body limit.</summary>
+    /// <summary>Maps the endpoint into <paramref name="api"/>, a group that carries <see cref="DoorRequired"/>, with its request checks.</summary>
     public static void Map(IEndpointRouteBuilder api, AudioLabOptions options)
     {
         ArgumentNullException.ThrowIfNull(api);
@@ -53,7 +54,8 @@ public static class McpEndpoints
 
         // Built here, not on the first call, so a tool that cannot be offered stops the server from starting.
         _ = api.ServiceProvider.GetRequiredService<McpToolCatalog>();
-        api.MapMcp(Path).Add(endpoint => endpoint.RequestDelegate = McpRequestLimit.Wrap(endpoint.RequestDelegate!, options.Mcp.MaxRequestBytes));
+        McpCallLimiter limiter = api.ServiceProvider.GetRequiredService<McpCallLimiter>();
+        api.MapMcp(Path).Add(endpoint => endpoint.RequestDelegate = McpRequestGuard.Wrap(endpoint.RequestDelegate!, options.Mcp, limiter));
     }
 
     private static McpToolCatalog Catalog<T>(RequestContext<T> request) => Service<McpToolCatalog>(request);

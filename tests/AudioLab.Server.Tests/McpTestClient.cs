@@ -54,24 +54,42 @@ public static class McpTestClient
         return created.Id;
     }
 
-    public static ValueTask<CallToolResult> CallAsync(McpClient client, string tool, string? project = null)
+    public static ValueTask<CallToolResult> CallAsync(McpClient client, string tool, string? project = null, long? expectedRevision = null)
     {
         Dictionary<string, object?> arguments = [];
         if (project is not null)
         {
             arguments["project"] = project;
         }
+        if (expectedRevision is not null)
+        {
+            arguments["expectedRevision"] = expectedRevision;
+        }
         return client.CallToolAsync(tool, arguments);
+    }
+
+    /// <summary>Calls undo or redo as an agent has to: with the revision it read.</summary>
+    public static ValueTask<CallToolResult> StepAsync(McpClient client, string tool, string project, long expectedRevision)
+    {
+        return CallAsync(client, tool, project, expectedRevision);
     }
 
     public static CommandReply Reply(CallToolResult result)
     {
-        return result.StructuredContent!.Value.Deserialize(HubJsonContext.Default.CommandReply)!;
+        return Reply(result, HubJsonContext.Default.CommandReply);
     }
 
     public static T Reply<T>(CallToolResult result, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
     {
-        return result.StructuredContent!.Value.Deserialize(info)!;
+        Assert.Null(result.StructuredContent);
+        return JsonSerializer.Deserialize(Text(result), info)!;
+    }
+
+    /// <summary>The JSON a result carries in its text.</summary>
+    public static JsonElement Json(CallToolResult result)
+    {
+        using JsonDocument document = JsonDocument.Parse(Text(result));
+        return document.RootElement.Clone();
     }
 
     public static string Text(CallToolResult result) => ((TextContentBlock)Assert.Single(result.Content)).Text;
