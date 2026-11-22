@@ -90,7 +90,7 @@ public sealed class CommandSchemaTests
 
         foreach (JsonTypeInfo root in roots)
         {
-            Walk(CommandSchema.For(root), root.Type.Name, empty);
+            SchemaWalk.Empty(CommandSchema.For(root), root.Type.Name, empty);
         }
 
         Assert.Empty(empty);
@@ -125,34 +125,5 @@ public sealed class CommandSchemaTests
     {
         const BindingFlags Everything = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         return type.GetMembers(Everything).Any(member => member.GetCustomAttribute<JsonExtensionDataAttribute>() is not null);
-    }
-
-    // A node that says nothing about its value, which is what an unhandled custom converter yields.
-    private static void Walk(JsonElement node, string path, List<string> empty)
-    {
-        string[] describing = ["type", "enum", "anyOf", "oneOf", "allOf", "$ref", "const", "properties"];
-        if (node.ValueKind != JsonValueKind.Object || !describing.Any(key => node.TryGetProperty(key, out _)))
-        {
-            empty.Add(path);
-            return;
-        }
-        if (node.TryGetProperty("properties", out JsonElement properties))
-        {
-            foreach (JsonProperty property in properties.EnumerateObject())
-            {
-                Walk(property.Value, $"{path}.{property.Name}", empty);
-            }
-        }
-        if (node.TryGetProperty("items", out JsonElement items))
-        {
-            Walk(items, $"{path}[]", empty);
-        }
-        if (node.TryGetProperty("anyOf", out JsonElement alternatives))
-        {
-            foreach (JsonElement alternative in alternatives.EnumerateArray())
-            {
-                Walk(alternative, path, empty);
-            }
-        }
     }
 }

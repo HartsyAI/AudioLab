@@ -23,7 +23,7 @@ public enum CommandErrorCode
     [JsonStringEnumMemberName("not_found")]
     NotFound,
 
-    /// <summary>The command is well formed but a rule forbids it on this document, such as a section that would overlap.</summary>
+    /// <summary>The values are in range but a rule forbids the edit on this document, such as a section with no room.</summary>
     [JsonStringEnumMemberName("rejected")]
     Rejected,
 
@@ -31,7 +31,7 @@ public enum CommandErrorCode
     [JsonStringEnumMemberName("limit")]
     Limit,
 
-    /// <summary>The edit would leave a document that breaks the project rules; the message is the validator's.</summary>
+    /// <summary>A value is out of range, or the edit would leave a document that breaks the project rules.</summary>
     [JsonStringEnumMemberName("invalid")]
     Invalid,
 }

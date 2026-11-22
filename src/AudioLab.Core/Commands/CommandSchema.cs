@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
@@ -21,6 +24,11 @@ internal static class CommandSchema
     }
 
     private static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema)
+    {
+        return Annotate(context, Describe(context, schema));
+    }
+
+    private static JsonNode Describe(JsonSchemaExporterContext context, JsonNode schema)
     {
         Type type = context.TypeInfo.Type;
         Type? inner = Nullable.GetUnderlyingType(type);
@@ -57,6 +65,41 @@ internal static class CommandSchema
         if (schema is JsonObject node && node["additionalProperties"] is not null && HasExtensionData(context.TypeInfo))
         {
             node["additionalProperties"] = true;
+        }
+        return schema;
+    }
+
+    // A member's description and limits are attributes on the command's property; the exporter does not read them.
+    private static JsonNode Annotate(JsonSchemaExporterContext context, JsonNode schema)
+    {
+        if (schema is not JsonObject node || context.PropertyInfo?.AttributeProvider is not { } provider)
+        {
+            return schema;
+        }
+        foreach (object attribute in provider.GetCustomAttributes(inherit: false))
+        {
+            switch (attribute)
+            {
+                case DescriptionAttribute description:
+                    node["description"] = description.Description;
+                    break;
+                case RangeAttribute range:
+                    node["minimum"] = Convert.ToDouble(range.Minimum, CultureInfo.InvariantCulture);
+                    node["maximum"] = Convert.ToDouble(range.Maximum, CultureInfo.InvariantCulture);
+                    break;
+                case MinLengthAttribute min:
+                    node["minLength"] = min.Length;
+                    break;
+                case MaxLengthAttribute max:
+                    node["maxLength"] = max.Length;
+                    break;
+                case RegularExpressionAttribute pattern:
+                    node["pattern"] = pattern.Pattern;
+                    break;
+                case AllowedValuesAttribute allowed:
+                    node["enum"] = new JsonArray([.. allowed.Values.Select(value => JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture)))]);
+                    break;
+            }
         }
         return schema;
     }

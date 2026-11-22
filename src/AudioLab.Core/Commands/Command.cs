@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
@@ -7,5 +8,6 @@ namespace AudioLab.Core.Commands;
 public abstract record Command
 {
     /// <summary>The project the command edits; a command for any other open project is refused.</summary>
+    [Description("The id of the project the command edits.")]
     public required ProjectId Project { get; init; }
 }

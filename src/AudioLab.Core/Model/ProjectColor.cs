@@ -5,6 +5,9 @@ namespace AudioLab.Core.Model;
 /// <summary>The rule for a stored colour: #rgb, #rrggbb or #rrggbbaa. Nothing else is safe to put in a style.</summary>
 public static partial class ProjectColor
 {
+    /// <summary>The same rule as a JSON Schema pattern, for a command's description to the outside.</summary>
+    public const string SchemaPattern = "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$";
+
     /// <summary>Whether <paramref name="color"/> is a well-formed colour.</summary>
     public static bool IsValid(string? color) => color is not null && Pattern().IsMatch(color);
 
