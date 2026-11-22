@@ -300,6 +300,40 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(ProjectLimits.MaxName, Property("beat_lane_add", "name").GetProperty("maxLength").GetInt32());
     }
 
+    [Fact]
+    public void TheLyricsCommandsBoundTheirWordsTextsAndOffsets()
+    {
+        JsonElement words = Property("lyrics_apply_alignment", "words");
+        JsonElement item = words.GetProperty("items").GetProperty("properties");
+
+        Assert.Equal((1, ProjectLimits.MaxListItems), (words.GetProperty("minItems").GetInt32(), words.GetProperty("maxItems").GetInt32()));
+        JsonElement required = words.GetProperty("items").GetProperty("required");
+        Assert.Equal(["end", "start", "word"], required.EnumerateArray().Select(entry => entry.GetString()!).Order(StringComparer.Ordinal));
+        Assert.Equal(ProjectLimits.MaxName, item.GetProperty("word").GetProperty("maxLength").GetInt32());
+        JsonElement start = item.GetProperty("start");
+        JsonElement end = item.GetProperty("end");
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), (start.GetProperty("minimum").GetDouble(), end.GetProperty("maximum").GetDouble()));
+        Assert.Equal(ProjectLimits.MaxLongText, Property("lyrics_set_text", "text").GetProperty("maxLength").GetInt32());
+        JsonElement offset = Property("lyrics_apply_transcript", "offset");
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), (offset.GetProperty("minimum").GetDouble(), offset.GetProperty("maximum").GetDouble()));
+        Assert.Equal(["clip", "project", "seconds"], Required("lyrics_shift"));
+        Assert.DoesNotContain("offset", Required("lyrics_apply_alignment"));
+        Assert.Equal(ProjectLimits.MaxListItems - 1.0, Property("lyrics_set_word_time", "word").GetProperty("maximum").GetDouble());
+    }
+
+    [Fact]
+    public void TheScoreCommandStatesEveryFieldsLimitAndTheStemCommandItsLabel()
+    {
+        Assert.Equal(["clip", "project"], Required("score_set"));
+        Assert.Contains("integer", Property("score_set", "seed").GetProperty("type").EnumerateArray().Select(entry => entry.GetString()));
+        Assert.Equal(0.0, Property("score_set", "created").GetProperty("minimum").GetDouble());
+        Assert.Equal(ProjectLimits.MaxName, Property("score_set", "label").GetProperty("maxLength").GetInt32());
+        Assert.Equal(ProjectLimits.MaxLabel, Property("score_set", "model").GetProperty("maxLength").GetInt32());
+        Assert.Equal(ProjectLimits.MaxLongText, Property("score_set", "abc").GetProperty("maxLength").GetInt32());
+        Assert.Equal(["clip", "project", "source", "stem"], Required("stem_set"));
+        Assert.Equal(ProjectLimits.MaxLabel, Property("stem_set", "stem").GetProperty("maxLength").GetInt32());
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];

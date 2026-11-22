@@ -14,6 +14,31 @@ public static class ClipLinks
         return [.. all.Select(track => ClearIn(track, existing))];
     }
 
+    /// <summary>Whether making <paramref name="parent"/> the score parent of <paramref name="clip"/> would close a loop of parents.</summary>
+    public static bool ParentLoops(IEnumerable<Track> tracks, ClipId clip, ClipId parent)
+    {
+        ArgumentNullException.ThrowIfNull(tracks);
+        Dictionary<ClipId, ClipId> parents = [];
+        foreach (AudioClip candidate in tracks.SelectMany(track => track.Clips))
+        {
+            if (candidate.Meta?.Score?.Parent is { } link)
+            {
+                parents[candidate.Id] = link;
+            }
+        }
+        HashSet<ClipId> seen = [];
+        ClipId current = parent;
+        while (current != clip)
+        {
+            if (!seen.Add(current) || !parents.TryGetValue(current, out ClipId next))
+            {
+                return false;
+            }
+            current = next;
+        }
+        return true;
+    }
+
     private static Track ClearIn(Track track, HashSet<ClipId> existing)
     {
         if (!track.Clips.Any(clip => Dangles(clip.Meta, existing)))

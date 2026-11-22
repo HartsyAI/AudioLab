@@ -186,6 +186,46 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryLyricsScoreAndStemCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2 && candidate.Clips[0].Meta?.Lyrics is not null);
+        ClipId clip = track.Clips[0].Id;
+        ClipId stem = track.Clips[1].Id;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new SetLyricsText { Project = id, Clip = clip, Text = "la la la" },
+            new SetLyricsText { Project = id, Clip = clip, Text = string.Empty },
+            new ApplyLyricsAlignment
+            {
+                Project = id, Clip = clip, Text = "hello world", Words = [new HeardWord("hello", 0, 1), new HeardWord("world", 1, 2)],
+            },
+            new ApplyLyricsTranscript { Project = id, Clip = clip, Words = [new HeardWord("hello", 0, 1)] },
+            new EstimateLyricsTiming { Project = id, Clip = clip, Text = "one two" },
+            new ClearLyricsTiming { Project = id, Clip = clip },
+            new ShiftLyrics { Project = id, Clip = clip, Seconds = 1 },
+            new SetLyricsWordTime { Project = id, Clip = clip, Word = 0, Start = 0.55 },
+            new ImportLyricsLrc { Project = id, Clip = clip, Lrc = "[00:03.00]la la" },
+            new SetClipScore { Project = id, Clip = clip, Abc = "X:2" },
+            new SetClipScore { Project = id, Clip = stem, Label = "Stem score" },
+            new SetScoreLabel { Project = id, Clip = clip, Label = "Version B" },
+            new ClearClipScore { Project = id, Clip = clip },
+            new SetClipStem { Project = id, Clip = stem, Source = clip, Stem = "drums" },
+            new ClearClipStem { Project = id, Clip = stem },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();

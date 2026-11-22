@@ -127,6 +127,44 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheLyricsScoreAndStemCommandsExist()
+    {
+        string[] names =
+        [
+            "lyrics_set_text", "lyrics_apply_alignment", "lyrics_apply_transcript", "lyrics_estimate_timing", "lyrics_clear_timing",
+            "lyrics_shift", "lyrics_set_word_time", "lyrics_import_lrc", "score_set", "score_set_label", "score_clear", "stem_set", "stem_clear",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void ALyricsAndAScoreCommandReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult heard = _registry.Parse(
+            "lyrics_apply_alignment",
+            $$"""
+            {"project":"{{project}}","clip":"clp_1","text":"la","words":[{"word":"la","start":0.5,"end":1}],"offset":2,"model":"m"}
+            """);
+        CommandParseResult score = _registry.Parse(
+            "score_set",
+            $$"""{"project":"{{project}}","clip":"clp_1","abc":"X:1","seed":-5,"created":1760000000000,"parent":"clp_2"}""");
+        CommandParseResult stem = _registry.Parse("stem_set", $$"""{"project":"{{project}}","clip":"clp_1","source":"clp_2","stem":"vocals"}""");
+        CommandParseResult unknown = _registry.Parse("lyrics_set_text", $$"""{"project":"{{project}}","clip":"clp_1","text":"la","extra":1}""");
+        CommandParseResult wrongType = _registry.Parse("score_set", $$"""{"project":"{{project}}","clip":"clp_1","seed":"five"}""");
+
+        Assert.Equal([new HeardWord("la", 0.5, 1)], Assert.IsType<ApplyLyricsAlignment>(heard.Command).Words);
+        SetClipScore parsed = Assert.IsType<SetClipScore>(score.Command);
+        Assert.Equal(-5L, parsed.Seed);
+        Assert.Equal(1760000000000L, parsed.Created);
+        Assert.Equal("vocals", Assert.IsType<SetClipStem>(stem.Command).Stem);
+        Assert.False(unknown.Succeeded);
+        Assert.False(wrongType.Succeeded);
+    }
+
+    [Fact]
     public void ANoteListAndAnEffectCommandReadFromTheirJson()
     {
         string project = BlankProject.Create().Id.Value;
