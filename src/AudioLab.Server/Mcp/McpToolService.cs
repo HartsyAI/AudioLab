@@ -37,10 +37,14 @@ public sealed class McpToolService(
             throw new McpProtocolException($"The server has no tool named {name}.", McpErrorCode.InvalidParams);
         }
         CallToolResult result = await RunAsync(user, name, arguments, cancellationToken);
-        return McpResults.Length(result) > options.Mcp.MaxResultChars
+
+        // Only a read is replaced: the answer to a command, an undo or a redo is a change already made, which a refusal would deny.
+        return IsRead(name) && McpResults.Length(result) > options.Mcp.MaxResultChars
             ? McpResults.Refused(CommandErrorCode.Limit, TooLong(name), ReplyRevision(result))
             : result;
     }
+
+    private static bool IsRead(string name) => name is McpToolNames.ListProjects or McpToolNames.GetProject or McpToolNames.GetHistory;
 
     private async Task<CallToolResult> RunAsync(
         UserId user,

@@ -22,7 +22,8 @@ public sealed class McpToolCatalog
             McpToolNames.GetProject,
             "Reads a project. Without section it returns a summary: counts, and each track's id, name, kind and number of clips. "
             + "Read the rest in parts with section, track, clip, offset and count; a list says its total, so a long one is read in pages. "
-            + "A result over the server's limit is refused with a limit error. The whole document is the resource audiolab://projects/{id}.",
+            + "A result over the server's limit is refused with a limit error; a part that is itself over it cannot be read in smaller "
+            + "pieces. The whole document, up to a limit, is the resource audiolab://projects/{id}.",
             McpJsonContext.Default.GetProjectArguments,
             readOnly: true));
         Add(Describe(
