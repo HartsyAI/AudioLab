@@ -47,6 +47,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D15 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
 | D16 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
 | D17 | The timeline lanes, clips and waveforms are drawn as DOM with inline SVG waveforms, each clip a small component that redraws only when its own revision changes. A Canvas2D surface driven from C# through `[JSImport]` calls to browser built-ins (no script file) is the kept alternative, and the one to switch to if dragging in Firefox cannot be made to hold on the DOM. The Skia canvas is not adopted. See [the O2 evidence](#d17-evidence-the-o2-spike). | Proposed | Scrolling meets the pass line in Chromium and Firefox with no per-frame C#, native library or script, and the clips stay in the accessibility tree. Dragging in Firefox is unresolved: every candidate missed in the runs taken under CPU contention, and no quiet window was available to repeat them. |
+| D18 | A command is a sealed immutable record that names its project and carries no id the server allocates; the registry maps a stable `snake_case` wire name to a pure handler `(document, command, IIdService) -> CommandResult`. A handler refuses by result (`CommandError`: code and message), never by exception, and every accepted document passes `ProjectValidator` and keeps its id, owner and version. History keeps whole documents (D16): undo and redo restore them, so redo keeps the ids; the gesture id is an argument of the history call, not a field of the command; undo keeps 100 steps by default, where the old DAW kept 30. The command JSON context must be as strict as `ProjectJsonContext`, and the registry generates each command's JSON Schema from it. | Proposed | The command is the wire format, the undo unit and the MCP tool input (section 3), so its name, schema and errors are public. A refused edit is an ordinary outcome and an exception is a bug. Snapshots are cheap because unchanged parts are shared, and re-running a handler on redo would mint new ids. The old DAW's audit rows 33, 56, 62 and 64 are one rule here: a command that changes nothing adds no step and keeps redo. |
 
 #### D17 evidence: the O2 spike
 
@@ -99,7 +100,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 
 | Project | Holds | May reference | Status |
 |---------|-------|---------------|--------|
-| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract) |
+| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract, command registry and history) |
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
@@ -107,7 +108,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
-| `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection. | Core | Exists |
+| `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection; command registry and history. | Core | Exists |
 | `tests/<Project>.Tests` | One test project per other source project. | its project | Planned |
 
 Rules:
@@ -137,9 +138,13 @@ Rules:
     characters each.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
-  may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
+  may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships. The shape of a
+  command, a handler, a refusal and the registry's listing is D18. A client never sends an id for something the
+  command creates; the result lists the ids the handler allocated.
 - **History.** Undo and redo on the server, coalesced by gesture: a drag is one step. History is in memory and is
-  lost on restart.
+  lost on restart. A gesture's commands each apply and show at once and share one undo step; a different or no gesture
+  closes it; undo closes it first; a gesture that ends where it began leaves no step. A client that previews locally
+  (below) sends one command on release, which is a gesture of one.
 - **Store.** Open documents, a lock per project, debounced autosave, atomic writes. Projects and media are scoped to
   the user who owns them (D12).
 - **Hub.** Every open client of a project receives every change, including changes made by an agent.
@@ -761,3 +766,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-21 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
 | 2026-11-21 | O2 recorded as D17 (Proposed, Firefox dragging not shown to hold): DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D17; 7.1 states how C# reads tokens. |
+| 2026-11-22 | Command registry and gesture-coalesced history added to `AudioLab.Core` with tests (sections 4 and 5); D18 proposed. No domain commands yet. |

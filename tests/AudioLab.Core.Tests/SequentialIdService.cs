@@ -7,6 +7,8 @@ public sealed class SequentialIdService : IIdService
 {
     private int _next;
 
+    public SequentialIdService(int start = 0) => _next = start;
+
     public TId Next<TId>()
         where TId : struct, IAllocatedId<TId>
     {
