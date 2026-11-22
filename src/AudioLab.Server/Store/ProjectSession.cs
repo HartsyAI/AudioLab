@@ -1,3 +1,5 @@
+using System.Text;
+using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Server.Store;
@@ -7,34 +9,64 @@ namespace AudioLab.Server.Store;
 /// A change replaces the whole immutable document under the session's lock and raises the revision. A session leaves
 /// use only through <see cref="CloseAsync"/>, which writes what is unsaved first, or <see cref="DiscardAsync"/>, for a
 /// deleted project; after either, a change or a save throws <see cref="SessionClosedException"/> instead of being lost.
+/// Commands go through <see cref="Apply"/>, <see cref="Undo"/> and <see cref="Redo"/>, which keep the project's undo history.
 /// </remarks>
 public sealed class ProjectSession
 {
+    /// <summary>The longest wait between retries of a failing autosave.</summary>
+    public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromMinutes(5);
+
     private readonly ProjectStore _store;
     private readonly StoreOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
+    private readonly CommandRegistry _registry;
+    private readonly ReplayableIds _ids;
     private readonly object _state = new();
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly ITimer _timer;
     private ProjectSnapshot _snapshot;
     private long _savedRevision;
-    private DateTimeOffset _modified;
+    private long _modifiedTicks;
     private DateTimeOffset? _unsavedSince;
     private DateTimeOffset? _writeStarted;
+    private CommandHistory? _history;
+    private int _failures;
     private bool _closed;
     private Task _autosave = Task.CompletedTask;
 
-    internal ProjectSession(ProjectStore store, ProjectDocument document, DateTimeOffset modified, StoreOptions options, TimeProvider time, ILogger logger)
+    internal ProjectSession(
+        ProjectStore store,
+        ProjectDocument document,
+        DateTimeOffset modified,
+        StoreOptions options,
+        TimeProvider time,
+        CommandRegistry registry,
+        IIdService ids,
+        ILogger logger)
     {
         _store = store;
+        _registry = registry;
+        _ids = new ReplayableIds(ids);
         _options = options;
         _time = time;
         _logger = logger;
         _snapshot = new ProjectSnapshot(document, 1);
         _savedRevision = 1;
-        _modified = modified;
+        _modifiedTicks = modified.UtcTicks;
         _timer = time.CreateTimer(OnTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Whether the session has been closed or discarded, so a change to it would be refused.</summary>
+    public bool IsClosed
+    {
+        get
+        {
+            lock (_state)
+            {
+                return _closed;
+            }
+        }
     }
 
     /// <summary>The project's id.</summary>
@@ -43,17 +75,8 @@ public sealed class ProjectSession
     /// <summary>The user who owns the project.</summary>
     public UserId Owner => Snapshot.Document.Owner;
 
-    /// <summary>The current document and revision.</summary>
-    public ProjectSnapshot Snapshot
-    {
-        get
-        {
-            lock (_state)
-            {
-                return _snapshot;
-            }
-        }
-    }
+    /// <summary>The current document and revision. Read without the session's lock, so a command in progress never delays it: it is the last one committed.</summary>
+    public ProjectSnapshot Snapshot => Volatile.Read(ref _snapshot);
 
     /// <summary>The newest revision known to be on disk.</summary>
     public long SavedRevision
@@ -79,19 +102,18 @@ public sealed class ProjectSession
         }
     }
 
-    /// <summary>The summary the project's list entry shows.</summary>
+    /// <summary>The summary the project's list entry shows, read without the session's lock.</summary>
     public ProjectSummary Summary
     {
         get
         {
-            lock (_state)
-            {
-                return new ProjectSummary(_snapshot.Document.Id.Value, _snapshot.Document.Name, _modified);
-            }
+            ProjectDocument document = Snapshot.Document;
+            return new ProjectSummary(document.Id.Value, document.Name, new DateTimeOffset(Volatile.Read(ref _modifiedTicks), TimeSpan.Zero));
         }
     }
 
     /// <summary>Replaces the document with the result of <paramref name="change"/>, which runs under the session's lock and must be quick and free of side effects.</summary>
+    /// <remarks>A direct change is not a command, so it drops the undo history: the next command starts a new one.</remarks>
     /// <returns>The new snapshot, or the current one when the change leaves the document equal to what it was.</returns>
     /// <exception cref="SessionClosedException">The session is closed.</exception>
     /// <exception cref="ProjectFormatException">The result breaks a rule of <see cref="ProjectValidator"/>; the document is left as it was.</exception>
@@ -119,24 +141,111 @@ public sealed class ProjectSession
             {
                 throw new ProjectFormatException("The change breaks the version 4 rules:", problems);
             }
-            _snapshot = new ProjectSnapshot(next, _snapshot.Revision + 1);
-            DateTimeOffset now = _time.GetUtcNow();
-            _modified = now;
-            if (_writeStarted is { } started)
+            _history = null;
+            return Commit(next);
+        }
+    }
+
+    /// <summary>Applies a command for a client, keeping the undo history; a refusal changes nothing.</summary>
+    /// <param name="command">The command, already parsed by the registry.</param>
+    /// <param name="client">The connection or agent that sent it, as the server named it.</param>
+    /// <param name="gesture">The client's gesture the command belongs to, or null for a single edit.</param>
+    /// <exception cref="SessionClosedException">The session is closed.</exception>
+    public EditOutcome Apply(Command command, ClientId client, GestureId? gesture)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        lock (_state)
+        {
+            RequireOpenLocked();
+            CommandHistory history = History();
+
+            // Run the command once to see how large the project would become; a document the store would refuse to write
+            // is never applied or announced. The second run gets the same ids, so it makes the same document.
+            _ids.Record();
+            CommandResult preview;
+            IReadOnlyList<string> recorded;
+            try
             {
-                // The write in flight covers the changes before it started; these are new and get their own full quiet period.
-                if (_unsavedSince is not { } since || since <= started)
+                preview = _registry.Execute(history.Current, command, _ids);
+            }
+            finally
+            {
+                recorded = _ids.StopRecording();
+            }
+            string? json = null;
+            ProjectDocument? previewed = null;
+            if (preview.Document is { } document && document != history.Current)
+            {
+                json = ProjectJson.Write(document);
+                previewed = document;
+                if (Encoding.UTF8.GetByteCount(json) > _options.MaxFileBytes)
                 {
-                    _unsavedSince = now;
+                    CommandResult tooLarge = CommandResult.Refuse(CommandErrorCode.Limit, $"The project would be larger than the {_options.MaxFileBytes} bytes the server stores.");
+                    return new EditOutcome(tooLarge, _snapshot, false, null);
                 }
             }
-            else
+            _ids.Replay(recorded);
+            CommandResult result;
+            try
             {
-                _unsavedSince ??= now;
+                result = history.Apply(command, client, gesture);
             }
-            TimeSpan wait = Min(_options.AutosaveDelay, _unsavedSince.Value + _options.AutosaveMaxDelay - now);
-            _timer.Change(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, Timeout.InfiniteTimeSpan);
-            return _snapshot;
+            finally
+            {
+                _ids.EndReplay();
+            }
+            return Outcome(result, history, history.Current == previewed ? json : null);
+        }
+    }
+
+    /// <summary>Goes back one undo step; null when there is nothing to undo.</summary>
+    /// <exception cref="SessionClosedException">The session is closed.</exception>
+    public EditOutcome? Undo()
+    {
+        lock (_state)
+        {
+            RequireOpenLocked();
+            CommandHistory history = History();
+            return history.Undo() is null ? null : Outcome(null, history);
+        }
+    }
+
+    /// <summary>Goes forward one redo step; null when there is nothing to redo.</summary>
+    /// <exception cref="SessionClosedException">The session is closed.</exception>
+    public EditOutcome? Redo()
+    {
+        lock (_state)
+        {
+            RequireOpenLocked();
+            CommandHistory history = History();
+            return history.Redo() is null ? null : Outcome(null, history);
+        }
+    }
+
+    /// <summary>Closes the client's open gesture if it is <paramref name="gesture"/>; the document does not change.</summary>
+    public void EndGesture(ClientId client, GestureId gesture)
+    {
+        lock (_state)
+        {
+            _history?.EndGesture(client, gesture);
+        }
+    }
+
+    /// <summary>The gesture the client has open, or null.</summary>
+    public GestureId? OpenGestureOf(ClientId client)
+    {
+        lock (_state)
+        {
+            return _history?.OpenGestureOf(client);
+        }
+    }
+
+    /// <summary>Closes whatever gesture the client has open, as when its connection ends; the document does not change.</summary>
+    public void ReleaseClient(ClientId client)
+    {
+        lock (_state)
+        {
+            _history?.ReleaseClient(client);
         }
     }
 
@@ -210,10 +319,67 @@ public sealed class ProjectSession
     private static TimeSpan Min(TimeSpan a, TimeSpan b) => a <= b ? a : b;
 
     // Called under _state.
+    private CommandHistory History() => _history ??= new CommandHistory(_snapshot.Document, _registry, _ids);
+
+    // Called under _state. The history already holds the new document, so a change that leaves it equal adds no revision.
+    private EditOutcome Outcome(CommandResult? result, CommandHistory history, string? json = null)
+    {
+        if (result is { Succeeded: false } || history.Current == _snapshot.Document)
+        {
+            return new EditOutcome(result, _snapshot, false, null);
+        }
+        return new EditOutcome(result, Commit(history.Current), true, json ?? ProjectJson.Write(history.Current));
+    }
+
+    // Called under _state with a document that has been validated: raises the revision and schedules the autosave.
+    private ProjectSnapshot Commit(ProjectDocument next)
+    {
+        Volatile.Write(ref _snapshot, new ProjectSnapshot(next, _snapshot.Revision + 1));
+        DateTimeOffset now = _time.GetUtcNow();
+        Volatile.Write(ref _modifiedTicks, now.UtcTicks);
+        if (_writeStarted is { } started)
+        {
+            // The write in flight covers the changes before it started; these are new and get their own full quiet period.
+            if (_unsavedSince is not { } since || since <= started)
+            {
+                _unsavedSince = now;
+            }
+        }
+        else
+        {
+            _unsavedSince ??= now;
+        }
+        TimeSpan wait = Min(_options.AutosaveDelay, _unsavedSince.Value + _options.AutosaveMaxDelay - now);
+        _timer.Change(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, Timeout.InfiniteTimeSpan);
+        return _snapshot;
+    }
+
+    // Called under _state.
+    private void RequireOpenLocked()
+    {
+        if (_closed)
+        {
+            throw new SessionClosedException();
+        }
+    }
+
+    // Called under _state.
     private void Close()
     {
         _closed = true;
         _timer.Dispose();
+    }
+
+    // Doubles from the autosave maximum on each failure in a row and stops at five minutes, so a disk that stays broken is tried,
+    // and logged, a few times an hour and not every fifteen seconds.
+    private TimeSpan RetryDelay(int failures)
+    {
+        TimeSpan delay = _options.AutosaveMaxDelay;
+        for (int i = 1; i < failures && delay < MaxRetryDelay; i++)
+        {
+            delay *= 2;
+        }
+        return Min(delay, MaxRetryDelay);
     }
 
     private void RequireOpen()
@@ -253,6 +419,7 @@ public sealed class ProjectSession
                 _writeStarted = null;
                 if (written)
                 {
+                    _failures = 0;
                     _savedRevision = snapshot.Revision;
                     _unsavedSince = _snapshot.Revision == snapshot.Revision ? null : _unsavedSince;
                 }
@@ -302,7 +469,8 @@ public sealed class ProjectSession
             {
                 if (!_closed)
                 {
-                    _timer.Change(_options.AutosaveMaxDelay, Timeout.InfiniteTimeSpan);
+                    _failures++;
+                    _timer.Change(RetryDelay(_failures), Timeout.InfiniteTimeSpan);
                 }
             }
         }

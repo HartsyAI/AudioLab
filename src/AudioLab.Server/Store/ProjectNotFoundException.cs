@@ -8,4 +8,10 @@ public sealed class ProjectNotFoundException : Exception
         : base("There is no such project.")
     {
     }
+
+    /// <summary>Creates the exception with a reason a client can be told, such as that the project is closing.</summary>
+    public ProjectNotFoundException(string message)
+        : base(message)
+    {
+    }
 }

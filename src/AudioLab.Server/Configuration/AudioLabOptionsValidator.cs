@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AudioLab.Core.Model;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
@@ -35,6 +36,14 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         if (options.MaxRequestBodyBytes is < 1024 or > 16 * 1024 * 1024)
         {
             problems.Add("AudioLab:MaxRequestBodyBytes must be 1024 to 16777216.");
+        }
+        if (options.HubMaxCommandChars is < 256 or > ProjectLimits.MaxCommandLength)
+        {
+            problems.Add($"AudioLab:HubMaxCommandChars must be 256 to {ProjectLimits.MaxCommandLength}.");
+        }
+        if (options.HubSendTimeout < TimeSpan.FromMilliseconds(100) || options.HubSendTimeout > TimeSpan.FromMinutes(5))
+        {
+            problems.Add("AudioLab:HubSendTimeout must be 100 milliseconds to 5 minutes.");
         }
         ValidateStorage(options.Storage, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);

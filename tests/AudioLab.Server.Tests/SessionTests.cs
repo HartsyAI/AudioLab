@@ -1,3 +1,4 @@
+using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Store;
 
@@ -423,5 +424,67 @@ public sealed class SessionTests
 
         session.Update(document => document with { Bpm = 99 });
         Assert.Equal(store.Options.AutosaveDelay, store.Time.NextTimerDelay);
+    }
+
+    [Fact]
+    public async Task AFailingDiskIsRetriedWithGrowingDelaysThatStopAtFiveMinutesAndResetOnSuccess()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectSession session = await OpenNewAsync(store);
+        store.Observer = (stage, temp) => throw new IOException("disk full");
+        session.Update(document => document with { Bpm = 77 });
+        store.Time.Advance(store.Options.AutosaveDelay);
+        await session.SettleAsync();
+        List<TimeSpan> delays = [store.Time.NextTimerDelay!.Value];
+        for (int i = 0; i < 7; i++)
+        {
+            store.Time.Advance(delays[^1]);
+            await session.SettleAsync();
+            delays.Add(store.Time.NextTimerDelay!.Value);
+        }
+        Assert.Equal([15, 30, 60, 120, 240, 300, 300, 300], delays.Select(delay => (int)delay.TotalSeconds));
+
+        store.Observer = null;
+        store.Time.Advance(delays[^1]);
+        await session.SettleAsync();
+        Assert.False(session.IsUnsaved);
+        store.Observer = (stage, temp) => throw new IOException("disk full again");
+        session.Update(document => document with { Bpm = 78 });
+        store.Time.Advance(store.Options.AutosaveDelay);
+        await session.SettleAsync();
+        Assert.Equal(15, (int)store.Time.NextTimerDelay!.Value.TotalSeconds);
+    }
+
+    [Fact]
+    public async Task CommandsKeepOneUndoHistoryPerOpenProjectAndADirectChangeStartsANewOne()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create());
+        ProjectSession session = await OpenNewAsync(store);
+        ClientId client = ClientId.From("conn-1");
+        EditOutcome renamed = session.Apply(new RenameCommand { Project = session.Id, Name = "One" }, client, null);
+        Assert.True(renamed.Changed);
+        Assert.Equal(2, renamed.Snapshot.Revision);
+        Assert.Equal(3, session.Undo()!.Snapshot.Revision);
+        Assert.Equal("Song", session.Snapshot.Document.Name);
+
+        session.Apply(new RenameCommand { Project = session.Id, Name = "Two" }, client, null);
+        session.Update(document => document with { Bpm = 50 });
+        Assert.Null(session.Undo());
+        Assert.Equal("Two", session.Snapshot.Document.Name);
+    }
+
+    [Fact]
+    public async Task TheRetryDelayNeverPassesFiveMinutesWhateverTheAutosaveMaximumIs()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { AutosaveMaxDelay = TimeSpan.FromHours(1) });
+        ProjectSession session = await OpenNewAsync(store);
+        store.Observer = (stage, temp) => throw new IOException("disk full");
+        session.Update(document => document with { Bpm = 77 });
+        store.Time.Advance(store.Options.AutosaveDelay);
+        await session.SettleAsync();
+        Assert.Equal(ProjectSession.MaxRetryDelay, store.Time.NextTimerDelay);
     }
 }
