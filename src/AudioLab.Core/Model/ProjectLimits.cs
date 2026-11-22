@@ -36,6 +36,9 @@ public static class ProjectLimits
     /// <summary>How far apart two times in seconds may be and still count as the same.</summary>
     public const double Tolerance = 1e-9;
 
+    /// <summary>The longest command a client may send as JSON, in characters; the biggest holds a million-character text.</summary>
+    public const int MaxCommandLength = 16_777_216;
+
     /// <summary>The most problems an error lists before it says how many more there were.</summary>
     public const int MaxProblems = 100;
 

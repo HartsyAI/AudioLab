@@ -4,4 +4,8 @@
     <RootNamespace>AudioLab.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AudioLab.Core.Tests" />
+  </ItemGroup>
+
 </Project>
