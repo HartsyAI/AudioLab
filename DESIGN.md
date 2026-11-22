@@ -712,7 +712,10 @@ that the scan under `src` and `tests` does not find (for example one inside a `b
 - The Swarm and hosted doors trust a proxy that sends the shared secret (`AudioLab:Door:ProxySecret`, 32 characters or
   more, required at start) in `X-AudioLab-Secret` and the signed-in user in `X-AudioLab-User`: one printable ASCII name of up to
   128 characters, hashed into the user id so that any name maps to a valid id and two names never share one. A request
-  without the secret gets 403, a proxied request without a usable user 401. The desktop door answers loopback peers only.
+  without the secret gets 403, a proxied request without a usable user 401. The desktop door answers loopback peers only,
+  and, because a web page the user has open can send requests to the loopback address, also requires a loopback `Host` (against
+  DNS rebinding), refuses an `Origin` that is not its own scheme, host and port, and refuses a `Sec-Fetch-Site` other than
+  `same-origin` or `none`; each refusal is a 403 and is logged with its reason. A client that sends neither header is let through.
 - The desktop and Swarm doors refuse to start on an address that is not loopback; the hosted door may listen anywhere.
 - The child process listens on loopback only, takes a per-launch secret, and exits when its parent dies.
 - Showing a hosted instance inside another site's iframe (a different origin) is out of scope for now. It needs
@@ -778,5 +781,5 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-21 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
 | 2026-11-21 | O2 recorded as D17 (Proposed, Firefox dragging not shown to hold): DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D17; 7.1 states how C# reads tokens. |
-| 2026-11-22 | `AudioLab.Server` and `AudioLab.Server.Tests` added (section 4): the host skeleton, the desktop, Swarm and hosted doors, and the proxy contract (section 9). |
+| 2026-11-22 | `AudioLab.Server` and `AudioLab.Server.Tests` added (section 4): the host skeleton, the desktop, Swarm and hosted doors, and the proxy contract (section 9); the desktop door also refuses a foreign `Host`, `Origin` or `Sec-Fetch-Site`. |
 | 2026-11-22 | The store: per-user hashed file names, atomic writes, open-project sessions with debounced autosave, and the project routes; save means flush (section 5). Rests on D12, D15 and D16 (Proposed). |
