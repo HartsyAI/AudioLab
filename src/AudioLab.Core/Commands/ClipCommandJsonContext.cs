@@ -24,6 +24,8 @@ namespace AudioLab.Core.Commands;
 [JsonSerializable(typeof(SetMidiClipLength))]
 [JsonSerializable(typeof(SetClipMuted))]
 [JsonSerializable(typeof(RenameClip))]
+[JsonSerializable(typeof(DeleteRange))]
+[JsonSerializable(typeof(SplitAtRange))]
 [JsonSerializable(typeof(SetClipColor))]
 [JsonSerializable(typeof(ReorderClip))]
 public sealed partial class ClipCommandJsonContext : JsonSerializerContext;

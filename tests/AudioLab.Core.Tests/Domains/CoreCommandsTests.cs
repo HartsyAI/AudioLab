@@ -203,6 +203,22 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheRangeAndSectionNamingCommandsExistAndReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult delete = _registry.Parse("range_delete", $$"""{"project":"{{project}}","start":4,"end":6.5,"tracks":["trk_1","trk_2"]}""");
+        CommandParseResult name = _registry.Parse("section_name_clips", $$"""{"project":"{{project}}"}""");
+        CommandParseResult bad = _registry.Parse("range_split", $$"""{"project":"{{project}}","start":4,"end":6.5}""");
+
+        DeleteRange parsed = Assert.IsType<DeleteRange>(delete.Command);
+        Assert.Equal((4.0, 6.5, 2), (parsed.Start, parsed.End, parsed.Tracks.Count));
+        Assert.Null(Assert.IsType<NameClipsAfterSections>(name.Command).Section);
+        Assert.False(bad.Succeeded);
+        Assert.NotNull(_registry.Find("range_split"));
+    }
+
+    [Fact]
     public void ANoteListAndAnEffectCommandReadFromTheirJson()
     {
         string project = BlankProject.Create().Id.Value;
