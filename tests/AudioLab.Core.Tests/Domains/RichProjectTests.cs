@@ -86,6 +86,69 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryMidiCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track keys = sample.Tracks.First(track => track.Kind == TrackKind.Instrument && track.MidiClips.Count > 0);
+        MidiClip clip = keys.MidiClips[0];
+        NoteId first = clip.Notes[0].Id;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new AddNote { Project = id, Clip = clip.Id, Pitch = 67, Start = 3 },
+            new MoveNotes { Project = id, Clip = clip.Id, Notes = [first], Time = 0.25, Pitch = 1 },
+            new MoveNotes { Project = id, Clip = clip.Id, Time = 0.1, Pitch = 0 },
+            new ResizeNotes { Project = id, Clip = clip.Id, Duration = 0.2 },
+            new SetNoteVelocity { Project = id, Clip = clip.Id, Notes = [first], Velocity = 20 },
+            new TransposeNotes { Project = id, Clip = clip.Id, Semitones = 7 },
+            new QuantizeNotes { Project = id, Clip = clip.Id },
+            new DeleteNotes { Project = id, Clip = clip.Id, Notes = [first] },
+            new AddControlChange { Project = id, Clip = clip.Id, Time = 3, Controller = 1, Value = 40 },
+            new RemoveControlChanges { Project = id, Clip = clip.Id, Time = 2, Controller = 64 },
+            new ClearControlChanges { Project = id, Clip = clip.Id },
+            new ClearControlChanges { Project = id, Clip = clip.Id, Controller = 64 },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EveryEffectCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Effects.Count >= 2);
+        Effect compressor = track.Effects.First(effect => effect is CompressorEffect);
+        Effect delay = track.Effects.First(effect => effect is DelayEffect);
+        ProjectId id = sample.Id;
+        List<Command> commands =
+        [
+            new RemoveEffect { Project = id, Track = track.Id, Effect = compressor.Id },
+            new MoveEffect { Project = id, Track = track.Id, Effect = track.Effects[0].Id, Direction = MoveDirection.Down },
+            new SetEffectEnabled { Project = id, Track = track.Id, Effect = compressor.Id, Enabled = !compressor.Enabled },
+            new SetEffectParameter { Project = id, Track = track.Id, Effect = compressor.Id, Parameter = "makeup", Value = EffectRules.Find(compressor, "makeup")!.Get(compressor) + 1 },
+            new SetDelaySync { Project = id, Track = track.Id, Effect = delay.Id, Sync = !((DelayEffect)delay).Sync },
+            new ApplyEffectPreset { Project = id, Track = track.Id, Effect = compressor.Id, Preset = "Drum smash" },
+        ];
+        commands.AddRange(Enum.GetValues<EffectKind>().Select(kind => (Command)new AddEffect { Project = id, Track = sample.Tracks[0].Id, Kind = kind }));
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryClipCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();
