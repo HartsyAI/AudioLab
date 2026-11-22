@@ -175,8 +175,14 @@ Rules:
   runs through the registry and the project's history under the project's lock, and the new revision is then sent to
   the project's group, in order. The hub keeps no state of its own but the projects a connection joined; a session
   stays open after its last client leaves, until idle eviction is built. A change made any other way than a command
-  (a direct `Update`, used by tests) is not announced and drops the undo history. Not built: patches in place of whole
-  documents, a limit on the rate of commands, and sharing a project between users.
+  (a direct `Update`, used by tests) is not announced and drops the undo history. A reconnecting client is a new
+  connection with a new client id and must join again; automatic reconnection is SignalR's and is not exercised by a
+  test. The server's registry has no domain commands yet, so a real server answers every command with `unknown_command`.
+  Known limit: a revision is sent while the project's order is held, so a client that has stopped reading stalls that
+  project's edits until SignalR's client timeout (30 s) closes its connection; a client that reads slowly but keeps
+  pinging is not bounded, and a per-client queue that drops the slow client is the fix. Not built: patches in place of
+  whole documents, a limit on the rate of commands, sharing a project between users, and moving the hub's message
+  types into `AudioLab.Core` (section 4 lets `AudioLab.Web` reference only Core and Audio, so the UI needs them there).
 - **Gestures.** A continuous gesture (dragging a clip, drawing automation) is previewed locally with the shared rule
   code and committed as one command on release. The UI never waits on the network to move something under the pointer.
 
@@ -739,6 +745,8 @@ that the scan under `src` and `tests` does not find (for example one inside a `b
   DNS rebinding), refuses an `Origin` that is not its own scheme, host and port, and refuses a `Sec-Fetch-Site` other than
   `same-origin` or `none`; each refusal is a 403 and is logged with its reason. A client that sends neither header is let through.
 - The desktop and Swarm doors refuse to start on an address that is not loopback; the hosted door may listen anywhere.
+- The hub is WebSockets only, so a proxy of the Swarm or hosted door must forward the WebSocket upgrade of `/api/hub` with the
+  secret and user headers, as it does for a route; the door checks the upgrade once, when the connection is made.
 - The child process listens on loopback only, takes a per-launch secret, and exits when its parent dies.
 - Showing a hosted instance inside another site's iframe (a different origin) is out of scope for now. It needs
   `frame-ancestors`, a token handoff and a microphone and MIDI permissions policy, and nothing requires it yet.

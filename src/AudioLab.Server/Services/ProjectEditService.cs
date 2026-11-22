@@ -48,12 +48,16 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         UserId user,
         ProjectId project,
         ClientId client,
-        string name,
-        string json,
+        string? name,
+        string? json,
         GestureId? gesture,
         CancellationToken cancellationToken)
     {
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
+        if (name is null || json is null)
+        {
+            return Refused([new CommandError(CommandErrorCode.Malformed, "A command needs its name and its JSON text.")], session.Snapshot.Revision);
+        }
         CommandParseResult parsed = registry.Parse(name, json);
         if (parsed.Command is not { } command)
         {
@@ -133,7 +137,7 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         return new CommandReply(true, outcome.Changed, outcome.Snapshot.Revision, [], created);
     }
 
-    private static CommandReply Refused(ValueList<CommandError> errors, long revision)
+    private static CommandReply Refused(IEnumerable<CommandError> errors, long revision)
     {
         return new CommandReply(false, false, revision, [.. errors.Select(error => new HubCommandError(error.Code, error.Message))], []);
     }

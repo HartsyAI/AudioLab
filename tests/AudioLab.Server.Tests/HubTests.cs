@@ -312,6 +312,61 @@ public sealed class HubTests
         Assert.Equal("Saved by autosave", ProjectJson.Read(await File.ReadAllTextAsync(file)).Name);
     }
 
+    [Fact]
+    public async Task ANullForAnyArgumentOfAnyMethodIsRefusedWithoutAnErrorAndTheConnectionLives()
+    {
+        await using RunningServer server = await StartAsync();
+        string project = await CreateAsync(server, UserId.Local);
+        await using HubClient client = await HubClient.ConnectAsync(server);
+        await using HubClient listener = await HubClient.ConnectAsync(server);
+        await client.JoinAsync(project);
+        await listener.JoinAsync(project);
+        string json = Json(project, string.Empty);
+
+        object?[][] calls =
+        [
+            ["Join", null],
+            ["Leave", null],
+            ["Apply", null, "no_change", json, null],
+            ["Apply", project, null, json, null],
+            ["Apply", project, "no_change", null, null],
+            ["Apply", project, "no_change", json, null],
+            ["Undo", null],
+            ["Redo", null],
+            ["EndGesture", null, "g"],
+            ["EndGesture", project, null],
+        ];
+        foreach (object?[] call in calls)
+        {
+            string method = (string)call[0]!;
+            try
+            {
+                await client.Connection.InvokeCoreAsync<object?>(method, [.. call.Skip(1)]);
+            }
+            catch (HubException)
+            {
+                // A short refusal is the expected answer.
+            }
+            Assert.Equal(HubConnectionState.Connected, client.Connection.State);
+        }
+        Assert.True(await listener.HeardNothingAsync());
+        Assert.True((await client.ApplyAsync(project, "no_change", json)).Succeeded);
+    }
+
+    [Fact]
+    public async Task TheHubWorksUnderAPathPrefix()
+    {
+        await using RunningServer server = await StartAsync(new Dictionary<string, string?> { ["AudioLab:PathBase"] = "/audiolab" });
+        Assert.Equal("/audiolab/api/hub", server.HubPath);
+        string project = await CreateAsync(server, UserId.Local);
+        await using HubClient a = await HubClient.ConnectAsync(server);
+        await using HubClient b = await HubClient.ConnectAsync(server);
+        await a.JoinAsync(project);
+        await b.JoinAsync(project);
+        await a.ApplyAsync(project, "rename_project", Json(project, "\"name\":\"Prefixed\""));
+        Assert.Equal("Prefixed", ProjectJson.Read((await b.NextChangeAsync()).Document).Name);
+    }
+
     private static Task<RunningServer> StartAsync(IDictionary<string, string?>? settings = null)
     {
         return RunningServer.StartAsync(settings, services => services.AddSingleton(TestCommandRegistry.Create()));

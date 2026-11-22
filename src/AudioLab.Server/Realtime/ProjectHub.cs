@@ -45,7 +45,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Joins a project the user owns and returns its state; every later change is sent with a higher revision, and none is missed.</summary>
     [HubMethodName("Join")]
-    public async Task<JoinReply> JoinAsync(string project)
+    public async Task<JoinReply> JoinAsync(string? project)
     {
         ProjectId id = Parse(project);
         if (!Joined.Contains(id) && Joined.Count >= MaxProjectsPerConnection)
@@ -63,7 +63,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Leaves a project: no more changes are sent, and an open gesture is closed.</summary>
     [HubMethodName("Leave")]
-    public async Task LeaveAsync(string project)
+    public async Task LeaveAsync(string? project)
     {
         ProjectId id = Parse(project);
         if (Joined.Remove(id))
@@ -75,7 +75,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Applies a command to a joined project. A refusal is in the reply; nothing is thrown for it.</summary>
     [HubMethodName("Apply")]
-    public Task<CommandReply> ApplyAsync(string project, string command, string json, string? gesture)
+    public Task<CommandReply> ApplyAsync(string project, string? command, string? json, string? gesture)
     {
         ProjectId id = RequireJoined(project);
         GestureId? gestureId = gesture is null ? null : ParseGesture(gesture);
@@ -84,7 +84,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Goes back one undo step in a joined project, for everyone in it.</summary>
     [HubMethodName("Undo")]
-    public Task<CommandReply> UndoAsync(string project)
+    public Task<CommandReply> UndoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
         return GuardAsync(() => edits.UndoAsync(User, id, Context.ConnectionAborted));
@@ -92,7 +92,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Goes forward one redo step in a joined project, for everyone in it.</summary>
     [HubMethodName("Redo")]
-    public Task<CommandReply> RedoAsync(string project)
+    public Task<CommandReply> RedoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
         return GuardAsync(() => edits.RedoAsync(User, id, Context.ConnectionAborted));
@@ -100,25 +100,25 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
 
     /// <summary>Closes this client's open gesture, as the release of a drag does.</summary>
     [HubMethodName("EndGesture")]
-    public Task EndGestureAsync(string project, string gesture)
+    public Task EndGestureAsync(string? project, string? gesture)
     {
         ProjectId id = RequireJoined(project);
         edits.EndGesture(User, id, Client, ParseGesture(gesture));
         return Task.CompletedTask;
     }
 
-    private static ProjectId Parse(string project)
+    private static ProjectId Parse(string? project)
     {
-        return IdRules.IsValid(project) ? ProjectId.From(project) : throw new HubException("That is not a project id.");
+        return IdRules.IsValid(project) ? ProjectId.From(project!) : throw new HubException("That is not a project id.");
     }
 
-    private static GestureId ParseGesture(string gesture)
+    private static GestureId ParseGesture(string? gesture)
     {
-        return IdRules.IsValid(gesture) ? GestureId.From(gesture) : throw new HubException("That is not a gesture id.");
+        return IdRules.IsValid(gesture) ? GestureId.From(gesture!) : throw new HubException("That is not a gesture id.");
     }
 
     // A client may only act on a project it joined, which is also how its changes come back to it.
-    private ProjectId RequireJoined(string project)
+    private ProjectId RequireJoined(string? project)
     {
         ProjectId id = Parse(project);
         return Joined.Contains(id) ? id : throw new HubException("Join the project first.");
