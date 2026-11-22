@@ -28,5 +28,7 @@ public static class CoreCommands
         EffectCommands.Register(builder, EffectCommandJsonContext.Default);
         AutomationCommands.Register(builder, AutomationCommandJsonContext.Default);
         BeatCommands.Register(builder, BeatCommandJsonContext.Default);
+        LyricsCommands.Register(builder, LyricsCommandJsonContext.Default);
+        ClipMetaCommands.Register(builder, ClipMetaCommandJsonContext.Default);
     }
 }
