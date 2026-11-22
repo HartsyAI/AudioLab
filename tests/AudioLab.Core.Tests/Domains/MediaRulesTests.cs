@@ -167,6 +167,8 @@ public sealed class MediaRulesTests
         {
             return _records.TryGetValue((owner, id), out MediaRecord? record) ? record : null;
         }
+
+        public bool IsDeleting(UserId owner, MediaId id) => PendingDelete.Contains(id) && _records.ContainsKey((owner, id));
     }
 
     private sealed class ThrowingCatalog : IMediaCatalog
@@ -174,5 +176,7 @@ public sealed class MediaRulesTests
         public MediaRecord? Find(UserId owner, MediaId id) => throw new InvalidOperationException("The catalog must not be asked.");
 
         public MediaRecord? FindIncludingPendingDelete(UserId owner, MediaId id) => Find(owner, id);
+
+        public bool IsDeleting(UserId owner, MediaId id) => throw new InvalidOperationException("The catalog must not be asked.");
     }
 }

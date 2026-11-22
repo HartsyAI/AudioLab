@@ -48,7 +48,7 @@ public sealed class MediaStoreTests
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(file)), record.Sha256);
         Assert.Equal(store.Time.GetUtcNow(), record.Created);
         Assert.Equal(file, await ReadAllAsync(store.MediaFiles.OpenContent(Users.Alice, record.Id)));
-        Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+        Assert.Equal(record, await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
 
-        Assert.Null(store.Media.Find(Users.Bob, record.Id));
+        Assert.Null(await store.FindAsync(Users.Bob, record.Id));
         MediaNotFoundException other = Assert.Throws<MediaNotFoundException>(() => store.MediaFiles.Get(Users.Bob, record.Id));
         MediaNotFoundException missing = Assert.Throws<MediaNotFoundException>(() => store.MediaFiles.Get(Users.Bob, MediaId.From("med_nothing")));
         Assert.Equal(missing.Message, other.Message);
@@ -66,7 +66,7 @@ public sealed class MediaStoreTests
         await Assert.ThrowsAsync<MediaNotFoundException>(() => store.MediaFiles.DeleteAsync(Users.Bob, record.Id, _none));
         Assert.Empty(store.MediaFiles.List(Users.Bob).Files);
         Assert.Equal([record.Id.Value], store.MediaFiles.List(Users.Alice).Files.Select(summary => summary.Id));
-        Assert.NotNull(store.Media.Find(Users.Alice, record.Id));
+        Assert.NotNull(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -83,10 +83,10 @@ public sealed class MediaStoreTests
             File.Copy(first.Paths.MediaDataFile(Users.Alice, record.Id), first.Paths.MediaDataFile(Users.Bob, record.Id));
         }
         await using TestStore store = TestStore.On(folder.Path);
-        Assert.Null(store.Media.Find(Users.Bob, record.Id));
+        Assert.Null(await store.FindAsync(Users.Bob, record.Id));
         Assert.Equal(1, store.MediaFiles.List(Users.Bob).Refused);
         Assert.Empty(store.MediaFiles.List(Users.Bob).Files);
-        Assert.NotNull(store.Media.Find(Users.Alice, record.Id));
+        Assert.NotNull(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public sealed class MediaStoreTests
         }
 
         await using TestStore store = TestStore.On(folder.Path);
-        Assert.Equal(kept, store.Media.Find(Users.Alice, kept.Id));
-        Assert.Null(store.Media.Find(Users.Alice, damaged.Id));
-        Assert.Null(store.Media.Find(Users.Alice, truncated.Id));
-        Assert.Null(store.Media.Find(Users.Alice, lost.Id));
+        Assert.Equal(kept, await store.FindAsync(Users.Alice, kept.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, damaged.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, truncated.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, lost.Id));
         MediaListing listing = store.MediaFiles.List(Users.Alice);
         Assert.Equal([kept.Id.Value], listing.Files.Select(summary => summary.Id));
         Assert.Equal(3, listing.Refused);
@@ -137,16 +137,16 @@ public sealed class MediaStoreTests
         using FileStream hold = new(MediaStoreFile(folder, held), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxFilesPerUser = 2 });
 
-        Assert.Equal(other, store.Media.Find(Users.Alice, other.Id));
-        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Equal(other, await store.FindAsync(Users.Alice, other.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, held.Id));
         MediaListing listing = store.MediaFiles.List(Users.Alice);
         Assert.Equal([other.Id.Value], listing.Files.Select(summary => summary.Id));
         Assert.Equal(1, listing.Refused);
-        Assert.Equal(1, store.Media.UsageOf(Users.Alice).Files);
+        Assert.Equal(2, store.Media.UsageOf(Users.Alice).Files);
     }
 
     [Fact]
-    public async Task ARecordFileAnotherProcessHeldIsReadAgainOnceItIsReleased()
+    public async Task ARecordFileAnotherProcessHeldIsReadAgainOnPrepareOnceItIsReleasedAndNeverByAFind()
     {
         using TempFolder folder = new();
         MediaRecord held;
@@ -157,15 +157,45 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         FileStream hold = new(MediaStoreFile(folder, held), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
 
-        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, held.Id));
         Assert.Equal(1, store.MediaFiles.List(Users.Alice).Refused);
         await hold.DisposeAsync();
 
-        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, held.Id));
         store.Time.Advance(TimeSpan.FromSeconds(6));
-        Assert.Equal(held, store.Media.Find(Users.Alice, held.Id));
+        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Equal(held, await store.FindAsync(Users.Alice, held.Id));
         Assert.Equal(0, store.MediaFiles.List(Users.Alice).Refused);
         Assert.Single(store.MediaFiles.List(Users.Alice).Files);
+    }
+
+    [Fact]
+    public async Task ARecordThatStaysUnreadableIsTriedAtGrowingIntervalsGivenUpOnAndCountsAgainstTheQuotaAllTheWhile()
+    {
+        using TempFolder folder = new();
+        MediaRecord held;
+        await using (TestStore first = TestStore.On(folder.Path))
+        {
+            held = await first.UploadAsync(Users.Alice, Wav(), "held.wav");
+        }
+        MediaOptions options = new() { MaxFilesPerUser = 1 };
+        await using TestStore store = TestStore.On(folder.Path, media: options);
+        using FileStream hold = new(MediaStoreFile(folder, held), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        await store.Media.PrepareAsync(Users.Alice);
+        Assert.Equal(new MediaUsage(1, held.Bytes), store.Media.UsageOf(Users.Alice));
+        await Assert.ThrowsAsync<MediaQuotaExceededException>(() => store.UploadAsync(Users.Alice, Wav(100)));
+
+        // Tries after 5, 15 and 45 seconds; nothing is due in between, and after the last it stays given up on.
+        foreach (int seconds in new[] { 1, 6, 16, 46, 100, 1000 })
+        {
+            store.Time.Advance(TimeSpan.FromSeconds(seconds));
+            await store.Media.PrepareAsync(Users.Alice);
+        }
+        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        Assert.Equal(1, store.MediaFiles.List(Users.Alice).Refused);
+        Assert.Equal(1, store.Media.UsageOf(Users.Alice).Files);
+        Assert.Equal(held.Bytes, store.Media.UsageOf(Users.Alice).Bytes);
+        Assert.True(store.Media.PrepareAsync(Users.Alice).IsCompletedSuccessfully);
     }
 
     [Fact]
@@ -182,7 +212,7 @@ public sealed class MediaStoreTests
         Assert.Equal([record.Id.Value], store.MediaFiles.List(Users.Alice).Files.Select(summary => summary.Id));
         Assert.Equal(file, await ReadAllAsync(store.MediaFiles.OpenContent(Users.Alice, record.Id)));
         Assert.NotEmpty(await ReadAllAsync(await store.MediaFiles.OpenPeaksAsync(Users.Alice, record.Id, _none)));
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -364,7 +394,7 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         Assert.False(File.Exists(orphan));
         Assert.False(File.Exists(temp));
-        Assert.Equal(kept, store.Media.Find(Users.Alice, kept.Id));
+        Assert.Equal(kept, await store.FindAsync(Users.Alice, kept.Id));
     }
 
     [Fact]
@@ -377,7 +407,7 @@ public sealed class MediaStoreTests
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
 
         Assert.Empty(MediaFiles(store, Users.Alice));
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
         await Assert.ThrowsAsync<MediaNotFoundException>(() => store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none));
     }
 
@@ -408,11 +438,11 @@ public sealed class MediaStoreTests
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
 
         Assert.Equal(record, store.Media.BeginDelete(Users.Alice, record.Id));
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
         Assert.Throws<MediaDeleteInProgressException>(() => store.Media.BeginDelete(Users.Alice, record.Id));
         await Assert.ThrowsAsync<MediaDeleteInProgressException>(() => store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none));
         store.Media.CancelDelete(Users.Alice, record.Id);
-        Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+        Assert.Equal(record, await store.FindAsync(Users.Alice, record.Id));
         Assert.Throws<MediaNotFoundException>(() => store.Media.BeginDelete(Users.Alice, MediaId.From("med_nothing")));
     }
 
@@ -428,7 +458,7 @@ public sealed class MediaStoreTests
         // In the open project's present.
         MediaInUseException used = await Assert.ThrowsAsync<MediaInUseException>(() => store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none));
         Assert.Contains("Playing it", used.Message, StringComparison.Ordinal);
-        Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+        Assert.Equal(record, await store.FindAsync(Users.Alice, record.Id));
 
         // Only in its undo history: the clip is gone from the present but undo can bring it back.
         Assert.True((await ApplyAsync(store, Users.Alice, project, "clip_delete", $"\"clip\":\"{clip}\"")).Succeeded);
@@ -446,7 +476,7 @@ public sealed class MediaStoreTests
         await store.Service.SaveAsync(Users.Alice, project, _none);
         await store.Open.CloseAsync(Users.Alice, project, _none);
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -460,7 +490,7 @@ public sealed class MediaStoreTests
         await File.WriteAllTextAsync(store.Paths.ProjectFile(Users.Alice, broken), "{ not a project");
 
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -552,7 +582,7 @@ public sealed class MediaStoreTests
 
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
 
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
     }
 
     [Fact]
@@ -562,7 +592,7 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         MediaRecord kept = await store.UploadAsync(Users.Alice, Wav());
         await Assert.ThrowsAsync<IOException>(() => Send(store, new BreakingStream(Wav(), null), null));
-        Assert.Equal(kept, store.Media.Find(Users.Alice, kept.Id));
+        Assert.Equal(kept, await store.FindAsync(Users.Alice, kept.Id));
     }
 
     private sealed class PausingStream(byte[] bytes, SemaphoreSlim half, SemaphoreSlim go) : Stream

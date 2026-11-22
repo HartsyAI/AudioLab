@@ -71,7 +71,8 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         CancellationToken cancellationToken)
     {
         // The media index is read here, where waiting is cheap, so the check inside the session's lock never touches the disk.
-        await media.PrepareAsync(user);
+        await media.PrepareAsync(user, cancellationToken);
+        media.RequireReadable(user);
         using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
         if (name is null || json is null)

@@ -25,7 +25,9 @@ internal sealed class UserMedia
 
     public long UploadBytes { get; set; }
 
-    public List<string> Unreadable { get; } = [];
+    public object LoadSync { get; } = new();
 
-    public DateTimeOffset LastAttempt { get; set; }
+    public List<UnreadableRecord> Unreadable { get; } = [];
+
+    public DateTimeOffset NextLoadAttempt { get; set; }
 }

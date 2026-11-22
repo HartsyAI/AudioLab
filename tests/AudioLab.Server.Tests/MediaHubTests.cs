@@ -7,6 +7,7 @@ using AudioLab.Core.Model;
 using AudioLab.Server.Json;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Services;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Server.Tests;
 
@@ -76,5 +77,47 @@ public sealed class MediaHubTests
         CommandReply own = await alice.ApplyAsync(project, "clip_add", Add(alices, alices.Duration));
         Assert.True(own.Succeeded);
         Assert.Equal(track.Revision + 1, own.Revision);
+    }
+
+    [Fact]
+    public async Task AProjectThatNamesMissingMediaIsRefusedOnJoinWithTheRealReasonAndTheProjectsOwnIds()
+    {
+        using TempFolder folder = new();
+        string root = folder.Path;
+        string project;
+        await using (RunningServer first = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Storage:Root"] = root }))
+        {
+            using HttpResponseMessage made = await first.Client.PostAsJsonAsync(
+                "/api/projects",
+                new CreateProjectRequest("Lost"),
+                ServerJsonContext.Default.CreateProjectRequest);
+            project = (await made.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Id;
+            using ByteArrayContent wav = new(MediaTestSupport.Wav());
+            wav.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+            using HttpResponseMessage uploaded = await first.Client.PostAsync("/api/media?name=m.wav", wav);
+            MediaSummary media = (await uploaded.Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaSummary))!;
+            await using HubClient editor = await HubClient.ConnectAsync(first);
+            await editor.JoinAsync(project);
+            string track = (await editor.ApplyAsync(project, "track_add", $"{{\"project\":\"{project}\",\"kind\":\"audio\"}}")).Created.Single();
+            string seconds = media.Duration.ToString("R", CultureInfo.InvariantCulture);
+            string add = $"{{\"project\":\"{project}\",\"track\":\"{track}\",\"media\":\"{media.Id}\",\"duration\":{seconds}}}";
+            Assert.True((await editor.ApplyAsync(project, "clip_add", add)).Succeeded);
+            using HttpResponseMessage saved = await first.Client.PostAsync($"/api/projects/{project}/save", null);
+            Assert.True(saved.IsSuccessStatusCode);
+        }
+        foreach (string file in Directory.GetFiles(root, "m*", SearchOption.AllDirectories))
+        {
+            File.Delete(file);
+        }
+
+        await using RunningServer second = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Storage:Root"] = root });
+        await using HubClient joiner = await HubClient.ConnectAsync(second);
+        HubException refused = await Assert.ThrowsAsync<HubException>(() => joiner.JoinAsync(project));
+        Assert.Contains("media", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("no such media file", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("The project file is not valid.", refused.Message, StringComparison.Ordinal);
+        using HttpResponseMessage opened = await second.Client.GetAsync($"/api/projects/{project}");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, opened.StatusCode);
+        Assert.Contains("media files it names", await opened.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 }

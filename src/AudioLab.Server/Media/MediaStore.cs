@@ -15,9 +15,17 @@ namespace AudioLab.Server.Media;
 /// </remarks>
 public sealed class MediaStore : IMediaCatalog
 {
+    private enum ReadOutcome
+    {
+        Ok,
+        Invalid,
+        Unreadable,
+        Gone,
+    }
+
     private const int MaxRecordBytes = 8192;
 
-    private static readonly TimeSpan _retryAfter = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan[] _retryDelays = [TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(45)];
 
     private static readonly UTF8Encoding _strictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -39,28 +47,63 @@ public sealed class MediaStore : IMediaCatalog
     }
 
     /// <inheritdoc />
-    /// <remarks>While a user's folder cannot be read nothing is found, so a document is never accepted on a guess.</remarks>
+    /// <remarks>Never touches the disk: a user whose folder has not been read, or cannot be, finds nothing.</remarks>
     public MediaRecord? Find(UserId owner, MediaId id)
     {
-        UserMedia media = Loaded(owner);
+        if (LoadedOnly(owner) is not { } media)
+        {
+            return null;
+        }
         lock (media.Sync)
         {
             return media.Entries.TryGetValue(id, out MediaEntry? entry) && !entry.PendingDelete ? entry.Record : null;
         }
     }
 
-    /// <summary>Reads the user's media folder if that has not been done, off the caller's thread, so a later lookup does not wait.</summary>
-    public Task PrepareAsync(UserId user)
+    /// <summary>Reads the user's media folder if that has not been done, and reads again records whose time has come.</summary>
+    /// <remarks>
+    /// Off the caller's thread and out of the index's lock, so a lookup never waits for the disk. Once everything is read and no
+    /// retry is due it costs nothing. A record that cannot be read is tried again after 5, 15 and 45 seconds and then
+    /// stays unreadable; it counts against the quota all the while.
+    /// </remarks>
+    public Task PrepareAsync(UserId user, CancellationToken cancellationToken = default)
     {
         UserMedia media = _users.GetOrAdd(user, _ => new UserMedia());
+        DateTimeOffset now = _time.GetUtcNow();
         lock (media.Sync)
         {
-            if (media.Loaded && media.Unreadable.Count == 0)
+            bool nothingToDo = media.Loaded
+                ? !media.Unreadable.Any(record => !record.Terminal && record.NextAttempt <= now)
+                : now < media.NextLoadAttempt;
+            if (nothingToDo)
             {
                 return Task.CompletedTask;
             }
         }
-        return Task.Run(() => Loaded(user));
+        return Task.Run(
+            () =>
+            {
+                Loaded(user);
+                RetryDue(user, media);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Throws when the user's folder cannot be read, so a caller answers with a store failure and not with "not found".</summary>
+    /// <exception cref="IOException">The user's folder cannot be read.</exception>
+    public void RequireReadable(UserId user) => _ = Readable(user);
+
+    /// <summary>Whether a delete of the file has begun and may still be refused; like <see cref="Find"/> it never touches the disk.</summary>
+    public bool IsDeleting(UserId owner, MediaId id)
+    {
+        if (LoadedOnly(owner) is not { } media)
+        {
+            return false;
+        }
+        lock (media.Sync)
+        {
+            return media.Entries.TryGetValue(id, out MediaEntry? entry) && entry.PendingDelete;
+        }
     }
 
     /// <summary>A user's file, also while its delete is pending: only a new reference to it is refused, not a read.</summary>
@@ -89,18 +132,18 @@ public sealed class MediaStore : IMediaCatalog
                     .OrderByDescending(record => record.Created)
                     .ThenBy(record => record.Id.Value, StringComparer.Ordinal),
             ];
-            return (records, media.Refused);
+            return (records, media.Refused + media.Unreadable.Count);
         }
     }
 
-    /// <summary>What a user has stored, counting a file that is being deleted until it is gone.</summary>
+    /// <summary>What a user has stored, counting a file that is being deleted, and a record that cannot be read, until it is gone.</summary>
     /// <exception cref="IOException">The user's folder cannot be read.</exception>
     public MediaUsage UsageOf(UserId user)
     {
         UserMedia media = Readable(user);
         lock (media.Sync)
         {
-            return new MediaUsage(media.Entries.Count, media.TotalBytes);
+            return UsageOf(media);
         }
     }
 
@@ -139,7 +182,7 @@ public sealed class MediaStore : IMediaCatalog
             MediaUsage stored;
             lock (media.Sync)
             {
-                stored = new MediaUsage(media.Entries.Count, media.TotalBytes);
+                stored = UsageOf(media);
             }
             if (await _quota.RefusalAsync(record.Owner, stored, record.Bytes, cancellationToken) is { } refusal)
             {
@@ -214,17 +257,28 @@ public sealed class MediaStore : IMediaCatalog
     }
 
     /// <summary>Refuses a file from now on: its bytes were found missing or invalid, which is a damaged media file, not a damaged cache.</summary>
+    /// <remarks>The record file gets the suffix <c>.refused</c>, so a restart does not bring the file back; the owner may restore it.</remarks>
     public void Refuse(UserId user, MediaId id, string reason)
     {
         UserMedia media = Readable(user);
         lock (media.Sync)
         {
-            if (media.Entries.Remove(id, out MediaEntry? removed))
+            if (!media.Entries.Remove(id, out MediaEntry? removed))
             {
-                media.TotalBytes -= removed.Record.Bytes;
-                media.Refused++;
-                MediaLog.RecordRefused(_logger, StorePaths.MediaFileName(id), reason);
+                return;
             }
+            media.TotalBytes -= removed.Record.Bytes;
+            media.Refused++;
+        }
+        MediaLog.RecordRefused(_logger, StorePaths.MediaFileName(id), reason);
+        string record = _root.Paths.MediaRecordFile(user, id);
+        try
+        {
+            File.Move(record, record + StorePaths.RefusedSuffix, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            MediaLog.NotRemoved(_logger, Path.GetFileName(record), exception.GetType().Name);
         }
     }
 
@@ -256,7 +310,7 @@ public sealed class MediaStore : IMediaCatalog
         return missing;
     }
 
-    /// <summary>Hides a file from <see cref="Find"/> and from reads; the first step of a delete.</summary>
+    /// <summary>Hides a file from <see cref="Find"/> (new references) while reads still see it; the first step of a delete.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
     /// <exception cref="MediaDeleteInProgressException">Another delete of the file has begun and may still be refused.</exception>
     public MediaRecord BeginDelete(UserId user, MediaId id)
@@ -339,30 +393,41 @@ public sealed class MediaStore : IMediaCatalog
         MediaUsage usage;
         lock (media.Sync)
         {
-            usage = new MediaUsage(
-                media.Entries.Count + media.UploadsAdmitted - (admitted ? 1 : 0),
-                media.TotalBytes + media.UploadBytes - ownBytes);
+            MediaUsage stored = UsageOf(media);
+            usage = new MediaUsage(stored.Files + media.UploadsAdmitted - (admitted ? 1 : 0), stored.Bytes + media.UploadBytes - ownBytes);
         }
         return await _quota.RefusalAsync(user, usage, incoming, cancellationToken);
     }
 
-    // Fails closed: a folder that cannot be read gives an index with nothing in it, which finds nothing.
+    // The folder is read without holding the index's lock; a lookup waits for nothing but the short merge.
     private UserMedia Loaded(UserId user)
     {
         UserMedia media = _users.GetOrAdd(user, _ => new UserMedia());
-        lock (media.Sync)
+        lock (media.LoadSync)
         {
-            if (!media.Loaded)
+            bool read;
+            lock (media.Sync)
             {
-                media.Loaded = Load(user, media);
-                media.LastAttempt = _time.GetUtcNow();
+                read = media.Loaded || _time.GetUtcNow() < media.NextLoadAttempt;
             }
-            else if (media.Unreadable.Count > 0 && _time.GetUtcNow() - media.LastAttempt >= _retryAfter)
+            if (!read)
             {
-                RetryUnreadable(user, media);
+                Load(user, media);
             }
         }
         return media;
+    }
+
+    private UserMedia? LoadedOnly(UserId user)
+    {
+        if (!_users.TryGetValue(user, out UserMedia? media))
+        {
+            return null;
+        }
+        lock (media.Sync)
+        {
+            return media.Loaded ? media : null;
+        }
     }
 
     private UserMedia Readable(UserId user)
@@ -374,26 +439,44 @@ public sealed class MediaStore : IMediaCatalog
         }
     }
 
-    // The folder is read into a list of its own and merged only when all of it was listed, so a failure part way changes nothing.
-    private bool Load(UserId user, UserMedia media)
+    private static MediaUsage UsageOf(UserMedia media)
+    {
+        return new MediaUsage(media.Entries.Count + media.Unreadable.Count, media.TotalBytes + media.Unreadable.Sum(record => record.Bytes));
+    }
+
+    // All of the folder is listed and read first, and merged only when none of the listing failed, so a failure part way changes nothing.
+    private void Load(UserId user, UserMedia media)
     {
         string directory = _root.Paths.MediaDirectory(user);
         List<MediaEntry> found = [];
-        List<string> unreadable = [];
+        List<UnreadableRecord> unreadable = [];
         int refused = 0;
         try
         {
             if (Directory.Exists(directory))
             {
-                foreach (string file in Directory.EnumerateFiles(directory).Where(file => StorePaths.IsRecordFileName(Path.GetFileName(file))))
+                foreach (string file in Directory.EnumerateFiles(directory))
                 {
-                    if (TryLoadRecord(user, file, unreadable) is { } entry)
-                    {
-                        found.Add(entry);
-                    }
-                    else
+                    string name = Path.GetFileName(file);
+                    if (StorePaths.IsRefusedFileName(name))
                     {
                         refused++;
+                    }
+                    else if (StorePaths.IsRecordFileName(name))
+                    {
+                        (ReadOutcome outcome, MediaEntry? entry) = TryRead(user, file, log: true);
+                        switch (outcome)
+                        {
+                            case ReadOutcome.Ok:
+                                found.Add(entry!);
+                                break;
+                            case ReadOutcome.Invalid:
+                                refused++;
+                                break;
+                            case ReadOutcome.Unreadable:
+                                unreadable.Add(NewUnreadable(file));
+                                break;
+                        }
                     }
                 }
             }
@@ -401,41 +484,87 @@ public sealed class MediaStore : IMediaCatalog
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             MediaLog.FolderUnreadable(_logger, exception.GetType().Name);
-            return false;
-        }
-        foreach (MediaEntry entry in found)
-        {
-            if (media.Entries.TryAdd(entry.Record.Id, entry))
+            lock (media.Sync)
             {
-                media.TotalBytes += entry.Record.Bytes;
+                media.NextLoadAttempt = _time.GetUtcNow() + _retryDelays[0];
             }
+            return;
         }
-        media.Refused += refused;
-        media.Unreadable.AddRange(unreadable);
-        return true;
-    }
-
-    // A record another process held is tried again, so a passing lock by a scanner is not permanent.
-    private void RetryUnreadable(UserId user, UserMedia media)
-    {
-        string[] files = [.. media.Unreadable];
-        media.Unreadable.Clear();
-        media.LastAttempt = _time.GetUtcNow();
-        foreach (string file in files)
+        lock (media.Sync)
         {
-            if (TryLoadRecord(user, file, media.Unreadable) is { } entry)
+            foreach (MediaEntry entry in found)
             {
-                media.Refused--;
                 if (media.Entries.TryAdd(entry.Record.Id, entry))
                 {
                     media.TotalBytes += entry.Record.Bytes;
                 }
             }
+            media.Refused += refused;
+            media.Unreadable.AddRange(unreadable);
+            media.Loaded = true;
         }
     }
 
-    // Null for a record that is refused, which is logged once: a bad record never hides the others.
-    private MediaEntry? TryLoadRecord(UserId user, string file, List<string> unreadable)
+    // A record another process held is tried again at growing intervals and then given up on, so a passing lock by a scanner is not
+    // permanent and a lasting one does not fill the log; the record counts against the quota until it can be read.
+    private void RetryDue(UserId user, UserMedia media)
+    {
+        lock (media.LoadSync)
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            UnreadableRecord[] due;
+            lock (media.Sync)
+            {
+                due = [.. media.Unreadable.Where(record => !record.Terminal && record.NextAttempt <= now)];
+            }
+            foreach (UnreadableRecord record in due)
+            {
+                (ReadOutcome outcome, MediaEntry? entry) = TryRead(user, record.Path, log: false);
+                lock (media.Sync)
+                {
+                    if (outcome == ReadOutcome.Unreadable)
+                    {
+                        record.Attempts++;
+                        record.Terminal = record.Attempts > _retryDelays.Length;
+                        record.NextAttempt = record.Terminal ? DateTimeOffset.MaxValue : now + _retryDelays[record.Attempts - 1];
+                        if (record.Terminal)
+                        {
+                            MediaLog.RecordGivenUp(_logger, Path.GetFileName(record.Path));
+                        }
+                        continue;
+                    }
+                    media.Unreadable.Remove(record);
+                    if (outcome == ReadOutcome.Ok && media.Entries.TryAdd(entry!.Record.Id, entry))
+                    {
+                        media.TotalBytes += entry.Record.Bytes;
+                    }
+                    else if (outcome == ReadOutcome.Invalid)
+                    {
+                        media.Refused++;
+                    }
+                }
+            }
+        }
+    }
+
+    private UnreadableRecord NewUnreadable(string recordFile)
+    {
+        FileInfo data = new(Path.ChangeExtension(recordFile, StorePaths.DataExtension));
+        long bytes = 0;
+        try
+        {
+            bytes = data.Exists ? data.Length : 0;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The size is only for the quota: an unknown size counts as none and the file still counts as a file.
+            MediaLog.NotRemoved(_logger, data.Name, exception.GetType().Name);
+        }
+        return new UnreadableRecord(recordFile, bytes, _time.GetUtcNow() + _retryDelays[0]);
+    }
+
+    // A record that is not there any more is Gone and is dropped; one that is refused is logged once; one that cannot be read is retried.
+    private (ReadOutcome Outcome, MediaEntry? Entry) TryRead(UserId user, string file, bool log)
     {
         string name = Path.GetFileName(file);
         try
@@ -444,20 +573,28 @@ public sealed class MediaStore : IMediaCatalog
             List<string> problems = Problems(user, name, record);
             if (problems.Count == 0)
             {
-                return new MediaEntry(record);
+                return (ReadOutcome.Ok, new MediaEntry(record));
             }
             MediaLog.RecordRefused(_logger, name, string.Join("; ", problems));
+            return (ReadOutcome.Invalid, null);
         }
         catch (ProjectFormatException exception)
         {
             MediaLog.RecordRefused(_logger, name, string.Join("; ", exception.Problems));
+            return (ReadOutcome.Invalid, null);
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return (ReadOutcome.Gone, null);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            unreadable.Add(file);
-            MediaLog.RecordRefused(_logger, name, exception.GetType().Name);
+            if (log)
+            {
+                MediaLog.RecordRefused(_logger, name, exception.GetType().Name);
+            }
+            return (ReadOutcome.Unreadable, null);
         }
-        return null;
     }
 
     private static MediaRecord ReadRecord(string path)
@@ -522,7 +659,9 @@ public sealed class MediaStore : IMediaCatalog
             foreach (string file in Directory.EnumerateFiles(media))
             {
                 string? record = StorePaths.RecordNameOfData(Path.GetFileName(file));
-                if (record is not null && !File.Exists(Path.Combine(media, record)) && TryDelete(file))
+                bool owned = record is not null
+                    && (File.Exists(Path.Combine(media, record)) || File.Exists(Path.Combine(media, record + StorePaths.RefusedSuffix)));
+                if (record is not null && !owned && TryDelete(file))
                 {
                     removed++;
                 }

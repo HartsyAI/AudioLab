@@ -117,7 +117,10 @@ public sealed class ProjectSession
     }
 
     /// <summary>Replaces the document with the result of <paramref name="change"/>, which runs under the session's lock and must be quick and free of side effects.</summary>
-    /// <remarks>A direct change is not a command, so it drops the undo history: the next command starts a new one.</remarks>
+    /// <remarks>
+    /// A direct change is not a command, so it drops the undo history: the next command starts a new one, and it is not checked
+    /// against the media catalog. It is for the server's own use and tests, never for a document a client sent.
+    /// </remarks>
     /// <returns>The new snapshot, or the current one when the change leaves the document equal to what it was.</returns>
     /// <exception cref="SessionClosedException">The session is closed.</exception>
     /// <exception cref="ProjectFormatException">The result breaks a rule of <see cref="ProjectValidator"/>; the document is left as it was.</exception>

@@ -150,7 +150,7 @@ public sealed class MediaPeaksTests
         Assert.Equal(5, listing.Files.Count);
         foreach (MediaRecord record in damaged)
         {
-            Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+            Assert.Equal(record, await store.FindAsync(Users.Alice, record.Id));
         }
         for (int index = 0; index < 4; index++)
         {
@@ -235,9 +235,17 @@ public sealed class MediaPeaksTests
 
         await Assert.ThrowsAsync<MediaNotFoundException>(() => PeaksOfAsync(store, Users.Alice, record));
 
-        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
         Assert.Equal(1, store.MediaFiles.List(Users.Alice).Refused);
-        Assert.Equal(keeper, store.Media.Find(Users.Alice, keeper.Id));
+        Assert.Equal(keeper, await store.FindAsync(Users.Alice, keeper.Id));
+        Assert.True(File.Exists(store.Paths.MediaRecordFile(Users.Alice, record.Id) + ".refused"));
+        Assert.False(File.Exists(store.Paths.MediaRecordFile(Users.Alice, record.Id)));
+
+        store.Crash();
+        await using TestStore restarted = TestStore.On(folder.Path);
+        Assert.Null(await restarted.FindAsync(Users.Alice, record.Id));
+        Assert.Equal(1, restarted.MediaFiles.List(Users.Alice).Refused);
+        Assert.True(File.Exists(restarted.Paths.MediaDataFile(Users.Alice, record.Id)));
     }
 
     [Fact]
@@ -375,6 +383,31 @@ public sealed class MediaPeaksTests
         gate.SetResult();
         Assert.Equal(original, await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks"));
         Assert.True(File.Exists(file));
+    }
+
+    [Fact]
+    public async Task APeakFileDamagedOnDiskIsServedRebuiltOverHttpAndNeverAsAnError()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        using HttpResponseMessage created = await server.Client.PostAsync("/api/media?name=a.wav", WavContent(Wav()));
+        MediaSummary summary = (await created.Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaSummary))!;
+        byte[] original = await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks");
+        string file = Directory.GetFiles(server.StoreFolder, "m*.peaks", SearchOption.AllDirectories).Single();
+
+        foreach (Action damage in new Action[]
+        {
+            () => File.WriteAllBytes(file, [1, 2, 3]),
+            () => File.WriteAllBytes(file, original[..(original.Length - 7)]),
+            () => File.WriteAllBytes(file, [.. original, 0]),
+            () => File.WriteAllBytes(file, []),
+        })
+        {
+            damage();
+            using HttpResponseMessage response = await server.Client.GetAsync($"/api/media/{summary.Id}/peaks");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(original, await response.Content.ReadAsByteArrayAsync());
+        }
+        Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync($"/api/media/{summary.Id}")).StatusCode);
     }
 
     [Fact]

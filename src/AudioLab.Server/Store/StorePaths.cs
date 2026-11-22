@@ -17,6 +17,9 @@ public sealed partial class StorePaths
     /// <summary>The extension of the stored peaks of a media file.</summary>
     public const string PeaksExtension = ".peaks";
 
+    /// <summary>What is added to a media record's file name when the file is refused for good, so it is no longer read.</summary>
+    public const string RefusedSuffix = ".refused";
+
     private const int NameHexLength = 32;
 
     private readonly string _root;
@@ -89,6 +92,9 @@ public sealed partial class StorePaths
     /// <summary>Whether a file name is one the store could have written for a project or media record.</summary>
     public static bool IsRecordFileName(string fileName) => RecordNamePattern().IsMatch(fileName);
 
+    /// <summary>Whether a file name is a media record that was refused for good.</summary>
+    public static bool IsRefusedFileName(string fileName) => RefusedNamePattern().IsMatch(fileName);
+
     /// <summary>Whether a file name is a temporary file an interrupted write left behind.</summary>
     public static bool IsLeftoverTemp(string fileName) => TempNamePattern().IsMatch(fileName);
 
@@ -119,4 +125,7 @@ public sealed partial class StorePaths
 
     [GeneratedRegex(@"\Am[0-9a-f]{32}\.(wav|peaks)\z", RegexOptions.CultureInvariant)]
     private static partial Regex DataNamePattern();
+
+    [GeneratedRegex(@"\Am[0-9a-f]{32}\.json\.refused\z", RegexOptions.CultureInvariant)]
+    private static partial Regex RefusedNamePattern();
 }

@@ -76,27 +76,43 @@ public static class MediaRules
                 MediaRecord? record = catalog.FindIncludingPendingDelete(document.Owner, clip.Media);
                 if (record is null)
                 {
-                    problems.Add($"clip {clip.Id.Value}: {NotFoundMessage}");
+                    problems.Add($"clip {clip.Id.Value} (media {clip.Media.Value}): {NotFoundMessage}");
                 }
                 else if (DurationProblem(clip, record) is { } problem)
                 {
-                    problems.Add($"clip {clip.Id.Value}: {problem}");
+                    problems.Add($"clip {clip.Id.Value} (media {clip.Media.Value}): {problem}");
                 }
             }
             SamplerInstrument? sampler = track.Instrument as SamplerInstrument;
             if (sampler?.Sample is { } sample && catalog.FindIncludingPendingDelete(document.Owner, sample) is null)
             {
-                problems.Add($"track {track.Id.Value}: sampler: {NotFoundMessage}");
+                problems.Add($"track {track.Id.Value} (sampler media {sample.Value}): {NotFoundMessage}");
             }
         }
         foreach (BeatLane lane in document.BeatPattern.Lanes)
         {
             if (lane.Media is { } media && catalog.FindIncludingPendingDelete(document.Owner, media) is null)
             {
-                problems.Add($"lane {lane.Id.Value}: {NotFoundMessage}");
+                problems.Add($"lane {lane.Id.Value} (media {media.Value}): {NotFoundMessage}");
             }
         }
         return problems.ToList();
+    }
+
+    /// <summary>The first media file the document names whose delete has begun, or null.</summary>
+    /// <remarks>A document that names such a file must not be taken up: a project opened while the delete searches could be missed.</remarks>
+    public static MediaId? DeletingMedia(ProjectDocument document, IMediaCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(catalog);
+        foreach (MediaId media in ProjectContent.ReferencedMedia(document))
+        {
+            if (catalog.IsDeleting(document.Owner, media))
+            {
+                return media;
+            }
+        }
+        return null;
     }
 
     private static string? DurationProblem(AudioClip clip, MediaRecord record)
@@ -108,6 +124,7 @@ public static class MediaRules
         }
         string given = clip.Duration.ToString("R", CultureInfo.InvariantCulture);
         string actual = record.Duration.ToString("R", CultureInfo.InvariantCulture);
-        return $"the clip's duration of {given} s is not the media file's {actual} s, within one sample period ({tolerance:G3} s).";
+        string within = tolerance.ToString("G3", CultureInfo.InvariantCulture);
+        return $"the clip's duration of {given} s is not the media file's {actual} s, within one sample period ({within} s).";
     }
 }

@@ -17,7 +17,8 @@ public sealed class TestStore : IAsyncDisposable
         CommandRegistry? registry,
         IProjectEvents? events,
         MediaOptions mediaOptions,
-        Func<Task>? beforeRebuild)
+        Func<Task>? beforeRebuild,
+        Func<Task>? betweenPasses)
     {
         Folder = folder;
         Options = options with { Root = folder };
@@ -30,7 +31,7 @@ public sealed class TestStore : IAsyncDisposable
         Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), mediaOptions, Time, NullLogger<MediaStore>.Instance);
         Media.SweepOrphans();
         Open = new OpenProjects(Projects, Options, Time, Registry, Media, Ids, NullLogger<OpenProjects>.Instance);
-        MediaReferences references = new(Open, Projects, NullLogger<MediaReferences>.Instance);
+        MediaReferences references = new(Open, Projects, NullLogger<MediaReferences>.Instance, betweenPasses);
         Rebuilder = new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, beforeRebuild);
         MediaFiles = new MediaService(Media, references, Root, Ids, mediaOptions, Time, Rebuilder, NullLogger<MediaService>.Instance);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
@@ -73,15 +74,23 @@ public sealed class TestStore : IAsyncDisposable
         CommandRegistry? registry = null,
         IProjectEvents? events = null,
         MediaOptions? media = null,
-        Func<Task>? beforeRebuild = null)
+        Func<Task>? beforeRebuild = null,
+        Func<Task>? betweenPasses = null)
     {
-        return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions(), beforeRebuild);
+        return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions(), beforeRebuild, betweenPasses);
     }
 
     /// <summary>Uploads a file as a user would, through the service, with the body arriving as a stream.</summary>
     public Task<MediaRecord> UploadAsync(UserId user, byte[] file, string name = "kick.wav")
     {
         return MediaFiles.UploadAsync(user, name, new MemoryStream(file), file.Length, CancellationToken.None);
+    }
+
+    /// <summary>The user's file as the command pipeline sees it: the media folder is read first, as the server does before it asks.</summary>
+    public async Task<MediaRecord?> FindAsync(UserId user, MediaId id)
+    {
+        await Media.PrepareAsync(user);
+        return Media.Find(user, id);
     }
 
     public string ProjectFile(UserId user, string projectId) => Paths.ProjectFile(user, ProjectId.From(projectId));

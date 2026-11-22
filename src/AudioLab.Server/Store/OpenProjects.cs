@@ -56,17 +56,28 @@ public sealed class OpenProjects(
         }
     }
 
-    /// <summary>Refuses a document that names media its owner does not have, or plays them at another length than the file has.</summary>
-    /// <remarks>A document read from a file has not been through a command. A missing file and another user's are told alike.</remarks>
-    /// <exception cref="ProjectFormatException">The document names such media; the problems are listed.</exception>
+    /// <summary>Refuses a document that names media its owner lacks, plays it at another length, or names a file being deleted.</summary>
+    /// <remarks>
+    /// A document read from a file has not been through a command. A missing file and another user's are told alike, with the
+    /// ids the project itself names. A file whose delete has begun is refused too, so that a project opened while the delete
+    /// searches cannot slip past it; the delete is then refused or finished, and a later try succeeds or says the file is gone.
+    /// </remarks>
+    /// <exception cref="IOException">The user's media cannot be read, which is a store failure to retry, not a verdict on the project.</exception>
+    /// <exception cref="MediaDeleteInProgressException">The document names a file that is being deleted.</exception>
+    /// <exception cref="ProjectFormatException">The document names media that is missing or has another length; the problems are listed.</exception>
     public async Task RequireMediaAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        await media.PrepareAsync(document.Owner).WaitAsync(cancellationToken);
+        await media.PrepareAsync(document.Owner, cancellationToken);
+        media.RequireReadable(document.Owner);
         IReadOnlyList<string> problems = MediaRules.DocumentProblems(document, media);
         if (problems.Count > 0)
         {
-            throw new ProjectFormatException("The project names media the user does not have:", problems);
+            throw new ProjectFormatException("The project cannot be opened because of the media files it names:", problems);
+        }
+        if (MediaRules.DeletingMedia(document, media) is not null)
+        {
+            throw new MediaDeleteInProgressException();
         }
     }
 

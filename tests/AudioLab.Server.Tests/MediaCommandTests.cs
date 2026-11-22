@@ -143,29 +143,39 @@ public sealed partial class MediaCommandTests
     [Fact]
     public void CommandsThatNameMediaAreAllCoveredHere()
     {
-        CommandRegistry registry = CoreCommands.CreateRegistry();
-        Type[] carriers =
-        [
-            typeof(AudioClip), typeof(BeatLane), typeof(Instrument), typeof(SamplerInstrument), typeof(Track), typeof(ProjectDocument),
-        ];
-        static bool NamesMedia(Type type) => type == typeof(MediaId) || type == typeof(MediaId?);
-
         string[] naming =
         [
-            .. registry.Commands
-                .Where(descriptor => descriptor.CommandType.GetProperties().Any(property => NamesMedia(property.PropertyType)))
+            .. CoreCommands.CreateRegistry().Commands
+                .Where(descriptor => Reaches(descriptor.CommandType, []))
                 .Select(descriptor => descriptor.Name)
                 .Order(StringComparer.Ordinal),
         ];
-        string[] embedding =
-        [
-            .. registry.Commands
-                .Where(descriptor => descriptor.CommandType.GetProperties().Any(property => carriers.Contains(property.PropertyType)))
-                .Select(descriptor => descriptor.Name),
-        ];
 
         Assert.Equal(_covered, naming);
-        Assert.Empty(embedding);
+    }
+
+    // Whether a media id can be reached from the type through its properties, its generic arguments and its elements, however deep.
+    private static bool Reaches(Type type, HashSet<Type> seen)
+    {
+        Type inner = Nullable.GetUnderlyingType(type) ?? type;
+        if (inner == typeof(MediaId))
+        {
+            return true;
+        }
+        if (inner.IsPrimitive || inner.IsEnum || inner == typeof(string) || !seen.Add(inner))
+        {
+            return false;
+        }
+        IEnumerable<Type> parts = inner.GetGenericArguments();
+        if (inner.GetElementType() is { } element)
+        {
+            parts = parts.Append(element);
+        }
+        if (inner.Assembly == typeof(MediaId).Assembly)
+        {
+            parts = parts.Concat(inner.GetProperties().Select(property => property.PropertyType));
+        }
+        return parts.Any(part => Reaches(part, seen));
     }
 
     [Fact]
@@ -183,7 +193,7 @@ public sealed partial class MediaCommandTests
     }
 
     [Fact]
-    public async Task AFileBeingDeletedCannotBeNewlyNamedButADocumentThatNamesItStillWorks()
+    public async Task AFileBeingDeletedCannotBeNewlyNamedAndAProjectThatNamesItCannotBeOpenedOrCopiedMeanwhile()
     {
         using TempFolder folder = new();
         (TestStore store, ProjectId project, MediaRecord own, _) = await StartAsync(folder);
@@ -193,47 +203,108 @@ public sealed partial class MediaCommandTests
         string track = (await DocumentAsync(store, project)).Tracks.Single().Id.Value;
         string Add(MediaRecord media) => $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{Seconds(media.Duration)}";
 
-        Assert.NotNull(store.Media.BeginDelete(Users.Alice, spare.Id));
-        Assert.NotNull(store.Media.BeginDelete(Users.Alice, own.Id));
+        store.Media.BeginDelete(Users.Alice, spare.Id);
+        store.Media.BeginDelete(Users.Alice, own.Id);
         await RefusedAsync(store, project, "clip_add", Add(spare), CommandErrorCode.NotFound);
         await OkAsync(store, project, "clip_duplicate", $"\"clip\":\"{clip}\"");
+        await store.Service.SaveAsync(Users.Alice, project, _none);
         await store.Open.CloseAsync(Users.Alice, project, _none);
-        Assert.Equal(2, (await DocumentAsync(store, project)).Tracks.Single().Clips.Count);
 
+        await Assert.ThrowsAsync<MediaDeleteInProgressException>(() => store.Service.OpenAsync(Users.Alice, project, _none));
+        await Assert.ThrowsAsync<MediaDeleteInProgressException>(() => store.Service.DuplicateAsync(Users.Alice, project, null, _none));
+        Assert.Null(store.Open.SessionIfOpen(Users.Alice, project));
+
+        store.Media.CancelDelete(Users.Alice, own.Id);
+        Assert.Equal(2, (await DocumentAsync(store, project)).Tracks.Single().Clips.Count);
         store.Media.CancelDelete(Users.Alice, spare.Id);
         await OkAsync(store, project, "clip_add", Add(spare));
     }
 
     [Fact]
-    public async Task ADeleteAndAClipAddRacingForTheSameFileNeverLeaveAClipOfADeletedFile()
+    public async Task AProjectOpenedWhileADeleteSearchesCannotSlipPastItAndUndoNeverBringsBackAClipOfADeletedFile()
+    {
+        using TempFolder folder = new();
+        TaskCompletionSource reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource go = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using TestStore store = TestStore.On(
+            folder.Path,
+            registry: CoreCommands.CreateRegistry(),
+            betweenPasses: async () =>
+            {
+                reached.TrySetResult();
+                await go.Task;
+            });
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav(), "m.wav");
+        ProjectId project = await NewProjectAsync(store, Users.Alice, "P");
+        string clip = await AddClipAsync(store, Users.Alice, project, media);
+        await store.Service.SaveAsync(Users.Alice, project, _none);
+        await store.Open.CloseAsync(Users.Alice, project, _none);
+
+        // The delete has looked at the open projects (none) and is about to read the stored ones.
+        Task delete = Task.Run(() => store.MediaFiles.DeleteAsync(Users.Alice, media.Id, _none));
+        await reached.Task;
+        await Assert.ThrowsAsync<MediaDeleteInProgressException>(() => store.Service.OpenAsync(Users.Alice, project, _none));
+        go.SetResult();
+        await Assert.ThrowsAsync<MediaInUseException>(() => delete);
+
+        // Nothing was lost: the file is back, the project opens, and undo and redo still work on it.
+        Assert.Equal(media, await store.FindAsync(Users.Alice, media.Id));
+        Assert.Single((await DocumentAsync(store, project)).Tracks.Single().Clips);
+        Assert.True((await ApplyAsync(store, Users.Alice, project, "clip_delete", $"\"clip\":\"{clip}\"")).Succeeded);
+        await Assert.ThrowsAsync<MediaInUseException>(() => store.MediaFiles.DeleteAsync(Users.Alice, media.Id, _none));
+        Assert.True((await store.Edits.UndoAsync(Users.Alice, project, _none)).Succeeded);
+        Assert.True((await store.Edits.RedoAsync(Users.Alice, project, _none)).Succeeded);
+        Assert.True((await store.Edits.UndoAsync(Users.Alice, project, _none)).Succeeded);
+        Assert.Single((await DocumentAsync(store, project)).Tracks.Single().Clips);
+    }
+
+    [Fact]
+    public async Task AClipAddThatArrivesWhileADeleteSearchesIsRefusedAndTheDeleteGoesThrough()
+    {
+        using TempFolder folder = new();
+        TaskCompletionSource reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource go = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using TestStore store = TestStore.On(
+            folder.Path,
+            registry: CoreCommands.CreateRegistry(),
+            betweenPasses: async () =>
+            {
+                reached.TrySetResult();
+                await go.Task;
+            });
+        ProjectId project = await NewProjectAsync(store, Users.Alice);
+        string track = await AddTrackAsync(store, Users.Alice, project);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav(480), "race.wav");
+        string members = $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{Seconds(media.Duration)}";
+
+        Task delete = Task.Run(() => store.MediaFiles.DeleteAsync(Users.Alice, media.Id, _none));
+        await reached.Task;
+        CommandReply add = await ApplyAsync(store, Users.Alice, project, "clip_add", members);
+        go.SetResult();
+        await delete;
+
+        Assert.False(add.Succeeded);
+        Assert.Equal(CommandErrorCode.NotFound, add.Errors.Single().Code);
+        Assert.Null(await store.FindAsync(Users.Alice, media.Id));
+        Assert.DoesNotContain(media.Id, ProjectContent.ReferencedMedia(await DocumentAsync(store, project)));
+    }
+
+    [Fact]
+    public async Task AClipAddThatLandsBeforeADeleteIsSearchedMakesTheDeleteRefuseAndKeepTheFile()
     {
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path, registry: CoreCommands.CreateRegistry());
         ProjectId project = await NewProjectAsync(store, Users.Alice);
         string track = await AddTrackAsync(store, Users.Alice, project);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav(480), "race.wav");
+        string members = $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{Seconds(media.Duration)}";
 
-        for (int round = 0; round < 40; round++)
-        {
-            MediaRecord media = await store.UploadAsync(Users.Alice, Wav(480), $"race-{round}.wav");
-            string members = $"\"track\":\"{track}\",\"media\":\"{media.Id.Value}\",\"duration\":{Seconds(media.Duration)}";
-            Task<CommandReply> add = Task.Run(() => ApplyAsync(store, Users.Alice, project, "clip_add", members));
-            Task delete = Task.Run(() => store.MediaFiles.DeleteAsync(Users.Alice, media.Id, _none));
-            try
-            {
-                await delete;
-            }
-            catch (MediaInUseException)
-            {
-                // The add won: its clip must be there.
-            }
-            CommandReply reply = await add;
+        CommandReply add = await ApplyAsync(store, Users.Alice, project, "clip_add", members);
+        await Assert.ThrowsAsync<MediaInUseException>(() => store.MediaFiles.DeleteAsync(Users.Alice, media.Id, _none));
 
-            bool deleted = store.Media.Find(Users.Alice, media.Id) is null;
-            bool referenced = ProjectContent.ReferencedMedia(await DocumentAsync(store, project)).Contains(media.Id);
-            Assert.False(deleted && referenced, $"round {round}: the file is gone but a clip still plays it");
-            string state = referenced ? "there" : "not there";
-            Assert.True(reply.Succeeded == referenced, $"round {round}: the add said {reply.Succeeded} but the clip is {state}");
-        }
+        Assert.True(add.Succeeded);
+        Assert.Equal(media, await store.FindAsync(Users.Alice, media.Id));
+        Assert.Contains(media.Id, ProjectContent.ReferencedMedia(await DocumentAsync(store, project)));
     }
 
     [Fact]
@@ -263,10 +334,14 @@ public sealed partial class MediaCommandTests
         IReadOnlyList<string> missing = await OpenWith(good.Replace(own.Id.Value, "med_nothing", StringComparison.Ordinal));
         IReadOnlyList<string> theirs = await OpenWith(good.Replace(own.Id.Value, foreign.Id.Value, StringComparison.Ordinal));
         IReadOnlyList<string> wrongLength = await OpenWith(DurationPattern().Replace(good, "\"duration\":9.5"));
-        Assert.Equal(missing, theirs);
+        string alike = missing.Single().Replace("med_nothing", "ID", StringComparison.Ordinal);
+        Assert.Equal(alike, theirs.Single().Replace(foreign.Id.Value, "ID", StringComparison.Ordinal));
         Assert.StartsWith("clip ", missing.Single(), StringComparison.Ordinal);
-        Assert.DoesNotContain(foreign.Id.Value, string.Join(' ', theirs), StringComparison.Ordinal);
+        Assert.Contains("(media med_nothing)", missing.Single(), StringComparison.Ordinal);
+        Assert.Contains("no such media file", theirs.Single(), StringComparison.Ordinal);
         Assert.Contains("9.5 s", wrongLength.Single(), StringComparison.Ordinal);
+        Assert.Contains($"(media {own.Id.Value})", wrongLength.Single(), StringComparison.Ordinal);
+        Assert.DoesNotContain("no such media file", wrongLength.Single(), StringComparison.Ordinal);
 
         await File.WriteAllTextAsync(file, good);
         Assert.NotNull(await store.Service.OpenAsync(Users.Alice, project, _none));
@@ -302,7 +377,7 @@ public sealed partial class MediaCommandTests
 
         Assert.Single((await DocumentAsync(store, project)).Tracks.Single().Clips);
         await OkAsync(store, project, "clip_move", $"\"clip\":\"{clip}\",\"start\":2");
-        Assert.Equal(own, store.Media.Find(Users.Alice, own.Id));
+        Assert.Equal(own, await store.FindAsync(Users.Alice, own.Id));
     }
 
     [GeneratedRegex("\"duration\":[0-9.]+")]
