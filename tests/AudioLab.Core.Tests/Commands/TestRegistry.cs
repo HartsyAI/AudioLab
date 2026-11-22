@@ -16,6 +16,9 @@ internal static class TestRegistry
             .Add("nothing", "Changes nothing.", json.NothingCommand, (document, _, _) => CommandResult.Ok(document))
             .Add("refused", "Is always refused.", json.RefusedCommand, Refused)
             .Add("hijack", "Tries to give the project to another user.", json.HijackCommand, Hijack)
+            .Add("change_id", "Tries to give the project another id.", json.ChangeIdCommand, ChangeId)
+            .Add("change_version", "Tries to change the format version.", json.ChangeVersionCommand, ChangeVersion)
+            .Add("mint_only", "Allocates an id and changes nothing.", json.MintOnlyCommand, MintOnly)
             .Add("break", "Adds markers with no name.", json.BreakCommand, Break)
             .Add("shape", "Carries every kind of member.", json.ShapeCommand, (document, _, _) => CommandResult.Ok(document))
             .Build();
@@ -52,6 +55,21 @@ internal static class TestRegistry
     private static CommandResult Hijack(ProjectDocument document, HijackCommand command, IIdService ids)
     {
         return CommandResult.Ok(document with { Owner = command.NewOwner });
+    }
+
+    private static CommandResult ChangeId(ProjectDocument document, ChangeIdCommand command, IIdService ids)
+    {
+        return CommandResult.Ok(document with { Id = ProjectId.From("another-project") });
+    }
+
+    private static CommandResult ChangeVersion(ProjectDocument document, ChangeVersionCommand command, IIdService ids)
+    {
+        return CommandResult.Ok(document with { Version = 3 });
+    }
+
+    private static CommandResult MintOnly(ProjectDocument document, MintOnlyCommand command, IIdService ids)
+    {
+        return CommandResult.Ok(document, ids.Next<MarkerId>().Value);
     }
 
     private static CommandResult Break(ProjectDocument document, BreakCommand command, IIdService ids)

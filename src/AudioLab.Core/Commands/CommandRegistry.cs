@@ -42,6 +42,12 @@ public sealed class CommandRegistry
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(json);
+        if (json.Length > ProjectLimits.MaxCommandLength)
+        {
+            return CommandParseResult.Refuse(
+                CommandErrorCode.Malformed,
+                $"The command is longer than the {ProjectLimits.MaxCommandLength} characters a command may have.");
+        }
         if (_byName.TryGetValue(name, out CommandRegistration? entry))
         {
             return entry.Parse(json);
@@ -83,7 +89,9 @@ public sealed class CommandRegistry
         }
         if (after == before)
         {
-            return result;
+            return result.Created.Count == 0
+                ? result
+                : CommandResult.Refuse(CommandErrorCode.Invalid, "a handler allocated ids but changed nothing.");
         }
         IReadOnlyList<string> problems = ProjectValidator.Validate(after);
         return problems.Count == 0

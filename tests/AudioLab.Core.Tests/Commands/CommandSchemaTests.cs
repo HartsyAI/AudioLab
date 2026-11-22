@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Tests;
 
@@ -75,5 +78,58 @@ public sealed class CommandSchemaTests
         JsonElement level = _schema.GetProperty("properties").GetProperty("level");
 
         Assert.Equal("number", level.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public void NoMemberOfTheProjectModelHasAnEmptySchema()
+    {
+        JsonTypeInfo[] roots = [ProjectJsonContext.Default.ProjectDocument, ProjectJsonContext.Default.MediaRecord];
+        List<string> empty = [];
+
+        foreach (JsonTypeInfo root in roots)
+        {
+            Walk(CommandSchema.For(root), root.Type.Name, empty);
+        }
+
+        Assert.Empty(empty);
+    }
+
+    [Fact]
+    public void ANoteIdIsAWholeNumberFromOne()
+    {
+        JsonElement note = CommandSchema.For(ProjectJsonContext.Default.MidiClip)
+            .GetProperty("properties").GetProperty("nextNoteId");
+
+        Assert.Equal("integer", note.GetProperty("type").GetString());
+        Assert.Equal(1, note.GetProperty("minimum").GetInt32());
+    }
+
+    // A node that says nothing about its value, which is what an unhandled custom converter yields.
+    private static void Walk(JsonElement node, string path, List<string> empty)
+    {
+        string[] describing = ["type", "enum", "anyOf", "oneOf", "allOf", "$ref", "const", "properties"];
+        if (node.ValueKind != JsonValueKind.Object || !describing.Any(key => node.TryGetProperty(key, out _)))
+        {
+            empty.Add(path);
+            return;
+        }
+        if (node.TryGetProperty("properties", out JsonElement properties))
+        {
+            foreach (JsonProperty property in properties.EnumerateObject())
+            {
+                Walk(property.Value, $"{path}.{property.Name}", empty);
+            }
+        }
+        if (node.TryGetProperty("items", out JsonElement items))
+        {
+            Walk(items, $"{path}[]", empty);
+        }
+        if (node.TryGetProperty("anyOf", out JsonElement alternatives))
+        {
+            foreach (JsonElement alternative in alternatives.EnumerateArray())
+            {
+                Walk(alternative, path, empty);
+            }
+        }
     }
 }

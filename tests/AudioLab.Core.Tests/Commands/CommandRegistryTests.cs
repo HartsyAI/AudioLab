@@ -100,6 +100,25 @@ public sealed class CommandRegistryTests
     }
 
     [Fact]
+    public void ACommandCannotChangeTheIdOrTheVersionOfTheProject()
+    {
+        CommandResult id = _registry.Execute(_project, new ChangeIdCommand { Project = _project.Id }, TestRegistry.Ids());
+        CommandResult version = _registry.Execute(_project, new ChangeVersionCommand { Project = _project.Id }, TestRegistry.Ids());
+
+        Assert.Equal(CommandErrorCode.Invalid, Assert.Single(id.Errors).Code);
+        Assert.Equal(CommandErrorCode.Invalid, Assert.Single(version.Errors).Code);
+    }
+
+    [Fact]
+    public void AHandlerThatAllocatesIdsButChangesNothingIsRefused()
+    {
+        CommandResult result = _registry.Execute(_project, new MintOnlyCommand { Project = _project.Id }, TestRegistry.Ids());
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(CommandErrorCode.Invalid, Assert.Single(result.Errors).Code);
+    }
+
+    [Fact]
     public void ACommandThatChangesNothingSucceedsWithTheSameDocument()
     {
         CommandResult result = _registry.Execute(_project, new NothingCommand { Project = _project.Id }, TestRegistry.Ids());
@@ -114,7 +133,10 @@ public sealed class CommandRegistryTests
         IReadOnlyList<CommandDescriptor> commands = _registry.Commands;
 
         Assert.Equal(
-            ["add_marker", "break", "hijack", "nothing", "refused", "rename_project", "set_bpm", "shape"],
+            [
+                "add_marker", "break", "change_id", "change_version", "hijack", "mint_only", "nothing", "refused",
+                "rename_project", "set_bpm", "shape",
+            ],
             commands.Select(command => command.Name));
         CommandDescriptor marker = commands[0];
         Assert.Equal(typeof(AddMarkerCommand), marker.CommandType);
@@ -153,6 +175,44 @@ public sealed class CommandRegistryTests
             .Add(name, "Changes nothing.", json.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
     }
 
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(CommandRegistryBuilder.MaxDescriptionLength, true)]
+    [InlineData(0, false)]
+    [InlineData(CommandRegistryBuilder.MaxDescriptionLength + 1, false)]
+    public void ADescriptionIsOneToFiveHundredCharacters(int length, bool accepted)
+    {
+        TestCommandJsonContext json = TestCommandJsonContext.Default;
+        CommandRegistryBuilder builder = new();
+
+        void Add() => builder.Add("nothing", new string('d', length), json.NothingCommand, (document, _, _) => CommandResult.Ok(document));
+
+        if (accepted)
+        {
+            Add();
+        }
+        else
+        {
+            Assert.Throws<ArgumentException>(Add);
+        }
+    }
+
+    [Fact]
+    public void ABlankDescriptionIsRefused()
+    {
+        TestCommandJsonContext json = TestCommandJsonContext.Default;
+
+        Assert.Throws<ArgumentException>(() => new CommandRegistryBuilder()
+            .Add("nothing", "   ", json.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
+    }
+
+    [Fact]
+    public void AWireNameIsAtMostSixtyFourCharacters()
+    {
+        Assert.True(CommandRegistryBuilder.IsValidName(new string('a', CommandRegistryBuilder.MaxNameLength)));
+        Assert.False(CommandRegistryBuilder.IsValidName(new string('a', CommandRegistryBuilder.MaxNameLength + 1)));
+    }
+
     [Fact]
     public void ACommandTypeThatCouldBeSubclassedIsRefused()
     {
@@ -167,6 +227,17 @@ public sealed class CommandRegistryTests
     {
         Assert.Throws<ArgumentException>(() => new CommandRegistryBuilder()
             .Add("nothing", "Changes nothing.", LaxCommandJsonContext.Default.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
+    }
+
+    [Fact]
+    public void AJsonContextThatLoosensAnyOneRuleIsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => new CommandRegistryBuilder().Add(
+            "nothing", "Changes nothing.", CaseInsensitiveCommandJsonContext.Default.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
+        Assert.Throws<ArgumentException>(() => new CommandRegistryBuilder().Add(
+            "nothing", "Changes nothing.", TrailingCommaCommandJsonContext.Default.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
+        Assert.Throws<ArgumentException>(() => new CommandRegistryBuilder().Add(
+            "nothing", "Changes nothing.", CommentCommandJsonContext.Default.NothingCommand, (document, _, _) => CommandResult.Ok(document)));
     }
 
     [Fact]

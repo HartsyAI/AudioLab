@@ -28,6 +28,15 @@ internal static class CommandSchema
         {
             return IdSchema(inner is not null);
         }
+        if ((inner ?? type) == typeof(NoteId))
+        {
+            return new JsonObject
+            {
+                ["type"] = inner is not null ? new JsonArray("integer", "null") : "integer",
+                ["minimum"] = 1,
+                ["maximum"] = NoteId.Max,
+            };
+        }
         if (inner is not null && context.TypeInfo.Options.GetTypeInfo(inner).Converter is INamedEnumConverter optional)
         {
             return EnumSchema(optional, nullable: true);

@@ -3,7 +3,10 @@ using AudioLab.Core.Model;
 namespace AudioLab.Core.Commands;
 
 /// <summary>The current document of one open project and its undo and redo steps, with the commands of one gesture merged into one step.</summary>
-/// <remarks>In memory only. Not thread safe: the caller holds the project's lock around every call.</remarks>
+/// <remarks>
+/// In memory only. Not thread safe: the caller holds the project's lock around every call. A step is a whole-document
+/// snapshot, so undoing it also reverts what other clients changed after it; there is no per-client undo.
+/// </remarks>
 public sealed class CommandHistory
 {
     /// <summary>The number of undo steps kept when none is asked for.</summary>
@@ -22,7 +25,7 @@ public sealed class CommandHistory
 
     private readonly List<HistoryStep> _redo = [];
 
-    private GestureId? _open;
+    private readonly List<OpenGesture> _open = [];
 
     /// <summary>Starts a history at <paramref name="initial"/>, which must already be a valid document.</summary>
     /// <param name="initial">The opened project.</param>
@@ -48,16 +51,13 @@ public sealed class CommandHistory
         _depth = depth;
     }
 
-    /// <summary>The document as it stands.</summary>
+    /// <summary>The document as it stands, including the changes of gestures that are still open.</summary>
     public ProjectDocument Current { get; private set; }
 
-    /// <summary>The gesture whose commands are still being merged into one step, or null.</summary>
-    public GestureId? OpenGesture => _open;
-
-    /// <summary>How many steps Undo can go back.</summary>
+    /// <summary>How many steps Undo can go back; the steps of open gestures count once they close.</summary>
     public int UndoCount => _undo.Count;
 
-    /// <summary>How many steps Redo can go forward.</summary>
+    /// <summary>How many steps Redo can go forward; an open gesture clears them when it closes with a change.</summary>
     public int RedoCount => _redo.Count;
 
     /// <summary>The name of the command that began the step Undo would reverse, or null when there is none.</summary>
@@ -66,50 +66,90 @@ public sealed class CommandHistory
     /// <summary>The name of the command that began the step Redo would reapply, or null when there is none.</summary>
     public string? RedoLabel => _redo.Count > 0 ? _redo[^1].Label : null;
 
+    /// <summary>The gesture this client has open, or null.</summary>
+    public GestureId? OpenGestureOf(ClientId client)
+    {
+        int index = _open.FindIndex(open => open.Client == client);
+        return index >= 0 ? _open[index].Id : null;
+    }
+
     /// <summary>Applies a command; a refusal changes nothing, and a command that changes nothing adds no step.</summary>
     /// <remarks>
-    /// A refusal does not even close an open gesture, and a command that leaves the document equal keeps the redo steps.
-    /// Otherwise the command is a new step, unless it carries the open gesture's id, in which case it merges into that
-    /// gesture's step. Any other gesture, or none, first closes the open one.
+    /// A client has at most one open gesture, so another client's commands never close it. A command that carries the
+    /// client's open gesture id merges into that gesture. A different gesture id, or none, from the same client closes
+    /// it first. A gesture's undo step is recorded, and the redo steps are cleared, when the gesture closes with a
+    /// change; one that ends where it began leaves the history exactly as it was.
     /// </remarks>
     /// <param name="command">The command to apply.</param>
+    /// <param name="client">Who sent it, as the hub names the connection.</param>
     /// <param name="gesture">The client's id for the gesture the command belongs to, or null for a single edit.</param>
-    public CommandResult Apply(Command command, GestureId? gesture = null)
+    /// <exception cref="ArgumentException">The client id or the gesture id is <c>default</c>.</exception>
+    public CommandResult Apply(Command command, ClientId client, GestureId? gesture = null)
     {
+        RequireClient(client);
+        if (gesture is { } given && given.Value.Length == 0)
+        {
+            throw new ArgumentException("A gesture id is required; pass null for a single edit.", nameof(gesture));
+        }
         CommandResult result = _registry.Execute(Current, command, _ids);
-        if (result.Document is not { } edited || edited == Current)
+        if (result.Document is not { } edited)
         {
             return result;
         }
-        if (gesture is null || gesture != _open)
+        if (edited == Current)
         {
-            CloseGesture();
-            _undo.Add(new HistoryStep(_registry.NameOf(command) ?? string.Empty, Current));
-            if (_undo.Count > _depth)
-            {
-                _undo.RemoveAt(0);
-            }
-            _redo.Clear();
-            _open = gesture;
+            return result;
+        }
+        string label = _registry.NameOf(command) ?? string.Empty;
+        int index = _open.FindIndex(open => open.Client == client);
+        if (index >= 0 && gesture == _open[index].Id)
+        {
+            Current = edited;
+            return result;
+        }
+        if (index >= 0)
+        {
+            Close(index);
+        }
+        if (gesture is { } id)
+        {
+            _open.Add(new OpenGesture(client, id, label, Current));
+        }
+        else
+        {
+            Push(new HistoryStep(label, Current));
         }
         Current = edited;
         return result;
     }
 
-    /// <summary>Closes the gesture as the release of a drag does, if it is the open one; one that ended where it began leaves no step.</summary>
-    /// <remarks>A release of another gesture, such as a late one from a second client, changes nothing.</remarks>
-    public void EndGesture(GestureId gesture)
+    /// <summary>Closes the client's gesture as the release of a drag does, if it is the one open; any other id changes nothing.</summary>
+    /// <remarks>A late or repeated release, or one for a gesture that never opened, is not an error.</remarks>
+    public void EndGesture(ClientId client, GestureId gesture)
     {
-        if (gesture == _open)
+        RequireClient(client);
+        int index = _open.FindIndex(open => open.Client == client && open.Id == gesture);
+        if (index >= 0)
         {
-            CloseGesture();
+            Close(index);
         }
     }
 
-    /// <summary>Goes back one step, closing an open gesture first; null when there is nothing to undo.</summary>
+    /// <summary>Closes whatever gesture the client has open, as when it disconnects.</summary>
+    public void ReleaseClient(ClientId client)
+    {
+        RequireClient(client);
+        int index = _open.FindIndex(open => open.Client == client);
+        if (index >= 0)
+        {
+            Close(index);
+        }
+    }
+
+    /// <summary>Goes back one step, closing the open gestures first; null when there is nothing to undo.</summary>
     public ProjectDocument? Undo()
     {
-        CloseGesture();
+        CloseAll();
         if (_undo.Count == 0)
         {
             return null;
@@ -124,7 +164,7 @@ public sealed class CommandHistory
     /// <summary>Goes forward one step; null when there is nothing to redo. The same document comes back, ids included.</summary>
     public ProjectDocument? Redo()
     {
-        CloseGesture();
+        CloseAll();
         if (_redo.Count == 0)
         {
             return null;
@@ -136,12 +176,40 @@ public sealed class CommandHistory
         return Current;
     }
 
-    private void CloseGesture()
+    private static void RequireClient(ClientId client)
     {
-        if (_open is not null && _undo.Count > 0 && _undo[^1].Document == Current)
+        if (client.Value.Length == 0)
         {
-            _undo.RemoveAt(_undo.Count - 1);
+            throw new ArgumentException("A client id is required.", nameof(client));
         }
-        _open = null;
+    }
+
+    private void Push(HistoryStep step)
+    {
+        _undo.Add(step);
+        if (_undo.Count > _depth)
+        {
+            _undo.RemoveAt(0);
+        }
+        _redo.Clear();
+    }
+
+    // A gesture that ended where it began is dropped whole, so undo and redo are exactly as they were.
+    private void Close(int index)
+    {
+        OpenGesture open = _open[index];
+        _open.RemoveAt(index);
+        if (open.Before != Current)
+        {
+            Push(new HistoryStep(open.Label, open.Before));
+        }
+    }
+
+    private void CloseAll()
+    {
+        while (_open.Count > 0)
+        {
+            Close(0);
+        }
     }
 }

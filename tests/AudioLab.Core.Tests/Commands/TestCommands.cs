@@ -36,6 +36,12 @@ internal sealed record BreakCommand : Command
     public required int Count { get; init; }
 }
 
+internal sealed record ChangeIdCommand : Command;
+
+internal sealed record ChangeVersionCommand : Command;
+
+internal sealed record MintOnlyCommand : Command;
+
 internal sealed record UnregisteredCommand : Command;
 
 internal record UnsealedCommand : Command;

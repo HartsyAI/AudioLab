@@ -50,11 +50,26 @@ public sealed class CommandParseTests
     }
 
     [Fact]
-    public void AnUnknownCommandNameIsRefused()
+    public void AnUnknownCommandNameIsRefusedAndOnlyAWellFormedOneIsEchoed()
     {
-        CommandParseResult result = _registry.Parse("delete_everything", "{}");
+        CommandParseResult named = _registry.Parse("delete_everything", "{}");
+        CommandParseResult odd = _registry.Parse("<script>alert(1)</script>", "{}");
 
-        Assert.Equal(CommandErrorCode.UnknownCommand, Assert.Single(result.Errors).Code);
+        Assert.Equal(CommandErrorCode.UnknownCommand, Assert.Single(named.Errors).Code);
+        Assert.Contains("delete_everything", named.Errors[0].Message, StringComparison.Ordinal);
+        Assert.Equal(CommandErrorCode.UnknownCommand, Assert.Single(odd.Errors).Code);
+        Assert.DoesNotContain("script", odd.Errors[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnOversizedCommandIsRefusedBeforeItIsRead()
+    {
+        string json = "{\"project\":\"p-1\",\"time\":1,\"name\":\"" + new string('x', ProjectLimits.MaxCommandLength) + "\"}";
+
+        CommandParseResult result = _registry.Parse("add_marker", json);
+
+        Assert.Equal(CommandErrorCode.Malformed, Assert.Single(result.Errors).Code);
+        Assert.Contains("longer than", result.Errors[0].Message, StringComparison.Ordinal);
     }
 
     [Fact]

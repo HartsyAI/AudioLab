@@ -75,13 +75,16 @@ public sealed class CommandRegistryBuilder
             && options.RespectNullableAnnotations
             && options.RespectRequiredConstructorParameters
             && !options.AllowDuplicateProperties
+            && !options.PropertyNameCaseInsensitive
+            && !options.AllowTrailingCommas
+            && options.ReadCommentHandling == JsonCommentHandling.Disallow
             && options.NumberHandling == JsonNumberHandling.Strict
             && options.PropertyNamingPolicy == JsonNamingPolicy.CamelCase;
         if (!strict)
         {
             throw new ArgumentException(
-                "The command context must refuse unknown members, null and duplicate members and numbers in text, "
-                + "and name members in camel case, as ProjectJsonContext does.",
+                "The command context must be as strict as ProjectJsonContext: refuse unknown, null and duplicate members, "
+                + "numbers in text, other letter case, trailing commas and comments, and name members in camel case.",
                 nameof(options));
         }
     }
