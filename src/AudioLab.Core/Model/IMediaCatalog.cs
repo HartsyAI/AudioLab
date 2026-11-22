@@ -9,4 +9,8 @@ public interface IMediaCatalog
     /// It answers from memory and does not block.
     /// </remarks>
     public MediaRecord? Find(UserId owner, MediaId id);
+
+    /// <summary>The record of a file that exists and is owned by <paramref name="owner"/>, even while its delete is pending.</summary>
+    /// <remarks>For a document that already names the file: a delete that a project uses is refused, so it is no reason to refuse it.</remarks>
+    public MediaRecord? FindIncludingPendingDelete(UserId owner, MediaId id);
 }

@@ -1,5 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
+using AudioLab.Server.Media;
 
 namespace AudioLab.Server.Store;
 
@@ -14,6 +16,7 @@ public sealed class OpenProjects(
     StoreOptions options,
     TimeProvider time,
     CommandRegistry registry,
+    MediaStore media,
     IIdService ids,
     ILogger<OpenProjects> logger)
     : IHostedService, IAsyncDisposable
@@ -36,7 +39,8 @@ public sealed class OpenProjects(
                 if (SessionOf(entry) is not { } session)
                 {
                     ProjectDocument document = await store.ReadAsync(user, id, cancellationToken);
-                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, ids, logger);
+                    await RequireMediaAsync(document, cancellationToken);
+                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, media, ids, logger);
                     SetSession(entry, session);
                 }
                 return session;
@@ -49,6 +53,20 @@ public sealed class OpenProjects(
         finally
         {
             Release(key, entry);
+        }
+    }
+
+    /// <summary>Refuses a document that names media its owner does not have, or plays them at another length than the file has.</summary>
+    /// <remarks>A document from a file the store read has not been through a command, so nothing has checked it. Missing and foreign are told alike.</remarks>
+    /// <exception cref="ProjectFormatException">The document names such media; the problems are listed.</exception>
+    public async Task RequireMediaAsync(ProjectDocument document, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        await media.PrepareAsync(document.Owner).WaitAsync(cancellationToken);
+        IReadOnlyList<string> problems = MediaRules.DocumentProblems(document, media);
+        if (problems.Count > 0)
+        {
+            throw new ProjectFormatException("The project names media the user does not have:", problems);
         }
     }
 

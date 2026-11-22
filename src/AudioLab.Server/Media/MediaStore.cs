@@ -42,6 +42,19 @@ public sealed class MediaStore : IMediaCatalog
         }
     }
 
+    /// <inheritdoc />
+    public MediaRecord? FindIncludingPendingDelete(UserId owner, MediaId id)
+    {
+        UserMedia media = Loaded(owner);
+        lock (media.Sync)
+        {
+            return media.Entries.TryGetValue(id, out Entry? entry) ? entry.Record : null;
+        }
+    }
+
+    /// <summary>Reads the user's media folder if that has not been done, off the caller's thread, so a later lookup does not wait.</summary>
+    public Task PrepareAsync(UserId user) => Task.Run(() => Loaded(user));
+
     /// <summary>A user's file.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
     public MediaRecord Get(UserId user, MediaId id) => Find(user, id) ?? throw new MediaNotFoundException();

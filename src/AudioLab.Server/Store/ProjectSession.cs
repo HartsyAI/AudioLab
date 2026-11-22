@@ -22,6 +22,7 @@ public sealed class ProjectSession
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly CommandRegistry _registry;
+    private readonly IMediaCatalog _media;
     private readonly ReplayableIds _ids;
     private readonly object _state = new();
     private readonly SemaphoreSlim _writes = new(1, 1);
@@ -43,11 +44,13 @@ public sealed class ProjectSession
         StoreOptions options,
         TimeProvider time,
         CommandRegistry registry,
+        IMediaCatalog media,
         IIdService ids,
         ILogger logger)
     {
         _store = store;
         _registry = registry;
+        _media = media;
         _ids = new ReplayableIds(ids);
         _options = options;
         _time = time;
@@ -188,6 +191,12 @@ public sealed class ProjectSession
             ProjectDocument? previewed = null;
             if (preview.Document is { } document && document != history.Current)
             {
+                // Before anything is applied or any gesture opened: the one place every command that names media is checked (D37).
+                if (MediaRules.VerifyChange(history.Current, document, _media) is { } mediaRefusal)
+                {
+                    CommandResult refused = CommandResult.Refuse(mediaRefusal.Code, mediaRefusal.Message);
+                    return new EditOutcome(refused, _snapshot, false, null);
+                }
                 json = ProjectJson.Write(document);
                 previewed = document;
                 if (Encoding.UTF8.GetByteCount(json) > _options.MaxFileBytes)

@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Configuration;
+using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Store;
 
@@ -11,7 +12,7 @@ namespace AudioLab.Server.Services;
 /// Every method takes the user from the door and opens the project as that user, so a project of another user is
 /// never found. A change and its announcement happen under the project's publish order, so clients hear revisions in order.
 /// </remarks>
-public sealed class ProjectEditService(OpenProjects open, CommandRegistry registry, IProjectEvents events, AudioLabOptions options)
+public sealed class ProjectEditService(OpenProjects open, CommandRegistry registry, IProjectEvents events, AudioLabOptions options, MediaStore media)
 {
     /// <summary>Opens the project and, before any later change can be announced, calls <paramref name="subscribe"/>; returns the state to start from.</summary>
     /// <param name="user">The user the door resolved.</param>
@@ -69,6 +70,8 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         GestureId? gesture,
         CancellationToken cancellationToken)
     {
+        // The media index is read here, where waiting is cheap, so the check inside the session's lock never touches the disk.
+        await media.PrepareAsync(user);
         using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
         if (name is null || json is null)

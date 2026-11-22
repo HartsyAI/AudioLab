@@ -21,11 +21,11 @@ public sealed class TestStore : IAsyncDisposable
         Projects = new ProjectStore(Root, NullLogger<ProjectStore>.Instance);
         Ids = new IdService();
         Registry = registry ?? new CommandRegistryBuilder().Build();
-        Open = new OpenProjects(Projects, Options, Time, Registry, Ids, NullLogger<OpenProjects>.Instance);
         Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), NullLogger<MediaStore>.Instance);
+        Open = new OpenProjects(Projects, Options, Time, Registry, Media, Ids, NullLogger<OpenProjects>.Instance);
         MediaFiles = new MediaService(Media, new MediaReferences(Open, Projects), Root, Ids, mediaOptions, Time);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
-        Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions());
+        Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions(), Media);
     }
 
     public string Folder { get; }
