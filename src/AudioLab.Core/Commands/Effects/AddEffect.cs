@@ -18,6 +18,9 @@ public sealed record AddEffect : Command
 
     /// <summary>A preset of that kind to start from; the kind's defaults when absent.</summary>
     [Description("A preset of that kind to start from; the kind's defaults when absent.")]
-    [AllowedValues("Vocal clarity", "Drum punch", "Bass focus", "Telephone", "Vocal level", "Drum smash", "Glue (gentle)", "Small room", "Hall", "Cathedral", "Slap", "Quarter echo", "Dotted 8th", "Warm", "Crunch", "Destroy")]
+    [AllowedValues(
+        "Vocal clarity", "Drum punch", "Bass focus", "Telephone", "Vocal level", "Drum smash",
+        "Glue (gentle)", "Small room", "Hall", "Cathedral", "Slap", "Quarter echo", "Dotted 8th", "Warm",
+        "Crunch", "Destroy")]
     public string? Preset { get; init; }
 }

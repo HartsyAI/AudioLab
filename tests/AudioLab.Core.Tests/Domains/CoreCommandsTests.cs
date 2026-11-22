@@ -92,13 +92,13 @@ public sealed class CoreCommandsTests
         string project = BlankProject.Create().Id.Value;
 
         CommandParseResult notes = _registry.Parse("midi_notes_delete", $$"""{"project":"{{project}}","clip":"clp_1","notes":[1,2,7]}""");
-        CommandParseResult all = _registry.Parse("midi_notes_move", $$"""{"project":"{{project}}","clip":"clp_1","time":0.5,"pitch":-2}""");
+        CommandParseResult all = _registry.Parse("midi_notes_move", $$"""{"project":"{{project}}","clip":"clp_1","notes":[{"note":1,"start":0.5,"pitch":62},{"note":2,"start":1,"pitch":64}]}""");
         CommandParseResult effect = _registry.Parse("effect_add", $$"""{"project":"{{project}}","track":"trk_1","kind":"delay","preset":"Slap"}""");
         CommandParseResult zeroNote = _registry.Parse("midi_notes_delete", $$"""{"project":"{{project}}","clip":"clp_1","notes":[0]}""");
         CommandParseResult wrongKind = _registry.Parse("effect_add", $$"""{"project":"{{project}}","track":"trk_1","kind":"chorus"}""");
 
         Assert.Equal([new NoteId(1), new NoteId(2), new NoteId(7)], Assert.IsType<DeleteNotes>(notes.Command).Notes);
-        Assert.Null(Assert.IsType<MoveNotes>(all.Command).Notes);
+        Assert.Equal([new NoteTarget(new NoteId(1), 0.5, 62), new NoteTarget(new NoteId(2), 1, 64)], Assert.IsType<MoveNotes>(all.Command).Notes);
         Assert.Equal(EffectKind.Delay, Assert.IsType<AddEffect>(effect.Command).Kind);
         Assert.False(zeroNote.Succeeded);
         Assert.False(wrongKind.Succeeded);

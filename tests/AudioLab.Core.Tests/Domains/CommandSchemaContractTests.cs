@@ -182,7 +182,7 @@ public sealed class CommandSchemaContractTests
         JsonElement velocity = Property("midi_note_add", "velocity");
         JsonElement semitones = Property("midi_notes_transpose", "semitones");
         JsonElement notes = Property("midi_notes_delete", "notes");
-        JsonElement optional = Property("midi_notes_move", "notes");
+        JsonElement optional = Property("midi_notes_transpose", "notes");
 
         Assert.Equal((0.0, 127.0), (pitch.GetProperty("minimum").GetDouble(), pitch.GetProperty("maximum").GetDouble()));
         Assert.Equal((1.0, 127.0), (velocity.GetProperty("minimum").GetDouble(), velocity.GetProperty("maximum").GetDouble()));
@@ -190,8 +190,13 @@ public sealed class CommandSchemaContractTests
         Assert.Equal("array", notes.GetProperty("type").GetString());
         Assert.Equal(1, notes.GetProperty("minItems").GetInt32());
         Assert.Equal("integer", notes.GetProperty("items").GetProperty("type").GetString());
-        Assert.Equal(["clip", "pitch", "project", "time"], Required("midi_notes_move"));
-        Assert.DoesNotContain("notes", Required("midi_notes_move"));
+        Assert.Equal(["clip", "notes", "project"], Required("midi_notes_move"));
+        Assert.DoesNotContain("notes", Required("midi_notes_transpose"));
+        Assert.Equal(1, optional.GetProperty("minItems").GetInt32());
+        Assert.Equal(ProjectLimits.MaxListItems, optional.GetProperty("maxItems").GetInt32());
+        JsonElement target = Property("midi_notes_move", "notes").GetProperty("items");
+        Assert.Equal(["note", "pitch", "start"], target.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
+        Assert.True(target.GetProperty("properties").GetProperty("start").TryGetProperty("description", out _));
         Assert.True(optional.TryGetProperty("description", out _));
     }
 
@@ -205,6 +210,22 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(EffectRules.AllParameterNames.Order(StringComparer.Ordinal), settings.Order(StringComparer.Ordinal));
         Assert.Equal(EffectPresets.AllNames.Order(StringComparer.Ordinal), presets.Order(StringComparer.Ordinal));
         Assert.Equal(presets, applied);
+    }
+
+    [Fact]
+    public void TheValueOfAnEffectSettingStatesEverySettingsRange()
+    {
+        string description = Property("effect_set_parameter", "value").GetProperty("description").GetString()!;
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+        foreach (EffectKind kind in Enum.GetValues<EffectKind>())
+        {
+            foreach (EffectParameter setting in EffectRules.Parameters(kind))
+            {
+                string range = $"{setting.Name} {setting.Min.ToString("0.###", invariant)} to {setting.Max.ToString("0.###", invariant)}";
+                Assert.Contains(range, description, StringComparison.Ordinal);
+            }
+        }
     }
 
     [Fact]

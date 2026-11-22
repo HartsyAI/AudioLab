@@ -60,9 +60,9 @@ public sealed class EffectCommandTests
     }
 
     [Fact]
-    public void AnUnknownPresetOrTrackIsRefusedAndAFullChainIsOutOfRange()
+    public void APresetOfAnotherKindOrAnUnknownTrackIsRefusedAndAFullChainIsOutOfRange()
     {
-        _rig.RefusedWith(new AddEffect { Project = _rig.Id, Track = _track, Kind = EffectKind.Eq, Preset = "Hall" }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddEffect { Project = _rig.Id, Track = _track, Kind = EffectKind.Eq, Preset = "Hall" }, CommandErrorCode.Rejected);
         _rig.RefusedWith(new AddEffect { Project = _rig.Id, Track = TrackId.From("trk_none"), Kind = EffectKind.Eq }, CommandErrorCode.NotFound);
         for (int i = 0; i < ProjectLimits.MaxEffects; i++)
         {
@@ -195,6 +195,18 @@ public sealed class EffectCommandTests
         Assert.Equal((-30.0, 8.0, 30.0, 6.0), (compressor.Threshold, compressor.Ratio, compressor.Knee, compressor.Makeup));
         Assert.False(compressor.Enabled);
         Assert.Equal(id.Value, Chain()[1].Id.Value);
+    }
+
+    [Fact]
+    public void TheSameBadPresetIsTheSameClassOfErrorWhetherAddedOrApplied()
+    {
+        EffectId eq = Add(EffectKind.Eq);
+
+        CommandErrorCode added = _rig.Refused(new AddEffect { Project = _rig.Id, Track = _track, Kind = EffectKind.Eq, Preset = "Hall" }).Errors[0].Code;
+        CommandErrorCode applied = _rig.Refused(new ApplyEffectPreset { Project = _rig.Id, Track = _track, Effect = eq, Preset = "Hall" }).Errors[0].Code;
+
+        Assert.Equal(CommandErrorCode.Rejected, added);
+        Assert.Equal(added, applied);
     }
 
     [Fact]

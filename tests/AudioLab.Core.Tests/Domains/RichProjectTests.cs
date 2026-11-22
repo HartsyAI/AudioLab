@@ -96,9 +96,9 @@ public sealed class RichProjectTests
         Command[] commands =
         [
             new AddNote { Project = id, Clip = clip.Id, Pitch = 67, Start = 3 },
-            new MoveNotes { Project = id, Clip = clip.Id, Notes = [first], Time = 0.25, Pitch = 1 },
-            new MoveNotes { Project = id, Clip = clip.Id, Time = 0.1, Pitch = 0 },
-            new ResizeNotes { Project = id, Clip = clip.Id, Duration = 0.2 },
+            new MoveNotes { Project = id, Clip = clip.Id, Notes = [new NoteTarget(first, 0.25, 61)] },
+            new MoveNotes { Project = id, Clip = clip.Id, Notes = [new NoteTarget(clip.Notes[1].Id, 0.9, 65)] },
+            new ResizeNotes { Project = id, Clip = clip.Id, Notes = [new NoteLength(first, 0.3)] },
             new SetNoteVelocity { Project = id, Clip = clip.Id, Notes = [first], Velocity = 20 },
             new TransposeNotes { Project = id, Clip = clip.Id, Semitones = 7 },
             new QuantizeNotes { Project = id, Clip = clip.Id },

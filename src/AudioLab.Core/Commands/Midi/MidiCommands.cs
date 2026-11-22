@@ -11,8 +11,8 @@ internal static class MidiCommands
     {
         builder
             .Add("midi_note_add", "Adds a note to a MIDI clip and allocates its note id.", json.AddNote, AddNote)
-            .Add("midi_notes_move", "Moves notes in time and pitch.", json.MoveNotes, MoveNotes)
-            .Add("midi_notes_resize", "Makes notes longer or shorter.", json.ResizeNotes, ResizeNotes)
+            .Add("midi_notes_move", "Puts notes at new starts and pitches.", json.MoveNotes, MoveNotes)
+            .Add("midi_notes_resize", "Gives notes new lengths.", json.ResizeNotes, ResizeNotes)
             .Add("midi_notes_set_velocity", "Sets the velocity of notes.", json.SetNoteVelocity, SetVelocity)
             .Add("midi_notes_transpose", "Transposes notes by semitones.", json.TransposeNotes, Transpose)
             .Add("midi_notes_quantize", "Snaps notes to the project grid.", json.QuantizeNotes, Quantize)
@@ -31,9 +31,10 @@ internal static class MidiCommands
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
         CommandResult? invalid = CommandChecks.Range(nameof(command.Pitch), command.Pitch, NoteRules.LowestPitch, NoteRules.HighestPitch)
             ?? CommandChecks.Range(nameof(command.Start), command.Start, 0, ProjectLimits.MaxSeconds);
-        if (invalid is null && command.Start >= clip.Length)
+        if (invalid is null && command.Start > NoteRules.LatestStart(clip.Length))
         {
-            invalid = CommandChecks.OutOfRange($"A note starts inside its clip, before {clip.Length.ToString(CultureInfo.InvariantCulture)} seconds.");
+            string latest = NoteRules.LatestStart(clip.Length).ToString(CultureInfo.InvariantCulture);
+            invalid = CommandChecks.OutOfRange($"A note starts inside its clip, at {latest} seconds at the latest.");
         }
         invalid ??= CommandChecks.Range(nameof(command.Duration), command.Duration, NoteRules.MinDuration, ProjectLimits.MaxSeconds)
             ?? CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch);
@@ -45,28 +46,73 @@ internal static class MidiCommands
         {
             return CommandChecks.OutOfRange("The clip holds as many notes as a clip may, or has used every note id.");
         }
-        double step = GridStep(document, clip);
-        MidiNote note = new(clip.NextNoteId, command.Pitch, command.Start, command.Duration ?? NoteRules.NewDuration(step), command.Velocity ?? NoteRules.DefaultVelocity);
-        ProjectDocument edited = Replace(document, at, clip with { Notes = [.. clip.Notes, note], NextNoteId = clip.NextNoteId.Next() });
-        return CommandResult.Ok(edited, note.Id.Value.ToString(CultureInfo.InvariantCulture));
+        double duration = command.Duration ?? NoteRules.NewDuration(GridStep(document, clip));
+        MidiNote note = new(clip.NextNoteId, command.Pitch, command.Start, duration, command.Velocity ?? NoteRules.DefaultVelocity);
+        MidiClip edited = clip with { Notes = [.. clip.Notes, note], NextNoteId = clip.NextNoteId.Next() };
+        return CommandResult.Ok(Replace(document, at, edited), note.Id.Value.ToString(CultureInfo.InvariantCulture));
     }
 
     private static CommandResult MoveNotes(ProjectDocument document, MoveNotes command, IIdService ids)
     {
-        return EditNotes(document, command.Clip, command.Notes, () => CommandChecks.Range(nameof(command.Time), command.Time, -ProjectLimits.MaxSeconds, ProjectLimits.MaxSeconds)
-                ?? CommandChecks.Range(nameof(command.Pitch), command.Pitch, -NoteRules.HighestPitch, NoteRules.HighestPitch),
-            (clip, note) => NoteRules.Move(note, command.Time, command.Pitch, clip.Length));
+        Dictionary<NoteId, NoteTarget> targets = [];
+        foreach (NoteTarget target in command.Notes)
+        {
+            targets[target.Note] = target;
+        }
+        CommandResult? Check()
+        {
+            foreach (NoteTarget target in command.Notes)
+            {
+                CommandResult? invalid = CommandChecks.Range("start", target.Start, 0, ProjectLimits.MaxSeconds)
+                    ?? CommandChecks.Range("pitch", target.Pitch, NoteRules.LowestPitch, NoteRules.HighestPitch);
+                if (invalid is not null)
+                {
+                    return invalid;
+                }
+            }
+            return null;
+        }
+        return EditNotes(
+            document,
+            command.Clip,
+            [.. command.Notes.Select(target => target.Note)],
+            Check,
+            (clip, note) => NoteRules.MoveTo(note, targets[note.Id].Start, targets[note.Id].Pitch, clip.Length));
     }
 
     private static CommandResult ResizeNotes(ProjectDocument document, ResizeNotes command, IIdService ids)
     {
-        return EditNotes(document, command.Clip, command.Notes, () => CommandChecks.Range(nameof(command.Duration), command.Duration, -ProjectLimits.MaxSeconds, ProjectLimits.MaxSeconds),
-            (_, note) => NoteRules.Resize(note, command.Duration));
+        Dictionary<NoteId, NoteLength> lengths = [];
+        foreach (NoteLength length in command.Notes)
+        {
+            lengths[length.Note] = length;
+        }
+        CommandResult? Check()
+        {
+            foreach (NoteLength length in command.Notes)
+            {
+                if (CommandChecks.Range("duration", length.Duration, NoteRules.MinDuration, ProjectLimits.MaxSeconds) is { } invalid)
+                {
+                    return invalid;
+                }
+            }
+            return null;
+        }
+        return EditNotes(
+            document,
+            command.Clip,
+            [.. command.Notes.Select(length => length.Note)],
+            Check,
+            (_, note) => NoteRules.ResizeTo(note, lengths[note.Id].Duration));
     }
 
     private static CommandResult SetVelocity(ProjectDocument document, SetNoteVelocity command, IIdService ids)
     {
-        return EditNotes(document, command.Clip, command.Notes, () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch),
+        return EditNotes(
+            document,
+            command.Clip,
+            command.Notes,
+            () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch),
             (_, note) => note with { Velocity = command.Velocity });
     }
 
@@ -97,18 +143,11 @@ internal static class MidiCommands
             return missing;
         }
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
-        if (command.Notes.Count == 0 || command.Notes.Count > ProjectLimits.MaxListItems)
+        if (Choose(clip, command.Notes, out HashSet<NoteId>? gone) is { } refusal)
         {
-            return CommandChecks.OutOfRange($"Name from 1 to {ProjectLimits.MaxListItems} notes.");
+            return refusal;
         }
-        HashSet<NoteId> held = [.. clip.Notes.Select(note => note.Id)];
-        NoteId unknown = command.Notes.FirstOrDefault(id => !held.Contains(id));
-        if (unknown.Value != 0)
-        {
-            return CommandChecks.NotFound("note", unknown.ToString());
-        }
-        HashSet<NoteId> gone = [.. command.Notes];
-        return CommandResult.Ok(Replace(document, at, clip with { Notes = [.. clip.Notes.Where(note => !gone.Contains(note.Id))] }));
+        return CommandResult.Ok(Replace(document, at, clip with { Notes = [.. clip.Notes.Where(note => !gone!.Contains(note.Id))] }));
     }
 
     private static CommandResult AddControl(ProjectDocument document, AddControlChange command, IIdService ids)
@@ -131,8 +170,7 @@ internal static class MidiCommands
         }
         MidiControlChange added = new(command.Time, command.Controller, command.Value);
         List<MidiControlChange> events = [.. clip.ControlChanges];
-        int index = events.FindLastIndex(existing => existing.Time <= added.Time) + 1;
-        events.Insert(index, added);
+        events.Insert(events.FindLastIndex(existing => existing.Time <= added.Time) + 1, added);
         return CommandResult.Ok(Replace(document, at, clip with { ControlChanges = new ValueList<MidiControlChange>(events) }));
     }
 
@@ -143,16 +181,22 @@ internal static class MidiCommands
             return missing;
         }
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
-        if (CommandChecks.Range(nameof(command.Time), command.Time, 0, ProjectLimits.MaxSeconds) is { } refusal)
+        CommandResult? invalid = CommandChecks.Range(nameof(command.Controller), command.Controller, 0, NoteRules.HighestPitch)
+            ?? CommandChecks.Range(nameof(command.Time), command.Time, 0, ProjectLimits.MaxSeconds);
+        if (invalid is not null)
         {
-            return refusal;
+            return invalid;
         }
-        bool Matches(MidiControlChange change) => change.Controller == command.Controller && Math.Abs(change.Time - command.Time) < TimelineRules.NoMove;
+        bool Matches(MidiControlChange change)
+        {
+            return change.Controller == command.Controller && Math.Abs(change.Time - command.Time) < TimelineRules.NoMove;
+        }
         if (!clip.ControlChanges.Any(Matches))
         {
             return CommandChecks.NotFound("controller event", command.Controller.ToString(CultureInfo.InvariantCulture));
         }
-        return CommandResult.Ok(Replace(document, at, clip with { ControlChanges = [.. clip.ControlChanges.Where(change => !Matches(change))] }));
+        MidiClip edited = clip with { ControlChanges = [.. clip.ControlChanges.Where(change => !Matches(change))] };
+        return CommandResult.Ok(Replace(document, at, edited));
     }
 
     private static CommandResult ClearControl(ProjectDocument document, ClearControlChanges command, IIdService ids)
@@ -166,7 +210,9 @@ internal static class MidiCommands
         {
             return refusal;
         }
-        ValueList<MidiControlChange> kept = command.Controller is { } only ? [.. clip.ControlChanges.Where(change => change.Controller != only)] : [];
+        ValueList<MidiControlChange> kept = command.Controller is { } only
+            ? [.. clip.ControlChanges.Where(change => change.Controller != only)]
+            : [];
         return CommandResult.Ok(Replace(document, at, clip with { ControlChanges = kept }));
     }
 
@@ -174,7 +220,7 @@ internal static class MidiCommands
     private static CommandResult EditNotes(
         ProjectDocument document,
         ClipId clipId,
-        ValueList<NoteId>? chosen,
+        IReadOnlyCollection<NoteId>? chosen,
         Func<CommandResult?> check,
         Func<MidiClip, MidiNote, MidiNote> edit)
     {
@@ -183,22 +229,38 @@ internal static class MidiCommands
             return missing;
         }
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
-        if (chosen is not null)
-        {
-            HashSet<NoteId> held = [.. clip.Notes.Select(note => note.Id)];
-            NoteId unknown = chosen.FirstOrDefault(id => !held.Contains(id));
-            if (unknown.Value != 0)
-            {
-                return CommandChecks.NotFound("note", unknown.ToString());
-            }
-        }
-        if (check() is { } refusal)
+        CommandResult? refusal = Choose(clip, chosen, out HashSet<NoteId>? picked) ?? check();
+        if (refusal is not null)
         {
             return refusal;
         }
-        HashSet<NoteId>? picked = chosen is null ? null : [.. chosen];
         MidiClip edited = clip with { Notes = [.. clip.Notes.Select(note => picked is null || picked.Contains(note.Id) ? edit(clip, note) : note)] };
         return CommandResult.Ok(Replace(document, at, edited));
+    }
+
+    // A refusal when the list is empty, too long, or names a note the clip does not hold (a hand-built id of 0 included).
+    // No list means every note, and comes out as null.
+    private static CommandResult? Choose(MidiClip clip, IReadOnlyCollection<NoteId>? chosen, out HashSet<NoteId>? picked)
+    {
+        picked = null;
+        if (chosen is null)
+        {
+            return null;
+        }
+        if (chosen.Count == 0 || chosen.Count > ProjectLimits.MaxListItems)
+        {
+            return CommandChecks.OutOfRange($"Name from 1 to {ProjectLimits.MaxListItems} notes, or leave the list out for every note.");
+        }
+        HashSet<NoteId> held = [.. clip.Notes.Select(note => note.Id)];
+        foreach (NoteId id in chosen)
+        {
+            if (!held.Contains(id))
+            {
+                return CommandChecks.NotFound("note", id.ToString());
+            }
+        }
+        picked = [.. chosen];
+        return null;
     }
 
     // A refusal when the id names no MIDI clip; the place of the clip comes out when it does.

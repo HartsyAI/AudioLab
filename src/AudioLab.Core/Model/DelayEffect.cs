@@ -3,6 +3,9 @@ namespace AudioLab.Core.Model;
 /// <summary>A feedback delay, free-running or synced to the tempo.</summary>
 public sealed record DelayEffect : Effect
 {
+    /// <summary>The note divisions a synced delay may use, longest first.</summary>
+    public static IReadOnlyList<string> Divisions { get; } = ["1/2", "1/4", "1/4.", "1/8", "1/8.", "1/16"];
+
     /// <summary>The delay time when not synced, in seconds.</summary>
     public required double Time { get; init; }
 

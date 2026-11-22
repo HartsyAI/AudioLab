@@ -28,7 +28,8 @@ internal static class EffectCommands
         EffectPreset? preset = null;
         if (command.Preset is not null && (preset = EffectPresets.Find(command.Kind, command.Preset)) is null)
         {
-            return CommandChecks.OutOfRange($"The preset must be one of: {string.Join(", ", EffectPresets.For(command.Kind).Select(known => known.Name))}.");
+            string known = string.Join(", ", EffectPresets.For(command.Kind).Select(candidate => candidate.Name));
+            return CommandChecks.Rejected($"There is no {command.Kind.ToString().ToLowerInvariant()} preset of that name; the presets are: {known}.");
         }
         if (track.Effects.Count >= ProjectLimits.MaxEffects)
         {
@@ -40,7 +41,8 @@ internal static class EffectCommands
             added = EffectPresets.Apply(added, preset);
         }
         int index = document.Tracks.ToList().FindIndex(candidate => candidate.Id == command.Track);
-        return CommandResult.Ok(ClipEdits.WithTrack(document, index, current => current with { Effects = [.. current.Effects, added] }), added.Id.Value);
+        ProjectDocument edited = ClipEdits.WithTrack(document, index, current => current with { Effects = [.. current.Effects, added] });
+        return CommandResult.Ok(edited, added.Id.Value);
     }
 
     private static CommandResult Remove(ProjectDocument document, RemoveEffect command, IIdService ids)
@@ -77,7 +79,8 @@ internal static class EffectCommands
         EffectParameter? setting = EffectRules.Find(effect!, command.Parameter);
         if (setting is null)
         {
-            return CommandChecks.Rejected($"A {EffectRules.KindOf(effect!).ToString().ToLowerInvariant()} has no setting named {Shown(command.Parameter)}.");
+            string kind = EffectRules.KindOf(effect!).ToString().ToLowerInvariant();
+            return CommandChecks.Rejected($"A {kind} has no setting named {Shown(command.Parameter)}.");
         }
         return CommandChecks.Range(command.Parameter, command.Value, setting.Min, setting.Max)
             ?? Change(document, command.Track, command.Effect, current => setting.Set(current, command.Value));
@@ -97,7 +100,11 @@ internal static class EffectCommands
         {
             return CommandChecks.OutOfRange($"The division must be one of: {string.Join(", ", EffectRules.Divisions)}.");
         }
-        return Change(document, command.Track, command.Effect, current => ((DelayEffect)current) with { Sync = command.Sync, Division = command.Division ?? ((DelayEffect)current).Division });
+        return Change(document, command.Track, command.Effect, current =>
+        {
+            DelayEffect delay = (DelayEffect)current;
+            return delay with { Sync = command.Sync, Division = command.Division ?? delay.Division };
+        });
     }
 
     private static CommandResult ApplyPreset(ProjectDocument document, ApplyEffectPreset command, IIdService ids)
@@ -132,7 +139,8 @@ internal static class EffectCommands
 
     private static CommandResult Edit(ProjectDocument document, TrackId trackId, EffectId effectId, Func<ValueList<Effect>, ValueList<Effect>> edit)
     {
-        return Find(document, trackId, effectId, out _) ?? TrackEdits.Replace(document, trackId, track => track with { Effects = edit(track.Effects) });
+        return Find(document, trackId, effectId, out _)
+            ?? TrackEdits.Replace(document, trackId, track => track with { Effects = edit(track.Effects) });
     }
 
     // A name from a client, cut to a readable length for a message.

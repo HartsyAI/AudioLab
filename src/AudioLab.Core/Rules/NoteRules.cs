@@ -23,11 +23,11 @@ public static class NoteRules
     /// <summary>The length of a new note: one grid step, and never under <see cref="MinNewDuration"/>.</summary>
     public static double NewDuration(double gridStep) => Math.Max(MinNewDuration, gridStep);
 
-    /// <summary>The latest a note may start in a clip of this length, so it still starts inside the clip.</summary>
+    /// <summary>The latest a note may start in a clip of this length, a little before the end, for add, move and quantize alike.</summary>
     public static double LatestStart(double clipLength) => Math.Max(0, clipLength - MinDuration);
 
     /// <summary>Snaps a note to the grid: its start to the nearest step from 0, its length to the nearest whole step and at least one.</summary>
-    /// <remarks>A start the snap would push to the clip end or past it stays on the last step inside the clip.</remarks>
+    /// <remarks>A start the snap would push past <see cref="LatestStart"/> steps back to the last step inside it.</remarks>
     public static MidiNote Quantize(MidiNote note, double gridStep, double clipLength)
     {
         if (!(gridStep > 0))
@@ -36,25 +36,26 @@ public static class NoteRules
         }
         // Halves round up, as the old DAW's Math.round did, not to the even step.
         double start = Math.Max(0, Math.Round(note.Start / gridStep, MidpointRounding.AwayFromZero) * gridStep);
-        if (start >= clipLength)
+        double latest = LatestStart(clipLength);
+        while (start > latest && start > 0)
         {
-            start = Math.Max(0, (Math.Ceiling(clipLength / gridStep) - 1) * gridStep);
+            start = Math.Max(0, start - gridStep);
         }
         double duration = Math.Max(gridStep, Math.Round(note.Duration / gridStep, MidpointRounding.AwayFromZero) * gridStep);
-        return note with { Start = start, Duration = Math.Min(duration, ProjectLimits.MaxSeconds) };
+        return note with { Start = Math.Min(start, latest), Duration = Math.Min(duration, ProjectLimits.MaxSeconds) };
     }
 
-    /// <summary>Moves a note by a time and a number of semitones; it stays from 0 to the latest start of the clip and in the pitch range.</summary>
-    public static MidiNote Move(MidiNote note, double seconds, int semitones, double clipLength)
+    /// <summary>Puts a note at a start and pitch, kept from 0 to <see cref="LatestStart"/> and inside the pitch range.</summary>
+    /// <remarks>The target is absolute, so a drag that was clamped and comes back lands exactly on its target.</remarks>
+    public static MidiNote MoveTo(MidiNote note, double start, int pitch, double clipLength)
     {
-        double start = Math.Clamp(note.Start + seconds, 0, LatestStart(clipLength));
-        return note with { Start = start, Pitch = Math.Clamp(note.Pitch + semitones, LowestPitch, HighestPitch) };
+        return note with { Start = Math.Clamp(start, 0, LatestStart(clipLength)), Pitch = Math.Clamp(pitch, LowestPitch, HighestPitch) };
     }
 
-    /// <summary>Lengthens or shortens a note by <paramref name="seconds"/>, to at least <see cref="MinDuration"/>.</summary>
-    public static MidiNote Resize(MidiNote note, double seconds)
+    /// <summary>Gives a note a length, to at least <see cref="MinDuration"/>.</summary>
+    public static MidiNote ResizeTo(MidiNote note, double duration)
     {
-        return note with { Duration = Math.Clamp(note.Duration + seconds, MinDuration, ProjectLimits.MaxSeconds) };
+        return note with { Duration = Math.Clamp(duration, MinDuration, ProjectLimits.MaxSeconds) };
     }
 
     /// <summary>The note name with its octave, such as "C4" for pitch 60.</summary>

@@ -9,8 +9,12 @@ public static class EffectPresets
     {
         [EffectKind.Eq] =
         [
-            Preset("Vocal clarity", ("hpFreq", 90), ("lowGain", -2), ("midGain", 2.5), ("midFreq", 3000), ("midQ", 1.2), ("highGain", 2), ("highFreq", 8000)),
-            Preset("Drum punch", ("hpFreq", 40), ("lowGain", 3), ("lowFreq", 80), ("midGain", -2), ("midFreq", 400), ("highGain", 2.5), ("highFreq", 6000)),
+            Preset(
+                "Vocal clarity", ("hpFreq", 90), ("lowGain", -2), ("midGain", 2.5), ("midFreq", 3000), ("midQ", 1.2), ("highGain", 2),
+                ("highFreq", 8000)),
+            Preset(
+                "Drum punch", ("hpFreq", 40), ("lowGain", 3), ("lowFreq", 80), ("midGain", -2), ("midFreq", 400), ("highGain", 2.5),
+                ("highFreq", 6000)),
             Preset("Bass focus", ("hpFreq", 30), ("lowGain", 4), ("lowFreq", 70), ("midGain", -1.5), ("midFreq", 800), ("lpFreq", 8000)),
             Preset("Telephone", ("hpFreq", 600), ("lpFreq", 3000), ("midGain", 4), ("midFreq", 1500)),
         ],
@@ -44,7 +48,8 @@ public static class EffectPresets
     public static IReadOnlyList<EffectPreset> For(EffectKind kind) => _byKind[kind];
 
     /// <summary>The names of every preset of every kind, once each.</summary>
-    public static IReadOnlyList<string> AllNames { get; } = [.. _byKind.Values.SelectMany(presets => presets).Select(preset => preset.Name).Distinct()];
+    public static IReadOnlyList<string> AllNames { get; } =
+        [.. _byKind.Values.SelectMany(presets => presets).Select(preset => preset.Name).Distinct()];
 
     /// <summary>The preset of a kind with this name, or null.</summary>
     public static EffectPreset? Find(EffectKind kind, string name) => _byKind[kind].FirstOrDefault(preset => preset.Name == name);

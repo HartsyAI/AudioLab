@@ -17,6 +17,9 @@ public sealed record ApplyEffectPreset : Command
 
     /// <summary>The preset's name; it must be one of the effect's kind.</summary>
     [Description("The preset's name; it must be one of the effect's kind.")]
-    [AllowedValues("Vocal clarity", "Drum punch", "Bass focus", "Telephone", "Vocal level", "Drum smash", "Glue (gentle)", "Small room", "Hall", "Cathedral", "Slap", "Quarter echo", "Dotted 8th", "Warm", "Crunch", "Destroy")]
+    [AllowedValues(
+        "Vocal clarity", "Drum punch", "Bass focus", "Telephone", "Vocal level", "Drum smash",
+        "Glue (gentle)", "Small room", "Hall", "Cathedral", "Slap", "Quarter echo", "Dotted 8th", "Warm",
+        "Crunch", "Destroy")]
     public required string Preset { get; init; }
 }

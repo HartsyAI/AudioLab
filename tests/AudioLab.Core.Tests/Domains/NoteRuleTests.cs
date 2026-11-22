@@ -31,6 +31,8 @@ public sealed class NoteRuleTests
         MidiNote snapped = NoteRules.Quantize(Note(3.9, 0.5), 0.5, 4);
 
         Assert.Equal(3.5, snapped.Start);
+        Assert.Equal(0.05, NoteRules.Quantize(Note(0.069, 0.01), 0.01, 0.07).Start, 9);
+        Assert.True(NoteRules.Quantize(Note(0.069, 0.01), 0.01, 0.07).Start < 0.07);
     }
 
     [Fact]
@@ -46,25 +48,38 @@ public sealed class NoteRuleTests
     }
 
     [Fact]
-    public void ANoteMovesInTimeAndPitchAndStaysInsideTheClipAndTheRange()
+    public void ANoteGoesToItsTargetAndStaysInsideTheClipAndThePitchRange()
     {
         MidiNote note = Note(1, 0.5, pitch: 60);
 
-        Assert.Equal((1.5, 62), (NoteRules.Move(note, 0.5, 2, 4).Start, NoteRules.Move(note, 0.5, 2, 4).Pitch));
-        Assert.Equal(0, NoteRules.Move(note, -5, 0, 4).Start);
-        Assert.Equal(NoteRules.LatestStart(4), NoteRules.Move(note, 50, 0, 4).Start);
-        Assert.Equal(127, NoteRules.Move(note, 0, 100, 4).Pitch);
-        Assert.Equal(0, NoteRules.Move(note, 0, -100, 4).Pitch);
+        Assert.Equal((1.5, 62), (NoteRules.MoveTo(note, 1.5, 62, 4).Start, NoteRules.MoveTo(note, 1.5, 62, 4).Pitch));
+        Assert.Equal(0, NoteRules.MoveTo(note, -5, 60, 4).Start);
+        Assert.Equal(NoteRules.LatestStart(4), NoteRules.MoveTo(note, 50, 60, 4).Start);
+        Assert.Equal(127, NoteRules.MoveTo(note, 1, 200, 4).Pitch);
+        Assert.Equal(0, NoteRules.MoveTo(note, 1, -100, 4).Pitch);
     }
 
     [Fact]
-    public void ANoteIsResizedToAtLeastTheMinimumLength()
+    public void ATargetIsAbsoluteSoClampingLosesNothingWhenTheDragComesBack()
+    {
+        MidiNote note = Note(1, 0.5, pitch: 60);
+
+        MidiNote clamped = NoteRules.MoveTo(note, -2, 140, 4);
+        MidiNote back = NoteRules.MoveTo(clamped, 0.5, 60, 4);
+
+        Assert.Equal((0.0, 127), (clamped.Start, clamped.Pitch));
+        Assert.Equal((0.5, 60), (back.Start, back.Pitch));
+    }
+
+    [Fact]
+    public void ANoteIsGivenALengthOfAtLeastTheMinimum()
     {
         MidiNote note = Note(0, 0.5);
 
-        Assert.Equal(1.0, NoteRules.Resize(note, 0.5).Duration);
-        Assert.Equal(NoteRules.MinDuration, NoteRules.Resize(note, -3).Duration);
-        Assert.Equal(ProjectLimits.MaxSeconds, NoteRules.Resize(note, 5_000_000).Duration);
+        Assert.Equal(1.0, NoteRules.ResizeTo(note, 1.0).Duration);
+        Assert.Equal(NoteRules.MinDuration, NoteRules.ResizeTo(note, -3).Duration);
+        Assert.Equal(ProjectLimits.MaxSeconds, NoteRules.ResizeTo(note, 5_000_000).Duration);
+        Assert.Equal(0.5, NoteRules.ResizeTo(NoteRules.ResizeTo(note, 0.001), 0.5).Duration);
     }
 
     [Fact]

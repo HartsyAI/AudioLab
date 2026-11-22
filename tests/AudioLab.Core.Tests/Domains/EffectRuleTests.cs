@@ -87,6 +87,17 @@ public sealed class EffectRuleTests
     }
 
     [Fact]
+    public void ADelayDivisionThatIsNotOneOfTheSixIsRefusedByTheValidator()
+    {
+        DelayEffect delay = Assert.IsType<DelayEffect>(EffectRules.Create(EffectKind.Delay, _id));
+
+        Assert.Empty(ProjectValidator.Validate(WithEffect(delay with { Division = "1/8." })));
+        Assert.NotEmpty(ProjectValidator.Validate(WithEffect(delay with { Division = "1/3" })));
+        Assert.NotEmpty(ProjectValidator.Validate(WithEffect(delay with { Division = string.Empty })));
+        Assert.All(DelayEffect.Divisions, division => Assert.Empty(ProjectValidator.Validate(WithEffect(delay with { Division = division }))));
+    }
+
+    [Fact]
     public void EveryDivisionIsAKnownOneAndTheValidatorsLimitHolds()
     {
         Assert.All(EffectRules.Divisions, division => Assert.True(EffectRules.IsDivision(division)));

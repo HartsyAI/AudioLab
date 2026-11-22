@@ -62,10 +62,11 @@ public static class EffectRules
     ];
 
     /// <summary>The delay divisions a synced delay may use, longest first.</summary>
-    public static IReadOnlyList<string> Divisions { get; } = [.. _divisions.Keys];
+    public static IReadOnlyList<string> Divisions => DelayEffect.Divisions;
 
     /// <summary>The name of every numeric setting of every kind, once each.</summary>
-    public static IReadOnlyList<string> AllParameterNames { get; } = [.. Enum.GetValues<EffectKind>().SelectMany(kind => Parameters(kind)).Select(setting => setting.Name).Distinct()];
+    public static IReadOnlyList<string> AllParameterNames { get; } =
+        [.. Enum.GetValues<EffectKind>().SelectMany(kind => Parameters(kind)).Select(setting => setting.Name).Distinct()];
 
     /// <summary>A new effect of a kind with the old DAW's starting settings, on.</summary>
     public static Effect Create(EffectKind kind, EffectId id)
@@ -86,9 +87,29 @@ public static class EffectRules
                 HighFreq = 4000,
                 LpFreq = 20000,
             },
-            EffectKind.Compressor => new CompressorEffect { Id = id, Enabled = true, Threshold = -24, Knee = 30, Ratio = 4, Attack = 0.003, Release = 0.25, Makeup = 0 },
+            EffectKind.Compressor => new CompressorEffect
+            {
+                Id = id,
+                Enabled = true,
+                Threshold = -24,
+                Knee = 30,
+                Ratio = 4,
+                Attack = 0.003,
+                Release = 0.25,
+                Makeup = 0,
+            },
             EffectKind.Reverb => new ReverbEffect { Id = id, Enabled = true, Size = 2, Decay = 3, Predelay = 0.02, Mix = 0.3 },
-            EffectKind.Delay => new DelayEffect { Id = id, Enabled = true, Time = 0.35, Sync = false, Division = "1/4", Feedback = 0.35, Tone = 8000, Mix = 0.25 },
+            EffectKind.Delay => new DelayEffect
+            {
+                Id = id,
+                Enabled = true,
+                Time = 0.35,
+                Sync = false,
+                Division = "1/4",
+                Feedback = 0.35,
+                Tone = 8000,
+                Mix = 0.25,
+            },
             _ => new SaturationEffect { Id = id, Enabled = true, Drive = 0.3, Trim = 0, Mix = 1 },
         };
     }
@@ -127,7 +148,7 @@ public static class EffectRules
     }
 
     /// <summary>Whether <paramref name="division"/> is one a synced delay may use.</summary>
-    public static bool IsDivision(string division) => _divisions.ContainsKey(division);
+    public static bool IsDivision(string division) => DelayEffect.Divisions.Contains(division);
 
     /// <summary>The time of a delay that follows the tempo: its division at <paramref name="bpm"/>, at most four seconds.</summary>
     public static double SyncedDelayTime(string division, double bpm)
@@ -136,7 +157,12 @@ public static class EffectRules
         return Math.Min(4, 60 / (bpm > 0 ? bpm : 120) * beats);
     }
 
-    private static EffectParameter Setting<TEffect>(string name, double min, double max, Func<TEffect, double> get, Func<TEffect, double, TEffect> set)
+    private static EffectParameter Setting<TEffect>(
+        string name,
+        double min,
+        double max,
+        Func<TEffect, double> get,
+        Func<TEffect, double, TEffect> set)
         where TEffect : Effect
     {
         return new EffectParameter(name, min, max, effect => get((TEffect)effect), (effect, value) => set((TEffect)effect, value));

@@ -14,6 +14,8 @@ namespace AudioLab.Core.Commands;
     AllowDuplicateProperties = false,
     NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(NoteId))]
+[JsonSerializable(typeof(NoteTarget))]
+[JsonSerializable(typeof(NoteLength))]
 [JsonSerializable(typeof(AddNote))]
 [JsonSerializable(typeof(MoveNotes))]
 [JsonSerializable(typeof(ResizeNotes))]

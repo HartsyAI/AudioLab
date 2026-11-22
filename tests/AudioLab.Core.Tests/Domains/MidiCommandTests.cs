@@ -101,40 +101,40 @@ public sealed class MidiCommandTests
     // ----- move, resize, velocity, transpose
 
     [Fact]
-    public void NotesMoveTogetherInTimeAndPitchAndOnlyTheChosenOnes()
+    public void NotesAreMovedToTheirTargetsAndOnlyTheNamedOnesMove()
     {
         NoteId a = Add(60, 1);
         NoteId b = Add(64, 2);
 
-        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [a], Time = 0.5, Pitch = 3 });
+        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(a, 1.5, 63)] });
 
         Assert.Equal((1.5, 63), (Note(a).Start, Note(a).Pitch));
         Assert.Equal((2.0, 64), (Note(b).Start, Note(b).Pitch));
-        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = 0.25, Pitch = 0 });
-        Assert.Equal((1.75, 2.25), (Note(a).Start, Note(b).Start));
+        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(a, 1.75, 63), new NoteTarget(b, 2.25, 70)] });
+        Assert.Equal((1.75, 2.25, 70), (Note(a).Start, Note(b).Start, Note(b).Pitch));
     }
 
     [Fact]
-    public void AMoveStopsAtTheClipStartTheClipEndAndThePitchRange()
+    public void ATargetPastTheLatestStartIsKeptInsideTheClipAndOneOutsideTheProjectsRangeIsRefused()
     {
         NoteId id = Add(60, 1);
 
-        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = -9, Pitch = 127 });
-        Assert.Equal((0.0, 127), (Note(id).Start, Note(id).Pitch));
-        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = 99, Pitch = -127 });
-
-        Assert.Equal((NoteRules.LatestStart(4), 0), (Note(id).Start, Note(id).Pitch));
+        _rig.Ok(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(id, 99, 127)] });
+        Assert.Equal((NoteRules.LatestStart(4), 127), (Note(id).Start, Note(id).Pitch));
+        foreach (NoteTarget target in new[] { new NoteTarget(id, -0.1, 60), new NoteTarget(id, 1, -1), new NoteTarget(id, 1, 128), new NoteTarget(id, double.NaN, 60), new NoteTarget(id, 2_000_000, 60) })
+        {
+            _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [target] }, CommandErrorCode.Invalid);
+        }
     }
 
     [Fact]
-    public void ADeltaOutsideTheProjectsLimitsIsRefused()
+    public void ALengthBelowTheMinimumOrPastTheLimitIsRefused()
     {
-        Add(60, 1);
+        NoteId id = Add(60, 1);
 
-        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = 2_000_000, Pitch = 0 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = 0, Pitch = 128 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Time = double.NaN, Pitch = 0 }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = _clip, Duration = -2_000_000 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteLength(id, 0.01)] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteLength(id, 2_000_000)] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteLength(id, double.NaN)] }, CommandErrorCode.Invalid);
     }
 
     [Fact]
@@ -144,28 +144,52 @@ public sealed class MidiCommandTests
         GestureId drag = GestureId.From("note-drag");
         int steps = _rig.History.UndoCount;
 
-        foreach (double time in new[] { 0.1, 0.2, 0.3, 0.4 })
+        foreach (double start in new[] { 1.1, 1.2, 1.3, 1.4 })
         {
-            Assert.True(_rig.Run(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [id], Time = time, Pitch = 0 }, drag).Succeeded);
+            Assert.True(_rig.Run(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(id, start, 60)] }, drag).Succeeded);
         }
         _rig.History.EndGesture(ClientId.From("test-client"), drag);
 
         Assert.Equal(steps + 1, _rig.History.UndoCount);
+        Assert.Equal(1.4, Note(id).Start);
         _rig.History.Undo();
         Assert.Equal(1.0, Note(id).Start);
     }
 
     [Fact]
-    public void NotesAreResizedToAtLeastTheMinimum()
+    public void ADragThatWentPastTheEdgesAndCameBackEndsExactlyOnItsTargetInTimeAndPitchForEveryNote()
+    {
+        NoteId a = Add(60, 1);
+        NoteId b = Add(64, 2);
+        GestureId drag = GestureId.From("multi-drag");
+        (double, int)[] frames = [(0.5, 70), (3.99, 127), (50, 127), (1.5, 20), (1.25, 61)];
+
+        foreach ((double start, int pitch) in frames)
+        {
+            // The client keeps the shape: the second note follows one second behind the first.
+            NoteTarget[] targets = [new NoteTarget(a, start, pitch), new NoteTarget(b, start + 1, Math.Min(127, pitch + 4))];
+            CommandResult result = _rig.Run(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [.. targets] }, drag);
+            Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Message)));
+        }
+        _rig.History.EndGesture(ClientId.From("test-client"), drag);
+
+        Assert.Equal((1.25, 61), (Note(a).Start, Note(a).Pitch));
+        Assert.Equal((2.25, 65), (Note(b).Start, Note(b).Pitch));
+    }
+
+    [Fact]
+    public void NotesAreResizedToTheirLengthsAndADragThatWentTooShortCanComeBack()
     {
         NoteId a = Add(60, 0, 0.5);
 
-        _rig.Ok(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [a], Duration = 0.25 });
+        _rig.Ok(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteLength(a, 0.75)] });
         Assert.Equal(0.75, Note(a).Duration);
-        _rig.Ok(new ResizeNotes { Project = _rig.Id, Clip = _clip, Duration = -5 });
+        foreach (double length in new[] { 0.02, 0.5, 0.9 })
+        {
+            _rig.Ok(new ResizeNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteLength(a, length)] });
+        }
 
-        Assert.Equal(NoteRules.MinDuration, Note(a).Duration);
-        _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = _clip, Duration = double.NaN }, CommandErrorCode.Invalid);
+        Assert.Equal(0.9, Note(a).Duration);
     }
 
     [Fact]
@@ -262,7 +286,10 @@ public sealed class MidiCommandTests
 
         _rig.RefusedWith(new DeleteNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteId(99)] }, CommandErrorCode.NotFound);
         _rig.RefusedWith(new DeleteNotes { Project = _rig.Id, Clip = _clip, Notes = [] }, CommandErrorCode.Invalid);
-        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteId(99)], Time = 1, Pitch = 0 }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(new NoteId(99), 1, 60)] }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [new NoteTarget(default, 1, 60)] }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new DeleteNotes { Project = _rig.Id, Clip = _clip, Notes = [default] }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new SetNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [default], Velocity = 50 }, CommandErrorCode.NotFound);
     }
 
     [Fact]
@@ -273,8 +300,8 @@ public sealed class MidiCommandTests
 
         foreach ((ClipId clip, CommandErrorCode code) in new[] { (none, CommandErrorCode.NotFound), (audio, CommandErrorCode.Rejected) })
         {
-            _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = clip, Time = double.NaN, Pitch = 0 }, code);
-            _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = clip, Duration = 1 }, code);
+            _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = clip, Notes = [new NoteTarget(new NoteId(1), double.NaN, 60)] }, code);
+            _rig.RefusedWith(new ResizeNotes { Project = _rig.Id, Clip = clip, Notes = [new NoteLength(new NoteId(1), 1)] }, code);
             _rig.RefusedWith(new SetNoteVelocity { Project = _rig.Id, Clip = clip, Velocity = 1 }, code);
             _rig.RefusedWith(new TransposeNotes { Project = _rig.Id, Clip = clip, Semitones = 1 }, code);
             _rig.RefusedWith(new QuantizeNotes { Project = _rig.Id, Clip = clip }, code);
@@ -309,6 +336,80 @@ public sealed class MidiCommandTests
         Assert.Equal(130_000, rig.Project.Tracks.First(track => track.Id == _keys).MidiClips[0].Notes.Count);
     }
 
+    [Fact]
+    public void AnEmptyOrOversizedNoteListIsRefusedAndNoListMeansEveryNote()
+    {
+        NoteId a = Add(60, 0);
+        Add(62, 1);
+
+        _rig.RefusedWith(new SetNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [], Velocity = 50 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new TransposeNotes { Project = _rig.Id, Clip = _clip, Notes = [], Semitones = 1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new QuantizeNotes { Project = _rig.Id, Clip = _clip, Notes = [] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new MoveNotes { Project = _rig.Id, Clip = _clip, Notes = [] }, CommandErrorCode.Invalid);
+        _rig.Ok(new SetNoteVelocity { Project = _rig.Id, Clip = _clip, Velocity = 50 });
+        Assert.All(Clip.Notes, note => Assert.Equal(50, note.Velocity));
+        Assert.Equal(60, Note(a).Pitch);
+    }
+
+    [Theory]
+    [InlineData(0.07, 0.01)]
+    [InlineData(0.1, 0.01)]
+    [InlineData(0.7, 0.1)]
+    [InlineData(0.3, 0.1)]
+    [InlineData(1.2, 0.01)]
+    public void QuantizeNeverPutsANoteAtTheClipEndWhateverTheFloatingPointSays(double length, double step)
+    {
+        CommandRig rig = new(_rig.Project with { View = _rig.Project.View with { Grid = step == 0.01 ? "10ms" : "0.1s" } }, 5000);
+        ClipId clip = ClipId.From(rig.Created(new AddMidiClip { Project = rig.Id, Track = _keys, Start = 10, Length = length })[0]);
+        double latest = NoteRules.LatestStart(length);
+        foreach (double start in new[] { 0.0, length / 2, latest - 0.004, latest })
+        {
+            rig.Ok(new AddNote { Project = rig.Id, Clip = clip, Pitch = 60, Start = start });
+        }
+
+        CommandResult result = rig.Run(new QuantizeNotes { Project = rig.Id, Clip = clip });
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Message)));
+        MidiClip quantized = rig.Project.Tracks.First(track => track.Id == _keys).MidiClips.First(candidate => candidate.Id == clip);
+        Assert.All(quantized.Notes, note => Assert.True(note.Start >= 0 && note.Start <= latest + 1e-12 && note.Start < length));
+    }
+
+    [Fact]
+    public void QuantizeKeepsEveryNoteInsideItsClipAcrossTemposAndLengths()
+    {
+        Random random = new(20261122);
+        foreach (int bpm in new[] { 60, 73, 97, 120, 133, 150, 173, 200 })
+        {
+            double sixteenth = 60.0 / bpm / 4;
+            for (int k = 2; k <= 64; k++)
+            {
+                double length = k * sixteenth;
+                MidiNote[] notes = [.. Enumerable.Range(1, 12).Select(i => new MidiNote(new NoteId(i), 60, Math.Min(random.NextDouble() * length, NoteRules.LatestStart(length)), 0.1, 100))];
+                foreach (double step in new[] { sixteenth, sixteenth * 2, 0.01, 0.1 })
+                {
+                    foreach (MidiNote note in notes)
+                    {
+                        MidiNote snapped = NoteRules.Quantize(note, step, length);
+                        Assert.True(snapped.Start >= 0 && snapped.Start <= NoteRules.LatestStart(length) && snapped.Start < length, $"{bpm} bpm, {k} sixteenths, step {step}: {snapped.Start} in {length}");
+                    }
+                }
+                MidiClip clip = new()
+                {
+                    Id = ClipId.From("clp_q"),
+                    Name = "q",
+                    Start = 0,
+                    Length = length,
+                    NextNoteId = new NoteId(13),
+                    Notes = [.. notes.Select(note => NoteRules.Quantize(note, sixteenth, length))],
+                    ControlChanges = [],
+                    Muted = false,
+                };
+                Track track = ProjectDefaults.NewTrack(TrackId.From("trk_q"), "q", TrackKind.Instrument, "#abc", InstrumentPresets.CreateSynth("Soft Keys")) with { MidiClips = [clip] };
+                Assert.Empty(ProjectValidator.Validate(BlankProject.Create() with { Tracks = [track] }));
+            }
+        }
+    }
+
     // ----- controller events
 
     [Fact]
@@ -330,6 +431,15 @@ public sealed class MidiCommandTests
         _rig.RefusedWith(new AddControlChange { Project = _rig.Id, Clip = _clip, Time = 1, Controller = 128, Value = 127 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new AddControlChange { Project = _rig.Id, Clip = _clip, Time = 1, Controller = 64, Value = 128 }, CommandErrorCode.Invalid);
         _rig.Ok(new AddControlChange { Project = _rig.Id, Clip = _clip, Time = 4, Controller = 64, Value = 0 });
+    }
+
+    [Fact]
+    public void RemovingControllerEventsFindsTheClipFirstThenChecksTheControllerAndTheTime()
+    {
+        _rig.RefusedWith(new RemoveControlChanges { Project = _rig.Id, Clip = ClipId.From("clp_none"), Time = 0, Controller = 200 }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(new RemoveControlChanges { Project = _rig.Id, Clip = _clip, Time = 0, Controller = 200 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new RemoveControlChanges { Project = _rig.Id, Clip = _clip, Time = -1, Controller = 64 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new RemoveControlChanges { Project = _rig.Id, Clip = _clip, Time = 0, Controller = 64 }, CommandErrorCode.NotFound);
     }
 
     [Fact]
