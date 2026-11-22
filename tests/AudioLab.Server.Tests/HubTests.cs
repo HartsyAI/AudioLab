@@ -369,6 +369,25 @@ public sealed class HubTests
         Assert.Equal("Prefixed", ProjectJson.Read((await b.NextChangeAsync()).Document).Name);
     }
 
+    [Fact]
+    public async Task TheRealServerAcceptsTheDomainCommandsCoreShips()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        string project = await CreateAsync(server, UserId.Local);
+        await using HubClient a = await HubClient.ConnectAsync(server);
+        await using HubClient b = await HubClient.ConnectAsync(server);
+        await a.JoinAsync(project);
+        await b.JoinAsync(project);
+
+        CommandReply added = await a.ApplyAsync(project, "marker_add", Json(project, "\"time\":12.5,\"name\":\"Chorus\""));
+        Assert.True(added.Succeeded, string.Join("; ", added.Errors.Select(error => error.Message)));
+        Assert.Single(added.Created);
+        ProjectDocument heard = ProjectJson.Read((await b.NextChangeAsync()).Document);
+        Assert.Equal(("Chorus", 12.5), (heard.Markers[0].Name, heard.Markers[0].Time));
+        Assert.Equal(added.Created[0], heard.Markers[0].Id.Value);
+        Assert.Equal(AudioLab.Core.Commands.CommandErrorCode.UnknownCommand, (await a.ApplyAsync(project, "no_such_command", "{}")).Errors.Single().Code);
+    }
+
     private static Task<RunningServer> StartAsync(IDictionary<string, string?>? settings = null)
     {
         return RunningServer.StartAsync(settings, services => services.AddSingleton(TestCommandRegistry.Create()));
