@@ -65,10 +65,12 @@ public sealed class UnpairedSurrogateTests
     [Theory]
     [InlineData("udc00")]
     [InlineData("ud800x")]
-    [InlineData("ud800" + "\ud800")]
-    [InlineData("udc00" + "\ud800")]
-    public void EveryWayToLeaveASurrogateUnpairedIsRefusedInAnUnknownValueAndName(string escape)
+    [InlineData("ud800<raw>")]
+    [InlineData("udc00<raw>")]
+    public void EveryWayToLeaveASurrogateUnpairedIsRefusedInAnUnknownValueAndName(string template)
     {
+        // A raw lone surrogate cannot sit in an attribute (the compiler turns it into U+FFFD), so it is added here.
+        string escape = template.Replace("<raw>", ((char)0xD800).ToString(), StringComparison.Ordinal);
         JsonObject root = Parse(ProjectJson.Write(SampleProject.Create(UserId.Local)));
         Clip(root)["meta"]!["extra"] = Marker;
         string asValue = root.ToJsonString().Replace(Marker, Backslash + escape, StringComparison.Ordinal);
@@ -79,6 +81,16 @@ public sealed class UnpairedSurrogateTests
         Assert.Throws<ProjectFormatException>(() => ProjectJson.Read(asName));
     }
 
+    [Theory]
+    [InlineData("\"<escape>\"")]
+    [InlineData("[\"a\", \"<escape>\"]")]
+    [InlineData("{\"k\": \"<escape>\"}")]
+    public void ExtraFieldsRefusesAnEscapedLoneSurrogateInAValueWithAnArgumentException(string template)
+    {
+        string json = template.Replace("<escape>", _lone, StringComparison.Ordinal);
+        ArgumentException error = Assert.Throws<ArgumentException>(() => ExtraFields.FromJson(("x", json)));
+        Assert.IsType<InvalidOperationException>(error.InnerException);
+    }
     [Fact]
     public void APairedSurrogateEscapeInAnUnknownValueIsKept()
     {

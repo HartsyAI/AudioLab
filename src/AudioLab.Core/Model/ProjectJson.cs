@@ -77,6 +77,9 @@ public static class ProjectJson
         }
         catch (JsonException)
         {
+            // Not a second clean-up of the message: this only declines to judge the version of a text that is not
+            // JSON. The serializer then reads it and reports the syntax error with its path, and
+            // JsonErrors.BaseMessage cuts the position out of that message. They do different jobs.
             return null;
         }
         return null;
