@@ -143,7 +143,7 @@ public sealed class HubTests
     }
 
     [Fact]
-    public async Task RevisionsReachEveryClientInOrderWithoutGapsWhileTwoClientsEditAtOnce()
+    public async Task RevisionsReachEveryClientInIncreasingOrderAndTheLastOneAlwaysArrivesWhileTwoClientsEditAtOnce()
     {
         await using RunningServer server = await StartAsync();
         string project = await CreateAsync(server, UserId.Local);
@@ -164,18 +164,19 @@ public sealed class HubTests
 
         foreach (HubClient client in new[] { a, b })
         {
-            long expected = 2;
-            for (int i = 0; i < 2 * Each; i++)
+            long last = 1;
+            while (last < (2 * Each) + 1)
             {
                 ProjectChange change = await client.NextChangeAsync();
-                Assert.Equal(expected++, change.Revision);
-                Assert.Equal(i + 1, ProjectJson.Read(change.Document).Markers.Count);
+                Assert.True(change.Revision > last, $"revision {change.Revision} came after {last}");
+                Assert.Equal(change.Revision - 1, ProjectJson.Read(change.Document).Markers.Count);
+                last = change.Revision;
             }
         }
     }
 
     [Fact]
-    public async Task AClientThatJoinsWhileOthersEditMissesNothingAndHearsNothingTwice()
+    public async Task AClientThatJoinsWhileOthersEditHearsOnlyNewerRevisionsAndTheLastOne()
     {
         await using RunningServer server = await StartAsync();
         string project = await CreateAsync(server, UserId.Local);
@@ -194,11 +195,12 @@ public sealed class HubTests
         JoinReply joined = await late.JoinAsync(project);
         await editing;
 
-        long expected = joined.Revision + 1;
-        while (expected <= Edits + 1)
+        long last = joined.Revision;
+        while (last < Edits + 1)
         {
             ProjectChange change = await late.NextChangeAsync();
-            Assert.Equal(expected++, change.Revision);
+            Assert.True(change.Revision > last, $"revision {change.Revision} came after {last}");
+            last = change.Revision;
         }
         Assert.True(await late.HeardNothingAsync());
     }
@@ -236,7 +238,7 @@ public sealed class HubTests
             Assert.Equal(new ProjectClosed(project, "deleted"), await client.NextClosedAsync());
         }
         HubException error = await Assert.ThrowsAsync<HubException>(() => a.ApplyAsync(project, "no_change", Json(project, string.Empty)));
-        Assert.Contains("no such project", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Join the project first", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -282,7 +284,7 @@ public sealed class HubTests
     [Fact]
     public async Task AMessageOverTheLimitClosesTheConnection()
     {
-        await using RunningServer server = await StartAsync(new Dictionary<string, string?> { ["AudioLab:HubMaxMessageBytes"] = "2048" });
+        await using RunningServer server = await StartAsync(new Dictionary<string, string?> { ["AudioLab:HubMaxCommandChars"] = "1000" });
         string project = await CreateAsync(server, UserId.Local);
         await using HubClient client = await HubClient.ConnectAsync(server);
         await client.JoinAsync(project);

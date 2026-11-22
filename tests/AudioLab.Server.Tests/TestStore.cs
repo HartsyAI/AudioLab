@@ -1,5 +1,6 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Server.Configuration;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ public sealed class TestStore : IAsyncDisposable
         Registry = registry ?? new CommandRegistryBuilder().Build();
         Open = new OpenProjects(Projects, Options, Time, Registry, Ids, NullLogger<OpenProjects>.Instance);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
-        Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance);
+        Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions());
     }
 
     public string Folder { get; }

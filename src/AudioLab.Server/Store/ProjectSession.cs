@@ -1,3 +1,4 @@
+using System.Text;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 
@@ -20,7 +21,7 @@ public sealed class ProjectSession
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly CommandRegistry _registry;
-    private readonly IIdService _ids;
+    private readonly ReplayableIds _ids;
     private readonly object _state = new();
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly ITimer _timer;
@@ -46,7 +47,7 @@ public sealed class ProjectSession
     {
         _store = store;
         _registry = registry;
-        _ids = ids;
+        _ids = new ReplayableIds(ids);
         _options = options;
         _time = time;
         _logger = logger;
@@ -58,6 +59,18 @@ public sealed class ProjectSession
 
     /// <summary>Held while a change is applied and announced, so every client of the project hears the revisions in the order they happened.</summary>
     public SemaphoreSlim PublishOrder { get; } = new(1, 1);
+
+    /// <summary>Whether the session has been closed or discarded, so a change to it would be refused.</summary>
+    public bool IsClosed
+    {
+        get
+        {
+            lock (_state)
+            {
+                return _closed;
+            }
+        }
+    }
 
     /// <summary>The project's id.</summary>
     public ProjectId Id => Snapshot.Document.Id;
@@ -159,8 +172,43 @@ public sealed class ProjectSession
         {
             RequireOpenLocked();
             CommandHistory history = History();
-            CommandResult result = history.Apply(command, client, gesture);
-            return Outcome(result, history);
+
+            // Run the command once to see how large the project would become; a document the store would refuse to write
+            // is never applied or announced. The second run gets the same ids, so it makes the same document.
+            _ids.Record();
+            CommandResult preview;
+            IReadOnlyList<string> recorded;
+            try
+            {
+                preview = _registry.Execute(history.Current, command, _ids);
+            }
+            finally
+            {
+                recorded = _ids.StopRecording();
+            }
+            string? json = null;
+            ProjectDocument? previewed = null;
+            if (preview.Document is { } document && document != history.Current)
+            {
+                json = ProjectJson.Write(document);
+                previewed = document;
+                if (Encoding.UTF8.GetByteCount(json) > _options.MaxFileBytes)
+                {
+                    CommandResult tooLarge = CommandResult.Refuse(CommandErrorCode.Limit, $"The project would be larger than the {_options.MaxFileBytes} bytes the server stores.");
+                    return new EditOutcome(tooLarge, _snapshot, false, null);
+                }
+            }
+            _ids.Replay(recorded);
+            CommandResult result;
+            try
+            {
+                result = history.Apply(command, client, gesture);
+            }
+            finally
+            {
+                _ids.EndReplay();
+            }
+            return Outcome(result, history, history.Current == previewed ? json : null);
         }
     }
 
@@ -288,13 +336,13 @@ public sealed class ProjectSession
     private CommandHistory History() => _history ??= new CommandHistory(_snapshot.Document, _registry, _ids);
 
     // Called under _state. The history already holds the new document, so a change that leaves it equal adds no revision.
-    private EditOutcome Outcome(CommandResult? result, CommandHistory history)
+    private EditOutcome Outcome(CommandResult? result, CommandHistory history, string? json = null)
     {
         if (result is { Succeeded: false } || history.Current == _snapshot.Document)
         {
-            return new EditOutcome(result, _snapshot, false);
+            return new EditOutcome(result, _snapshot, false, null);
         }
-        return new EditOutcome(result, Commit(history.Current), true);
+        return new EditOutcome(result, Commit(history.Current), true, json ?? ProjectJson.Write(history.Current));
     }
 
     // Called under _state with a document that has been validated: raises the revision and schedules the autosave.

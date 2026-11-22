@@ -1,25 +1,34 @@
 using AudioLab.Core.Model;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
-using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Server.Realtime;
 
-/// <summary>Sends a project's events to the hub group of its clients.</summary>
-public sealed class HubProjectEvents(IHubContext<ProjectHub, IProjectClient> hub) : IProjectEvents
+/// <summary>Puts a project's events in the outbox of each connection that joined it. It never waits for a client.</summary>
+public sealed class HubProjectEvents(ProjectMembers members) : IProjectEvents
 {
     /// <inheritdoc />
-    public Task ChangedAsync(UserId user, ProjectSnapshot snapshot, string reason, CancellationToken cancellationToken)
+    public Task ChangedAsync(UserId user, ProjectSnapshot snapshot, string json, string reason, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        ProjectDocument document = snapshot.Document;
-        ProjectChange change = new(document.Id.Value, snapshot.Revision, ProjectJson.Write(document), reason);
-        return hub.Clients.Group(ProjectGroups.Of(user, document.Id)).DocumentChanged(change);
+        ProjectId project = snapshot.Document.Id;
+        ProjectChange change = new(project.Value, snapshot.Revision, json, reason);
+        foreach (ConnectionState connection in members.Of(user, project))
+        {
+            connection.Outbox.Post(change);
+        }
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public Task DeletedAsync(UserId user, ProjectId project, CancellationToken cancellationToken)
     {
-        return hub.Clients.Group(ProjectGroups.Of(user, project)).ProjectDeleted(new ProjectClosed(project.Value, "deleted"));
+        ProjectClosed closed = new(project.Value, "deleted");
+        foreach (ConnectionState connection in members.Close(user, project))
+        {
+            connection.Remove(project);
+            connection.Outbox.PostDeleted(closed);
+        }
+        return Task.CompletedTask;
     }
 }

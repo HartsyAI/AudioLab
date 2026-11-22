@@ -1,5 +1,6 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Server.Configuration;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Store;
 
@@ -10,7 +11,7 @@ namespace AudioLab.Server.Services;
 /// Every method takes the user from the door and opens the project as that user, so a project of another user is
 /// never found. A change and its announcement happen under the project's publish order, so clients hear revisions in order.
 /// </remarks>
-public sealed class ProjectEditService(OpenProjects open, CommandRegistry registry, IProjectEvents events)
+public sealed class ProjectEditService(OpenProjects open, CommandRegistry registry, IProjectEvents events, AudioLabOptions options)
 {
     /// <summary>Opens the project and, before any later change can be announced, calls <paramref name="subscribe"/>; returns the state to start from.</summary>
     /// <param name="user">The user the door resolved.</param>
@@ -25,6 +26,11 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         await session.PublishOrder.WaitAsync(cancellationToken);
         try
         {
+            // The project may have been deleted while this waited for its turn; a closed session is a project that is gone.
+            if (session.IsClosed)
+            {
+                throw new ProjectNotFoundException();
+            }
             await subscribe(cancellationToken);
             return session.Snapshot;
         }
@@ -57,6 +63,10 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         if (name is null || json is null)
         {
             return Refused([new CommandError(CommandErrorCode.Malformed, "A command needs its name and its JSON text.")], session.Snapshot.Revision);
+        }
+        if (json.Length > options.HubMaxCommandChars)
+        {
+            return Refused([new CommandError(CommandErrorCode.Limit, $"The command is longer than the {options.HubMaxCommandChars} characters the server accepts.")], session.Snapshot.Revision);
         }
         CommandParseResult parsed = registry.Parse(name, json);
         if (parsed.Command is not { } command)
@@ -132,7 +142,7 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         }
         if (outcome.Changed)
         {
-            await events.ChangedAsync(user, outcome.Snapshot, reason, CancellationToken.None);
+            await events.ChangedAsync(user, outcome.Snapshot, outcome.Json!, reason, CancellationToken.None);
         }
         return new CommandReply(true, outcome.Changed, outcome.Snapshot.Revision, [], created);
     }

@@ -474,4 +474,17 @@ public sealed class SessionTests
         Assert.Null(session.Undo());
         Assert.Equal("Two", session.Snapshot.Document.Name);
     }
+
+    [Fact]
+    public async Task TheRetryDelayNeverPassesFiveMinutesWhateverTheAutosaveMaximumIs()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { AutosaveMaxDelay = TimeSpan.FromHours(1) });
+        ProjectSession session = await OpenNewAsync(store);
+        store.Observer = (stage, temp) => throw new IOException("disk full");
+        session.Update(document => document with { Bpm = 77 });
+        store.Time.Advance(store.Options.AutosaveDelay);
+        await session.SettleAsync();
+        Assert.Equal(ProjectSession.MaxRetryDelay, store.Time.NextTimerDelay);
+    }
 }

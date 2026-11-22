@@ -8,78 +8,83 @@ using Microsoft.AspNetCore.SignalR;
 namespace AudioLab.Server.Realtime;
 
 /// <summary>The hub: a client joins a project it owns, sends commands and hears every change to it, whoever made it; the user is the one the door resolved and the client id is the connection id the server issued.</summary>
-public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
+public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members, ConnectionOutboxFactory outboxes) : Hub<IProjectClient>
 {
     /// <summary>The most projects one connection may have joined.</summary>
     public const int MaxProjectsPerConnection = 16;
 
-    private const string UserKey = "audiolab.user";
-    private const string JoinedKey = "audiolab.joined";
+    private const string StateKey = "audiolab.connection";
 
-    private UserId User => (UserId)Context.Items[UserKey]!;
-
-    private HashSet<ProjectId> Joined => (HashSet<ProjectId>)Context.Items[JoinedKey]!;
-
-    private ClientId Client => ClientId.From(Context.ConnectionId);
+    private ConnectionState State => (ConnectionState)Context.Items[StateKey]!;
 
     /// <inheritdoc />
     public override Task OnConnectedAsync()
     {
-        Context.Items[UserKey] = Context.GetHttpContext()?.RequireUser() ?? throw new HubException("The connection has no user.");
-        Context.Items[JoinedKey] = new HashSet<ProjectId>();
+        UserId user = Context.GetHttpContext()?.RequireUser() ?? throw new HubException("The connection has no user.");
+        Context.Items[StateKey] = new ConnectionState(user, Context.ConnectionId, outboxes.Create(Context));
         return base.OnConnectedAsync();
     }
 
     /// <inheritdoc />
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        if (Context.Items.ContainsKey(JoinedKey))
+        if (Context.Items.TryGetValue(StateKey, out object? value) && value is ConnectionState state)
         {
-            foreach (ProjectId project in Joined)
+            members.RemoveAll(state);
+            foreach (ProjectId project in state.Joined())
             {
-                edits.ReleaseClient(User, project, Client);
+                edits.ReleaseClient(state.User, project, state.Client);
             }
+            state.Outbox.Dispose();
         }
         return base.OnDisconnectedAsync(exception);
     }
 
     /// <summary>Joins a project the user owns and returns its state; every later change is sent with a higher revision, and none is missed.</summary>
+    /// <remarks>A change may reach the client before this call returns; the client keeps it and applies it if its revision is above the reply's.</remarks>
     [HubMethodName("Join")]
     public async Task<JoinReply> JoinAsync(string? project)
     {
         ProjectId id = Parse(project);
-        if (!Joined.Contains(id) && Joined.Count >= MaxProjectsPerConnection)
+        ConnectionState state = State;
+        if (!state.IsJoined(id) && state.JoinedCount >= MaxProjectsPerConnection)
         {
             throw new HubException($"A connection may join {MaxProjectsPerConnection} projects at most.");
         }
         ProjectSnapshot snapshot = await GuardAsync(() => edits.JoinAsync(
-            User,
+            state.User,
             id,
-            token => Groups.AddToGroupAsync(Context.ConnectionId, ProjectGroups.Of(User, id), token),
+            _ =>
+            {
+                members.Add(state.User, id, state);
+                state.Add(id);
+                return Task.CompletedTask;
+            },
             Context.ConnectionAborted));
-        Joined.Add(id);
         return new JoinReply(id.Value, snapshot.Revision, ProjectJson.Write(snapshot.Document));
     }
 
     /// <summary>Leaves a project: no more changes are sent, and an open gesture is closed.</summary>
     [HubMethodName("Leave")]
-    public async Task LeaveAsync(string? project)
+    public Task LeaveAsync(string? project)
     {
         ProjectId id = Parse(project);
-        if (Joined.Remove(id))
+        ConnectionState state = State;
+        if (state.Remove(id))
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, ProjectGroups.Of(User, id), Context.ConnectionAborted);
-            edits.ReleaseClient(User, id, Client);
+            members.Remove(state.User, id, state);
+            edits.ReleaseClient(state.User, id, state.Client);
         }
+        return Task.CompletedTask;
     }
 
     /// <summary>Applies a command to a joined project. A refusal is in the reply; nothing is thrown for it.</summary>
     [HubMethodName("Apply")]
-    public Task<CommandReply> ApplyAsync(string project, string? command, string? json, string? gesture)
+    public Task<CommandReply> ApplyAsync(string? project, string? command, string? json, string? gesture)
     {
         ProjectId id = RequireJoined(project);
         GestureId? gestureId = gesture is null ? null : ParseGesture(gesture);
-        return GuardAsync(() => edits.ApplyAsync(User, id, Client, command, json, gestureId, Context.ConnectionAborted));
+        return GuardAsync(() => edits.ApplyAsync(State.User, id, State.Client, command, json, gestureId, Context.ConnectionAborted));
     }
 
     /// <summary>Goes back one undo step in a joined project, for everyone in it.</summary>
@@ -87,7 +92,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
     public Task<CommandReply> UndoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
-        return GuardAsync(() => edits.UndoAsync(User, id, Context.ConnectionAborted));
+        return GuardAsync(() => edits.UndoAsync(State.User, id, Context.ConnectionAborted));
     }
 
     /// <summary>Goes forward one redo step in a joined project, for everyone in it.</summary>
@@ -95,7 +100,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
     public Task<CommandReply> RedoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
-        return GuardAsync(() => edits.RedoAsync(User, id, Context.ConnectionAborted));
+        return GuardAsync(() => edits.RedoAsync(State.User, id, Context.ConnectionAborted));
     }
 
     /// <summary>Closes this client's open gesture, as the release of a drag does.</summary>
@@ -103,7 +108,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
     public Task EndGestureAsync(string? project, string? gesture)
     {
         ProjectId id = RequireJoined(project);
-        edits.EndGesture(User, id, Client, ParseGesture(gesture));
+        edits.EndGesture(State.User, id, State.Client, ParseGesture(gesture));
         return Task.CompletedTask;
     }
 
@@ -121,7 +126,7 @@ public sealed class ProjectHub(ProjectEditService edits) : Hub<IProjectClient>
     private ProjectId RequireJoined(string? project)
     {
         ProjectId id = Parse(project);
-        return Joined.Contains(id) ? id : throw new HubException("Join the project first.");
+        return State.IsJoined(id) ? id : throw new HubException("Join the project first.");
     }
 
     // Expected failures reach the client as a short message; anything else is the server's bug and says nothing of its own.

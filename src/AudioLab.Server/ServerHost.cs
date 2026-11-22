@@ -88,12 +88,15 @@ public static class ServerHost
         services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
         services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
+        services.AddSingleton<ProjectMembers>();
+        services.AddSingleton<ConnectionOutboxFactory>();
         services.AddSingleton<IProjectEvents, HubProjectEvents>();
         services.AddSingleton<ProjectService>();
         services.AddSingleton<ProjectEditService>();
         services.AddSignalR(hub =>
         {
             hub.MaximumReceiveMessageSize = options.HubMaxMessageBytes;
+            hub.MaximumParallelInvocationsPerClient = 1;
             hub.EnableDetailedErrors = false;
         }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
         services.AddProblemDetails();
@@ -110,7 +113,7 @@ public static class ServerHost
         app.UseRouting();
         app.UseMiddleware<DoorMiddleware>();
         HealthRoutes.Map(app);
-        RouteGroupBuilder api = app.MapGroup("/api").AddEndpointFilter<DoorFilter>();
+        RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
         app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());

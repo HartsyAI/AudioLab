@@ -14,6 +14,7 @@ internal static class TestCommandRegistry
             .Add("set_bpm", "Sets the tempo.", json.SetBpmCommand, (document, command, ids) => CommandResult.Ok(document with { Bpm = command.Bpm }))
             .Add("add_marker", "Adds a marker and allocates its id.", json.AddMarkerCommand, AddMarker)
             .Add("refuse", "Is always refused.", json.RefuseCommand, (document, command, ids) => CommandResult.Refuse(CommandErrorCode.Rejected, "Not today."))
+            .Add("bulk", "Carries text and changes nothing.", json.BulkCommand, (document, command, ids) => CommandResult.Ok(document))
             .Add("no_change", "Changes nothing.", json.NoChangeCommand, (document, command, ids) => CommandResult.Ok(document))
             .Build();
     }
