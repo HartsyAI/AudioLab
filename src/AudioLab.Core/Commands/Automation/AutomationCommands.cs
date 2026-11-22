@@ -34,7 +34,11 @@ internal static class AutomationCommands
         ValueList<AutomationPoint> lane = LaneOf(document, command.Track, command.Parameter);
         return lane.Count >= ProjectLimits.MaxListItems
             ? TooMany()
-            : Replace(document, command.Track, command.Parameter, AutomationRules.Insert(lane, new AutomationPoint(command.Time, command.Value)).Points);
+            : Replace(
+                document,
+                command.Track,
+                command.Parameter,
+                AutomationRules.Insert(lane, new AutomationPoint(command.Time, command.Value)).Points);
     }
 
     private static CommandResult MovePoint(ProjectDocument document, MoveAutomationPoint command, IIdService ids)
@@ -51,7 +55,8 @@ internal static class AutomationCommands
         }
         double value = AutomationRules.Clamp(command.Parameter, command.Value);
         ValueList<AutomationPoint> lane = LaneOf(document, command.Track, command.Parameter);
-        return Replace(document, command.Track, command.Parameter, AutomationRules.Move(lane, command.Index, new AutomationPoint(command.Time, value)).Points);
+        LaneEdit moved = AutomationRules.Move(lane, command.Index, new AutomationPoint(command.Time, value));
+        return Replace(document, command.Track, command.Parameter, moved.Points);
     }
 
     private static CommandResult DeletePoint(ProjectDocument document, DeleteAutomationPoint command, IIdService ids)
@@ -114,7 +119,8 @@ internal static class AutomationCommands
             }
         }
         List<AutomationPoint> written = [.. command.Points.Select(point => new AutomationPoint(point.Time, point.Value))];
-        ValueList<AutomationPoint> merged = AutomationRules.Commit(LaneOf(document, command.Track, command.Parameter), written, command.Parameter, command.ReturnToOld);
+        ValueList<AutomationPoint> lane = LaneOf(document, command.Track, command.Parameter);
+        ValueList<AutomationPoint> merged = AutomationRules.Commit(lane, written, command.Parameter, command.ReturnToOld);
         return merged.Count > ProjectLimits.MaxListItems ? TooMany() : Replace(document, command.Track, command.Parameter, merged);
     }
 

@@ -23,12 +23,14 @@ public sealed record CommitAutomationWrite : Command
     [MaxLength(ProjectLimits.MaxListItems)]
     public required ValueList<WrittenPoint> Points { get; init; }
 
-    /// <summary>True to let the old curve take over again just after the pass, as Touch does.</summary>
+    /// <summary>True to hand back to the old curve just after the pass, as Touch does.</summary>
     /// <remarks>
-    /// false to keep the last value, as Latch and Write do.
+    /// false to keep the old points after the pass, so the lane ramps from the last written value to the next
+    /// old point, as Latch and Write do.
     /// </remarks>
     [Description(
-        "True to let the old curve take over again just after the pass, as Touch does; false to keep the last " +
-        "value, as Latch and Write do.")]
+        "True to hand back to the old curve just after the pass, as Touch does; false to keep the old points " +
+        "after the pass, so the lane ramps from the last written value to the next old point, as Latch and " +
+        "Write do.")]
     public required bool ReturnToOld { get; init; }
 }

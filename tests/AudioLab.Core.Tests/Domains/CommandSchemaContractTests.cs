@@ -247,10 +247,13 @@ public sealed class CommandSchemaContractTests
             JsonElement value = Property(command, member);
             Assert.Equal((-1.0, AutomationRules.VolumeMax), (value.GetProperty("minimum").GetDouble(), value.GetProperty("maximum").GetDouble()));
             string description = value.GetProperty("description").GetString()!;
-            Assert.Contains($"volume {AutomationRules.Min(AutomationParameter.Volume)} to {AutomationRules.Max(AutomationParameter.Volume)}", description);
-            Assert.Contains($"pan {AutomationRules.Min(AutomationParameter.Pan)} to {AutomationRules.Max(AutomationParameter.Pan)}", description);
+            AutomationParameter volume = AutomationParameter.Volume;
+            AutomationParameter pan = AutomationParameter.Pan;
+            Assert.Contains($"volume {AutomationRules.Min(volume)} to {AutomationRules.Max(volume)}", description);
+            Assert.Contains($"pan {AutomationRules.Min(pan)} to {AutomationRules.Max(pan)}", description);
         }
-        Assert.Equal(["volume", "pan"], Property("automation_point_add", "parameter").GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        JsonElement lanes = Property("automation_point_add", "parameter").GetProperty("enum");
+        Assert.Equal(["volume", "pan"], lanes.EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(
             ["read", "touch", "latch", "write", "off"],
             Property("automation_set_mode", "mode").GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
@@ -271,7 +274,8 @@ public sealed class CommandSchemaContractTests
             Assert.All(properties.EnumerateObject(), property => Assert.True(property.Value.TryGetProperty("maximum", out _), property.Name));
         }
         JsonElement items = Property("automation_points_set_values", "points").GetProperty("items");
-        Assert.Equal(["index", "value"], items.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
+        JsonElement required = items.GetProperty("required");
+        Assert.Equal(["index", "value"], required.EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
         Assert.Equal(ProjectLimits.MaxListItems - 1, Property("automation_point_move", "index").GetProperty("maximum").GetInt32());
     }
 
@@ -287,7 +291,8 @@ public sealed class CommandSchemaContractTests
         Assert.Equal((0.0, 1.0), (swing.GetProperty("minimum").GetDouble(), swing.GetProperty("maximum").GetDouble()));
         Assert.Equal((0.0, ProjectLimits.MaxGain), (gain.GetProperty("minimum").GetDouble(), gain.GetProperty("maximum").GetDouble()));
         Assert.Equal((1, ProjectLimits.MaxBeatSteps), (list.GetProperty("minItems").GetInt32(), list.GetProperty("maxItems").GetInt32()));
-        Assert.Equal((0.0, ProjectLimits.MaxBeatSteps - 1.0), (list.GetProperty("items").GetProperty("minimum").GetDouble(), list.GetProperty("items").GetProperty("maximum").GetDouble()));
+        JsonElement item = list.GetProperty("items");
+        Assert.Equal((0.0, ProjectLimits.MaxBeatSteps - 1.0), (item.GetProperty("minimum").GetDouble(), item.GetProperty("maximum").GetDouble()));
         Assert.False(list.TryGetProperty("minimum", out _));
         Assert.Equal(["lane", "on", "project", "steps"], Required("beat_lane_set_steps"));
         Assert.DoesNotContain("media", Required("beat_lane_add"));

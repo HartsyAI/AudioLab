@@ -14,7 +14,8 @@ public sealed class BeatCommandTests
 
     private BeatLaneId Add(string? name = null, string? media = null)
     {
-        return BeatLaneId.From(_rig.Created(new AddBeatLane { Project = _rig.Id, Name = name, Media = media is null ? null : MediaId.From(media) })[0]);
+        MediaId? sample = media is null ? null : MediaId.From(media);
+        return BeatLaneId.From(_rig.Created(new AddBeatLane { Project = _rig.Id, Name = name, Media = sample })[0]);
     }
 
     private BeatLane Lane(BeatLaneId id) => Pattern.Lanes.First(lane => lane.Id == id);

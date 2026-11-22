@@ -23,6 +23,16 @@ public sealed class AutomationCommandTests
 
     private ValueList<AutomationPoint> Pan => Track.Automation.Pan;
 
+    private AddAutomationPoint AddAt(AutomationParameter parameter, double time, double value)
+    {
+        return new AddAutomationPoint { Project = _rig.Id, Track = _track, Parameter = parameter, Time = time, Value = value };
+    }
+
+    private MoveAutomationPoint MoveTo(int index, double time, double value, AutomationParameter parameter = AutomationParameter.Volume)
+    {
+        return new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = parameter, Index = index, Time = time, Value = value };
+    }
+
     private void Add(AutomationParameter parameter, double time, double value)
     {
         _rig.Ok(new AddAutomationPoint { Project = _rig.Id, Track = _track, Parameter = parameter, Time = time, Value = value });
@@ -65,7 +75,7 @@ public sealed class AutomationCommandTests
         ];
         foreach ((AutomationParameter parameter, double value) in outside)
         {
-            _rig.RefusedWith(new AddAutomationPoint { Project = _rig.Id, Track = _track, Parameter = parameter, Time = 1, Value = value }, CommandErrorCode.Invalid);
+            _rig.RefusedWith(AddAt(parameter, 1, value), CommandErrorCode.Invalid);
         }
     }
 
@@ -86,9 +96,10 @@ public sealed class AutomationCommandTests
     public void ALaneHoldsAtMostTheListLimitAndTheRefusalSaysSo()
     {
         ValueList<AutomationPoint> full = [.. Enumerable.Range(0, ProjectLimits.MaxListItems).Select(i => new AutomationPoint(i * 0.5, 0.5))];
-        CommandRig rig = new(BlankProject.Create() with { Tracks = [BlankProject.Track("trk_1") with { Automation = BlankProject.Track("x").Automation with { Volume = full } }] });
+        TrackAutomation automation = BlankProject.Track("x").Automation with { Volume = full };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [BlankProject.Track("trk_1") with { Automation = automation }] });
 
-        CommandResult refused = rig.Refused(new AddAutomationPoint { Project = rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Time = 1, Value = 1 });
+        CommandResult refused = rig.Refused(AddAt(AutomationParameter.Volume, 1, 1));
 
         Assert.Equal(CommandErrorCode.Invalid, refused.Errors[0].Code);
         Assert.Contains("as many points as a lane may", refused.Errors[0].Message);
@@ -102,7 +113,7 @@ public sealed class AutomationCommandTests
     {
         Seed((1, 0.1), (2, 0.2), (3, 0.3));
 
-        _rig.Ok(new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 0, Time = 2.5, Value = 0.7 });
+        _rig.Ok(MoveTo(0, 2.5, 0.7));
 
         Assert.Equal([new AutomationPoint(2, 0.2), new AutomationPoint(2.5, 0.7), new AutomationPoint(3, 0.3)], Volume);
     }
@@ -121,9 +132,7 @@ public sealed class AutomationCommandTests
         {
             AutomationPoint target = new(time, value);
             LaneEdit expected = AutomationRules.Move(Volume, index, target);
-            CommandResult result = _rig.Run(
-                new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = index, Time = time, Value = value },
-                drag);
+            CommandResult result = _rig.Run(MoveTo(index, time, value), drag);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Message)));
             Assert.Equal(expected.Points, Volume);
             Assert.Equal(target, Volume[expected.Index]);
@@ -136,6 +145,43 @@ public sealed class AutomationCommandTests
     }
 
     [Fact]
+    public void AMoveWithinAStepKeepsTheOrderOfItsValuesAndAddsNoUndoStepWhenNothingChanges()
+    {
+        Seed((0, 1), (1, 0.5), (1, 2), (2, 1));
+        int steps = _rig.History.UndoCount;
+        ValueList<AutomationPoint> before = Volume;
+
+        Assert.True(_rig.Run(MoveTo(1, 1, 0.5)).Succeeded);
+        Assert.True(_rig.Run(MoveTo(2, 1, 2)).Succeeded);
+
+        Assert.Equal(before, Volume);
+        Assert.Equal(steps, _rig.History.UndoCount);
+        _rig.Ok(MoveTo(1, 1, 0.7));
+        Assert.Equal([0.7, 2.0], Volume.Where(point => point.Time == 1).Select(point => point.Value));
+    }
+
+    [Fact]
+    public void APointOfAStepDraggedOutAndBackWithoutPassingOthersGoesBackToItsPlace()
+    {
+        Seed((0, 1), (1, 0.5), (1, 2), (2, 1));
+        ValueList<AutomationPoint> before = Volume;
+        GestureId drag = GestureId.From("step-drag");
+
+        (int Index, double Time, double Value)[] frames =
+        [
+            (1, 0.5, 0.5), (1, 0.8, 0.5), (1, 1, 0.5),
+            (2, 1.4, 2), (2, 1.9, 2), (2, 1, 2),
+        ];
+        foreach ((int index, double time, double value) in frames)
+        {
+            Assert.True(_rig.Run(MoveTo(index, time, value), drag).Succeeded);
+        }
+        _rig.History.EndGesture(_client, drag);
+
+        Assert.Equal(before, Volume);
+    }
+
+    [Fact]
     public void ADragThatEndsSomewhereElseIsOneUndoStepBackToTheStart()
     {
         Seed((1, 0.1), (2, 0.2), (3, 0.3));
@@ -143,8 +189,8 @@ public sealed class AutomationCommandTests
         GestureId drag = GestureId.From("point-drag-2");
         int steps = _rig.History.UndoCount;
 
-        _rig.Run(new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 0, Time = 1.5, Value = 0.5 }, drag);
-        _rig.Run(new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 0, Time = 2.5, Value = 0.6 }, drag);
+        _rig.Run(MoveTo(0, 1.5, 0.5), drag);
+        _rig.Run(MoveTo(0, 2.5, 0.6), drag);
         _rig.History.EndGesture(_client, drag);
 
         Assert.Equal(steps + 1, _rig.History.UndoCount);
@@ -176,13 +222,14 @@ public sealed class AutomationCommandTests
     public void APointThatIsNotInTheLaneIsNotFoundBeforeAnyValueIsLookedAt()
     {
         Seed((1, 0.5));
-        MoveAutomationPoint move = new() { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 1, Time = double.NaN, Value = 0.5 };
+        MoveAutomationPoint move = MoveTo(1, double.NaN, 0.5);
 
         _rig.RefusedWith(move, CommandErrorCode.NotFound);
         _rig.RefusedWith(move with { Index = -1 }, CommandErrorCode.NotFound);
         _rig.RefusedWith(move with { Parameter = AutomationParameter.Pan, Index = 0 }, CommandErrorCode.NotFound);
         _rig.RefusedWith(move with { Track = TrackId.From("trk_none") }, CommandErrorCode.NotFound);
-        _rig.RefusedWith(new DeleteAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 5 }, CommandErrorCode.NotFound);
+        DeleteAutomationPoint far = new() { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = 5 };
+        _rig.RefusedWith(far, CommandErrorCode.NotFound);
     }
 
     [Fact]
@@ -230,7 +277,13 @@ public sealed class AutomationCommandTests
     public void ValuesAreKeptInTheLaneTheLastOfTwoForOnePointWinsAndBadListsAreRefused()
     {
         Seed((1, 0.2), (2, 0.4));
-        SetAutomationValues set = new() { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Points = [new PointValue(0, ProjectLimits.MaxGain + 0.5)] };
+        SetAutomationValues set = new()
+        {
+            Project = _rig.Id,
+            Track = _track,
+            Parameter = AutomationParameter.Volume,
+            Points = [new PointValue(0, ProjectLimits.MaxGain + 0.5)],
+        };
 
         _rig.RefusedWith(set, CommandErrorCode.Invalid);
         _rig.Ok(set with { Points = [new PointValue(0, 1.9), new PointValue(0, 1.5)] });
@@ -350,7 +403,11 @@ public sealed class AutomationCommandTests
         Seed((0, 1), (20, 0.1));
         foreach (int pass in Enumerable.Range(0, 60))
         {
-            List<WrittenPoint> points = [.. Enumerable.Range(0, random.Next(1, 12)).Select(_ => new WrittenPoint(Math.Round(random.NextDouble() * 25, 3), Math.Round(random.NextDouble() * 2, 3)))];
+            List<WrittenPoint> points =
+            [
+                .. Enumerable.Range(0, random.Next(1, 12))
+                    .Select(_ => new WrittenPoint(Math.Round(random.NextDouble() * 25, 3), Math.Round(random.NextDouble() * 2, 3))),
+            ];
             CommandResult result = _rig.Run(new CommitAutomationWrite
             {
                 Project = _rig.Id,
@@ -377,7 +434,8 @@ public sealed class AutomationCommandTests
         _rig.Ok(new SetAutomationMode { Project = _rig.Id, Track = _track, Mode = AutomationMode.Latch });
 
         Assert.Equal(steps + 1, _rig.History.UndoCount);
-        _rig.RefusedWith(new SetAutomationMode { Project = _rig.Id, Track = TrackId.From("trk_none"), Mode = AutomationMode.Off }, CommandErrorCode.NotFound);
+        TrackId none = TrackId.From("trk_none");
+        _rig.RefusedWith(new SetAutomationMode { Project = _rig.Id, Track = none, Mode = AutomationMode.Off }, CommandErrorCode.NotFound);
         _rig.RefusedWith(new SetAutomationMode { Project = _rig.Id, Track = _track, Mode = (AutomationMode)99 }, CommandErrorCode.Invalid);
     }
 

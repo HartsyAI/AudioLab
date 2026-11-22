@@ -23,6 +23,13 @@ public sealed class BeatRuleTests
     }
 
     [Fact]
+    public void ATempoThatIsNotANumberIsMeasuredAtTheFallbackTempo()
+    {
+        Assert.Equal(BeatRules.StepSeconds(BeatRules.FallbackBpm), BeatRules.StepSeconds(double.NaN));
+        Assert.True(double.IsFinite(BeatRules.StepSeconds(double.PositiveInfinity)));
+    }
+
+    [Fact]
     public void OddStepsAreLateBySwingTimesAStepAndEvenStepsStayOnTheGrid()
     {
         double step = BeatRules.StepSeconds(120);

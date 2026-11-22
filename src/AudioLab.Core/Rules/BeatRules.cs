@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Rules;
 
-/// <summary>The drum machine's rules from the old DAW: sixteenth-note steps, a swing that pushes odd steps late, pads named after their sample.</summary>
+/// <summary>The drum machine's rules from the old DAW: sixteenth-note steps, a swing that pushes odd steps late, pad names.</summary>
 public static class BeatRules
 {
     /// <summary>How many steps a new project's pattern has.</summary>
@@ -10,6 +10,9 @@ public static class BeatRules
 
     /// <summary>The gain of a new lane: unity.</summary>
     public const double DefaultGain = 1;
+
+    /// <summary>The tempo a step is measured at when the one given is not a number.</summary>
+    public const double FallbackBpm = 120;
 
     /// <summary>How many steps make one quarter note.</summary>
     public const int StepsPerQuarter = 4;
@@ -20,7 +23,8 @@ public static class BeatRules
     /// <summary>One step in seconds at a tempo: a sixteenth note. The tempo is the one where the pattern lands, not the playhead's.</summary>
     public static double StepSeconds(double bpm)
     {
-        return 60 / Math.Clamp(bpm, ProjectLimits.MinBpm, ProjectLimits.MaxBpm) / StepsPerQuarter;
+        double tempo = double.IsNaN(bpm) ? FallbackBpm : Math.Clamp(bpm, ProjectLimits.MinBpm, ProjectLimits.MaxBpm);
+        return 60 / tempo / StepsPerQuarter;
     }
 
     /// <summary>Where a step sounds, in seconds from the pattern start: its place on the grid, and every odd step pushed late by the swing.</summary>

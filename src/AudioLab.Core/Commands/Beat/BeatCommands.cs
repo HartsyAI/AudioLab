@@ -48,7 +48,9 @@ internal static class BeatCommands
 
     private static CommandResult RenameLane(ProjectDocument document, RenameBeatLane command, IIdService ids)
     {
-        return Find(document, command.Lane) ?? CommandChecks.Named(command.Name) ?? Change(document, command.Lane, lane => lane with { Name = command.Name });
+        return Find(document, command.Lane)
+            ?? CommandChecks.Named(command.Name)
+            ?? Change(document, command.Lane, lane => lane with { Name = command.Name });
     }
 
     private static CommandResult SetGain(ProjectDocument document, SetBeatLaneGain command, IIdService ids)
@@ -118,6 +120,7 @@ internal static class BeatCommands
 
     private static CommandResult Edit(ProjectDocument document, BeatLaneId id, Func<ValueList<BeatLane>, ValueList<BeatLane>> edit)
     {
-        return Find(document, id) ?? CommandResult.Ok(document with { BeatPattern = document.BeatPattern with { Lanes = edit(document.BeatPattern.Lanes) } });
+        BeatPattern pattern = document.BeatPattern;
+        return Find(document, id) ?? CommandResult.Ok(document with { BeatPattern = pattern with { Lanes = edit(pattern.Lanes) } });
     }
 }

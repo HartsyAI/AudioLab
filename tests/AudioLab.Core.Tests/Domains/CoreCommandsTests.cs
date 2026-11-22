@@ -107,7 +107,9 @@ public sealed class CoreCommandsTests
 
         CommandParseResult commit = _registry.Parse(
             "automation_write_commit",
-            $$"""{"project":"{{project}}","track":"trk_1","parameter":"pan","points":[{"time":1,"value":0.5},{"time":2,"value":-0.5}],"returnToOld":true}""");
+            $$"""
+            {"project":"{{project}}","track":"trk_1","parameter":"pan","points":[{"time":1,"value":0.5},{"time":2,"value":-0.5}],"returnToOld":true}
+            """);
         CommandParseResult values = _registry.Parse(
             "automation_points_set_values",
             $$"""{"project":"{{project}}","track":"trk_1","parameter":"volume","points":[{"index":0,"value":1.5}]}""");
