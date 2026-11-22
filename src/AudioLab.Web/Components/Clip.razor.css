@@ -9,6 +9,8 @@
     background: color-mix(in srgb, var(--clip) 17%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--clip) 50%, transparent);
     outline: none;
+    /* Selected text under the pointer makes the browser start a native drag, which cancels the pointer and so a clip drag. */
+    user-select: none;
 }
 
 .clip[data-selected="true"] {
