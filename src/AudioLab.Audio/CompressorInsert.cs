@@ -53,7 +53,7 @@ internal sealed class CompressorInsert : IInsert
         {
             return 0;
         }
-        if (2 * Math.Abs(over) <= _knee)
+        if (_knee > 0 && 2 * Math.Abs(over) <= _knee)
         {
             double inside = over + (_knee / 2);
             return _slope * inside * inside / (2 * _knee);
