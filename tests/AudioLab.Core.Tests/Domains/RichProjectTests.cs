@@ -120,6 +120,193 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryAutomationCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Automation.Volume.Count >= 2 && candidate.Automation.Pan.Count >= 2);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new AddAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, Time = 2, Value = 1.2 },
+            new AddAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Time = 3, Value = 0.25 },
+            new MoveAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, Index = 0, Time = 0.5, Value = 0.3 },
+            new DeleteAutomationPoint { Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Index = 1 },
+            new SetAutomationValues
+            {
+                Project = id, Track = track.Id, Parameter = AutomationParameter.Pan, Points = [new PointValue(0, 0.5), new PointValue(1, -0.5)],
+            },
+            new CommitAutomationWrite
+            {
+                Project = id, Track = track.Id, Parameter = AutomationParameter.Volume, ReturnToOld = true,
+                Points = [new WrittenPoint(1, 1.5), new WrittenPoint(2, 1.6)],
+            },
+            new SetAutomationMode { Project = id, Track = track.Id, Mode = AutomationMode.Off },
+            new SetAutomationView { Project = id, Track = track.Id, Visible = !track.View.AutomationVisible },
+            new SetAutomationView { Project = id, Track = track.Id, Parameter = AutomationParameter.Volume },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EveryBeatCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        BeatLane kick = sample.BeatPattern.Lanes.First(lane => lane.Media is not null);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new AddBeatLane { Project = id, Name = "Clap", Media = MediaId.From("med_clap") },
+            new RemoveBeatLane { Project = id, Lane = kick.Id },
+            new RenameBeatLane { Project = id, Lane = kick.Id, Name = "Thump" },
+            new SetBeatLaneGain { Project = id, Lane = kick.Id, Gain = 0.4 },
+            new SetBeatLaneMedia { Project = id, Lane = kick.Id },
+            new SetBeatLaneSteps { Project = id, Lane = kick.Id, Steps = [1, 2], On = true },
+            new SetBeatLaneSteps { Project = id, Lane = kick.Id, Steps = [0], On = false },
+            new SetBeatSteps { Project = id, Steps = 2 },
+            new SetBeatSteps { Project = id, Steps = 64 },
+            new SetBeatSwing { Project = id, Swing = 0.4 },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EveryLyricsScoreAndStemCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2 && candidate.Clips[0].Meta?.Lyrics is not null);
+        ClipId clip = track.Clips[0].Id;
+        ClipId stem = track.Clips[1].Id;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new SetLyricsText { Project = id, Clip = clip, Text = "la la la" },
+            new SetLyricsText { Project = id, Clip = clip, Text = string.Empty },
+            new ApplyLyricsAlignment
+            {
+                Project = id, Clip = clip, Text = "hello world", Words = [new HeardWord("hello", 0, 1), new HeardWord("world", 1, 2)],
+            },
+            new ApplyLyricsTranscript { Project = id, Clip = clip, Words = [new HeardWord("hello", 0, 1)] },
+            new EstimateLyricsTiming { Project = id, Clip = clip, Text = "one two" },
+            new ClearLyricsTiming { Project = id, Clip = clip },
+            new ShiftLyrics { Project = id, Clip = clip, Seconds = 1 },
+            new SetLyricsWordTime { Project = id, Clip = clip, Word = 0, Start = 0.55 },
+            new ImportLyricsLrc { Project = id, Clip = clip, Lrc = "[00:03.00]la la" },
+            new SetClipScore { Project = id, Clip = clip, Abc = "X:2" },
+            new SetClipScore { Project = id, Clip = stem, Label = "Stem score" },
+            new SetScoreLabel { Project = id, Clip = clip, Label = "Version B" },
+            new ClearClipScore { Project = id, Clip = clip },
+            new SetClipStem { Project = id, Clip = stem, Source = clip, Stem = "drums" },
+            new ClearClipStem { Project = id, Clip = stem },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EditsOfTheLyricsKeepTheirUnknownFieldsAndANewAnswerOfAModelStartsAFreshRecord()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2 && candidate.Clips[0].Meta?.Lyrics is not null);
+        ClipId clip = track.Clips[0].Id;
+        ExtraFields old = track.Clips[0].Meta!.Lyrics!.Extra;
+        ProjectId id = sample.Id;
+        Command[] edits =
+        [
+            new SetLyricsText { Project = id, Clip = clip, Text = "[Verse]\nla la" },
+            new ShiftLyrics { Project = id, Clip = clip, Seconds = 1 },
+            new SetLyricsWordTime { Project = id, Clip = clip, Word = 0, Start = 0.55 },
+        ];
+        Command[] fresh =
+        [
+            new ClearLyricsTiming { Project = id, Clip = clip },
+            new SetLyricsText { Project = id, Clip = clip, Text = "other words entirely" },
+            new ApplyLyricsAlignment { Project = id, Clip = clip, Text = "la", Words = [new HeardWord("la", 0, 1)] },
+            new ApplyLyricsTranscript { Project = id, Clip = clip, Words = [new HeardWord("la", 0, 1)] },
+            new EstimateLyricsTiming { Project = id, Clip = clip, Text = "la la" },
+            new ImportLyricsLrc { Project = id, Clip = clip, Lrc = "[00:03.00]la la" },
+        ];
+
+        Assert.False(old.IsEmpty);
+        foreach (Command command in edits)
+        {
+            CommandResult result = new CommandRig(sample).Run(command);
+            Assert.True(result.Succeeded, command.GetType().Name);
+            Assert.Equal(old, result.Document!.Tracks.First(candidate => candidate.Id == track.Id).Clips[0].Meta!.Lyrics!.Extra);
+        }
+        foreach (Command command in fresh)
+        {
+            CommandResult result = new CommandRig(sample).Run(command);
+            Assert.True(result.Succeeded, command.GetType().Name);
+            ClipLyrics lyrics = result.Document!.Tracks.First(candidate => candidate.Id == track.Id).Clips[0].Meta!.Lyrics!;
+            Assert.True(lyrics.Extra.IsEmpty, command.GetType().Name);
+        }
+    }
+
+    [Fact]
+    public void EveryProjectTrackAndInstrumentSettingsCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track keys = sample.Tracks.First(track => track.Kind == TrackKind.Instrument && track.Instrument is SynthInstrument);
+        Track sampler = sample.Tracks.First(track => track.Instrument is SamplerInstrument);
+        Track audio = sample.Tracks.First(track => track.Kind == TrackKind.Audio);
+        SynthInstrument keySynth = (SynthInstrument)keys.Instrument!;
+        SamplerInstrument keySampler = (SamplerInstrument)sampler.Instrument!;
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new RenameProject { Project = id, Name = "Renamed" },
+            new SetMetronome { Project = id, Enabled = !sample.Metronome },
+            new SetProjectView { Project = id, Ruler = sample.View.Ruler == RulerMode.Time ? RulerMode.Beats : RulerMode.Time },
+            new SetProjectView { Project = id, EditMode = sample.View.EditMode == EditMode.Grid ? EditMode.Slip : EditMode.Grid },
+            new SetProjectView { Project = id, Grid = sample.View.Grid == "1/8" ? "bar" : "1/8" },
+            new SetTrackArmed { Project = id, Track = audio.Id, Armed = !audio.Armed },
+            new SetTrackMonitor { Project = id, Track = audio.Id, Monitor = !audio.Monitor },
+            new SetTrackInput { Project = id, Track = audio.Id, DeviceId = "other-device", Channels = InputChannelMode.Single, Channel = 4 },
+            new SetTrackHeight { Project = id, Track = audio.Id, Height = audio.View.Height + 10 },
+            new SetTrackIcon { Project = id, Track = audio.Id, Icon = "\U0001F3A4" },
+            new SetInstrumentPreset { Project = id, Track = keys.Id, Preset = "Bell" },
+            new SetInstrumentPreset { Project = id, Track = keys.Id, Preset = InstrumentPresets.Sampler },
+            new SetInstrumentParameter { Project = id, Track = keys.Id, Parameter = "resonance", Value = keySynth.Resonance + 1 },
+            new SetOscillatorWave { Project = id, Track = keys.Id, Oscillator = 1, Wave = OscillatorWave.Square },
+            new SetSamplerRootNote { Project = id, Track = sampler.Id, Note = keySampler.RootNote + 1 },
+            new SetSamplerOneShot { Project = id, Track = sampler.Id, OneShot = !keySampler.OneShot },
+            new SetSamplerSample { Project = id, Track = sampler.Id, Sample = MediaId.From("med_other"), SampleName = "Other" },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();

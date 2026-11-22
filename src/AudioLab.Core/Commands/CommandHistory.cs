@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Commands;
 
@@ -105,6 +106,12 @@ public sealed class CommandHistory
         {
             return result;
         }
+        if (!_registry.IsUndoable(command))
+        {
+            // Live state: it changes the document now and is no step, so no gesture is opened or closed by it.
+            Current = edited;
+            return result;
+        }
         if (index >= 0 && gesture != _open[index].Id)
         {
             Close(index);
@@ -166,7 +173,7 @@ public sealed class CommandHistory
         HistoryStep step = _undo[^1];
         _undo.RemoveAt(_undo.Count - 1);
         _redo.Add(new HistoryStep(step.Label, Current));
-        Current = step.Document;
+        Current = LiveState.Carry(step.Document, Current);
         return Current;
     }
 
@@ -181,7 +188,7 @@ public sealed class CommandHistory
         HistoryStep step = _redo[^1];
         _redo.RemoveAt(_redo.Count - 1);
         _undo.Add(new HistoryStep(step.Label, Current));
-        Current = step.Document;
+        Current = LiveState.Carry(step.Document, Current);
         return Current;
     }
 
@@ -208,7 +215,7 @@ public sealed class CommandHistory
     {
         OpenGesture open = _open[index];
         _open.RemoveAt(index);
-        if (open.Before != Current)
+        if (LiveState.Carry(open.Before, Current) != Current)
         {
             Push(new HistoryStep(open.Label, open.Before));
         }

@@ -87,6 +87,122 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheAutomationAndBeatCommandsExist()
+    {
+        string[] names =
+        [
+            "automation_point_add", "automation_point_move", "automation_point_delete", "automation_points_set_values",
+            "automation_write_commit", "automation_set_mode", "automation_set_view",
+            "beat_lane_add", "beat_lane_remove", "beat_lane_rename", "beat_lane_set_gain", "beat_lane_set_media",
+            "beat_lane_set_steps", "beat_pattern_set_steps", "beat_pattern_set_swing",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void AnAutomationAndABeatCommandReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult commit = _registry.Parse(
+            "automation_write_commit",
+            $$"""
+            {"project":"{{project}}","track":"trk_1","parameter":"pan","points":[{"time":1,"value":0.5},{"time":2,"value":-0.5}],"returnToOld":true}
+            """);
+        CommandParseResult values = _registry.Parse(
+            "automation_points_set_values",
+            $$"""{"project":"{{project}}","track":"trk_1","parameter":"volume","points":[{"index":0,"value":1.5}]}""");
+        CommandParseResult steps = _registry.Parse("beat_lane_set_steps", $$"""{"project":"{{project}}","lane":"bln_1","steps":[0,4,8],"on":true}""");
+        CommandParseResult noMedia = _registry.Parse("beat_lane_add", $$"""{"project":"{{project}}"}""");
+        CommandParseResult badLane = _registry.Parse("beat_lane_remove", $$"""{"project":"{{project}}","lane":"not an id"}""");
+        CommandParseResult badMode = _registry.Parse("automation_set_mode", $$"""{"project":"{{project}}","track":"trk_1","mode":"scribble"}""");
+
+        Assert.Equal([new WrittenPoint(1, 0.5), new WrittenPoint(2, -0.5)], Assert.IsType<CommitAutomationWrite>(commit.Command).Points);
+        Assert.Equal([new PointValue(0, 1.5)], Assert.IsType<SetAutomationValues>(values.Command).Points);
+        Assert.Equal([0, 4, 8], Assert.IsType<SetBeatLaneSteps>(steps.Command).Steps);
+        Assert.Null(Assert.IsType<AddBeatLane>(noMedia.Command).Media);
+        Assert.False(badLane.Succeeded);
+        Assert.False(badMode.Succeeded);
+    }
+
+    [Fact]
+    public void TheLyricsScoreAndStemCommandsExist()
+    {
+        string[] names =
+        [
+            "lyrics_set_text", "lyrics_apply_alignment", "lyrics_apply_transcript", "lyrics_estimate_timing", "lyrics_clear_timing",
+            "lyrics_shift", "lyrics_set_word_time", "lyrics_import_lrc", "score_set", "score_set_label", "score_clear", "stem_set", "stem_clear",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void ALyricsAndAScoreCommandReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult heard = _registry.Parse(
+            "lyrics_apply_alignment",
+            $$"""
+            {"project":"{{project}}","clip":"clp_1","text":"la","words":[{"word":"la","start":0.5,"end":1}],"offset":2,"model":"m"}
+            """);
+        CommandParseResult score = _registry.Parse(
+            "score_set",
+            $$"""{"project":"{{project}}","clip":"clp_1","abc":"X:1","seed":-5,"created":1760000000000,"parent":"clp_2"}""");
+        CommandParseResult stem = _registry.Parse("stem_set", $$"""{"project":"{{project}}","clip":"clp_1","source":"clp_2","stem":"vocals"}""");
+        CommandParseResult unknown = _registry.Parse("lyrics_set_text", $$"""{"project":"{{project}}","clip":"clp_1","text":"la","extra":1}""");
+        CommandParseResult wrongType = _registry.Parse("score_set", $$"""{"project":"{{project}}","clip":"clp_1","seed":"five"}""");
+
+        Assert.Equal([new HeardWord("la", 0.5, 1)], Assert.IsType<ApplyLyricsAlignment>(heard.Command).Words);
+        SetClipScore parsed = Assert.IsType<SetClipScore>(score.Command);
+        Assert.Equal(-5L, parsed.Seed);
+        Assert.Equal(1760000000000L, parsed.Created);
+        Assert.Equal("vocals", Assert.IsType<SetClipStem>(stem.Command).Stem);
+        Assert.False(unknown.Succeeded);
+        Assert.False(wrongType.Succeeded);
+    }
+
+    [Fact]
+    public void TheProjectTrackAndInstrumentSettingsCommandsExist()
+    {
+        string[] names =
+        [
+            "project_rename", "project_set_metronome", "project_set_view", "track_set_armed", "track_set_monitor", "track_set_input",
+            "track_set_height", "track_set_icon", "instrument_set_preset", "instrument_set_parameter", "instrument_set_wave",
+            "instrument_set_root_note", "instrument_set_one_shot", "instrument_set_sample",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void ASettingsCommandReadsFromItsJsonAndRefusesAWrongOne()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult view = _registry.Parse(
+            "project_set_view",
+            $$"""{"project":"{{project}}","ruler":"time","editMode":"shuffle","grid":"1/8t"}""");
+        CommandParseResult input = _registry.Parse(
+            "track_set_input",
+            $$"""{"project":"{{project}}","track":"trk_1","channels":"single","channel":2,"deviceId":"d"}""");
+        string wavy = $$"""{"project":"{{project}}","track":"trk_1","oscillator":2,"wave":"sawtooth"}""";
+        CommandParseResult wave = _registry.Parse("instrument_set_wave", wavy);
+        CommandParseResult badWave = _registry.Parse("instrument_set_wave", wavy.Replace("sawtooth", "noise"));
+        CommandParseResult badMode = _registry.Parse("project_set_view", $$"""{"project":"{{project}}","editMode":"snap"}""");
+
+        SetProjectView parsedView = Assert.IsType<SetProjectView>(view.Command);
+        SetTrackInput parsedInput = Assert.IsType<SetTrackInput>(input.Command);
+        Assert.Equal((RulerMode.Time, EditMode.Shuffle, "1/8t"), (parsedView.Ruler, parsedView.EditMode, parsedView.Grid));
+        Assert.Equal((InputChannelMode.Single, 2), (parsedInput.Channels, parsedInput.Channel));
+        Assert.Equal(OscillatorWave.Sawtooth, Assert.IsType<SetOscillatorWave>(wave.Command).Wave);
+        Assert.False(badWave.Succeeded);
+        Assert.False(badMode.Succeeded);
+    }
+
+    [Fact]
     public void ANoteListAndAnEffectCommandReadFromTheirJson()
     {
         string project = BlankProject.Create().Id.Value;

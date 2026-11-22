@@ -90,8 +90,8 @@ public static class SampleProject
         using JsonDocument aligned = JsonDocument.Parse("\"future\"");
         return Plain(id, "Lead vocal", TrackKind.Audio) with
         {
-            Armed = true,
-            Monitor = true,
+            Armed = false,
+            Monitor = false,
             TakeCount = 3,
             Clips =
             [
@@ -144,7 +144,7 @@ public static class SampleProject
                     FadeIn = 0,
                     FadeOut = 0,
                     Muted = true,
-                    Meta = new ClipMeta { StemOf = new StemOf(clip, "vocals") },
+                    Meta = new ClipMeta { StemOf = new StemOf(clip, "vocals", 0.5) },
                 },
             ],
             Effects =

@@ -40,6 +40,12 @@ internal static class CommandChecks
             : null;
     }
 
+    /// <summary>A refusal for text longer than <paramref name="max"/> characters, measured as sent; absent text passes.</summary>
+    public static CommandResult? Length(string name, string? value, int max)
+    {
+        return value is { } text && text.Length > max ? OutOfRange($"{name} is at most {max} characters.") : null;
+    }
+
     /// <summary>The target of a command does not exist.</summary>
     public static CommandResult NotFound(string what, string id)
     {

@@ -239,6 +239,157 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(["effect", "parameter", "project", "track", "value"], Required("effect_set_parameter"));
     }
 
+    [Fact]
+    public void AnAutomationValueStatesBothLanesRangesAndTheSchemaBoundIsTheirUnion()
+    {
+        foreach ((string command, string member) in new[] { ("automation_point_add", "value"), ("automation_point_move", "value") })
+        {
+            JsonElement value = Property(command, member);
+            Assert.Equal((-1.0, AutomationRules.VolumeMax), (value.GetProperty("minimum").GetDouble(), value.GetProperty("maximum").GetDouble()));
+            string description = value.GetProperty("description").GetString()!;
+            AutomationParameter volume = AutomationParameter.Volume;
+            AutomationParameter pan = AutomationParameter.Pan;
+            Assert.Contains($"volume {AutomationRules.Min(volume)} to {AutomationRules.Max(volume)}", description);
+            Assert.Contains($"pan {AutomationRules.Min(pan)} to {AutomationRules.Max(pan)}", description);
+        }
+        JsonElement lanes = Property("automation_point_add", "parameter").GetProperty("enum");
+        Assert.Equal(["volume", "pan"], lanes.EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(
+            ["read", "touch", "latch", "write", "off"],
+            Property("automation_set_mode", "mode").GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["parameter", "project", "time", "track", "value"], Required("automation_point_add"));
+        Assert.DoesNotContain("visible", Required("automation_set_view"));
+    }
+
+    [Fact]
+    public void ThePointListsOfAutomationCommandsAreBoundedAndDescribeTheirItems()
+    {
+        foreach (string command in new[] { "automation_points_set_values", "automation_write_commit" })
+        {
+            JsonElement points = Property(command, "points");
+            Assert.Equal(1, points.GetProperty("minItems").GetInt32());
+            Assert.Equal(ProjectLimits.MaxListItems, points.GetProperty("maxItems").GetInt32());
+            JsonElement properties = points.GetProperty("items").GetProperty("properties");
+            Assert.All(properties.EnumerateObject(), property => Assert.True(property.Value.TryGetProperty("description", out _), property.Name));
+            Assert.All(properties.EnumerateObject(), property => Assert.True(property.Value.TryGetProperty("maximum", out _), property.Name));
+        }
+        JsonElement items = Property("automation_points_set_values", "points").GetProperty("items");
+        JsonElement required = items.GetProperty("required");
+        Assert.Equal(["index", "value"], required.EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
+        Assert.Equal(ProjectLimits.MaxListItems - 1, Property("automation_point_move", "index").GetProperty("maximum").GetInt32());
+    }
+
+    [Fact]
+    public void TheBeatCommandsStateTheValidatorsRangesAndTheStepList()
+    {
+        JsonElement steps = Property("beat_pattern_set_steps", "steps");
+        JsonElement swing = Property("beat_pattern_set_swing", "swing");
+        JsonElement gain = Property("beat_lane_set_gain", "gain");
+        JsonElement list = Property("beat_lane_set_steps", "steps");
+
+        Assert.Equal((1.0, (double)ProjectLimits.MaxBeatSteps), (steps.GetProperty("minimum").GetDouble(), steps.GetProperty("maximum").GetDouble()));
+        Assert.Equal((0.0, 1.0), (swing.GetProperty("minimum").GetDouble(), swing.GetProperty("maximum").GetDouble()));
+        Assert.Equal((0.0, ProjectLimits.MaxGain), (gain.GetProperty("minimum").GetDouble(), gain.GetProperty("maximum").GetDouble()));
+        Assert.Equal((1, ProjectLimits.MaxBeatSteps), (list.GetProperty("minItems").GetInt32(), list.GetProperty("maxItems").GetInt32()));
+        JsonElement item = list.GetProperty("items");
+        Assert.Equal((0.0, ProjectLimits.MaxBeatSteps - 1.0), (item.GetProperty("minimum").GetDouble(), item.GetProperty("maximum").GetDouble()));
+        Assert.False(list.TryGetProperty("minimum", out _));
+        Assert.Equal(["lane", "on", "project", "steps"], Required("beat_lane_set_steps"));
+        Assert.DoesNotContain("media", Required("beat_lane_add"));
+        Assert.DoesNotContain("name", Required("beat_lane_add"));
+        Assert.Equal(ProjectLimits.MaxName, Property("beat_lane_add", "name").GetProperty("maxLength").GetInt32());
+    }
+
+    [Fact]
+    public void TheLyricsCommandsBoundTheirWordsTextsAndOffsets()
+    {
+        JsonElement words = Property("lyrics_apply_alignment", "words");
+        JsonElement item = words.GetProperty("items").GetProperty("properties");
+
+        Assert.Equal((1, ProjectLimits.MaxListItems), (words.GetProperty("minItems").GetInt32(), words.GetProperty("maxItems").GetInt32()));
+        JsonElement required = words.GetProperty("items").GetProperty("required");
+        Assert.Equal(["end", "start", "word"], required.EnumerateArray().Select(entry => entry.GetString()!).Order(StringComparer.Ordinal));
+        Assert.Equal(ProjectLimits.MaxName, item.GetProperty("word").GetProperty("maxLength").GetInt32());
+        JsonElement start = item.GetProperty("start");
+        JsonElement end = item.GetProperty("end");
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), (start.GetProperty("minimum").GetDouble(), end.GetProperty("maximum").GetDouble()));
+        Assert.Equal(ProjectLimits.MaxLongText, Property("lyrics_set_text", "text").GetProperty("maxLength").GetInt32());
+        JsonElement offset = Property("lyrics_apply_transcript", "offset");
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), (offset.GetProperty("minimum").GetDouble(), offset.GetProperty("maximum").GetDouble()));
+        Assert.Equal(["clip", "project", "seconds"], Required("lyrics_shift"));
+        Assert.DoesNotContain("offset", Required("lyrics_apply_alignment"));
+        Assert.Equal(ProjectLimits.MaxListItems - 1.0, Property("lyrics_set_word_time", "word").GetProperty("maximum").GetDouble());
+    }
+
+    [Fact]
+    public void TheScoreCommandStatesEveryFieldsLimitAndTheStemCommandItsLabel()
+    {
+        Assert.Equal(["clip", "project"], Required("score_set"));
+        Assert.Contains("integer", Property("score_set", "seed").GetProperty("type").EnumerateArray().Select(entry => entry.GetString()));
+        Assert.Equal(0.0, Property("score_set", "created").GetProperty("minimum").GetDouble());
+        Assert.Equal(ProjectLimits.MaxName, Property("score_set", "label").GetProperty("maxLength").GetInt32());
+        Assert.Equal(ProjectLimits.MaxLabel, Property("score_set", "model").GetProperty("maxLength").GetInt32());
+        Assert.Equal(ProjectLimits.MaxLongText, Property("score_set", "abc").GetProperty("maxLength").GetInt32());
+        Assert.Equal(["clip", "project", "source", "stem"], Required("stem_set"));
+        Assert.Equal(ProjectLimits.MaxLabel, Property("stem_set", "stem").GetProperty("maxLength").GetInt32());
+        Assert.Contains("not blank", Property("stem_set", "stem").GetProperty("description").GetString());
+        Assert.Equal(0.0, Property("stem_set", "sourceOffset").GetProperty("minimum").GetDouble());
+        Assert.Contains("stops at 0", Property("lyrics_shift", "seconds").GetProperty("description").GetString());
+        Assert.Contains("between", Property("lyrics_set_word_time", "start").GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public void TheViewGridPresetAndSettingNamesInTheSchemasAreExactlyTheRulesOwn()
+    {
+        string[] grid = [.. Property("project_set_view", "grid").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        string[] presets = [.. Property("instrument_set_preset", "preset").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        JsonElement named = Property("instrument_set_parameter", "parameter").GetProperty("enum");
+        string[] settings = [.. named.EnumerateArray().Select(item => item.GetString()!)];
+
+        Assert.Equal(GridRules.Values, grid);
+        Assert.Equal(InstrumentPresets.Names, presets);
+        Assert.Equal(InstrumentRules.AllParameterNames, settings);
+        Assert.Equal(["project"], Required("project_set_view"));
+    }
+
+    [Fact]
+    public void TheInstrumentValueDescriptionStatesEverySettingsRangeAndTheTrackSettingsStateTheirs()
+    {
+        string description = Property("instrument_set_parameter", "value").GetProperty("description").GetString()!;
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+        SynthInstrument synth = InstrumentPresets.CreateSynth("Soft Keys");
+
+        foreach (InstrumentParameter setting in InstrumentRules.Parameters(synth))
+        {
+            string range = $"{setting.Name} {setting.Min.ToString("0.###", invariant)} to {setting.Max.ToString("0.###", invariant)}";
+            Assert.Contains(range, description, StringComparison.Ordinal);
+        }
+        JsonElement height = Property("track_set_height", "height");
+        JsonElement channel = Property("track_set_input", "channel");
+        JsonElement channels = Property("track_set_input", "channels").GetProperty("enum");
+        double[] limits = [height.GetProperty("minimum").GetDouble(), height.GetProperty("maximum").GetDouble()];
+        Assert.Equal([TrackRules.MinHeight, TrackRules.MaxHeight], limits);
+        Assert.Equal((1.0, 256.0), (channel.GetProperty("minimum").GetDouble(), channel.GetProperty("maximum").GetDouble()));
+        Assert.Equal(["mono", "stereo", "single"], channels.EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["project", "track"], Required("track_set_icon"));
+        Assert.Equal(["channels", "project", "track"], Required("track_set_input"));
+        Assert.Equal(TrackIcon.MaxImageLength, Property("track_set_icon", "icon").GetProperty("maxLength").GetInt32());
+        Assert.Equal([1.0, 2.0], Property("instrument_set_wave", "oscillator").GetProperty("enum").EnumerateArray().Select(item => item.GetDouble()));
+    }
+
+    [Fact]
+    public void TheSettingsSchemasRefuseWhatTheValidatorRefusesAndSayThatAViewNeedsOnePart()
+    {
+        JsonElement device = Property("track_set_input", "deviceId");
+        JsonElement channel = Property("track_set_input", "channel");
+        Assert.Equal([1, TrackRules.MaxDeviceIdLength], [device.GetProperty("minLength").GetInt32(), device.GetProperty("maxLength").GetInt32()]);
+        Assert.Contains("not blank", device.GetProperty("description").GetString());
+        Assert.Equal(1, Property("track_set_icon", "icon").GetProperty("minLength").GetInt32());
+        double[] channels = [channel.GetProperty("minimum").GetDouble(), channel.GetProperty("maximum").GetDouble()];
+        Assert.Equal([(double)TrackRules.MinChannel, TrackRules.MaxChannel], channels);
+        Assert.Contains("at least one", _registry.Find("project_set_view")!.Description);
+    }
+
     private string[] Required(string command)
     {
         return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];

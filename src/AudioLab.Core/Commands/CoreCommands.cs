@@ -22,9 +22,16 @@ public static class CoreCommands
         TrackCommandJsonContext tracks = TrackCommandJsonContext.Default;
         GroupCommands.Register(builder, tracks);
         TrackCommands.Register(builder, tracks);
+        TrackSettingsCommands.Register(builder, tracks);
         MixerCommands.Register(builder, tracks);
         ClipCommands.Register(builder, ClipCommandJsonContext.Default);
         MidiCommands.Register(builder, MidiCommandJsonContext.Default);
         EffectCommands.Register(builder, EffectCommandJsonContext.Default);
+        AutomationCommands.Register(builder, AutomationCommandJsonContext.Default);
+        BeatCommands.Register(builder, BeatCommandJsonContext.Default);
+        LyricsCommands.Register(builder, LyricsCommandJsonContext.Default);
+        ClipMetaCommands.Register(builder, ClipMetaCommandJsonContext.Default);
+        ProjectCommands.Register(builder, ProjectCommandJsonContext.Default);
+        InstrumentCommands.Register(builder, InstrumentCommandJsonContext.Default);
     }
 }
