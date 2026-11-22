@@ -1,0 +1,83 @@
+######## --lib asio --driver Realtek --seconds 180
+NAudio.Asio 'Realtek ASIO' rate=48000 buffer=528 frames, driver-reported latency in/out=528/528 samples
+--- NAudio.Asio 'Realtek ASIO' rate=48000 buffer=528 frames, driver-reported latency in/out=528/528 samples | 180s emit=False stress=False gcMode=Batch server=False
+callbacks=16386 frames/callback min/avg/max=528/528.0/528 (11.00 ms nominal) xruns reported=0
+interval ms: mean=10.999 sd=1.720 p50=10.829 p99=19.165 p99.9=20.032 p99.99=20.206 max=23.484; late>1.5x=525 late>2x=1
+time inside callback ms: p50=0.0015 p99.9=0.0064 max=0.0357
+managed bytes allocated on callback thread during run: 514720
+
+process GC collections during run: gen0=0 gen1=0 gen2=0; allocated by process 0.8 MB
+
+######## --lib asio --driver Realtek --seconds 120 --stress
+NAudio.Asio 'Realtek ASIO' rate=48000 buffer=528 frames, driver-reported latency in/out=528/528 samples
+--- NAudio.Asio 'Realtek ASIO' rate=48000 buffer=528 frames, driver-reported latency in/out=528/528 samples | 120s emit=False stress=True gcMode=Batch server=False
+callbacks=10919 frames/callback min/avg/max=528/528.0/528 (11.00 ms nominal) xruns reported=0
+interval ms: mean=11.001 sd=1.623 p50=10.830 p99=19.868 p99.9=19.934 p99.99=23.051 max=38.000; late>1.5x=282 late>2x=3
+time inside callback ms: p50=0.0016 p99.9=0.0077 max=0.0547
+managed bytes allocated on callback thread during run: 339776
+
+process GC collections during run: gen0=531 gen1=10 gen2=9; allocated by process 3930.5 MB
+
+######## --lib ma --mode shared --in Headset (USB --out Headset (USB --buffer 480 --seconds 180
+miniaudio 0.11.25 WASAPI shared in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 requestedPeriod=480 periods=2; internal capture period/periods=480/2 playback=480/2
+--- miniaudio 0.11.25 WASAPI shared in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 requestedPeriod=480 periods=2; internal capture period/periods=480/2 playback=480/2 | 180s emit=False stress=False gcMode=Batch server=False
+callbacks=18015 frames/callback min/avg/max=480/480.0/480 (10.00 ms nominal) xruns reported=0
+interval ms: mean=10.000 sd=0.239 p50=9.997 p99=10.479 p99.9=11.793 p99.99=15.968 max=17.648; late>1.5x=2 late>2x=0
+time inside callback ms: p50=0.0014 p99.9=0.0097 max=0.4270
+managed bytes allocated on callback thread during run: 0
+
+process GC collections during run: gen0=0 gen1=0 gen2=0; allocated by process 0.3 MB
+
+######## --lib ma --mode shared --in Headset (USB --out Headset (USB --buffer 480 --seconds 120 --stress
+miniaudio 0.11.25 WASAPI shared in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 requestedPeriod=480 periods=2; internal capture period/periods=480/2 playback=480/2
+--- miniaudio 0.11.25 WASAPI shared in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 requestedPeriod=480 periods=2; internal capture period/periods=480/2 playback=480/2 | 120s emit=False stress=True gcMode=Batch server=False
+callbacks=12003 frames/callback min/avg/max=480/480.0/480 (10.00 ms nominal) xruns reported=0
+interval ms: mean=10.000 sd=0.245 p50=9.997 p99=10.383 p99.9=12.006 p99.99=16.320 max=19.399; late>1.5x=2 late>2x=0
+time inside callback ms: p50=0.0015 p99.9=0.0068 max=0.0120
+managed bytes allocated on callback thread during run: 0
+
+process GC collections during run: gen0=524 gen1=10 gen2=9; allocated by process 3891.8 MB
+
+######## --lib pa --api WASAPI --in Headset (USB --out Headset (USB --seconds 180
+PortAudio [Windows WASAPI] in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 framesPerBuffer=unspecified suggestedLatency in/out=3.0/3.0 ms
+--- PortAudio [Windows WASAPI] in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 framesPerBuffer=unspecified suggestedLatency in/out=3.0/3.0 ms | 180s emit=False stress=False gcMode=Batch server=False
+callbacks=18017 frames/callback min/avg/max=480/480.0/480 (10.00 ms nominal) xruns reported=0
+interval ms: mean=10.000 sd=0.918 p50=10.032 p99=12.096 p99.9=12.585 p99.99=12.924 max=13.106; late>1.5x=0 late>2x=0
+time inside callback ms: p50=0.0015 p99.9=0.0073 max=0.0276
+managed bytes allocated on callback thread during run: 0
+reported (outputDacTime - inputAdcTime) mean = 0.00 ms
+
+process GC collections during run: gen0=0 gen1=0 gen2=0; allocated by process 0.3 MB
+
+######## --lib pa --api WASAPI --in Headset (USB --out Headset (USB --seconds 120 --stress
+PortAudio [Windows WASAPI] in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 framesPerBuffer=unspecified suggestedLatency in/out=3.0/3.0 ms
+--- PortAudio [Windows WASAPI] in='Headset (USB Audio)' out='Headset (USB Audio)' rate=48000 framesPerBuffer=unspecified suggestedLatency in/out=3.0/3.0 ms | 120s emit=False stress=True gcMode=Batch server=False
+callbacks=12023 frames/callback min/avg/max=480/480.0/480 (10.00 ms nominal) xruns reported=0
+interval ms: mean=10.000 sd=0.934 p50=10.040 p99=12.146 p99.9=12.795 p99.99=14.619 max=16.300; late>1.5x=1 late>2x=0
+time inside callback ms: p50=0.0016 p99.9=0.0047 max=0.1079
+managed bytes allocated on callback thread during run: 0
+reported (outputDacTime - inputAdcTime) mean = 9.65 ms
+
+process GC collections during run: gen0=4357 gen1=90 gen2=89; allocated by process 32258.3 MB
+
+######## --lib xt --api WASAPI --mode shared --in Headset (USB --out Headset (USB --seconds 180
+Xt.Audio WASAPI (Shared) aggregate in='Headset (USB Audio) (Shared)' out='Headset (USB Audio) (Shared)' rate=48000 buffer=7.00 ms (min in/out 7.00/7.00), frames=1476, reported latency in/out=15.38/15.38 ms
+--- Xt.Audio WASAPI (Shared) aggregate in='Headset (USB Audio) (Shared)' out='Headset (USB Audio) (Shared)' rate=48000 buffer=7.00 ms (min in/out 7.00/7.00), frames=1476, reported latency in/out=15.38/15.38 ms | 180s emit=False stress=False gcMode=Batch server=False
+callbacks=25727 frames/callback min/avg/max=336/336.0/738 (7.00 ms nominal) xruns reported=6
+interval ms: mean=7.000 sd=0.058 p50=6.999 p99=7.093 p99.9=7.168 p99.99=7.307 max=11.744; late>1.5x=1 late>2x=0
+time inside callback ms: p50=0.0010 p99.9=0.0037 max=0.0117
+managed bytes allocated on callback thread during run: 0
+
+process GC collections during run: gen0=0 gen1=0 gen2=0; allocated by process 0.4 MB
+
+######## --lib xt --api WASAPI --mode shared --in Headset (USB --out Headset (USB --seconds 120 --stress
+Xt.Audio WASAPI (Shared) aggregate in='Headset (USB Audio) (Shared)' out='Headset (USB Audio) (Shared)' rate=48000 buffer=7.00 ms (min in/out 7.00/7.00), frames=1476, reported latency in/out=15.38/15.38 ms
+--- Xt.Audio WASAPI (Shared) aggregate in='Headset (USB Audio) (Shared)' out='Headset (USB Audio) (Shared)' rate=48000 buffer=7.00 ms (min in/out 7.00/7.00), frames=1476, reported latency in/out=15.38/15.38 ms | 120s emit=False stress=True gcMode=Batch server=False
+callbacks=17147 frames/callback min/avg/max=336/336.0/738 (7.00 ms nominal) xruns reported=6
+interval ms: mean=7.000 sd=0.078 p50=6.999 p99=7.118 p99.9=7.201 p99.99=9.766 max=11.152; late>1.5x=1 late>2x=0
+time inside callback ms: p50=0.0013 p99.9=0.0050 max=0.1164
+managed bytes allocated on callback thread during run: 0
+
+process GC collections during run: gen0=532 gen1=10 gen2=9; allocated by process 3948.4 MB
+
+DONE
