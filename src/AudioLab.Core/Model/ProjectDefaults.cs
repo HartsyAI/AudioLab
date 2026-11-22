@@ -3,9 +3,6 @@ namespace AudioLab.Core.Model;
 /// <summary>The starting values shared by whatever creates sections, groups and tracks.</summary>
 public static class ProjectDefaults
 {
-    /// <summary>The colour of a group that has none.</summary>
-    public const string GroupColor = "#7a8cff";
-
     private static readonly string[] _sectionColors =
     [
         "#f4a261", "#f2c94c", "#b5d63d", "#5fcf80", "#2ec4b6", "#4cc9f0", "#4895ef", "#9d7bf0", "#d97ae0", "#ef6f91",
@@ -22,6 +19,33 @@ public static class ProjectDefaults
 
     /// <summary>The colour of the track at <paramref name="index"/>: the design's twelve track tokens, in order.</summary>
     public static string TrackColor(int index) => _trackColors[Wrap(index, _trackColors.Length)];
+
+    /// <summary>A new empty track with the old DAW's starting values: fader 0.8 (a bus 1), centred, 100 pixels tall, mono input.</summary>
+    public static Track NewTrack(TrackId id, string name, TrackKind kind, string color, Instrument? instrument = null)
+    {
+        return new Track
+        {
+            Id = id,
+            Name = name,
+            Kind = kind,
+            Color = color,
+            Volume = kind == TrackKind.Bus ? 1 : 0.8,
+            Pan = 0,
+            Muted = false,
+            Soloed = false,
+            Armed = false,
+            Monitor = false,
+            Input = new TrackInput(null, InputChannelMode.Mono),
+            TakeCount = 0,
+            Instrument = instrument,
+            Clips = [],
+            MidiClips = [],
+            Effects = [],
+            Automation = new TrackAutomation { Mode = AutomationMode.Read, Volume = [], Pan = [] },
+            Sends = [],
+            View = new TrackView { Height = 100, AutomationVisible = false, AutomationParameter = AutomationParameter.Volume },
+        };
+    }
 
     private static int Wrap(int index, int length) => ((index % length) + length) % length;
 }
