@@ -72,6 +72,17 @@ public sealed class TimelineRuleTests
     }
 
     [Fact]
+    public void AChangeWithAnInfiniteTempoOrTimeIsIgnored()
+    {
+        TempoMap map = TempoMap.From(
+            120,
+            [new TempoChange(_first, 4, double.PositiveInfinity), new TempoChange(_second, double.PositiveInfinity, 90)]);
+
+        Assert.Equal(120, map.BpmAt(100));
+        Assert.True(double.IsFinite(map.BeatsAt(100)));
+    }
+
+    [Fact]
     public void BeatsAndTimeAreInversesThroughEveryChange()
     {
         TempoMap map = TempoMap.From(97.5, [new TempoChange(_first, 3.25, 133), new TempoChange(_second, 11, 41.5)]);

@@ -168,10 +168,36 @@ public sealed class TimelineBehaviourTests
         _rig.Ok(new AddSection { Project = _rig.Id, Start = 10, Length = 10 });
         SectionId id = _rig.Project.Sections[0].Id;
 
-        _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = id, Edit = SectionEdit.Move }, CommandErrorCode.Rejected);
-        _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = id, Start = 4, Edit = SectionEdit.End }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = id, Edit = SectionEdit.Move }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = id, Start = 4, Edit = SectionEdit.End }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = SectionId.From("sec_none"), Edit = SectionEdit.Move }, CommandErrorCode.NotFound);
         _rig.Ok(new SetSectionSpan { Project = _rig.Id, Section = id, End = 30, Edit = SectionEdit.End });
         _rig.RefusedWith(new SetSectionSpan { Project = _rig.Id, Section = id, Start = double.NaN, Edit = SectionEdit.Start }, CommandErrorCode.Invalid);
+    }
+
+    [Fact]
+    public void NoSectionFromAMarkerWhoseOnlySectionWouldBeTooShortIsRefused()
+    {
+        _rig.Ok(new SetTempoBpm { Project = _rig.Id, Bpm = 1000 });
+        _rig.Ok(new SetTimeSignature { Project = _rig.Id, Numerator = 1, Denominator = 32 });
+        _rig.Ok(new AddMarker { Project = _rig.Id, Time = 1 });
+
+        _rig.RefusedWith(new SectionsFromMarkers { Project = _rig.Id }, CommandErrorCode.Rejected);
+    }
+
+    [Fact]
+    public void ANameLongerThanTheSchemaAllowsIsRefusedAsSent()
+    {
+        string tooLong = new('n', ProjectLimits.MaxName + 1);
+        string padded = " " + new string('n', ProjectLimits.MaxName) + " ";
+        _rig.Ok(new AddMarker { Project = _rig.Id, Time = 1, Name = "m" });
+        _rig.Ok(new AddSection { Project = _rig.Id, Start = 0, Length = 5 });
+
+        _rig.RefusedWith(new AddMarker { Project = _rig.Id, Time = 2, Name = tooLong }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddMarker { Project = _rig.Id, Time = 2, Name = padded }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddSection { Project = _rig.Id, Start = 10, Name = tooLong }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new RenameMarker { Project = _rig.Id, Marker = _rig.Project.Markers[0].Id, Name = tooLong }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new RenameSection { Project = _rig.Id, Section = _rig.Project.Sections[0].Id, Name = tooLong }, CommandErrorCode.Invalid);
     }
 
     [Fact]

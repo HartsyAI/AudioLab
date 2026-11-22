@@ -48,6 +48,16 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheRenamedSectionCommandsExistUnderTheirNewNamesOnly()
+    {
+        Assert.NotNull(_registry.Find("section_clear"));
+        Assert.NotNull(_registry.Find("section_from_markers"));
+        Assert.Null(_registry.Find("sections_clear"));
+        Assert.Null(_registry.Find("sections_from_markers"));
+        Assert.Equal(CommandErrorCode.UnknownCommand, _registry.Parse("sections_clear", "{}").Errors[0].Code);
+    }
+
+    [Fact]
     public void TheDomainsShipTheirCommandsUnderStableNames()
     {
         Assert.Contains(_registry.Commands, command => command.Name == "tempo_change_add");
