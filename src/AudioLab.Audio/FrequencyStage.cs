@@ -1,9 +1,10 @@
 namespace AudioLab.Audio;
 
-/// <summary>
-/// One layer of a long convolution: the taps from one block on, cut into blocks and multiplied in the frequency domain against the spectra
-/// of the input blocks that came before, so it needs no input beyond what it has already been given.
-/// </summary>
+/// <summary>One layer of a long convolution, done in the frequency domain on blocks of one length.</summary>
+/// <remarks>
+/// It takes the taps from one block on, cut into blocks and multiplied in the frequency domain against the spectra of the input blocks
+/// that came before, so it needs no input beyond what it has already been given.
+/// </remarks>
 internal sealed class FrequencyStage
 {
     private readonly int _block;

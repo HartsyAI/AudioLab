@@ -1,9 +1,10 @@
 namespace AudioLab.Audio;
 
-/// <summary>
-/// An FFT of real input of a fixed size N, done as a complex FFT of half the size. Spectra hold the N/2 + 1 bins from 0 up to Nyquist;
-/// the rest follow by symmetry. The object keeps its own scratch space, so one caller at a time.
-/// </summary>
+/// <summary>An FFT of real input of a fixed size N, done as a complex FFT of half the size.</summary>
+/// <remarks>
+/// Spectra hold the N/2 + 1 bins from 0 up to Nyquist; the rest follow by symmetry. The object keeps its own scratch space, so
+/// one caller at a time.
+/// </remarks>
 internal sealed class RealFft
 {
     private readonly int _size;

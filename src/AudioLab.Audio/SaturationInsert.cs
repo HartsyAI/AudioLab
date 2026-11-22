@@ -2,10 +2,10 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Audio;
 
-/// <summary>
-/// The old waveshaper, tanh(k x) / tanh(k) with k = 1 + 9 drive on an input held to -1..1, then the trim, mixed with the dry signal.
+/// <summary>The old waveshaper, tanh(k x) / tanh(k) with k = 1 + 9 drive, on an input held to -1..1, then trimmed and mixed.</summary>
+/// <remarks>
 /// It is anti-aliased by the antiderivative of the curve, which costs no delay, where the old one oversampled four times.
-/// </summary>
+/// </remarks>
 internal sealed class SaturationInsert : IInsert
 {
     // Below this change between two samples the slope is read at their midpoint, where the quotient of differences loses precision.

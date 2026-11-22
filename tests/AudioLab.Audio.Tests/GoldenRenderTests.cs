@@ -4,11 +4,12 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Tests;
 
-/// <summary>
-/// Each effect rendered from the same short signal and compared with a stored render within a small tolerance. A change that moves the
-/// sound has to be regenerated on purpose: set AUDIOLAB_UPDATE_GOLDEN=1, run these tests (dotnet test -c Release --filter
-/// FullyQualifiedName~GoldenRenderTests), look at the diff of the files in Golden, and commit them with the change.
-/// </summary>
+/// <summary>Each effect rendered from the same short signal and compared with a stored render within a small tolerance.</summary>
+/// <remarks>
+/// A change that moves the sound has to be regenerated on purpose: set AUDIOLAB_UPDATE_GOLDEN=1, run these tests (dotnet test -c
+/// Release --filter FullyQualifiedName~GoldenRenderTests), look at the diff of the files in Golden, and commit them with the
+/// change.
+/// </remarks>
 public sealed class GoldenRenderTests
 {
     private static Effect New(EffectKind kind, string id) => EffectRules.Create(kind, EffectId.From(id));

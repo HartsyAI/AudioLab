@@ -3,10 +3,11 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio;
 
-/// <summary>
-/// A feedback delay as the old graph wired it: the delay line feeds a low-pass tone filter, whose output is both the wet signal and the
-/// feedback. A synced delay follows the tempo steps, and every change of time glides over about 15 ms, worked out per sample from the frame.
-/// </summary>
+/// <summary>A feedback delay as the old graph wired it, free-running or following the tempo.</summary>
+/// <remarks>
+/// The delay line feeds a low-pass tone filter, whose output is both the wet signal and the feedback. A synced delay follows the
+/// tempo steps, and every change of time glides over about 15 ms, worked out per sample from the frame.
+/// </remarks>
 internal sealed class DelayInsert : IInsert
 {
     // The old DAW smoothed a retuned delay with a 15 ms time constant.

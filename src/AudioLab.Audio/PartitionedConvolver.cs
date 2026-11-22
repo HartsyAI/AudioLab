@@ -2,11 +2,12 @@ using System.Numerics;
 
 namespace AudioLab.Audio;
 
-/// <summary>
-/// Convolves one channel with a long impulse response with no delay: the first block of taps is a direct sum over the recent input, the
-/// next few blocks are multiplied in the frequency domain in short blocks, and the long rest in long blocks, which costs far less.
-/// </summary>
-/// <remarks>It works from a sample counter of its own, so the output does not depend on how the caller cuts the input into blocks.</remarks>
+/// <summary>Convolves one channel with a long impulse response with no delay.</summary>
+/// <remarks>
+/// The first block of taps is a direct sum over the recent input, the next ones are multiplied in the frequency domain in short
+/// blocks, and the long rest in long blocks, which costs far less. It works from a sample counter of its own, so the output does not
+/// depend on how the caller cuts the input into blocks.
+/// </remarks>
 internal sealed class PartitionedConvolver
 {
     /// <summary>The length, in taps, of the direct head and the block of the short stage.</summary>
