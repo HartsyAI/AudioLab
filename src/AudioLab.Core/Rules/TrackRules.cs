@@ -15,6 +15,9 @@ public static class TrackRules
     public static IReadOnlyList<(string Name, double Height)> HeightPresets { get; } =
         [("Tiny", 30), ("Compact", 44), ("Small", 64), ("Medium", 100), ("Large", 160)];
 
-    /// <summary>Whether a track of this kind has an input to arm and monitor: an aux bus has none.</summary>
+    /// <summary>Whether a track of this kind can be armed and monitored: an aux bus has no input to record.</summary>
     public static bool HasInput(TrackKind kind) => kind != TrackKind.Bus;
+
+    /// <summary>Whether a track of this kind has an audio input to choose a device and channels for: only an audio track does.</summary>
+    public static bool HasAudioInput(TrackKind kind) => kind == TrackKind.Audio;
 }

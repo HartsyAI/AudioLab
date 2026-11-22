@@ -91,6 +91,9 @@ public sealed class SettingsRuleTests
         Assert.True(TrackRules.HasInput(TrackKind.Audio));
         Assert.True(TrackRules.HasInput(TrackKind.Instrument));
         Assert.False(TrackRules.HasInput(TrackKind.Bus));
+        Assert.True(TrackRules.HasAudioInput(TrackKind.Audio));
+        Assert.False(TrackRules.HasAudioInput(TrackKind.Instrument));
+        Assert.False(TrackRules.HasAudioInput(TrackKind.Bus));
         Assert.All(TrackRules.HeightPresets, preset => Assert.InRange(preset.Height, TrackRules.MinHeight, TrackRules.MaxHeight));
         Assert.Equal(["Tiny", "Compact", "Small", "Medium", "Large"], TrackRules.HeightPresets.Select(preset => preset.Name));
         Track track = BlankProject.Track("trk_1");

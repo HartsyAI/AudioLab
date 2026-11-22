@@ -19,13 +19,18 @@ internal static class InstrumentCommands
 
     private static CommandResult SetPreset(ProjectDocument document, SetInstrumentPreset command, IIdService ids)
     {
-        if (Find(document, command.Track, out _) is { } refused)
+        if (Find(document, command.Track, out Instrument? current) is { } refused)
         {
             return refused;
         }
         if (!InstrumentPresets.Names.Contains(command.Preset))
         {
             return CommandChecks.OutOfRange($"The preset must be one of: {string.Join(", ", InstrumentPresets.Names)}.");
+        }
+        if (command.Preset == InstrumentPresets.Sampler && current is SamplerInstrument)
+        {
+            // The old menu item only opened the sampler's panel: a sampler that is already there keeps its sample and settings.
+            return CommandResult.Ok(document);
         }
         Instrument instrument = command.Preset == InstrumentPresets.Sampler
             ? InstrumentPresets.CreateSampler()

@@ -30,9 +30,20 @@ internal static class TrackSettingsCommands
 
     private static CommandResult SetInput(ProjectDocument document, SetTrackInput command, IIdService ids)
     {
-        if (Input(document, command.Track, true) is { } refused)
+        if (TrackEdits.Exists(document, command.Track) is { } missing)
         {
-            return refused;
+            return missing;
+        }
+        if (!TrackRules.HasAudioInput(document.Tracks.First(candidate => candidate.Id == command.Track).Kind))
+        {
+            return CommandChecks.Rejected("Only an audio track has an input to choose; an instrument track plays MIDI and a bus has none.");
+        }
+        // The values come first: one outside what the project holds is invalid whatever the mode; only then must the mode and the number agree.
+        CommandResult? invalid = CommandChecks.Length(nameof(command.DeviceId), command.DeviceId, 512)
+            ?? CommandChecks.Range(nameof(command.Channel), command.Channel, 1, 256);
+        if (invalid is not null)
+        {
+            return invalid;
         }
         bool single = command.Channels == InputChannelMode.Single;
         if (single && command.Channel is null)
@@ -44,9 +55,7 @@ internal static class TrackSettingsCommands
             return CommandChecks.Rejected("Only a single channel has a number; leave the channel out for mono and stereo.");
         }
         TrackInput input = new(command.DeviceId, command.Channels, command.Channel);
-        return CommandChecks.Length(nameof(command.DeviceId), command.DeviceId, 512)
-            ?? CommandChecks.Range(nameof(command.Channel), command.Channel, 1, 256)
-            ?? TrackEdits.Replace(document, command.Track, track => track with { Input = input });
+        return TrackEdits.Replace(document, command.Track, track => track with { Input = input });
     }
 
     private static CommandResult SetHeight(ProjectDocument document, SetTrackHeight command, IIdService ids)

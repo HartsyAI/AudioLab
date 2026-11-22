@@ -81,6 +81,8 @@ public sealed class TrackSettingsCommandTests
         _rig.RefusedWith(single with { Channel = 0 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channel = 257 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channels = InputChannelMode.Mono }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(single with { Channels = InputChannelMode.Mono, Channel = 999 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(single with { Channels = InputChannelMode.Stereo, DeviceId = new string('d', 513) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { DeviceId = new string('d', 513) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { DeviceId = string.Empty }, CommandErrorCode.Invalid);
         _rig.RefusedWith(single with { Channels = (InputChannelMode)9, Channel = null }, CommandErrorCode.Invalid);
@@ -88,11 +90,13 @@ public sealed class TrackSettingsCommandTests
     }
 
     [Fact]
-    public void ABusHasNoInputAndATrackThatIsNotThereIsNotFound()
+    public void OnlyAnAudioTrackHasAnInputToChooseAndATrackThatIsNotThereIsNotFound()
     {
         SetTrackInput mono = new() { Project = _rig.Id, Track = _bus, Channels = InputChannelMode.Mono };
 
         _rig.RefusedWith(mono, CommandErrorCode.Rejected);
+        _rig.RefusedWith(mono with { Track = _keys }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(mono with { Track = _keys, Channel = 999 }, CommandErrorCode.Rejected);
         _rig.RefusedWith(mono with { Track = TrackId.From("trk_none"), Channel = 99 }, CommandErrorCode.NotFound);
     }
 

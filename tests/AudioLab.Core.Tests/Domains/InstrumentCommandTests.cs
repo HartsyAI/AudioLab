@@ -54,6 +54,22 @@ public sealed class InstrumentCommandTests
     }
 
     [Fact]
+    public void TheSamplerPresetOnASamplerKeepsItsSampleAndSettingsAndOnASynthItMakesAnEmptyOne()
+    {
+        _rig.Ok(new SetSamplerSample { Project = _rig.Id, Track = _sampler, Sample = MediaId.From("med_snare"), SampleName = "Snare" });
+        _rig.Ok(new SetSamplerRootNote { Project = _rig.Id, Track = _sampler, Note = 48 });
+        ProjectDocument before = _rig.Project;
+        int steps = _rig.History.UndoCount;
+
+        Assert.True(_rig.Run(new SetInstrumentPreset { Project = _rig.Id, Track = _sampler, Preset = InstrumentPresets.Sampler }).Succeeded);
+
+        Assert.Equal(before, _rig.Project);
+        Assert.Equal(steps, _rig.History.UndoCount);
+        _rig.Ok(new SetInstrumentPreset { Project = _rig.Id, Track = _sampler, Preset = "Bell" });
+        Assert.Equal(InstrumentPresets.CreateSynth("Bell"), _rig.Project.Tracks.First(track => track.Id == _sampler).Instrument);
+    }
+
+    [Fact]
     public void ApplyingThePresetAgainPutsBackWhatWasTweakedAndAnUnknownPresetIsRefused()
     {
         _rig.Ok(new SetInstrumentParameter { Project = _rig.Id, Track = _synth, Parameter = "cutoff", Value = 500 });
