@@ -8,9 +8,10 @@ internal sealed class CommandRig
 {
     private static readonly ClientId _client = ClientId.From("test-client");
 
-    public CommandRig(ProjectDocument? start = null)
+    // A rig made from a document that another rig edited starts its ids higher, so they never repeat.
+    public CommandRig(ProjectDocument? start = null, int idStart = 1000)
     {
-        History = new CommandHistory(start ?? BlankProject.Create(), CoreCommands.CreateRegistry(), new SequentialIdService(1000));
+        History = new CommandHistory(start ?? BlankProject.Create(), CoreCommands.CreateRegistry(), new SequentialIdService(idStart));
     }
 
     public CommandHistory History { get; }

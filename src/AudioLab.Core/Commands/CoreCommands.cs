@@ -23,5 +23,6 @@ public static class CoreCommands
         GroupCommands.Register(builder, tracks);
         TrackCommands.Register(builder, tracks);
         MixerCommands.Register(builder, tracks);
+        ClipCommands.Register(builder, ClipCommandJsonContext.Default);
     }
 }
