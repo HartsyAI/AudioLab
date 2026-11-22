@@ -823,4 +823,5 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-22 | Tempo, marker and section commands, with the tempo-map, meter and section rules they share, added to `AudioLab.Core` (section 5); D19 proposed. |
 | 2026-11-22 | The store: per-user hashed file names, atomic writes, open-project sessions with debounced autosave, and the project routes; save means flush (section 5). Rests on D12, D15 and D16 (Proposed). |
 | 2026-11-22 | The hub (section 5): SignalR over WebSockets, behind the door; O8 closed as D20 (Proposed). A failing autosave is retried with growing delays. |
-| 2026-11-22 | Hub: each connection has an outbox that keeps the newest change per project, so a slow client delays nobody and a stalled one is disconnected; deletions are announced in order; the hub limits are stated (section 5, D19). |
+| 2026-11-22 | Hub: each connection has an outbox that keeps the newest change per project, so a slow client delays nobody and a stalled one is disconnected; deletions are announced in order; the hub limits are stated (section 5, D20). |
+| 2026-11-22 | Hub: the publish order belongs to the project key, so a join and a deletion cannot interleave; a send that fails for any reason aborts the connection; a project is reported as closing when its session closes during a join (section 5). |

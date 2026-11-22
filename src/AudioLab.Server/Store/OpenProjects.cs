@@ -82,10 +82,8 @@ public sealed class OpenProjects(
     /// <summary>The current snapshot of an open project, or null when it is not open; it never opens the project.</summary>
     public ProjectSnapshot? SnapshotIfOpen(UserId user, ProjectId id)
     {
-        lock (_table)
-        {
-            return _entries.TryGetValue(new SessionKey(user, id), out Entry? entry) ? entry.Session?.Snapshot : null;
-        }
+        // The snapshot is read outside the table's lock: it takes the session's lock, which a command in progress holds.
+        return SessionIfOpen(user, id)?.Snapshot;
     }
 
     /// <summary>The sessions a user has open.</summary>

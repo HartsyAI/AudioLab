@@ -6,7 +6,7 @@ namespace AudioLab.Server.Tests;
 /// <summary>A small registry of commands for the hub and session tests; the server has no domain commands yet.</summary>
 internal static class TestCommandRegistry
 {
-    public static CommandRegistry Create()
+    public static CommandRegistry Create(SlowGate? gate = null)
     {
         TestCommandJson json = TestCommandJson.Default;
         return new CommandRegistryBuilder()
@@ -15,6 +15,11 @@ internal static class TestCommandRegistry
             .Add("add_marker", "Adds a marker and allocates its id.", json.AddMarkerCommand, AddMarker)
             .Add("refuse", "Is always refused.", json.RefuseCommand, (document, command, ids) => CommandResult.Refuse(CommandErrorCode.Rejected, "Not today."))
             .Add("bulk", "Carries text and changes nothing.", json.BulkCommand, (document, command, ids) => CommandResult.Ok(document))
+            .Add("slow", "Waits for a test, then sets the tempo.", json.SlowCommand, (document, command, ids) =>
+            {
+                gate?.Pause();
+                return CommandResult.Ok(document with { Bpm = 61 });
+            })
             .Add("no_change", "Changes nothing.", json.NoChangeCommand, (document, command, ids) => CommandResult.Ok(document))
             .Build();
     }

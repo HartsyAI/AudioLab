@@ -23,6 +23,8 @@ internal sealed record RefuseCommand : Command;
 
 internal sealed record NoChangeCommand : Command;
 
+internal sealed record SlowCommand : Command;
+
 internal sealed record BulkCommand : Command
 {
     public required string Text { get; init; }

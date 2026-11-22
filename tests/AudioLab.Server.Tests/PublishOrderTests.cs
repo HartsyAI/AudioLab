@@ -105,6 +105,56 @@ public sealed class PublishOrderTests
     }
 
     [Fact]
+    public async Task ACommandInProgressDelaysNeitherADuplicateNorAListNorAnythingForOtherProjects()
+    {
+        using TempFolder folder = new();
+        SlowGate gate = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create(gate));
+        ProjectId busy = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Busy", _none)).Id);
+        ProjectId other = ProjectId.From((await store.Service.CreateAsync(Users.Bob, "Other", _none)).Id);
+        await store.Open.OpenAsync(Users.Alice, busy, _none);
+        AudioLab.Core.Commands.ClientId client = AudioLab.Core.Commands.ClientId.From("c");
+        Task slow = Task.Run(() => store.Edits.ApplyAsync(Users.Alice, busy, client, "slow", "{\"project\":\"" + busy.Value + "\"}", null, _none));
+        await gate.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // What a reader sees is the last committed revision, so a command in progress delays neither a duplicate nor a list.
+        ProjectSummary copy = await Task.Run(() => store.Service.DuplicateAsync(Users.Alice, busy, null, _none)).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Copy of Busy", copy.Name);
+        Task elsewhere = Task.Run(async () =>
+        {
+            await store.Edits.JoinAsync(Users.Bob, other, _ => Task.CompletedTask, _ => Task.CompletedTask, _none);
+            await store.Edits.ApplyAsync(Users.Bob, other, client, "set_bpm", "{\"project\":\"" + other.Value + "\",\"bpm\":90}", null, _none);
+            await store.Service.ListAsync(Users.Alice, _none);
+        });
+        Assert.Same(elsewhere, await Task.WhenAny(elsewhere, Task.Delay(TimeSpan.FromSeconds(5))));
+        await elsewhere;
+
+        gate.Release();
+        await slow;
+    }
+
+    [Fact]
+    public async Task AJoinWhoseConnectionEndsWhileItSubscribesIsTakenBackOut()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create());
+        ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Song", _none)).Id);
+        using CancellationTokenSource connection = new();
+        List<string> log = [];
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.Edits.JoinAsync(Users.Alice, id, _ =>
+        {
+            log.Add("subscribed");
+            connection.Cancel();
+            return Task.CompletedTask;
+        }, _ =>
+        {
+            log.Add("unsubscribed");
+            return Task.CompletedTask;
+        }, connection.Token));
+        Assert.Equal(["subscribed", "unsubscribed"], log);
+    }
+
+    [Fact]
     public async Task TheOrderBelongsToTheProjectAndTwoUsersOrTwoProjectsNeverWaitForEachOther()
     {
         using TempFolder folder = new();

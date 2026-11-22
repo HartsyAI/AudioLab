@@ -80,6 +80,35 @@ public sealed class ConnectionOutboxTests
     }
 
     [Fact]
+    public async Task ASendThatFaultsWithACancellationWhileTheOutboxIsRunningStillAbortsTheClient()
+    {
+        FakeProjectClient client = new();
+        client.FailWith(new TaskCanceledException("the connection is closing"));
+        TaskCompletionSource aborted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ConnectionOutbox outbox = new(new FakeHubContext(client), "c", () => aborted.TrySetResult(), TimeSpan.FromSeconds(30), NullLogger());
+        outbox.Post(Change("a", 1));
+        await aborted.Task.WaitAsync(_wait);
+    }
+
+    [Fact]
+    public async Task AnAbortThatThrowsDoesNotLeaveTheWriterFaultedAndPostingStaysHarmless()
+    {
+        FakeProjectClient client = new();
+        client.FailWith(new InvalidOperationException("bad state"));
+        TaskCompletionSource called = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ConnectionOutbox outbox = new(new FakeHubContext(client), "c", () =>
+        {
+            called.TrySetResult();
+            throw new ObjectDisposedException("connection");
+        }, TimeSpan.FromSeconds(30), NullLogger());
+        outbox.Post(Change("a", 1));
+        await called.Task.WaitAsync(_wait);
+        await Task.Delay(100);
+        outbox.Post(Change("a", 2));
+        outbox.PostDeleted(new ProjectClosed("a", "deleted"));
+    }
+
+    [Fact]
     public async Task AnOutboxThatIsDisposedAbortsNothing()
     {
         FakeProjectClient client = new();

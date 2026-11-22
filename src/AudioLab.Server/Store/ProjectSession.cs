@@ -27,7 +27,7 @@ public sealed class ProjectSession
     private readonly ITimer _timer;
     private ProjectSnapshot _snapshot;
     private long _savedRevision;
-    private DateTimeOffset _modified;
+    private long _modifiedTicks;
     private DateTimeOffset? _unsavedSince;
     private DateTimeOffset? _writeStarted;
     private CommandHistory? _history;
@@ -53,7 +53,7 @@ public sealed class ProjectSession
         _logger = logger;
         _snapshot = new ProjectSnapshot(document, 1);
         _savedRevision = 1;
-        _modified = modified;
+        _modifiedTicks = modified.UtcTicks;
         _timer = time.CreateTimer(OnTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
@@ -75,17 +75,8 @@ public sealed class ProjectSession
     /// <summary>The user who owns the project.</summary>
     public UserId Owner => Snapshot.Document.Owner;
 
-    /// <summary>The current document and revision.</summary>
-    public ProjectSnapshot Snapshot
-    {
-        get
-        {
-            lock (_state)
-            {
-                return _snapshot;
-            }
-        }
-    }
+    /// <summary>The current document and revision. Read without the session's lock, so a command in progress never delays it: it is the last one committed.</summary>
+    public ProjectSnapshot Snapshot => Volatile.Read(ref _snapshot);
 
     /// <summary>The newest revision known to be on disk.</summary>
     public long SavedRevision
@@ -111,15 +102,13 @@ public sealed class ProjectSession
         }
     }
 
-    /// <summary>The summary the project's list entry shows.</summary>
+    /// <summary>The summary the project's list entry shows, read without the session's lock.</summary>
     public ProjectSummary Summary
     {
         get
         {
-            lock (_state)
-            {
-                return new ProjectSummary(_snapshot.Document.Id.Value, _snapshot.Document.Name, _modified);
-            }
+            ProjectDocument document = Snapshot.Document;
+            return new ProjectSummary(document.Id.Value, document.Name, new DateTimeOffset(Volatile.Read(ref _modifiedTicks), TimeSpan.Zero));
         }
     }
 
@@ -345,9 +334,9 @@ public sealed class ProjectSession
     // Called under _state with a document that has been validated: raises the revision and schedules the autosave.
     private ProjectSnapshot Commit(ProjectDocument next)
     {
-        _snapshot = new ProjectSnapshot(next, _snapshot.Revision + 1);
+        Volatile.Write(ref _snapshot, new ProjectSnapshot(next, _snapshot.Revision + 1));
         DateTimeOffset now = _time.GetUtcNow();
-        _modified = now;
+        Volatile.Write(ref _modifiedTicks, now.UtcTicks);
         if (_writeStarted is { } started)
         {
             // The write in flight covers the changes before it started; these are new and get their own full quiet period.

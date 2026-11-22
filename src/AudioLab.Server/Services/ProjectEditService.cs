@@ -41,6 +41,12 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
             await unsubscribe(CancellationToken.None);
             throw Closing();
         }
+        if (cancellationToken.IsCancellationRequested)
+        {
+            // The connection ended while it was being added; a dead connection must not stay a member.
+            await unsubscribe(CancellationToken.None);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
         return session.Snapshot;
     }
 

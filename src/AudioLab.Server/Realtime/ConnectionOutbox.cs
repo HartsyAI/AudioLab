@@ -133,7 +133,7 @@ public sealed class ConnectionOutbox : IDisposable
             Abandon(send);
             return false;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
         {
             // The outbox was disposed because the connection ended; there is nothing to abort.
             ObserveLater(send);
@@ -151,7 +151,15 @@ public sealed class ConnectionOutbox : IDisposable
 
     private void Abandon(Task? send)
     {
-        _abort();
+        try
+        {
+            _abort();
+        }
+        catch (Exception exception)
+        {
+            // Aborting a connection that is already gone can fail; the loop ends either way and must not end faulted.
+            HubLog.SendFailed(_logger, exception);
+        }
         ObserveLater(send);
     }
 
