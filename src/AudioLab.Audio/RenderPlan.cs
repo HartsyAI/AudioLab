@@ -51,13 +51,19 @@ public sealed class RenderPlan
         {
             busSlots[track.Id] = busSlots.Count;
         }
-        MediaCache cache = new(media, format.SampleRate);
+        MediaCache cache = options.Cache ?? new MediaCache(media, format.SampleRate);
+        Track? target = options.StemOf is { } stem ? FindStemTrack(document, stem) : null;
         List<PlannedTrack> planned = [];
         // Tracks first, then buses, so a send always finds the bus it feeds after the audio has been mixed into it.
         IEnumerable<Track> ordered = document.Tracks.OrderBy(track => track.Kind == TrackKind.Bus);
         foreach (Track track in ordered)
         {
-            PlannedTrack? plan = PlanTrack(document, track, busSlots, cache, context, options);
+            StemRole role = RoleOf(track, target);
+            if (role == StemRole.Left)
+            {
+                continue;
+            }
+            PlannedTrack? plan = PlanTrack(document, track, busSlots, cache, context, options, role, target);
             if (plan is not null)
             {
                 planned.Add(plan);
@@ -68,8 +74,8 @@ public sealed class RenderPlan
         return new RenderPlan(
             format,
             [.. planned],
-            document.MasterVolume,
-            document.MasterLimiter,
+            target is null ? document.MasterVolume : 1,
+            target is null && document.MasterLimiter,
             Frames(contentEnd, format.SampleRate),
             Frames(TailSeconds(planned, busSlots.Count), format.SampleRate),
             busSlots.Count);
@@ -99,14 +105,25 @@ public sealed class RenderPlan
         Dictionary<TrackId, int> busSlots,
         MediaCache cache,
         InsertContext context,
-        PlanOptions options)
+        PlanOptions options,
+        StemRole role,
+        Track? target)
     {
         bool muted = MixRules.IsMuted(track, document.Groups);
-        bool soloAudible = MixRules.IsSoloAudible(document, track);
-        List<PlannedSend> sends = [];
-        foreach (Send send in track.Sends)
+        bool soloAudible = role switch
         {
-            float gain = (float)MixRules.SendGain(document, track, send);
+            StemRole.Whole => MixRules.IsSoloAudible(document, track),
+            StemRole.Target => true,
+            _ => false,
+        };
+        List<PlannedSend> sends = [];
+        foreach (Send send in role == StemRole.Target ? [] : track.Sends)
+        {
+            if (role == StemRole.Sender && send.Bus != target!.Id)
+            {
+                continue;
+            }
+            float gain = (float)MixRules.SendGain(document, track, send, ignoreSolo: role != StemRole.Whole);
             if (gain > 0 && busSlots.TryGetValue(send.Bus, out int slot))
             {
                 sends.Add(new PlannedSend(slot, gain, send.Pre));
@@ -140,6 +157,23 @@ public sealed class RenderPlan
             LatestEnds = latestEnds,
             Source = source,
         };
+    }
+
+    private static Track FindStemTrack(ProjectDocument document, TrackId id) =>
+        document.Tracks.FirstOrDefault(track => track.Id == id) ?? throw new ArgumentException($"No track {id} to make a stem of.", "options");
+
+    // In a stem, the track asked for is heard alone and dry, a bus is heard with the tracks that feed it, and the rest is left out.
+    private static StemRole RoleOf(Track track, Track? target)
+    {
+        if (target is null)
+        {
+            return StemRole.Whole;
+        }
+        if (track.Id == target.Id)
+        {
+            return StemRole.Target;
+        }
+        return target.Kind == TrackKind.Bus && track.Kind != TrackKind.Bus ? StemRole.Sender : StemRole.Left;
     }
 
     // A track that is the same on both channels is panned by the mono law, as a mono source was in the old DAW; a reverb makes two rooms.
