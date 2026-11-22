@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AudioLab.Core.Model;
+using AudioLab.Server.Mcp;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
@@ -46,6 +47,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
             problems.Add("AudioLab:HubSendTimeout must be 100 milliseconds to 5 minutes.");
         }
         ValidateStorage(options.Storage, problems);
+        McpOptionsValidator.Validate(options.Mcp, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 

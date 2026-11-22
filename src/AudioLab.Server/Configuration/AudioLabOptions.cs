@@ -1,3 +1,4 @@
+using AudioLab.Server.Mcp;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Configuration;
@@ -30,6 +31,9 @@ public sealed record AudioLabOptions
 
     /// <summary>The longest one message to a client may take to be handed to its connection; a client that takes longer is disconnected.</summary>
     public TimeSpan HubSendTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>The MCP endpoint's limits.</summary>
+    public McpOptions Mcp { get; init; } = new();
 
     /// <summary>The path the site is served under, such as /audiolab, or empty for the root.</summary>
     public string PathBase { get; init; } = string.Empty;

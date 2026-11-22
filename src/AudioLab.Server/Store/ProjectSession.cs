@@ -222,6 +222,17 @@ public sealed class ProjectSession
         }
     }
 
+    /// <summary>What undo and redo hold now; nothing for a project that no command has changed since it was opened.</summary>
+    public HistoryState HistoryState()
+    {
+        lock (_state)
+        {
+            return _history is { } history
+                ? new HistoryState(_snapshot.Revision, history.UndoCount, history.RedoCount, history.UndoLabel, history.RedoLabel)
+                : new HistoryState(_snapshot.Revision, 0, 0, null, null);
+        }
+    }
+
     /// <summary>Closes the client's open gesture if it is <paramref name="gesture"/>; the document does not change.</summary>
     public void EndGesture(ClientId client, GestureId gesture)
     {

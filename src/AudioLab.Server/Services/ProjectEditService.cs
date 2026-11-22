@@ -100,6 +100,14 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         return StepAsync(user, project, "redo", session => session.Redo(), cancellationToken);
     }
 
+    /// <summary>What undo and redo hold in a project of the user's, with the revision it is at.</summary>
+    /// <exception cref="ProjectNotFoundException">The user has no such project.</exception>
+    public async Task<HistoryState> HistoryAsync(UserId user, ProjectId project, CancellationToken cancellationToken)
+    {
+        ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
+        return session.HistoryState();
+    }
+
     /// <summary>Closes the client's gesture, as the release of a drag does. A project that is not open has nothing to close.</summary>
     public void EndGesture(UserId user, ProjectId project, ClientId client, GestureId gesture)
     {
