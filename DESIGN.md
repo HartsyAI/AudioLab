@@ -103,12 +103,12 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
-| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Exists (host, the three doors) |
+| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Exists (host, the three doors, store) |
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
 | `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection. | Core | Exists |
-| `tests/AudioLab.Server.Tests` | Doors, configuration, routes. | Server | Exists |
+| `tests/AudioLab.Server.Tests` | Doors, configuration, routes, store atomicity, ownership and recovery. | Server | Exists |
 | `tests/<Project>.Tests` | One test project per other source project. | its project | Planned |
 
 Rules:
@@ -143,6 +143,17 @@ Rules:
   lost on restart.
 - **Store.** Open documents, a lock per project, debounced autosave, atomic writes. Projects and media are scoped to
   the user who owns them (D12).
+  - A file is `users/<user>/projects/<project>.json` (media records in `media/`) under one configurable root, where each
+    name is a hash of the id, so no id reaches a path. A read for another user finds nothing: the answer is 404, never
+    403. A file is refused, with its error list, if it fails `ProjectValidator`, is stored under another project's name,
+    or names another owner than the user it is stored for. The listing leaves such files out and counts them.
+  - A write goes to a temporary file, is flushed, and is renamed over the project, so a crash leaves the whole old or
+    the whole new file; leftover temporary files are removed at start, and one process at a time holds the root.
+  - An open project is one session with a revision. Save means "write the open document now": a project changes only
+    through commands, never by uploading a document. Autosave waits 2 s after the last change and at most 15 s in all;
+    a failed write stays unsaved and is retried, and stopping the server writes every unsaved project. A session
+    stays open until it is closed, its project is deleted or the server stops; closing writes what is unsaved first.
+    Idle eviction waits for the hub, which knows which clients hold a project.
 - **Hub.** Every open client of a project receives every change, including changes made by an agent.
 - **Gestures.** A continuous gesture (dragging a clip, drawing automation) is previewed locally with the shared rule
   code and committed as one command on release. The UI never waits on the network to move something under the pointer.
@@ -768,3 +779,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
 | 2026-11-21 | O2 recorded as D17 (Proposed, Firefox dragging not shown to hold): DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D17; 7.1 states how C# reads tokens. |
 | 2026-11-22 | `AudioLab.Server` and `AudioLab.Server.Tests` added (section 4): the host skeleton, the desktop, Swarm and hosted doors, and the proxy contract (section 9). |
+| 2026-11-22 | The store: per-user hashed file names, atomic writes, open-project sessions with debounced autosave, and the project routes; save means flush (section 5). Rests on D12, D15 and D16 (Proposed). |

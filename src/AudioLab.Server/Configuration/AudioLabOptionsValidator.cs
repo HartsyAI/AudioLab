@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
 namespace AudioLab.Server.Configuration;
@@ -31,7 +32,24 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:PathBase must be empty or a path such as /audiolab, with no trailing slash, dot segments or query.");
         }
+        ValidateStorage(options.Storage, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
+    }
+
+    private static void ValidateStorage(StoreOptions storage, List<string> problems)
+    {
+        if (storage.Root is not null && !Path.IsPathFullyQualified(storage.Root))
+        {
+            problems.Add("AudioLab:Storage:Root must be an absolute path.");
+        }
+        if (storage.AutosaveDelay <= TimeSpan.Zero || storage.AutosaveMaxDelay < storage.AutosaveDelay)
+        {
+            problems.Add("AudioLab:Storage:AutosaveDelay must be above zero and no longer than AutosaveMaxDelay.");
+        }
+        if (storage.MaxFileBytes < 1024)
+        {
+            problems.Add("AudioLab:Storage:MaxFileBytes must be at least 1024.");
+        }
     }
 
     private static bool IsHeaderName(string? name) => name is not null && HeaderNamePattern().IsMatch(name);

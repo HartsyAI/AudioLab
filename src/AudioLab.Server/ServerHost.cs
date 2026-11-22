@@ -1,9 +1,11 @@
 using System.Text.Json;
+using AudioLab.Core.Model;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
+using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
 namespace AudioLab.Server;
@@ -69,6 +71,16 @@ public static class ServerHost
         services.AddSingleton<IDoor>(DoorFactory.Create(options.Door));
         services.AddSingleton<HealthService>();
         services.AddSingleton<SessionInfoService>();
+        services.AddSingleton(options.Storage);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IIdService, IdService>();
+        services.AddSingleton<AtomicFile>();
+        services.AddSingleton<StoreRoot>();
+        services.AddSingleton<ProjectStore>();
+        services.AddSingleton<MediaStore>();
+        services.AddSingleton<OpenProjects>();
+        services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
+        services.AddSingleton<ProjectService>();
         services.AddProblemDetails();
         services.ConfigureHttpJsonOptions(json => json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default));
     }
@@ -84,5 +96,6 @@ public static class ServerHost
         HealthRoutes.Map(app);
         RouteGroupBuilder api = app.MapGroup("/api").AddEndpointFilter<DoorFilter>();
         SessionRoutes.Map(api);
+        ProjectRoutes.Map(api);
     }
 }
