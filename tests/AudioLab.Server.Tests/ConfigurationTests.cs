@@ -128,4 +128,23 @@ public sealed class ConfigurationTests
         };
         Assert.Throws<InvalidOperationException>(() => ServerHost.Build([], settings));
     }
+
+    [Theory]
+    [InlineData("AudioLab:Storage:MaxFileBytes", "536870913")]
+    [InlineData("AudioLab:Storage:MaxFileBytes", "2147483648")]
+    [InlineData("AudioLab:Storage:MaxProjectsPerUser", "0")]
+    [InlineData("AudioLab:MaxRequestBodyBytes", "100")]
+    [InlineData("AudioLab:MaxRequestBodyBytes", "1073741824")]
+    public void ALimitOutsideItsBoundsDoesNotStart(string key, string value)
+    {
+        Dictionary<string, string?> settings = new() { ["urls"] = "http://127.0.0.1:0", [key] = value };
+        Assert.Throws<InvalidOperationException>(() => ServerHost.Build([], settings));
+    }
+
+    [Fact]
+    public void TheDefaultFileLimitIsFarBelowTheHardLimit()
+    {
+        Assert.Equal(32L * 1024 * 1024, new AudioLab.Server.Store.StoreOptions().MaxFileBytes);
+        Assert.True(AudioLab.Server.Store.StoreOptions.MaxFileBytesLimit < int.MaxValue);
+    }
 }

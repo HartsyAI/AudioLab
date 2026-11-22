@@ -21,7 +21,7 @@ public sealed class AtomicFileTests
 
     [Theory]
     [MemberData(nameof(Stages))]
-    public async Task AtCrashAtAnyStageTheDestinationHoldsTheWholeOldOrTheWholeNewContent(AtomicWriteStage crashAt)
+    public async Task AWriteThatFailsAtAnyStageLeavesTheWholeOldOrTheWholeNewContentAndNoTemporaryFile(AtomicWriteStage crashAt)
     {
         using TempFolder folder = new();
         string path = Path.Combine(folder.Path, "file.json");
@@ -47,7 +47,7 @@ public sealed class AtomicFileTests
 
     [Theory]
     [MemberData(nameof(Stages))]
-    public async Task AFirstWriteLeavesNoDestinationUntilItIsComplete(AtomicWriteStage crashAt)
+    public async Task AFirstWriteThatFailsAtAnyStageLeavesNoDestinationUntilTheRename(AtomicWriteStage crashAt)
     {
         using TempFolder folder = new();
         string path = Path.Combine(folder.Path, "file.json");
@@ -113,7 +113,7 @@ public sealed class AtomicFileTests
         AtomicFile writer = new();
         bool done = false;
         int reads = 0;
-        Task reader = Task.Run(() =>
+        Task reader = Task.Run(async () =>
         {
             while (!Volatile.Read(ref done))
             {
@@ -130,6 +130,7 @@ public sealed class AtomicFileTests
                 }
                 Assert.True(seen.SequenceEqual(a) || seen.SequenceEqual(b), "a reader saw content that is neither version");
                 reads++;
+                await Task.Delay(2);
             }
         });
         for (int i = 0; i < 60; i++)

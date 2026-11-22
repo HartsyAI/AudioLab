@@ -65,38 +65,95 @@ public sealed class ProjectStore(StoreRoot root, ILogger<ProjectStore> logger)
         return true;
     }
 
-    /// <summary>Lists a user's valid projects, leaving out the files named in <paramref name="skipFiles"/> and counting the files it refuses.</summary>
+    /// <summary>How many projects the user has stored.</summary>
+    public int CountProjects(UserId user)
+    {
+        string directory = root.Paths.ProjectsDirectory(user);
+        return Directory.Exists(directory) ? Directory.EnumerateFiles(directory).Count(file => StorePaths.IsRecordFileName(Path.GetFileName(file))) : 0;
+    }
+
+    /// <summary>The options the store runs with.</summary>
+    public StoreOptions Options => root.Options;
+
+    /// <summary>Lists a user's projects from the start of each file, leaving out the files named in <paramref name="skipFiles"/>.</summary>
+    /// <remarks>
+    /// The list reads only the first bytes of a file: the id, owner and name, and the modified time. Opening a project
+    /// is what validates the whole file, so a project with a damaged body is listed and refuses to open. A file whose
+    /// start cannot be read, whose owner is not the user or whose name is not its id's is counted as refused, and a
+    /// file that cannot be read at all is skipped the same way, so one bad file never fails the list.
+    /// </remarks>
     public async Task<ProjectListing> ListAsync(UserId user, IReadOnlySet<string> skipFiles, CancellationToken cancellationToken)
     {
         string directory = root.Paths.ProjectsDirectory(user);
         List<ProjectSummary> projects = [];
         int refused = 0;
-        if (Directory.Exists(directory))
+        if (!Directory.Exists(directory))
         {
-            foreach (string file in Directory.EnumerateFiles(directory).Where(file => StorePaths.IsRecordFileName(Path.GetFileName(file))))
+            return new ProjectListing(projects, refused);
+        }
+        foreach (string file in Directory.EnumerateFiles(directory).Where(file => StorePaths.IsRecordFileName(Path.GetFileName(file))))
+        {
+            string name = Path.GetFileName(file);
+            if (skipFiles.Contains(name))
             {
-                string name = Path.GetFileName(file);
-                if (skipFiles.Contains(name))
+                continue;
+            }
+            try
+            {
+                byte[]? prefix = await ReadPrefixAsync(file, cancellationToken);
+                if (prefix is null)
                 {
                     continue;
                 }
-                try
+                string? problem = ProjectHeader.TryRead(prefix, out ProjectHeader? header) ? HeaderProblem(user, name, header!) : "the file does not start with a project id, owner and name";
+                if (problem is null)
                 {
-                    ProjectDocument? document = await ReadFileAsync(file, cancellationToken);
-                    if (document is not null)
-                    {
-                        Verify(user, name, document);
-                        projects.Add(new ProjectSummary(document.Id.Value, document.Name, new DateTimeOffset(File.GetLastWriteTimeUtc(file), TimeSpan.Zero)));
-                    }
+                    projects.Add(new ProjectSummary(header!.Id.Value, header.Name, new DateTimeOffset(File.GetLastWriteTimeUtc(file), TimeSpan.Zero)));
                 }
-                catch (ProjectFormatException exception)
+                else
                 {
                     refused++;
-                    StoreLog.FileRefused(logger, name, string.Join("; ", exception.Problems));
+                    StoreLog.FileRefused(logger, name, problem);
                 }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                refused++;
+                StoreLog.IoFailed(logger, name, exception);
             }
         }
         return new ProjectListing(projects, refused);
+    }
+
+    private static async Task<byte[]?> ReadPrefixAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            FileStreamOptions options = new()
+            {
+                Mode = FileMode.Open,
+                Access = FileAccess.Read,
+                Share = FileShare.ReadWrite | FileShare.Delete,
+                Options = FileOptions.Asynchronous,
+            };
+            await using FileStream stream = new(path, options);
+            byte[] buffer = new byte[ProjectHeader.PrefixBytes];
+            int read = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, cancellationToken);
+            return buffer[..read];
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    private static string? HeaderProblem(UserId user, string expectedFileName, ProjectHeader header)
+    {
+        if (header.Owner != user)
+        {
+            return "owner: the file names a different owner than the user it is stored for";
+        }
+        return StorePaths.ProjectFileName(header.Id) == expectedFileName ? null : "id: the file is stored under the name of a different project";
     }
 
     // Null when the file does not exist.

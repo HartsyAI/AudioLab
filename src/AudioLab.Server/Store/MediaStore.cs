@@ -51,7 +51,7 @@ public sealed class MediaStore(StoreRoot root, IIdService ids)
                         records.Add(record);
                     }
                 }
-                catch (ProjectFormatException)
+                catch (Exception exception) when (exception is ProjectFormatException or IOException or UnauthorizedAccessException)
                 {
                     refused++;
                 }

@@ -47,5 +47,17 @@ public sealed class ManualTimeProvider : TimeProvider
         }
     }
 
+    /// <summary>How many timers are armed.</summary>
+    public int PendingTimers
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _timers.Count(timer => timer.Due is not null);
+            }
+        }
+    }
+
     internal DateTimeOffset Now => GetUtcNow();
 }

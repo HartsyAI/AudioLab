@@ -6,6 +6,7 @@ using AudioLab.Server.Json;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Options;
 
 namespace AudioLab.Server;
@@ -71,6 +72,7 @@ public static class ServerHost
         services.AddSingleton<IDoor>(DoorFactory.Create(options.Door));
         services.AddSingleton<HealthService>();
         services.AddSingleton<SessionInfoService>();
+        services.Configure<KestrelServerOptions>(kestrel => kestrel.Limits.MaxRequestBodySize = options.MaxRequestBodyBytes);
         services.AddSingleton(options.Storage);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IIdService, IdService>();

@@ -7,12 +7,14 @@ namespace AudioLab.Server.Services;
 /// <summary>Everything a user can do with their projects. Every method takes the user from the door; none reads an owner from a request.</summary>
 public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdService ids, TimeProvider time)
 {
+    private readonly SemaphoreSlim _creating = new(1, 1);
+
     private const string CopyPrefix = "Copy of ";
 
     /// <summary>The user's projects, newest first, with how many stored files were left out as invalid.</summary>
     public async Task<ProjectListing> ListAsync(UserId user, CancellationToken cancellationToken)
     {
-        IReadOnlyList<ProjectSession> sessions = await open.SessionsOfAsync(user, cancellationToken);
+        IReadOnlyList<ProjectSession> sessions = open.SessionsOf(user);
         HashSet<string> openFiles = [.. sessions.Select(session => StorePaths.ProjectFileName(session.Id))];
         ProjectListing stored = await store.ListAsync(user, openFiles, cancellationToken);
         IEnumerable<ProjectSummary> all = stored.Projects.Concat(sessions.Select(session => session.Summary));
@@ -21,12 +23,16 @@ public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdSer
     }
 
     /// <summary>Creates an empty project owned by <paramref name="user"/>.</summary>
-    /// <exception cref="ProjectFormatException">The name breaks the project rules.</exception>
-    public async Task<ProjectSummary> CreateAsync(UserId user, string name, CancellationToken cancellationToken)
+    /// <exception cref="ProjectFormatException">The name is missing or breaks the project rules.</exception>
+    /// <exception cref="QuotaExceededException">The user already has the most projects allowed.</exception>
+    public async Task<ProjectSummary> CreateAsync(UserId user, string? name, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(name);
+        if (name is null)
+        {
+            throw new ProjectFormatException("The project is not valid.", ["name: a project needs a name."]);
+        }
         ProjectDocument document = NewProjectFactory.Create(ids.Next<ProjectId>(), user, name);
-        await store.WriteAsync(document, cancellationToken);
+        await WriteNewAsync(document, cancellationToken);
         return new ProjectSummary(document.Id.Value, document.Name, time.GetUtcNow());
     }
 
@@ -57,14 +63,33 @@ public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdSer
         }
     }
 
-    /// <summary>Saves a copy of the project, including its unsaved changes, as a new project of the same user.</summary>
+    /// <summary>Saves a copy of the project, including its unsaved changes, as a new project of the same user; it does not open the original.</summary>
     /// <exception cref="ProjectNotFoundException">The user has no such project.</exception>
+    /// <exception cref="QuotaExceededException">The user already has the most projects allowed.</exception>
     public async Task<ProjectSummary> DuplicateAsync(UserId user, ProjectId id, string? name, CancellationToken cancellationToken)
     {
-        ProjectDocument original = (await OpenAsync(user, id, cancellationToken)).Document;
+        ProjectDocument original = open.SnapshotIfOpen(user, id)?.Document ?? await store.ReadAsync(user, id, cancellationToken);
         ProjectDocument copy = original with { Id = ids.Next<ProjectId>(), Name = name ?? CopyName(original.Name) };
-        await store.WriteAsync(copy, cancellationToken);
+        await WriteNewAsync(copy, cancellationToken);
         return new ProjectSummary(copy.Id.Value, copy.Name, time.GetUtcNow());
+    }
+
+    // One at a time, so two requests cannot both pass the count and go over the limit.
+    private async Task WriteNewAsync(ProjectDocument document, CancellationToken cancellationToken)
+    {
+        await _creating.WaitAsync(cancellationToken);
+        try
+        {
+            if (store.CountProjects(document.Owner) >= store.Options.MaxProjectsPerUser)
+            {
+                throw new QuotaExceededException(store.Options.MaxProjectsPerUser);
+            }
+            await store.WriteAsync(document, cancellationToken);
+        }
+        finally
+        {
+            _creating.Release();
+        }
     }
 
     // Cut between text elements, so a long name never ends in half a character.

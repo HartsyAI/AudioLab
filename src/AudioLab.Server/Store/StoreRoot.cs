@@ -15,7 +15,7 @@ public sealed class StoreRoot : IDisposable
         Paths = new StorePaths(options.ResolveRoot());
         Directory.CreateDirectory(Paths.Root);
         _lock = TakeLock(Paths);
-        StoreLog.TempSwept(logger, Sweep(Paths));
+        StoreLog.TempSwept(logger, Sweep(Paths, logger));
     }
 
     /// <summary>The options the store runs with.</summary>
@@ -43,7 +43,7 @@ public sealed class StoreRoot : IDisposable
     }
 
     // Safe only because the lock makes this process the one writer: no write of ours is in flight at construction.
-    private static int Sweep(StorePaths paths)
+    private static int Sweep(StorePaths paths, ILogger logger)
     {
         if (!Directory.Exists(paths.UsersDirectory))
         {
@@ -52,10 +52,19 @@ public sealed class StoreRoot : IDisposable
         int removed = 0;
         foreach (string file in Directory.EnumerateFiles(paths.UsersDirectory, "*.tmp", SearchOption.AllDirectories))
         {
-            if (StorePaths.IsLeftoverTemp(Path.GetFileName(file)))
+            string name = Path.GetFileName(file);
+            if (!StorePaths.IsLeftoverTemp(name))
+            {
+                continue;
+            }
+            try
             {
                 File.Delete(file);
                 removed++;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                StoreLog.SweepFailed(logger, name, exception.GetType().Name);
             }
         }
         return removed;

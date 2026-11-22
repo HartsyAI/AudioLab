@@ -9,7 +9,7 @@ public sealed class CrashRecoveryTests
 
     [Theory]
     [MemberData(nameof(Stages))]
-    public async Task AProcessKilledMidSaveRestartsWithTheOldOrTheNewProjectAndNoLeftover(AtomicWriteStage crashAt)
+    public async Task AStoreStartedAfterASaveStoppedAtAnyStageReadsTheOldOrTheNewProjectAndSweepsTheLeftovers(AtomicWriteStage crashAt)
     {
         using TempFolder folder = new();
         ProjectId id;
@@ -75,8 +75,9 @@ public sealed class CrashRecoveryTests
         Assert.Equal("Song", (await second.Projects.ReadAsync(Users.Alice, id, CancellationToken.None)).Name);
     }
 
-    // Before the temporary file is closed it cannot be copied, so an earlier crash is a half-written leftover; after
-    // it is closed the leftover is a complete copy of the new content.
+    // The save is stopped by an exception and the process lives on, so this does not kill a process. What it does show is
+    // the state a kill at that stage would leave: the observer leaves a temporary file behind as a crash would (a
+    // half-written one before the file is closed, a complete copy after), and the next store must cope with it.
     private static void LeaveWhatACrashWouldLeave(AtomicWriteStage stage, string temp)
     {
         string leftover = $"{temp[..^(32 + ".tmp".Length + 1)]}.{Guid.NewGuid():N}.tmp";
@@ -87,6 +88,32 @@ public sealed class CrashRecoveryTests
         else if (stage == AtomicWriteStage.PartlyWritten)
         {
             File.WriteAllText(leftover, "{\"version\":4,\"id\":\"prj_");
+        }
+    }
+
+    [Fact]
+    public async Task AStartThatCannotRemoveALeftoverTemporaryFileStillStarts()
+    {
+        using TempFolder folder = new();
+        string leftover;
+        ProjectId id;
+        TestStore first = TestStore.On(folder.Path);
+        try
+        {
+            id = ProjectId.From((await first.Service.CreateAsync(Users.Alice, "Song", CancellationToken.None)).Id);
+            string file = first.Paths.ProjectFile(Users.Alice, id);
+            leftover = $"{file}.{Guid.NewGuid():N}.tmp";
+            await File.WriteAllTextAsync(leftover, "{");
+        }
+        finally
+        {
+            first.Crash();
+        }
+
+        using (new FileStream(leftover, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            await using TestStore second = TestStore.On(folder.Path);
+            Assert.Equal("Song", (await second.Projects.ReadAsync(Users.Alice, id, CancellationToken.None)).Name);
         }
     }
 }

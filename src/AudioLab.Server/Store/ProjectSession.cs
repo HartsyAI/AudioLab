@@ -231,10 +231,8 @@ public sealed class ProjectSession
         lock (_state)
         {
             _savedRevision = snapshot.Revision;
-            if (_snapshot.Revision == snapshot.Revision)
-            {
-                _unsavedSince = null;
-            }
+            // Changes that arrived during the write start a new wait, so they are not written at once because the old one ran out.
+            _unsavedSince = _snapshot.Revision == snapshot.Revision ? null : _time.GetUtcNow();
         }
         return snapshot.Revision;
     }
@@ -262,8 +260,14 @@ public sealed class ProjectSession
             }
             await WriteCurrentAsync(CancellationToken.None);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ProjectFormatException)
+        catch (ProjectFormatException exception)
         {
+            // A document the store will not write, such as one over the size limit, fails the same way again; the next change retries.
+            StoreLog.AutosaveRefused(_logger, Id.Value, exception);
+        }
+        catch (Exception exception)
+        {
+            // This runs on a timer with nobody awaiting it: an unobserved failure would be lost, so it is logged and the write is retried.
             StoreLog.AutosaveFailed(_logger, Id.Value, exception);
             lock (_state)
             {

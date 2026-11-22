@@ -146,14 +146,23 @@ Rules:
   - A file is `users/<user>/projects/<project>.json` (media records in `media/`) under one configurable root, where each
     name is a hash of the id, so no id reaches a path. A read for another user finds nothing: the answer is 404, never
     403. A file is refused, with its error list, if it fails `ProjectValidator`, is stored under another project's name,
-    or names another owner than the user it is stored for. The listing leaves such files out and counts them.
+    or names another owner than the user it is stored for. Opening a project validates the whole file. The list reads
+    only the first 16 KiB of each file (id, owner, name) and its modified time, so it never parses a project body: a file
+    whose start is intact is listed and refuses to open, and a file whose start is wrong, or that cannot be read, is
+    left out and counted, so one bad file never fails the list.
   - A write goes to a temporary file, is flushed, and is renamed over the project, so a crash leaves the whole old or
     the whole new file; leftover temporary files are removed at start, and one process at a time holds the root.
   - An open project is one session with a revision. Save means "write the open document now": a project changes only
     through commands, never by uploading a document. Autosave waits 2 s after the last change and at most 15 s in all;
     a failed write stays unsaved and is retried, and stopping the server writes every unsaved project. A session
     stays open until it is closed, its project is deleted or the server stops; closing writes what is unsaved first.
-    Idle eviction waits for the hub, which knows which clients hold a project.
+    Idle eviction waits for the hub, which knows which clients hold a project. Each project has its own lock; a short
+    lock guards only the table of locks, so one project's slow load or write never stalls another.
+  - Limits: a project file is at most 32 MiB by default (about 400,000 notes at 80 bytes each; a document is held whole
+    in memory at several times that) and never more than 512 MiB; a user has at most 1000 projects (creating or
+    duplicating beyond it is a 409); a request body is at most 64 KiB until a route takes uploads. A project too large to
+    write is not retried until it changes. A file error is a 503, a full disk a 507, neither with a path in the body.
+    Not limited yet: the number of open sessions, and total storage per user (hosted door, phase 10).
 - **Hub.** Every open client of a project receives every change, including changes made by an agent.
 - **Gestures.** A continuous gesture (dragging a clip, drawing automation) is previewed locally with the shared rule
   code and committed as one command on release. The UI never waits on the network to move something under the pointer.

@@ -88,8 +88,8 @@ public sealed class ProjectRouteTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Contains(await ProblemsAsync(response), problem => problem.StartsWith("bpm", StringComparison.Ordinal));
         ProjectListing listing = (await server.Client.GetFromJsonAsync("/api/projects", ServerJsonContext.Default.ProjectListing))!;
-        Assert.Empty(listing.Projects);
-        Assert.Equal(1, listing.Refused);
+        Assert.Single(listing.Projects);
+        Assert.Equal(0, listing.Refused);
     }
 
     [Theory]
@@ -192,5 +192,82 @@ public sealed class ProjectRouteTests
         request.Headers.Add("X-AudioLab-Secret", Secret);
         request.Headers.Add("X-AudioLab-User", user);
         return await server.Client.SendAsync(request);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{"name":null}""")]
+    public async Task ACreateWithNoNameIsAnswered422NotAnError(string json)
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        using StringContent body = new(json, Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await server.Client.PostAsync("/api/projects", body);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains(await ProblemsAsync(response), problem => problem.StartsWith("name", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("""{"name":5}""")]
+    [InlineData("not json")]
+    public async Task ABodyThatIsNotAProjectRequestIsAnswered4xxNeverAnError(string json)
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        foreach (string path in new[] { "/api/projects", $"/api/projects/{made.Id}/duplicate" })
+        {
+            using StringContent body = new(json, Encoding.UTF8, "application/json");
+            using HttpResponseMessage response = await server.Client.PostAsync(path, body);
+            int status = (int)response.StatusCode;
+            bool optionalBody = path.EndsWith("/duplicate", StringComparison.Ordinal) && json == "null";
+            Assert.True(status is >= 400 and < 500 || (optionalBody && status == 201), $"{path} with '{json}' answered {status}");
+        }
+    }
+
+    [Fact]
+    public async Task ADuplicateWithANullNameUsesTheDefaultName()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        using StringContent body = new("""{"name":null}""", Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await server.Client.PostAsync($"/api/projects/{made.Id}/duplicate", body);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal("Copy of Song", (await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Name);
+    }
+
+    [Fact]
+    public async Task ARequestBodyOverTheLimitIsRefusedBeforeItIsRead()
+    {
+        await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:MaxRequestBodyBytes"] = "2048" });
+        using StringContent big = new("{\"name\":\"" + new string('x', 100_000) + "\"}", Encoding.UTF8, "application/json");
+        using HttpResponseMessage response = await server.Client.PostAsync("/api/projects", big);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Empty(Directory.GetFiles(server.StoreFolder, "p*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task AFileTheServerCannotUseIsAnswered503WithNoPathInTheBody()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        string file = Directory.GetFiles(server.StoreFolder, "p*.json", SearchOption.AllDirectories).Single();
+        using FileStream hold = new(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        using HttpResponseMessage response = await server.Client.GetAsync($"/api/projects/{made.Id}");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        string text = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(server.StoreFolder, text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("users", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AFullQuotaIsAnswered409()
+    {
+        await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Storage:MaxProjectsPerUser"] = "1" });
+        Assert.Equal(HttpStatusCode.Created, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("One"), ServerJsonContext.Default.CreateProjectRequest)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Two"), ServerJsonContext.Default.CreateProjectRequest)).StatusCode);
     }
 }

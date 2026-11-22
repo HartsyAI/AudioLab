@@ -269,4 +269,124 @@ public sealed class SessionTests
         UserId owner = user ?? Users.Alice;
         return await store.Open.OpenAsync(owner, await CreateAsync(store, owner), _none);
     }
+
+    [Fact]
+    public async Task ChangesMadeDuringAWriteStartANewDebounceInsteadOfBeingWrittenAtOnce()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectSession session = await OpenNewAsync(store);
+        double bpm = 100;
+        session.Update(document => document with { Bpm = bpm });
+        for (int second = 0; second < 14; second++)
+        {
+            store.Time.Advance(TimeSpan.FromSeconds(1));
+            bpm++;
+            session.Update(document => document with { Bpm = bpm });
+        }
+        using ManualResetEventSlim writing = new();
+        using ManualResetEventSlim release = new();
+        store.Observer = (stage, temp) =>
+        {
+            if (stage == AtomicWriteStage.Flushed)
+            {
+                writing.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        Task advance = Task.Run(() => store.Time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.True(writing.Wait(TimeSpan.FromSeconds(10)));
+        session.Update(document => document with { Bpm = 200 });
+        store.Observer = null;
+        release.Set();
+        await advance;
+        await session.SettleAsync();
+        Assert.True(session.IsUnsaved);
+
+        store.Time.Advance(TimeSpan.FromSeconds(1));
+        session.Update(document => document with { Bpm = 201 });
+        store.Time.Advance(TimeSpan.FromSeconds(1.9));
+        await session.SettleAsync();
+        Assert.True(session.IsUnsaved, "the change after a long write was written before its own quiet period ended");
+        store.Time.Advance(TimeSpan.FromSeconds(0.2));
+        await session.SettleAsync();
+        Assert.False(session.IsUnsaved);
+    }
+
+    [Fact]
+    public async Task AProjectTooLargeToWriteIsNotRetriedUntilItChanges()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { MaxFileBytes = 4096 });
+        ProjectSession session = await OpenNewAsync(store);
+        session.Update(document => document with { Markers = [.. Enumerable.Range(1, 200).Select(i => new Marker { Id = MarkerId.From($"mrk_{i}"), Time = i, Name = "a marker with a name" })] });
+        store.Time.Advance(TimeSpan.FromSeconds(2));
+        await session.SettleAsync();
+        Assert.True(session.IsUnsaved);
+        Assert.Equal(0, store.Time.PendingTimers);
+        store.Time.Advance(TimeSpan.FromMinutes(5));
+        Assert.Equal(1, session.SavedRevision);
+
+        session.Update(document => document with { Markers = [] });
+        Assert.Equal(1, store.Time.PendingTimers);
+        store.Time.Advance(TimeSpan.FromSeconds(2));
+        await session.SettleAsync();
+        Assert.False(session.IsUnsaved);
+    }
+
+    [Fact]
+    public async Task AnUnexpectedFailureInAnAutosaveIsLoggedNotLostAndTheWriteIsRetried()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectSession session = await OpenNewAsync(store);
+        store.Observer = (stage, temp) => throw new InvalidOperationException("something unexpected");
+        session.Update(document => document with { Bpm = 88 });
+        store.Time.Advance(TimeSpan.FromSeconds(2));
+        await session.SettleAsync();
+        Assert.True(session.IsUnsaved);
+        Assert.Equal(1, store.Time.PendingTimers);
+
+        store.Observer = null;
+        store.Time.Advance(store.Options.AutosaveMaxDelay);
+        await session.SettleAsync();
+        Assert.False(session.IsUnsaved);
+    }
+
+    [Fact]
+    public async Task OneProjectsSlowCloseDoesNotStallOpeningListingOrChangingAnother()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectSession slow = await OpenNewAsync(store);
+        ProjectId other = await CreateAsync(store, Users.Bob);
+        slow.Update(document => document with { Name = "Slow" });
+        using ManualResetEventSlim writing = new();
+        using ManualResetEventSlim release = new();
+        store.Observer = (stage, temp) =>
+        {
+            if (stage == AtomicWriteStage.Flushed)
+            {
+                writing.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        Task close = Task.Run(() => store.Open.CloseAsync(Users.Alice, slow.Id, _none));
+        Assert.True(writing.Wait(TimeSpan.FromSeconds(10)));
+
+        store.Observer = null;
+        Task work = Task.Run(async () =>
+        {
+            ProjectSession opened = await store.Open.OpenAsync(Users.Bob, other, _none);
+            opened.Update(document => document with { Bpm = 99 });
+            await store.Service.ListAsync(Users.Bob, _none);
+            await store.Service.SaveAsync(Users.Bob, other, _none);
+        });
+        Assert.Same(work, await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(5))));
+        await work;
+        Assert.False(close.IsCompleted);
+
+        release.Set();
+        await close;
+    }
 }

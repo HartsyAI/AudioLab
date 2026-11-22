@@ -8,21 +8,22 @@ public sealed class CorruptionTests
 {
     private static readonly CancellationToken _none = CancellationToken.None;
 
-    public static TheoryData<string, string> Corruptions() => new()
+    // The list reads only the start of a file, so a file whose start is intact is listed and refuses to open.
+    public static TheoryData<string, string, bool> Corruptions() => new()
     {
-        { "truncated", "truncate" },
-        { "empty", "empty" },
-        { "not an object", "array" },
-        { "wrong version", "version" },
-        { "rule broken", "bpm" },
-        { "unknown member", "unknown" },
-        { "not utf-8", "bytes" },
-        { "too large", "large" },
+        { "truncated", "truncate", true },
+        { "empty", "empty", false },
+        { "not an object", "array", false },
+        { "wrong version", "version", true },
+        { "rule broken", "bpm", true },
+        { "unknown member", "unknown", true },
+        { "not utf-8", "bytes", false },
+        { "too large", "large", true },
     };
 
     [Theory]
     [MemberData(nameof(Corruptions))]
-    public async Task ACorruptFileIsRefusedWithItsErrorListNotLoadedAndNotListed(string label, string kind)
+    public async Task ACorruptFileIsRefusedWithItsErrorListAndNeverLoaded(string label, string kind, bool listed)
     {
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path, new StoreOptions { MaxFileBytes = 64 * 1024 });
@@ -36,10 +37,10 @@ public sealed class CorruptionTests
         Assert.True(error.Problems.All(problem => problem.Length <= ProjectLimits.MaxProblemLength + 3), label);
         await Assert.ThrowsAsync<ProjectFormatException>(() => store.Service.OpenAsync(Users.Alice, id, _none));
         ProjectListing listing = await store.Service.ListAsync(Users.Alice, _none);
-        Assert.Empty(listing.Projects);
-        Assert.Equal(1, listing.Refused);
+        Assert.Equal(listed ? 1 : 0, listing.Projects.Count);
+        Assert.Equal(listed ? 0 : 1, listing.Refused);
         Assert.Equal(corrupt, await File.ReadAllBytesAsync(file));
-        Assert.Empty(await store.Open.SessionsOfAsync(Users.Alice, _none));
+        Assert.Empty(store.Open.SessionsOf(Users.Alice));
     }
 
     [Fact]

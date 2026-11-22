@@ -32,6 +32,10 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:PathBase must be empty or a path such as /audiolab, with no trailing slash, dot segments or query.");
         }
+        if (options.MaxRequestBodyBytes is < 1024 or > 16 * 1024 * 1024)
+        {
+            problems.Add("AudioLab:MaxRequestBodyBytes must be 1024 to 16777216.");
+        }
         ValidateStorage(options.Storage, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
@@ -46,9 +50,13 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:Storage:AutosaveDelay must be above zero and no longer than AutosaveMaxDelay.");
         }
-        if (storage.MaxFileBytes < 1024)
+        if (storage.MaxFileBytes is < 1024 or > StoreOptions.MaxFileBytesLimit)
         {
-            problems.Add("AudioLab:Storage:MaxFileBytes must be at least 1024.");
+            problems.Add($"AudioLab:Storage:MaxFileBytes must be 1024 to {StoreOptions.MaxFileBytesLimit}.");
+        }
+        if (storage.MaxProjectsPerUser < 1)
+        {
+            problems.Add("AudioLab:Storage:MaxProjectsPerUser must be at least 1.");
         }
     }
 

@@ -179,4 +179,91 @@ public sealed class ProjectServiceTests
         await using TestStore again = TestStore.On(folder.Path);
         Assert.NotNull(again.Root);
     }
+
+    [Fact]
+    public async Task ACreateOrDuplicateBeyondTheProjectLimitIsRefusedAndADeleteMakesRoom()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { MaxProjectsPerUser = 2 });
+        ProjectId first = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "One", _none)).Id);
+        await store.Service.CreateAsync(Users.Alice, "Two", _none);
+        await Assert.ThrowsAsync<QuotaExceededException>(() => store.Service.CreateAsync(Users.Alice, "Three", _none));
+        await Assert.ThrowsAsync<QuotaExceededException>(() => store.Service.DuplicateAsync(Users.Alice, first, null, _none));
+        Assert.Equal(2, (await store.Service.ListAsync(Users.Alice, _none)).Projects.Count);
+        await store.Service.CreateAsync(Users.Bob, "Bob's", _none);
+
+        await store.Service.DeleteAsync(Users.Alice, first, _none);
+        await store.Service.CreateAsync(Users.Alice, "Three", _none);
+    }
+
+    [Fact]
+    public async Task ConcurrentCreatesCannotGoOverTheProjectLimit()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { MaxProjectsPerUser = 5 });
+        Task[] creates = [.. Enumerable.Range(0, 20).Select(i => Task.Run(async () =>
+        {
+            try
+            {
+                await store.Service.CreateAsync(Users.Alice, $"P{i}", _none);
+            }
+            catch (QuotaExceededException)
+            {
+                // Expected for the creates that arrive after the limit.
+            }
+        }))];
+        await Task.WhenAll(creates);
+        Assert.Equal(5, (await store.Service.ListAsync(Users.Alice, _none)).Projects.Count);
+    }
+
+    [Fact]
+    public async Task DuplicatingAClosedProjectDoesNotLeaveItOpen()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Song", _none)).Id);
+        await store.Service.DuplicateAsync(Users.Alice, id, null, _none);
+        Assert.Empty(store.Open.SessionsOf(Users.Alice));
+        Assert.Null(store.Open.SnapshotIfOpen(Users.Alice, id));
+    }
+
+    [Fact]
+    public async Task TheListReadsOnlyTheStartOfEachFileSoADamagedBodyIsListedAndRefusesToOpen()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Big", _none)).Id);
+        string file = store.Paths.ProjectFile(Users.Alice, id);
+        string json = await File.ReadAllTextAsync(file);
+        await File.WriteAllTextAsync(file, json[..^1] + ",\"padding\":\"" + new string('x', 5 * 1024 * 1024) + "\"}");
+        ProjectListing listing = await store.Service.ListAsync(Users.Alice, _none);
+        Assert.Equal([id.Value], listing.Projects.Select(project => project.Id));
+        Assert.Equal("Big", listing.Projects[0].Name);
+        await Assert.ThrowsAsync<ProjectFormatException>(() => store.Service.OpenAsync(Users.Alice, id, _none));
+    }
+
+    [Fact]
+    public async Task AFileThatCannotBeReadIsSkippedByTheListNotFatalToIt()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectId locked = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Locked", _none)).Id);
+        ProjectId fine = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Fine", _none)).Id);
+        using FileStream hold = new(store.Paths.ProjectFile(Users.Alice, locked), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        ProjectListing listing = await store.Service.ListAsync(Users.Alice, _none);
+        Assert.Equal([fine.Value], listing.Projects.Select(project => project.Id));
+        Assert.Equal(1, listing.Refused);
+    }
+
+    [Theory]
+    [InlineData(112, true)]
+    [InlineData(-2147024784, true)]
+    [InlineData(-2147024857, true)]
+    [InlineData(28, true)]
+    [InlineData(5, false)]
+    [InlineData(-2147024864, false)]
+    public void DiskFullIsToldApartFromOtherFileErrors(int hresult, bool full)
+    {
+        Assert.Equal(full, StoreIoErrors.IsDiskFull(new IOException("x", hresult)));
+    }
 }
