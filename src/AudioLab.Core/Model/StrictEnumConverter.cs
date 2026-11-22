@@ -8,12 +8,14 @@ namespace AudioLab.Core.Model;
 /// <summary>Reads and writes an enum as exactly the name its <see cref="JsonStringEnumMemberNameAttribute"/> gives.</summary>
 /// <typeparam name="TEnum">The enum type; every member carries a member name attribute.</typeparam>
 public sealed class StrictEnumConverter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicFields)] TEnum>
-    : JsonConverter<TEnum>
+    : JsonConverter<TEnum>, INamedEnumConverter
     where TEnum : struct, Enum
 {
     private readonly Dictionary<string, TEnum> _byName = new(StringComparer.Ordinal);
 
     private readonly Dictionary<TEnum, string> _byValue = [];
+
+    private readonly List<string> _names = [];
 
     /// <summary>Reads the member names of <typeparamref name="TEnum"/> once.</summary>
     public StrictEnumConverter()
@@ -24,8 +26,12 @@ public sealed class StrictEnumConverter<[DynamicallyAccessedMembers(DynamicallyA
             TEnum value = (TEnum)field.GetValue(null)!;
             _byName[name] = value;
             _byValue[value] = name;
+            _names.Add(name);
         }
     }
+
+    /// <inheritdoc />
+    IReadOnlyList<string> INamedEnumConverter.Names => _names;
 
     /// <inheritdoc />
     public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
