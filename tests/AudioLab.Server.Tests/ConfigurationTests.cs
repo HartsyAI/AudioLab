@@ -147,4 +147,23 @@ public sealed class ConfigurationTests
         Assert.Equal(32L * 1024 * 1024, new AudioLab.Server.Store.StoreOptions().MaxFileBytes);
         Assert.True(AudioLab.Server.Store.StoreOptions.MaxFileBytesLimit < int.MaxValue);
     }
+
+    [Theory]
+    [InlineData("AudioLab:HubMaxCommandChars", "100")]
+    [InlineData("AudioLab:HubMaxCommandChars", "16777217")]
+    [InlineData("AudioLab:HubSendTimeout", "00:00:00.010")]
+    [InlineData("AudioLab:HubSendTimeout", "00:10:00")]
+    public void AHubLimitOutsideItsBoundsDoesNotStart(string key, string value)
+    {
+        Dictionary<string, string?> settings = new() { ["urls"] = "http://127.0.0.1:0", [key] = value };
+        Assert.Throws<InvalidOperationException>(() => ServerHost.Build([], settings));
+    }
+
+    [Fact]
+    public void TheHubMessageLimitHoldsACommandOfTheLimitAtTheWorstJsonEscaping()
+    {
+        AudioLab.Server.Configuration.AudioLabOptions options = new();
+        Assert.True(options.HubMaxMessageBytes >= (long)options.HubMaxCommandChars * 6);
+        Assert.True(options.HubMaxCommandChars <= AudioLab.Core.Model.ProjectLimits.MaxCommandLength);
+    }
 }

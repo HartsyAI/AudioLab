@@ -24,7 +24,9 @@ public sealed class RunningServer : IAsyncDisposable
 
     public IServiceProvider Services => _app.Services;
 
-    public static async Task<RunningServer> StartAsync(IDictionary<string, string?>? settings = null)
+    public string HubPath => (Services.GetRequiredService<AudioLab.Server.Configuration.AudioLabOptions>().PathBase + "/api/hub");
+
+    public static async Task<RunningServer> StartAsync(IDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null)
     {
         TempFolder folder = new();
         Dictionary<string, string?> all = new()
@@ -37,7 +39,7 @@ public sealed class RunningServer : IAsyncDisposable
         {
             all[pair.Key] = pair.Value;
         }
-        WebApplication app = ServerHost.Build([], all);
+        WebApplication app = ServerHost.Build([], all, configureServices);
         await app.StartAsync();
         string address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         return new RunningServer(app, new HttpClient { BaseAddress = new Uri(address) }, folder);

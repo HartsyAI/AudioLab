@@ -1,11 +1,14 @@
 using System.Text.Json;
 using AudioLab.Core.Model;
+using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
+using AudioLab.Server.Realtime;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
+using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Options;
 
@@ -17,8 +20,9 @@ public static class ServerHost
     /// <summary>Builds the host from command-line arguments and configuration, refusing a configuration it must not run with.</summary>
     /// <param name="args">The command-line arguments.</param>
     /// <param name="settings">Configuration values that win over every other source; used by tests and by a shell that starts the server in-process.</param>
+    /// <param name="configureServices">Replaces or adds services after the server's own, such as a registry with more commands; used by tests and by a shell.</param>
     /// <exception cref="InvalidOperationException">The configuration is not one the server may start with; the message lists every problem.</exception>
-    public static WebApplication Build(string[] args, IReadOnlyDictionary<string, string?>? settings = null)
+    public static WebApplication Build(string[] args, IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -29,6 +33,7 @@ public static class ServerHost
         AudioLabOptions options = ReadOptions(builder.Configuration);
         ConfigureLogging(builder.Logging);
         ConfigureServices(builder.Services, options);
+        configureServices?.Invoke(builder.Services);
         WebApplication app = builder.Build();
         MapPipeline(app, options);
         return app;
@@ -80,9 +85,20 @@ public static class ServerHost
         services.AddSingleton<StoreRoot>();
         services.AddSingleton<ProjectStore>();
         services.AddSingleton<MediaStore>();
+        services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
         services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
+        services.AddSingleton<ProjectMembers>();
+        services.AddSingleton<ConnectionOutboxFactory>();
+        services.AddSingleton<IProjectEvents, HubProjectEvents>();
         services.AddSingleton<ProjectService>();
+        services.AddSingleton<ProjectEditService>();
+        services.AddSignalR(hub =>
+        {
+            hub.MaximumReceiveMessageSize = options.HubMaxMessageBytes;
+            hub.MaximumParallelInvocationsPerClient = 1;
+            hub.EnableDetailedErrors = false;
+        }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
         services.AddProblemDetails();
         services.ConfigureHttpJsonOptions(json => json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default));
     }
@@ -95,9 +111,11 @@ public static class ServerHost
         }
         app.UseExceptionHandler();
         app.UseRouting();
+        app.UseMiddleware<DoorMiddleware>();
         HealthRoutes.Map(app);
-        RouteGroupBuilder api = app.MapGroup("/api").AddEndpointFilter<DoorFilter>();
+        RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
+        app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
     }
 }

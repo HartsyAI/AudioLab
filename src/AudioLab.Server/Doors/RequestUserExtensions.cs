@@ -2,12 +2,12 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Server.Doors;
 
-/// <summary>Carries the user a door resolved from the filter to the route that handles the request.</summary>
+/// <summary>Carries the user a door resolved from the gate to the route that handles the request.</summary>
 public static class RequestUserExtensions
 {
     private const string ItemKey = "AudioLab.User";
 
-    /// <summary>Records the user of the request; only <see cref="DoorFilter"/> calls this.</summary>
+    /// <summary>Records the user of the request; only <see cref="DoorGate"/> calls this.</summary>
     public static void SetUser(this HttpContext context, UserId user)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -21,6 +21,6 @@ public static class RequestUserExtensions
         ArgumentNullException.ThrowIfNull(context);
         return context.Items.TryGetValue(ItemKey, out object? value) && value is UserId user
             ? user
-            : throw new InvalidOperationException("The request has no user: the route is not behind the door filter.");
+            : throw new InvalidOperationException("The request has no user: the route is not behind the door.");
     }
 }
