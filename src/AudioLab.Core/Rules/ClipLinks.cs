@@ -39,6 +39,31 @@ public static class ClipLinks
         return true;
     }
 
+    /// <summary>Whether making <paramref name="source"/> the source of the stem <paramref name="clip"/> would close a loop of stems.</summary>
+    public static bool StemLoops(IEnumerable<Track> tracks, ClipId clip, ClipId source)
+    {
+        ArgumentNullException.ThrowIfNull(tracks);
+        Dictionary<ClipId, ClipId> sources = [];
+        foreach (AudioClip candidate in tracks.SelectMany(track => track.Clips))
+        {
+            if (candidate.Meta?.StemOf?.ClipId is { } link)
+            {
+                sources[candidate.Id] = link;
+            }
+        }
+        HashSet<ClipId> seen = [];
+        ClipId current = source;
+        while (current != clip)
+        {
+            if (!seen.Add(current) || !sources.TryGetValue(current, out ClipId next))
+            {
+                return false;
+            }
+            current = next;
+        }
+        return true;
+    }
+
     private static Track ClearIn(Track track, HashSet<ClipId> existing)
     {
         if (!track.Clips.Any(clip => Dangles(clip.Meta, existing)))

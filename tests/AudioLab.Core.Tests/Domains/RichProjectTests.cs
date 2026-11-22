@@ -237,11 +237,12 @@ public sealed class RichProjectTests
         [
             new SetLyricsText { Project = id, Clip = clip, Text = "[Verse]\nla la" },
             new ShiftLyrics { Project = id, Clip = clip, Seconds = 1 },
-            new ClearLyricsTiming { Project = id, Clip = clip },
             new SetLyricsWordTime { Project = id, Clip = clip, Word = 0, Start = 0.55 },
         ];
         Command[] fresh =
         [
+            new ClearLyricsTiming { Project = id, Clip = clip },
+            new SetLyricsText { Project = id, Clip = clip, Text = "other words entirely" },
             new ApplyLyricsAlignment { Project = id, Clip = clip, Text = "la", Words = [new HeardWord("la", 0, 1)] },
             new ApplyLyricsTranscript { Project = id, Clip = clip, Words = [new HeardWord("la", 0, 1)] },
             new EstimateLyricsTiming { Project = id, Clip = clip, Text = "la la" },

@@ -144,7 +144,7 @@ public static class SampleProject
                     FadeIn = 0,
                     FadeOut = 0,
                     Muted = true,
-                    Meta = new ClipMeta { StemOf = new StemOf(clip, "vocals") },
+                    Meta = new ClipMeta { StemOf = new StemOf(clip, "vocals", 0.5) },
                 },
             ],
             Effects =

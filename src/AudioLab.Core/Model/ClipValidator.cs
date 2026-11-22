@@ -118,6 +118,10 @@ internal static class ClipValidator
         {
             problems.Text(stem.Stem, ProjectLimits.MaxLabel, $"{path}.stemOf.stem");
             CheckLink(stem.ClipId, clipId, $"{path}.stemOf.clipId", audioClipIds, problems);
+            if (stem.SourceOffset is { } cut)
+            {
+                problems.Range(cut, 0, ProjectLimits.MaxSeconds, $"{path}.stemOf.sourceOffset");
+            }
         }
     }
 

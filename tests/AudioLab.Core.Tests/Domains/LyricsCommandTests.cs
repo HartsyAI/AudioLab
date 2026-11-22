@@ -256,6 +256,42 @@ public sealed class LyricsCommandTests
     }
 
     [Fact]
+    public void ClearingTheTimingOfLyricsThatHaveNoneAddsNoUndoStepAndShiftingByNothingNeither()
+    {
+        Type("la la");
+        int steps = _rig.History.UndoCount;
+
+        Assert.True(_rig.Run(new ClearLyricsTiming { Project = _rig.Id, Clip = _clip }).Succeeded);
+        Assert.Equal(steps, _rig.History.UndoCount);
+        Align("la la", ("la", 0.123456, 0.5), ("la", 1, 2));
+        steps = _rig.History.UndoCount;
+        Assert.True(_rig.Run(new ShiftLyrics { Project = _rig.Id, Clip = _clip, Seconds = 0 }).Succeeded);
+
+        Assert.Equal(steps, _rig.History.UndoCount);
+    }
+
+    [Fact]
+    public void ATextWithOtherWordsDropsTheTimesAndTheModelThatMadeThem()
+    {
+        _rig.Ok(new ApplyLyricsAlignment { Project = _rig.Id, Clip = _clip, Text = "la la", Words = Heard(("la", 0, 1)), Model = "aligner" });
+
+        Type("other words");
+
+        Assert.Equal(("manual", null, 0), (Lyrics(_clip)!.Source, Lyrics(_clip)!.Model, Lyrics(_clip)!.Words.Count));
+    }
+
+    [Fact]
+    public void ATranscriptWhoseTextWouldPassTheLimitIsRefusedBeforeItIsBuilt()
+    {
+        HeardWord[] words = [.. Enumerable.Range(0, 5001).Select(i => new HeardWord(new string('w', 200), i * 0.1, (i * 0.1) + 0.05))];
+
+        CommandResult refused = _rig.Refused(new ApplyLyricsTranscript { Project = _rig.Id, Clip = _clip, Words = [.. words] });
+
+        Assert.Equal(CommandErrorCode.Invalid, refused.Errors[0].Code);
+        Assert.Contains("more text than lyrics may", refused.Errors[0].Message);
+    }
+
+    [Fact]
     public void ClearingTheTimingKeepsTheTextAndAClipWithNoLyricsIsLeftAlone()
     {
         int steps = _rig.History.UndoCount;
@@ -292,20 +328,38 @@ public sealed class LyricsCommandTests
     [Fact]
     public void AWordTimeIsSetInsideItsNeighboursAndMissingWordsAreNotFoundBeforeAnyValueIsLooked()
     {
-        Align("a b c", ("a", 0, 1), ("b", 1, 2), ("c", 2, 3));
+        Align("a b c", ("a", 0, 1), ("b", 1.5, 2), ("c", 3, 4));
         SetLyricsWordTime set = new() { Project = _rig.Id, Clip = _clip, Word = 1 };
 
         _rig.Ok(set with { End = 9 });
         _rig.Ok(set with { Start = 0.5 });
 
-        Assert.Equal((1.0, 4.0), (Lyrics(_clip)!.Words[1].Start, Lyrics(_clip)!.Words[1].End));
+        // The words sit at 1 to 2, 2.5 to 3 and 4 to 5 in the source, since the aligner's audio began at the clip's offset of 1.
+        Assert.Equal((2.0, 4.0), (Lyrics(_clip)!.Words[1].Start, Lyrics(_clip)!.Words[1].End));
         _rig.RefusedWith(set with { Word = 3, Start = double.NaN }, CommandErrorCode.NotFound);
-        _rig.RefusedWith(set with { Word = -1 }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(set with { Word = -1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(set with { Word = ProjectLimits.MaxListItems, Start = 1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(set, CommandErrorCode.Invalid);
         _rig.RefusedWith(set with { Start = -1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(set with { End = double.PositiveInfinity }, CommandErrorCode.Invalid);
         Type(string.Empty);
         _rig.RefusedWith(set with { Start = 1 }, CommandErrorCode.NotFound);
+    }
+
+    [Fact]
+    public void AStartAndAnEndTogetherAreAnAbsoluteTargetSoRepeatingThemChangesNothing()
+    {
+        Align("a b c", ("a", 0, 1), ("b", 1, 2), ("c", 2, 10));
+        SetLyricsWordTime set = new() { Project = _rig.Id, Clip = _clip, Word = 1, Start = 4, End = 5 };
+
+        _rig.Ok(set);
+        ProjectDocument once = _rig.Project;
+        int steps = _rig.History.UndoCount;
+
+        Assert.True(_rig.Run(set).Succeeded);
+        Assert.Equal(once, _rig.Project);
+        Assert.Equal(steps, _rig.History.UndoCount);
+        Assert.Equal((3.0, 3.0), (Lyrics(_clip)!.Words[1].Start, Lyrics(_clip)!.Words[1].End));
     }
 
     [Fact]

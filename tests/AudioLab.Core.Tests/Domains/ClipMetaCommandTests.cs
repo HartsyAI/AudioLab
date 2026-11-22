@@ -1,5 +1,6 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Tests;
 
@@ -109,7 +110,8 @@ public sealed class ClipMetaCommandTests
 
         _rig.RefusedWith(Score(_a) with { Parent = _a }, CommandErrorCode.Rejected);
         _rig.RefusedWith(Score(_a) with { Parent = _c }, CommandErrorCode.Rejected);
-        _rig.RefusedWith(Score(_a) with { Parent = ClipId.From("clp_none"), BudgetSeconds = -1 }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(Score(_a) with { Parent = ClipId.From("clp_none") }, CommandErrorCode.NotFound);
+        _rig.RefusedWith(Score(_a) with { Parent = ClipId.From("clp_none"), BudgetSeconds = -1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(Score(_a) with { Parent = ClipId.From("clp_midi") }, CommandErrorCode.Rejected);
         _rig.Ok(Score(_a) with { Parent = null });
         Assert.Equal(_b, Clip(_c).Meta!.Score!.Parent);
@@ -165,7 +167,7 @@ public sealed class ClipMetaCommandTests
         _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _b, Source = _a, Stem = "Vocals" });
         _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _c, Source = _a, Stem = "drums" });
 
-        Assert.Equal(new StemOf(_a, "Vocals"), Clip(_b).Meta!.StemOf);
+        Assert.Equal(new StemOf(_a, "Vocals", 2), Clip(_b).Meta!.StemOf);
         Assert.Equal([0.5, 1.0], Clip(_b).Meta!.Lyrics!.Words.Select(word => word.Start));
         Assert.Null(Clip(_c).Meta!.Lyrics);
     }
@@ -188,12 +190,55 @@ public sealed class ClipMetaCommandTests
         _rig.RefusedWith(stem with { Source = _b }, CommandErrorCode.Rejected);
         _rig.RefusedWith(stem with { Stem = "  " }, CommandErrorCode.Rejected);
         _rig.RefusedWith(stem with { Stem = new string('s', 129) }, CommandErrorCode.Invalid);
+        Assert.Contains("128", _rig.Refused(stem with { Stem = new string('s', 250) }).Errors[0].Message);
+        _rig.RefusedWith(stem with { SourceOffset = -1 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(stem with { SourceOffset = 11 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(stem with { SourceOffset = double.NaN }, CommandErrorCode.Invalid);
         _rig.RefusedWith(stem with { Source = ClipId.From("clp_none"), Stem = " " }, CommandErrorCode.NotFound);
         _rig.RefusedWith(stem with { Source = ClipId.From("clp_midi") }, CommandErrorCode.Rejected);
         _rig.RefusedWith(stem with { Clip = ClipId.From("clp_none"), Source = ClipId.From("clp_none2") }, CommandErrorCode.NotFound);
         _rig.RefusedWith(stem with { Clip = ClipId.From("clp_midi") }, CommandErrorCode.Rejected);
         _rig.Ok(stem);
-        Assert.Equal(new StemOf(_a, "bass"), Clip(_b).Meta!.StemOf);
+        Assert.Equal(new StemOf(_a, "bass", 2), Clip(_b).Meta!.StemOf);
+    }
+
+    [Fact]
+    public void AStemRecordsTheOffsetItWasCutAtAndALaterTrimOfTheSourceDoesNotMoveItsLyrics()
+    {
+        _rig.Ok(new ApplyLyricsAlignment { Project = _rig.Id, Clip = _a, Text = "la", Words = [new HeardWord("la", 0.5, 1)] });
+        _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _b, Source = _a, Stem = "vocals" });
+        Assert.Equal(0.5, Clip(_b).Meta!.Lyrics!.Words[0].Start);
+
+        _rig.Ok(new TrimClip { Project = _rig.Id, Clip = _a, Edge = ClipEdge.Start, Time = 1 });
+        Assert.Equal(3.0, Clip(_a).Offset);
+        _rig.Ok(new ShiftLyrics { Project = _rig.Id, Clip = _a, Seconds = 0.5 });
+
+        // Source seconds 3.0 less the offset of 2 the stem was cut at, not less the clip's offset of 3 now.
+        Assert.Equal(3.0, Clip(_a).Meta!.Lyrics!.Words[0].Start);
+        Assert.Equal(1.0, Clip(_b).Meta!.Lyrics!.Words[0].Start);
+        Assert.Equal(2.0, Clip(_b).Meta!.StemOf!.Value.SourceOffset);
+    }
+
+    [Fact]
+    public void ACutOffsetThatIsGivenIsRecordedAndUsedInPlaceOfTheSourcesOffset()
+    {
+        _rig.Ok(new ApplyLyricsAlignment { Project = _rig.Id, Clip = _a, Text = "la", Words = [new HeardWord("la", 0.5, 1)] });
+
+        _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _b, Source = _a, Stem = "vocals", SourceOffset = 1 });
+
+        Assert.Equal(1.0, Clip(_b).Meta!.StemOf!.Value.SourceOffset);
+        Assert.Equal(1.5, Clip(_b).Meta!.Lyrics!.Words[0].Start);
+    }
+
+    [Fact]
+    public void StemsThatWouldPointAtEachOtherAreRefused()
+    {
+        _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _b, Source = _a, Stem = "bass" });
+        _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _c, Source = _b, Stem = "bass" });
+
+        _rig.RefusedWith(new SetClipStem { Project = _rig.Id, Clip = _a, Source = _b, Stem = "bass" }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new SetClipStem { Project = _rig.Id, Clip = _a, Source = _c, Stem = "bass" }, CommandErrorCode.Rejected);
+        _rig.Ok(new SetClipStem { Project = _rig.Id, Clip = _c, Source = _a, Stem = "bass" });
     }
 
     [Fact]

@@ -22,10 +22,6 @@ internal static class ClipMetaCommands
         {
             return refused;
         }
-        if (command.Parent is { } parent && Parent(document, clip, parent) is { } badParent)
-        {
-            return badParent;
-        }
         CommandResult? invalid = CommandChecks.Length(nameof(command.Abc), command.Abc, ProjectLimits.MaxLongText)
             ?? CommandChecks.Length(nameof(command.Style), command.Style, ProjectLimits.MaxLongText)
             ?? CommandChecks.Length(nameof(command.Lyrics), command.Lyrics, ProjectLimits.MaxLongText)
@@ -39,6 +35,10 @@ internal static class ClipMetaCommands
         if (invalid is not null)
         {
             return invalid;
+        }
+        if (command.Parent is { } parent && Parent(document, clip, parent) is { } badParent)
+        {
+            return badParent;
         }
         ScoreMeta score = new()
         {
@@ -97,17 +97,26 @@ internal static class ClipMetaCommands
         {
             return CommandChecks.Rejected("A clip cannot be a stem of itself.");
         }
-        CommandResult? invalid = CommandChecks.Named(command.Stem)
-            ?? CommandChecks.Length(nameof(command.Stem), command.Stem, ProjectLimits.MaxLabel);
+        if (ClipLinks.StemLoops(document.Tracks, clip.Id, source.Id))
+        {
+            return CommandChecks.Rejected("That clip is itself a stem of this one, which would make the stems a loop.");
+        }
+        if (string.IsNullOrWhiteSpace(command.Stem))
+        {
+            return CommandChecks.Rejected("The stem name must not be blank.");
+        }
+        CommandResult? invalid = CommandChecks.Length(nameof(command.Stem), command.Stem, ProjectLimits.MaxLabel)
+            ?? CommandChecks.Range(nameof(command.SourceOffset), command.SourceOffset, 0, source.Duration);
         if (invalid is not null)
         {
             return invalid;
         }
-        AudioClip stem = MetaEdits.WithStem(clip, new StemOf(command.Source, command.Stem));
+        double cut = command.SourceOffset ?? source.Offset;
+        AudioClip stem = MetaEdits.WithStem(clip, new StemOf(command.Source, command.Stem, cut));
         if (LyricsRules.IsVocalStem(command.Stem) && source.Meta?.Lyrics is { } lyrics)
         {
-            // The stem is the part of the source that was audible, so its lyrics are the source's, rebased to start at 0.
-            stem = MetaEdits.WithLyrics(stem, LyricsRules.Rebase(lyrics, -source.Offset));
+            // The stem is the part of the source that was audible, so its lyrics are the source's, rebased to start at 0 where it was cut.
+            stem = MetaEdits.WithLyrics(stem, LyricsRules.Rebase(lyrics, -cut));
         }
         return CommandResult.Ok(MetaEdits.Replace(document, stem));
     }

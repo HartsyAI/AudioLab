@@ -45,14 +45,18 @@ internal static class MetaEdits
 
     /// <summary>The document with a clip's lyrics replaced, and those of each vocal stem separated from the clip following them.</summary>
     /// <remarks>
-    /// The stem's lyrics are rebased to start at 0 where the clip's visible part starts, or removed with them.
-    /// The muted original no longer shows them on the strip.
+    /// The stem's lyrics are rebased to start at 0 where the stem was cut (the clip's current offset when the link does not say),
+    /// or removed with them. The muted original no longer shows them on the strip.
     /// </remarks>
     public static ProjectDocument SetLyrics(ProjectDocument document, AudioClip clip, ClipLyrics? lyrics)
     {
         ProjectDocument edited = Replace(document, WithLyrics(clip, lyrics));
-        ClipLyrics? carried = lyrics is null ? null : LyricsRules.Rebase(lyrics, -clip.Offset);
-        AudioClip Follow(AudioClip candidate) => IsVocalStemOf(candidate, clip.Id) ? WithLyrics(candidate, carried) : candidate;
+        // A stem was cut where the clip began at the time, which a later trim of the clip does not change.
+        AudioClip Follow(AudioClip candidate)
+        {
+            double cut = candidate.Meta?.StemOf?.SourceOffset ?? clip.Offset;
+            return IsVocalStemOf(candidate, clip.Id) ? WithLyrics(candidate, lyrics is null ? null : LyricsRules.Rebase(lyrics, -cut)) : candidate;
+        }
         ValueList<Track> tracks =
         [
             .. edited.Tracks.Select(track => track.Clips.Any(candidate => IsVocalStemOf(candidate, clip.Id))

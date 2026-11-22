@@ -65,7 +65,7 @@ internal static class LyricsCommands
         {
             return refused;
         }
-        if (LyricsChecks.Heard(command.Words, command.Offset, command.Model, command.Source) is { } invalid)
+        if (LyricsChecks.Heard(command.Words, command.Offset, command.Model, command.Source, transcript: true) is { } invalid)
         {
             return invalid;
         }
@@ -101,7 +101,7 @@ internal static class LyricsCommands
             return refused;
         }
         return clip.Meta?.Lyrics is { } lyrics
-            ? CommandResult.Ok(MetaEdits.SetLyrics(document, clip, lyrics with { Words = [], Source = LyricsRules.ManualSource }))
+            ? CommandResult.Ok(MetaEdits.SetLyrics(document, clip, LyricsRules.ClearTiming(lyrics)))
             : CommandResult.Ok(document);
     }
 
@@ -127,8 +127,12 @@ internal static class LyricsCommands
         {
             return refused;
         }
+        if (CommandChecks.Range(nameof(command.Word), command.Word, 0, ProjectLimits.MaxListItems - 1) is { } badIndex)
+        {
+            return badIndex;
+        }
         ClipLyrics? lyrics = clip.Meta?.Lyrics;
-        if (lyrics is null || command.Word < 0 || command.Word >= lyrics.Words.Count)
+        if (lyrics is null || command.Word >= lyrics.Words.Count)
         {
             return CommandChecks.NotFound("lyric word", command.Word.ToString(CultureInfo.InvariantCulture));
         }

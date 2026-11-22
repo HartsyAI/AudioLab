@@ -6,14 +6,21 @@ namespace AudioLab.Core.Commands;
 internal static class LyricsChecks
 {
     /// <summary>A refusal for an answer with no words, too many, or a value the project does not allow; null when all is well.</summary>
-    public static CommandResult? Heard(ValueList<HeardWord> words, double? offset, string? model, string? source)
+    public static CommandResult? Heard(ValueList<HeardWord> words, double? offset, string? model, string? source, bool transcript = false)
     {
         if (words.Count == 0 || words.Count > ProjectLimits.MaxListItems)
         {
             return CommandChecks.OutOfRange($"Name from 1 to {ProjectLimits.MaxListItems} words.");
         }
+        long characters = 0;
         foreach (HeardWord word in words)
         {
+            // A transcript becomes the text, a word and a separator at a time, so it is counted before it is built.
+            characters += word.Word is { } heard ? heard.Length + 1 : 1;
+            if (transcript && characters > ProjectLimits.MaxLongText)
+            {
+                return CommandChecks.OutOfRange("The words hold more text than lyrics may.");
+            }
             CommandResult? invalid = CommandChecks.Length("word", word.Word, ProjectLimits.MaxName)
                 ?? CommandChecks.Range("start", word.Start, 0, ProjectLimits.MaxSeconds)
                 ?? CommandChecks.Range("end", word.End, 0, ProjectLimits.MaxSeconds);

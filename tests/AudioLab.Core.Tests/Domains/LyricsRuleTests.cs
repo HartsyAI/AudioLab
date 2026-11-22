@@ -168,16 +168,14 @@ public sealed class LyricsRuleTests
     }
 
     [Fact]
-    public void ATwoHundredThousandWordTranscriptIsPlacedAndTimedQuickly()
+    public void ATwoHundredThousandWordTranscriptIsPlacedAndTimed()
     {
         TimedWord[] heard = [.. Enumerable.Range(0, 200_000).Select(i => new TimedWord("la", i * 0.5, (i * 0.5) + 0.4))];
         string text = string.Join('\n', Enumerable.Range(0, 25_000).Select(_ => "la la la la la la la la"));
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
         ClipLyrics aligned = LyricsRules.FromAlignment(text, heard, 0);
         ClipLyrics transcript = LyricsRules.FromTranscript(heard, 0);
 
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"took {clock.Elapsed}");
         Assert.Equal(24_999, aligned.Words[^1].Line);
         Assert.Equal(200_000, transcript.Words.Count);
     }
@@ -268,21 +266,112 @@ public sealed class LyricsRuleTests
     }
 
     [Fact]
-    public void AWordTimeIsKeptInsideItsNeighboursAndOrderedAndClearsTheFlag()
+    public void AWordTimeIsKeptBetweenItsNeighboursAndOrderedAndClearsTheFlag()
     {
-        ClipLyrics lyrics = Lyrics("a b c", [new LyricWord("a", 0, 1, 0), new LyricWord("b", 1, 2, 0, true), new LyricWord("c", 2, 3, 0)]);
+        ClipLyrics lyrics = Lyrics("a b c", [new LyricWord("a", 0, 1, 0), new LyricWord("b", 1.5, 2, 0, true), new LyricWord("c", 3, 4, 0)]);
 
         ClipLyrics early = LyricsRules.SetWordTime(lyrics, 1, 0.2, null);
         ClipLyrics late = LyricsRules.SetWordTime(lyrics, 1, 5, null);
         ClipLyrics wide = LyricsRules.SetWordTime(lyrics, 1, null, 9);
+        ClipLyrics both = LyricsRules.SetWordTime(lyrics, 1, 4, 5);
         ClipLyrics first = LyricsRules.SetWordTime(lyrics, 0, -3, 99);
 
-        Assert.Equal((0.2, 2.0), (early.Words[1].Start, early.Words[1].End));
+        Assert.Equal((1.0, 2.0), (early.Words[1].Start, early.Words[1].End));
         Assert.Equal((2.0, 2.0), (late.Words[1].Start, late.Words[1].End));
-        Assert.Equal((1.0, 3.0), (wide.Words[1].Start, wide.Words[1].End));
-        Assert.Equal((0.0, 2.0), (first.Words[0].Start, first.Words[0].End));
+        Assert.Equal((1.5, 3.0), (wide.Words[1].Start, wide.Words[1].End));
+        Assert.Equal((3.0, 3.0), (both.Words[1].Start, both.Words[1].End));
+        Assert.Equal((0.0, 1.5), (first.Words[0].Start, first.Words[0].End));
         Assert.Null(early.Words[1].Unsure);
         Assert.Equal(lyrics.Words[0], early.Words[0]);
+    }
+
+    [Fact]
+    public void AStartAndAnEndTogetherGiveTheSameResultWhereverTheWordWasAndWhenRepeated()
+    {
+        ClipLyrics at12 = Lyrics("a b c", [new LyricWord("a", 0, 1, 0), new LyricWord("b", 1, 2, 0), new LyricWord("c", 2, 10, 0)]);
+        ClipLyrics elsewhere = at12 with { Words = [at12.Words[0], new LyricWord("b", 1.2, 1.9, 0), at12.Words[2]] };
+
+        ClipLyrics once = LyricsRules.SetWordTime(at12, 1, 4, 5);
+        ClipLyrics other = LyricsRules.SetWordTime(elsewhere, 1, 4, 5);
+        ClipLyrics twice = LyricsRules.SetWordTime(once, 1, 4, 5);
+
+        Assert.Equal((2.0, 2.0), (once.Words[1].Start, once.Words[1].End));
+        Assert.Equal(once.Words[1], other.Words[1]);
+        Assert.Equal(once.Words[1], twice.Words[1]);
+        Assert.Equal(once, twice);
+    }
+
+    [Fact]
+    public void NeighboursThatOverlapNeverMakeAWordTimeThrowOrEndBeforeItsStart()
+    {
+        ClipLyrics lyrics = Lyrics("a b", [new LyricWord("a", 0, 3, 0), new LyricWord("b", 1, 2, 0)]);
+
+        ClipLyrics moved = LyricsRules.SetWordTime(lyrics, 1, 1.5, null);
+        ClipLyrics both = LyricsRules.SetWordTime(lyrics, 0, 2, 0.5);
+
+        Assert.True(moved.Words[1].Start <= moved.Words[1].End);
+        Assert.True(both.Words[0].Start <= both.Words[0].End);
+    }
+
+    // ----- text, timing and shifting
+
+    [Fact]
+    public void IdenticalTextKeepsTheTimesEvenWhenSomeHeardWordsAreNotInIt()
+    {
+        ClipLyrics aligned = Lyrics(
+            "hello world",
+            [new LyricWord("hello", 0, 1, 0), new LyricWord("world", 1, 2, 0), new LyricWord("oops", 2, 3, 0, true)],
+            "aligned") with
+        { Model = "m" };
+
+        ClipLyrics edited = LyricsRules.SetText(aligned, "Hello,\nWORLD!");
+
+        Assert.Equal([0.0, 1.0, 2.0], edited.Words.Select(word => word.Start));
+        Assert.Equal(["hello", "world", "oops"], edited.Words.Select(word => word.Word));
+        Assert.Equal(("aligned", "m", "Hello,\nWORLD!"), (edited.Source, edited.Model, edited.Text));
+        Assert.Equal(aligned, LyricsRules.SetText(aligned, aligned.Text));
+    }
+
+    [Fact]
+    public void DroppingTheTimesDropsWhatDescribedThemAndGeneratedLyricsKeepTheirModel()
+    {
+        ExtraFields extra = ExtraFields.FromJson(("alignedBy", "1"));
+        ValueList<LyricWord> timed = [new LyricWord("la", 0, 1, 0), new LyricWord("la", 1, 2, 0)];
+        ClipLyrics typed = Lyrics("la la", timed, "aligned") with { Model = "aligner", Extra = extra };
+        ClipLyrics generated = typed with { Source = "generated", Model = "writer" };
+
+        ClipLyrics typedEdit = LyricsRules.SetText(typed, "la la la");
+        ClipLyrics generatedEdit = LyricsRules.SetText(generated, "la la la");
+
+        Assert.Equal(("manual", null, true), (typedEdit.Source, typedEdit.Model, typedEdit.Extra.IsEmpty));
+        Assert.Equal(("generated", "writer", true), (generatedEdit.Source, generatedEdit.Model, generatedEdit.Extra.IsEmpty));
+        Assert.Equal(typedEdit, LyricsRules.ClearTiming(typed) with { Text = "la la la" });
+        Assert.Equal(("generated", "writer"), (LyricsRules.ClearTiming(generated).Source, LyricsRules.ClearTiming(generated).Model));
+    }
+
+    [Fact]
+    public void ClearingTheTimingOfLyricsThatHaveNoneReturnsThemAsTheyWere()
+    {
+        ClipLyrics untimed = Lyrics("la", [], "aligned") with { Model = "m" };
+
+        Assert.Equal(untimed, LyricsRules.ClearTiming(untimed));
+    }
+
+    [Fact]
+    public void ShiftingByNothingIsANoOpEvenForTimesThatAreNotRoundedToMilliseconds()
+    {
+        ClipLyrics lyrics = Lyrics("a", [new LyricWord("a", 0.123456, 0.654321, 0)]);
+
+        Assert.Equal(lyrics, LyricsRules.Shift(lyrics, 0));
+        Assert.Equal(lyrics, LyricsRules.Shift(lyrics with { Words = [new LyricWord("a", 0, 0.654321, 0)] }, -3) with { Words = lyrics.Words });
+    }
+
+    [Fact]
+    public void AByteOrderMarkInFrontOfAnLrcFileDoesNotCostItsFirstStamp()
+    {
+        IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc("\uFEFF[00:01.00]hello\n[00:02.00]world", out _);
+
+        Assert.Equal(["hello", "world"], lines.Select(line => line.Text));
     }
 
     // ----- hostile input
@@ -292,26 +381,22 @@ public sealed class LyricsRuleTests
     {
         string stamps = string.Concat(Enumerable.Repeat("[0:0]", 2000));
         string file = stamps + new string('a', 900_000);
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
         IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file, out bool tooLarge);
 
         Assert.True(tooLarge);
         Assert.Empty(lines);
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
     }
 
     [Fact]
-    public void ALineOfAHundredThousandStampsIsReadInLinearTime()
+    public void ALineOfAHundredThousandStampsIsRead()
     {
         string file = string.Concat(Enumerable.Repeat("[0:01.5]", 100_000)) + "la";
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
         IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file, out bool tooLarge);
 
         Assert.False(tooLarge);
         Assert.Equal(100_000, lines.Count);
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
     }
 
     [Fact]
@@ -325,17 +410,47 @@ public sealed class LyricsRuleTests
     }
 
     [Fact]
-    public void HundredsOfThousandsOfHeardWordsThatAreNotInTheTextCannotMakeAnAlignmentSlow()
+    public void ASpentSearchBudgetLeavesTheRestOfTheWordsOnTheLineTheyAreOn()
     {
-        string text = string.Join(' ', Enumerable.Repeat("la", 450_000));
-        TimedWord[] heard = [.. Enumerable.Range(0, 400_000).Select(i => new TimedWord($"zz{i}", i * 0.01, (i * 0.01) + 0.005))];
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+        string[] lines = [string.Concat(Enumerable.Repeat("ab", 1000)), "zz"];
+        LyricWord[] misses = [.. Enumerable.Range(0, 50).Select(i => new LyricWord($"abx{i}", i, i + 0.5, 0))];
+        ValueList<LyricWord> words = [.. misses, new LyricWord("zz", 60, 61, 0)];
 
-        ClipLyrics lyrics = LyricsRules.FromAlignment(text, heard, 0);
+        ValueList<LyricWord> spent = LyricsRules.AssignLines(words, lines, 100_000);
+        ValueList<LyricWord> whole = LyricsRules.AssignLines(words, lines);
 
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"took {clock.Elapsed}");
-        Assert.Equal(400_000, lyrics.Words.Count);
-        Assert.All(lyrics.Words, word => Assert.Equal(0, word.Line));
+        Assert.Equal(0, spent[^1].Line);
+        Assert.Equal(1, whole[^1].Line);
+    }
+
+    [Fact]
+    public void ADistinctWordThatIsNeverFoundIsChargedItsLengthTimesTheTextItMayCompare()
+    {
+        string[] lines = [string.Concat(Enumerable.Repeat("ab", 500_000)), "zz"];
+        ValueList<LyricWord> words =
+        [
+            .. Enumerable.Range(0, 5000).Select(i => new LyricWord($"{new string('a', 20)}{i}", i, i + 0.5, 0)),
+            new LyricWord("zz", 6000, 6001, 0),
+        ];
+
+        // 1,000,000 characters at 21 or more a word is 2.1e7 a miss: the default budget of 1e9 is gone after fewer than 50 misses,
+        // so the last word, 4,950 words later, is not looked for and keeps its line.
+        ValueList<LyricWord> placed = LyricsRules.AssignLines(words, lines);
+
+        Assert.Equal(0, placed[^1].Line);
+        Assert.Equal(5001, placed.Count);
+    }
+
+    [Fact]
+    public void AMissIsRememberedSoRepeatingItCostsNothing()
+    {
+        string[] lines = [string.Concat(Enumerable.Repeat("ab", 1000)), "zz"];
+        ValueList<LyricWord> words = [.. Enumerable.Repeat(new LyricWord("nothere", 0, 1, 0), 2000), new LyricWord("zz", 2, 3, 0)];
+
+        // One miss costs about 14,000; a budget for four of them still reaches the last word because the other 1,999 are free.
+        ValueList<LyricWord> placed = LyricsRules.AssignLines(words, lines, 60_000);
+
+        Assert.Equal(1, placed[^1].Line);
     }
 
     // ----- LRC

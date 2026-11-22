@@ -261,6 +261,7 @@ public sealed class ProjectJsonRejectionTests
             root => Clip(root)["meta"]!["lyrics"]!["words"]![0]!["s"] = -1
         },
         { "a stem without a name", "stemOf.stem", root => Clip(root, 0, 1)["meta"]!["stemOf"]!["stem"] = string.Empty },
+        { "a stem cut before the start of its source", "stemOf.sourceOffset", root => Clip(root, 0, 1)["meta"]!["stemOf"]!["sourceOffset"] = -1 },
         {
             "a note out of range",
             ".pitch: 128 must be from 0 to 127",

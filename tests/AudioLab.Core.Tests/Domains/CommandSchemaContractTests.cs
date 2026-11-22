@@ -332,6 +332,10 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(ProjectLimits.MaxLongText, Property("score_set", "abc").GetProperty("maxLength").GetInt32());
         Assert.Equal(["clip", "project", "source", "stem"], Required("stem_set"));
         Assert.Equal(ProjectLimits.MaxLabel, Property("stem_set", "stem").GetProperty("maxLength").GetInt32());
+        Assert.Contains("not blank", Property("stem_set", "stem").GetProperty("description").GetString());
+        Assert.Equal(0.0, Property("stem_set", "sourceOffset").GetProperty("minimum").GetDouble());
+        Assert.Contains("stops at 0", Property("lyrics_shift", "seconds").GetProperty("description").GetString());
+        Assert.Contains("between", Property("lyrics_set_word_time", "start").GetProperty("description").GetString());
     }
 
     private string[] Required(string command)

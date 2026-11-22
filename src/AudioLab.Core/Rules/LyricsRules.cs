@@ -47,7 +47,7 @@ public static partial class LyricsRules
     /// <summary>The source that stays when the text of generated lyrics is edited.</summary>
     public const string GeneratedSource = "generated";
 
-    /// <summary>How many characters <see cref="AssignLines"/> may look at in all, which no honest answer comes near.</summary>
+    /// <summary>How many character comparisons <see cref="AssignLines"/> may make in all, which no honest answer comes near.</summary>
     public const long SearchBudget = 1_000_000_000;
 
     /// <summary>How long the last line of an LRC file lasts when nothing says, in seconds.</summary>
@@ -143,9 +143,10 @@ public static partial class LyricsRules
     /// <summary>Gives each word the index of the line it sits on.</summary>
     /// <remarks>
     /// A word is looked up in the text after the previous one, so a repeated word lands where it was written; case is ignored,
-    /// and a word that cannot be found keeps the previous word's line.
+    /// and a word that cannot be found keeps the previous word's line. Every look is charged to <paramref name="budget"/>
+    /// at its length times the characters it may compare; when it is spent the rest keep the line they are on.
     /// </remarks>
-    public static ValueList<LyricWord> AssignLines(IReadOnlyList<LyricWord> words, IReadOnlyList<string> lines)
+    public static ValueList<LyricWord> AssignLines(IReadOnlyList<LyricWord> words, IReadOnlyList<string> lines, long budget = SearchBudget)
     {
         ArgumentNullException.ThrowIfNull(words);
         ArgumentNullException.ThrowIfNull(lines);
@@ -159,19 +160,20 @@ public static partial class LyricsRules
         }
         int pointer = 0;
         int last = 0;
-        long budget = SearchBudget;
         HashSet<string> missing = [];
         List<LyricWord> result = [];
         foreach (LyricWord word in words)
         {
             string wanted = word.Word.ToLowerInvariant();
             // A word that was not found after an earlier point is not found after a later one, and a hostile answer must not make
-            // every word scan the whole text: once the budget of characters looked at is spent, the rest keep the line they are on.
-            int found = budget > 0 && !missing.Contains(wanted) ? text.AsSpan(pointer).IndexOf(wanted, StringComparison.Ordinal) : -1;
+            // every word scan the whole text: once the budget is spent, the rest keep the line they are on.
+            long weight = Math.Max(1, wanted.Length);
+            bool known = missing.Contains(wanted);
+            int found = budget > 0 && !known ? text.AsSpan(pointer).IndexOf(wanted, StringComparison.Ordinal) : -1;
             if (found >= 0)
             {
                 found += pointer;
-                budget -= found - pointer + wanted.Length;
+                budget -= (found - pointer + wanted.Length) * weight;
                 // The search only moves forward, so the line does too.
                 int line = last;
                 while (line + 1 < starts.Count && starts[line + 1] <= found)
@@ -181,9 +183,9 @@ public static partial class LyricsRules
                 last = line;
                 pointer = found + wanted.Length;
             }
-            else if (budget > 0)
+            else if (budget > 0 && !known)
             {
-                budget -= text.Length - pointer;
+                budget -= (text.Length - pointer) * weight;
                 missing.Add(wanted);
             }
             result.Add(word with { Line = last });
@@ -260,19 +262,48 @@ public static partial class LyricsRules
     }
 
     /// <summary>The lyrics with a new text.</summary>
-    /// <remarks>The word times stay when only spacing, case, punctuation or tags changed, and are dropped otherwise.</remarks>
+    /// <remarks>
+    /// The word times stay when the words are the same as far as spacing, case, punctuation and tags go, whether compared with the old
+    /// text or with the timed words, and are dropped otherwise; see <see cref="ClearTiming"/> for what dropping them leaves.
+    /// </remarks>
     public static ClipLyrics SetText(ClipLyrics lyrics, string text)
     {
         ArgumentNullException.ThrowIfNull(lyrics);
         ArgumentNullException.ThrowIfNull(text);
         IReadOnlyList<string> parts = WordsOf(text);
-        bool same = lyrics.Words.Count == parts.Count && lyrics.Words.Select((word, i) => Core(word.Word) == Core(parts[i])).All(match => match);
-        if (!same)
+        string[] cores = [.. parts.Select(Core)];
+        bool sameText = WordsOf(lyrics.Text).Select(Core).SequenceEqual(cores);
+        bool sameWords = lyrics.Words.Count == parts.Count && lyrics.Words.Select(word => Core(word.Word)).SequenceEqual(cores);
+        if (!sameText && !sameWords)
         {
-            return lyrics with { Text = text, Words = [], Source = lyrics.Source == GeneratedSource ? GeneratedSource : ManualSource };
+            return DropTiming(lyrics, text);
         }
-        ValueList<LyricWord> renamed = [.. lyrics.Words.Select((word, i) => word with { Word = parts[i] })];
-        return lyrics with { Text = text, Words = AssignLines(renamed, LinesOf(text)) };
+        ValueList<LyricWord> kept = sameWords ? [.. lyrics.Words.Select((word, i) => word with { Word = parts[i] })] : lyrics.Words;
+        return lyrics with { Text = text, Words = AssignLines(kept, LinesOf(text)) };
+    }
+
+    /// <summary>The lyrics with their word times dropped and the text kept; lyrics with no times are returned as they were.</summary>
+    /// <remarks>
+    /// What described the timing goes with it: the source becomes manual (generated lyrics stay generated and keep their model)
+    /// and the unknown fields are cleared.
+    /// </remarks>
+    public static ClipLyrics ClearTiming(ClipLyrics lyrics)
+    {
+        ArgumentNullException.ThrowIfNull(lyrics);
+        return lyrics.Words.Count == 0 ? lyrics : DropTiming(lyrics, lyrics.Text);
+    }
+
+    private static ClipLyrics DropTiming(ClipLyrics lyrics, string text)
+    {
+        bool generated = lyrics.Source == GeneratedSource;
+        return lyrics with
+        {
+            Text = text,
+            Words = [],
+            Source = generated ? GeneratedSource : ManualSource,
+            Model = generated ? lyrics.Model : null,
+            Extra = ExtraFields.Empty,
+        };
     }
 
     /// <summary>Every word moved by <paramref name="seconds"/>, never before 0.</summary>
@@ -285,6 +316,10 @@ public static partial class LyricsRules
             return lyrics;
         }
         double by = Math.Max(seconds, -lyrics.Words.Min(word => word.Start));
+        if (by == 0)
+        {
+            return lyrics;
+        }
         LyricWord Move(LyricWord word) => word with { Start = Milliseconds(word.Start + by), End = Milliseconds(word.End + by) };
         ValueList<LyricWord> moved = [.. lyrics.Words.Select(Move)];
         return lyrics with { Words = moved };
@@ -293,7 +328,7 @@ public static partial class LyricsRules
     /// <summary>The lyrics for audio that starts <paramref name="seconds"/> away in the source.</summary>
     /// <remarks>
     /// Every time moves, words that end before the new start are dropped and one that straddles it is cut to start at 0. A stem cut
-    /// from a clip's visible part has the source's lyrics rebased by minus the clip's offset.
+    /// from a clip's visible part has the source's lyrics rebased by minus the offset the stem was cut at.
     /// </remarks>
     public static ClipLyrics Rebase(ClipLyrics lyrics, double seconds)
     {
@@ -312,20 +347,32 @@ public static partial class LyricsRules
 
     /// <summary>The lyrics with one word's start or end changed; null keeps it.</summary>
     /// <remarks>
-    /// The start stays no later than the end and the word stays out of its neighbours. Its unsure flag is cleared:
-    /// a time set by hand is a time the user stands behind.
+    /// The word stays between the end of the word before it and the start of the word after it, and its end stays no earlier than its
+    /// start. With both given the start is placed first and the end after it, so the result does not depend on where the word was.
+    /// Its unsure flag is cleared: a time set by hand is a time the user stands behind.
     /// </remarks>
     public static ClipLyrics SetWordTime(ClipLyrics lyrics, int index, double? start, double? end)
     {
         ArgumentNullException.ThrowIfNull(lyrics);
         LyricWord word = lyrics.Words[index];
-        double low = index > 0 ? lyrics.Words[index - 1].Start : 0;
-        double high = index + 1 < lyrics.Words.Count ? lyrics.Words[index + 1].End : double.PositiveInfinity;
-        double s = start is { } a ? Milliseconds(Math.Min(Math.Max(a, low), word.End)) : word.Start;
-        double e = end is { } b ? Milliseconds(Math.Max(Math.Min(b, high), s)) : word.End;
-        LyricWord set = word with { Start = s, End = e, Unsure = null };
+        double low = index > 0 ? lyrics.Words[index - 1].End : 0;
+        double high = index + 1 < lyrics.Words.Count ? lyrics.Words[index + 1].Start : double.PositiveInfinity;
+        double s = word.Start;
+        double e = word.End;
+        if (start is { } wantedStart)
+        {
+            s = Milliseconds(Between(wantedStart, low, end is null ? Math.Max(low, word.End) : high));
+            e = Math.Max(e, s);
+        }
+        if (end is { } wantedEnd)
+        {
+            e = Milliseconds(Between(wantedEnd, s, Math.Max(s, high)));
+        }
+        LyricWord set = word with { Start = s, End = Math.Max(e, s), Unsure = null };
         return lyrics with { Words = [.. lyrics.Words.Select((candidate, i) => i == index ? set : candidate)] };
     }
+
+    private static double Between(double value, double low, double high) => Math.Max(low, Math.Min(value, high));
 
     /// <summary>The lines of an LRC file with their times in seconds, by time: metadata tags are skipped and word marks are removed.</summary>
     /// <remarks>
@@ -337,7 +384,8 @@ public static partial class LyricsRules
         List<LrcLine> lines = [];
         long characters = 0;
         tooLarge = false;
-        foreach (string raw in (text ?? string.Empty).Split('\n'))
+        // A byte order mark in front of the first stamp is not part of the file.
+        foreach (string raw in (text ?? string.Empty).TrimStart('\uFEFF').Split('\n'))
         {
             string line = raw.TrimEnd('\r');
             List<double> times = [];

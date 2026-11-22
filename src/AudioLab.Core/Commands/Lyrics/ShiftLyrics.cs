@@ -11,8 +11,13 @@ public sealed record ShiftLyrics : Command
     [Description("The audio clip whose lyrics are edited.")]
     public required ClipId Clip { get; init; }
 
-    /// <summary>How far to move the words, in seconds; negative is earlier.</summary>
-    [Description("How far to move the words, in seconds; negative is earlier.")]
+    /// <summary>How far to move the words, in seconds.</summary>
+    /// <remarks>
+    /// negative is earlier. The first word stops at 0, so no word moves before the start of the source.
+    /// </remarks>
+    [Description(
+        "How far to move the words, in seconds; negative is earlier. The first word stops at 0, so no word " +
+        "moves before the start of the source.")]
     [Range(-ProjectLimits.MaxSeconds, ProjectLimits.MaxSeconds)]
     public required double Seconds { get; init; }
 }
