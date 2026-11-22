@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AudioLab.Conventions.Tests/AudioLab.Conventions.Tests.csproj" />
+    <Project Path="tests/AudioLab.Core.Tests/AudioLab.Core.Tests.csproj" />
   </Folder>
 </Solution>

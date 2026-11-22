@@ -44,9 +44,11 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
 | D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox; the failures are listed in 7.5. It ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. |
-| D15 | The timeline lanes, clips and waveforms are drawn as DOM with inline SVG waveforms, each clip a small component that redraws only when its own revision changes. A Canvas2D surface driven from C# through `[JSImport]` calls to browser built-ins (no script file) is the kept alternative, and the one to switch to if dragging in Firefox cannot be made to hold on the DOM. The Skia canvas is not adopted. See [the O2 evidence](#d15-evidence-the-o2-spike). | Proposed | Scrolling meets the pass line in Chromium and Firefox with no per-frame C#, native library or script, and the clips stay in the accessibility tree. Dragging in Firefox is the weak point and is not shown to hold on a busy machine. |
+| D15 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
+| D16 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
+| D17 | The timeline lanes, clips and waveforms are drawn as DOM with inline SVG waveforms, each clip a small component that redraws only when its own revision changes. A Canvas2D surface driven from C# through `[JSImport]` calls to browser built-ins (no script file) is the kept alternative, and the one to switch to if dragging in Firefox cannot be made to hold on the DOM. The Skia canvas is not adopted. See [the O2 evidence](#d17-evidence-the-o2-spike). | Proposed | Scrolling meets the pass line in Chromium and Firefox with no per-frame C#, native library or script, and the clips stay in the accessibility tree. Dragging in Firefox is unresolved: every candidate missed in the runs taken under CPU contention, and no quiet window was available to repeat them. |
 
-#### D15 evidence: the O2 spike
+#### D17 evidence: the O2 spike
 
 Code: [branch `spike/o2-drawing`](https://github.com/HartsyAI/AudioLab/tree/spike/o2-drawing). Machine: OFFICE-DESKTOP, Intel Core i7-9700K (8 logical cores), 40 GB, NVIDIA GeForce RTX 3060 (Chrome reports hardware-accelerated canvas, rasterisation, compositing and WebGL), Windows 11 Pro 26200, a 2560 x 1440 display at 100 Hz and 125% scaling, headed Chrome 157.0.8103.79 and Firefox 160.0.1, lane area about 1740 x 600 CSS pixels. The session screen was rebuilt in Blazor WebAssembly (.NET 10.0.14, interpreted unless stated) with 32 tracks and 500 clips with cached peaks at the mock's 68 pixel bars, about 57 clips in view. Scripted scenarios ran for 6 s each, three times: scroll across, scroll down, both, drag a clip across tracks, and pick a clip up and drop it. The pass line is read as: median frame interval 16.7 ms or less, and no one-second window under 45 fps.
 
@@ -97,7 +99,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 
 | Project | Holds | May reference | Status |
 |---------|-------|---------------|--------|
-| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version only) |
+| `src/AudioLab.Core` | Project model, commands and their handlers, undo history, the pure rules (tempo map, sections, groups, clip split, lyrics). No ASP.NET, no UI, no audio I/O. | nothing in this solution | Exists (contract version, project model v4, id service, JSON contract) |
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
@@ -105,7 +107,8 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
-| `tests/<Project>.Tests` | One test project per source project. | its project | Planned |
+| `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection. | Core | Exists |
+| `tests/<Project>.Tests` | One test project per other source project. | its project | Planned |
 
 Rules:
 
@@ -120,6 +123,18 @@ Rules:
 
 - **Model.** A typed project document (`version: 4`), the only project format, tested by round trips and by the
   rejection of invalid documents. Ids are allocated by the server. Time is seconds plus a tempo map.
+  Ids are typed (`TrackId`, `ClipId`, `MediaId`, ...) and minted only by `IIdService`; the project and every media
+  record carry the owner `UserId` (D12). JSON goes only through `ProjectJsonContext`, which refuses unknown members.
+  Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` until the UI maps them to the twelve track tokens.
+  - Ids are 1 to 64 of `a-z0-9_-` and never a device name, so an id holds no separator and two ids never differ only
+    by case. A `UserId` is `<door>-<subject>` in lower-case letters and digits, so one door cannot mint another's. The
+    store maps an id to a name of its own and never puts a raw id in a path, and it takes the owner from the session
+    that made the request, never from the `owner` a file names. A note id counts up inside its clip and
+    `MidiClip.NextNoteId` never goes back, so the id of a deleted note is not reused.
+  - Immutability and equality are D16. Enums are written by exact name and refuse numbers and variants of a name.
+  - Compatibility is D15. `ProjectLimits` bounds numbers, list lengths, text lengths and the size of unknown fields,
+    text holds no control or text-direction characters, and an error lists at most 100 problems of at most 300
+    characters each.
 - **Commands.** One registry, handlers grouped by domain (tempo, marker, section, group, track, mixer, clip, MIDI,
   effects, automation, beat, lyrics). A feature ships its commands, its undo, its UI and its tests together. Commands
   may land ahead of their UI when MCP (D11) needs them; the feature is complete only when its UI ships.
@@ -163,7 +178,7 @@ engine, and a stress test reads it.
   No hand-written JSON, no stringly-typed route names scattered through components.
 - **Styling** is plain CSS and component-scoped CSS. There is no Node toolchain in the build. Fonts are files served
   by the app, not a hosted font service.
-- **Dense surfaces** (timeline, waveforms, piano roll, automation) are drawn from C#, as [D15](#2-decisions) decides:
+- **Dense surfaces** (timeline, waveforms, piano roll, automation) are drawn from C#, as [D17](#2-decisions) decides:
   DOM with inline SVG by default. They take their colours and sizes from the same tokens as the CSS: C# reads each
   token it draws with from the root element's computed style, once at start, so `tokens.css` stays the only place a
   value is declared.
@@ -741,7 +756,8 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-20 | Pass lines added to the O1, O2 and O3 spikes (section 11). |
 | 2026-11-20 | O9 opened (HartsyInference on net10 and in WebAssembly) and added to phase 1; commands may land ahead of their UI when MCP needs them (section 5, D11). |
 | 2026-11-20 | O10 evaluated: D14 proposes native dialogs and Bit.Bheadless for the rest, behind the 7.5 wrappers; Popover and Combo box rows added to 7.5. D14 is Proposed. |
+| 2026-11-20 | Project document version 4 added to `AudioLab.Core` with its id service, JSON contract and `AudioLab.Core.Tests` (sections 4 and 5); D15 and D16 proposed. |
 | 2026-11-21 | Migration from the extension's `version: 3` project JSON dropped by owner decision: new project format only (sections 5 and 12). |
 | 2026-11-21 | The script allowlist can list a script that ships inside a NuGet package by package id, exact version and script path, and a test fails on a restored package that ships an unlisted script (section 8). Requested by the owner with O10; the owner chose exact scripts over whole packages. |
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
-| 2026-11-21 | O2 closed: D15 proposes DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D15; 7.1 states how C# reads tokens. |
+| 2026-11-21 | O2 closed: D17 proposes DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D15; 7.1 states how C# reads tokens. |
