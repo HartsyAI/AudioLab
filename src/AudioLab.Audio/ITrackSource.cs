@@ -3,7 +3,8 @@ namespace AudioLab.Audio;
 /// <summary>A sound source of an instrument track, such as a synth or a sampler playing the track's MIDI clips.</summary>
 /// <remarks>
 /// Real-time rules apply to <see cref="Render"/>. Blocks are consecutive frames unless <see cref="Reset"/> was called in between,
-/// and the output must not depend on how they are cut.
+/// and the output must not depend on how they are cut. A source must never make a sample that is not a number: the mixer replaces
+/// one with silence at the track's input, but that is a guard, not a licence.
 /// </remarks>
 public interface ITrackSource
 {
