@@ -30,4 +30,5 @@ namespace AudioLab.Core.Commands;
 [JsonSerializable(typeof(RemoveSection))]
 [JsonSerializable(typeof(ClearSections))]
 [JsonSerializable(typeof(SectionsFromMarkers))]
+[JsonSerializable(typeof(NameClipsAfterSections))]
 public sealed partial class TimelineCommandJsonContext : JsonSerializerContext;
