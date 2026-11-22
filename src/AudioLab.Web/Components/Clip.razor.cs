@@ -7,7 +7,10 @@ using Microsoft.AspNetCore.Components.Web;
 namespace AudioLab.Web.Components;
 
 /// <summary>The catalogue clip, audio or MIDI: a title bar in the track colour over a body that holds the waveform or the notes.</summary>
-/// <remarks>A clip redraws only when something it shows changed, so a new revision of the document costs the clips that changed and no others. Every clip stays in the page (D17).</remarks>
+/// <remarks>
+/// A clip redraws only when something it shows changed, so a new revision costs the clips that changed and no others.
+/// Every clip stays in the page (D17).
+/// </remarks>
 public sealed partial class Clip
 {
     private AudioClip? _audio;

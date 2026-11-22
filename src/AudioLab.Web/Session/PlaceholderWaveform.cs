@@ -3,7 +3,7 @@ using System.Text;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>PLACEHOLDER peaks: a clip has no real waveform until the media store and the engine exist (phase 6), so this draws a stand-in that is the same for the same clip.</summary>
+/// <summary>PLACEHOLDER peaks: no waveform exists until the media store does (phase 6); this is a stand-in, the same for the same clip.</summary>
 /// <remarks>Nothing here reads audio. It is not a measurement of the clip, and it goes when real peaks arrive.</remarks>
 public static class PlaceholderWaveform
 {

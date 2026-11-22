@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Lays the real notes of a MIDI clip out inside its body: time across, pitch down, the clip's own pitch range spread over the height.</summary>
+/// <summary>Lays the real notes of a MIDI clip out inside its body: time across, pitch down, the clip's own range over the height.</summary>
 public static class MidiNoteLayout
 {
     private const double Top = 10;

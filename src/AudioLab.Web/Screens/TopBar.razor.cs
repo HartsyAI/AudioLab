@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The top bar of the session: the project, the transport (not yet working), the counter, the toggles, the tool and grid, who is here, and export.</summary>
+/// <summary>The top bar of the session: project, transport (not working yet), counter, toggles, tool, grid, who is here, export.</summary>
 public sealed partial class TopBar
 {
     private const string NoPlayback = "Playback arrives with the audio engine.";
@@ -46,7 +46,8 @@ public sealed partial class TopBar
         get
         {
             int clips = Document.Tracks.Sum(track => track.Clips.Count + track.MidiClips.Count);
-            return string.Create(CultureInfo.InvariantCulture, $"{Document.Tracks.Count} {Plural(Document.Tracks.Count, "track")}, {clips} {Plural(clips, "clip")}");
+            int tracks = Document.Tracks.Count;
+            return string.Create(CultureInfo.InvariantCulture, $"{tracks} {Plural(tracks, "track")}, {clips} {Plural(clips, "clip")}");
         }
     }
 

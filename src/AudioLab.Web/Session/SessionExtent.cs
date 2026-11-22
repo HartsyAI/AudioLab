@@ -3,7 +3,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>How far the arrangement reaches: the end of its last clip or section, and a few empty bars after it, so there is room to place something.</summary>
+/// <summary>How far the arrangement reaches: the end of its last clip or section and a few empty bars after it.</summary>
 public static class SessionExtent
 {
     private const int TrailingBars = 4;

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The arrangement: one scroll container holding the rulers, the track headers and the lanes, with the corner and the headers sticky.</summary>
+/// <summary>The arrangement: one scroll container of rulers, track headers and lanes, with the corner and the headers sticky.</summary>
 public sealed partial class Timeline : IDisposable
 {
     private const string ElementId = "timeline";
@@ -108,7 +108,7 @@ public sealed partial class Timeline : IDisposable
         _length = SessionExtent.LengthSeconds(Document);
         _bars = BarGrid.Lines(Document, _length);
         Selection.Prune(Document);
-        if (_tabStop is not { } stop || !Document.Tracks.Any(track => track.Clips.Any(clip => clip.Id == stop) || track.MidiClips.Any(clip => clip.Id == stop)))
+        if (_tabStop is not { } stop || TrackOf(stop) is null)
         {
             _tabStop = ClipNavigator.First(Document);
         }

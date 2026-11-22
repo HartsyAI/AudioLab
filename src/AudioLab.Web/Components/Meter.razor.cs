@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue stereo meter: two slots of hard steps, green to -12 dBFS, yellow to -3, red above. It is drawn, never transitioned, and idle until the engine sends levels.</summary>
+/// <summary>The catalogue stereo meter: hard steps, green to -12 dBFS, yellow to -3, red above; drawn, not transitioned.</summary>
 public sealed partial class Meter
 {
     /// <summary>The left level from 0 (silence) to 1 (full scale).</summary>

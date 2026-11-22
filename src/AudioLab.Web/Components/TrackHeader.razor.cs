@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue track header: a strip in the track colour, the number, the name with M S R I, the source with the volume, and the meter.</summary>
+/// <summary>The catalogue track header: colour strip, number, name with M S R I, source with the volume, and the meter.</summary>
 public sealed partial class TrackHeader
 {
     private Track? _drawn;

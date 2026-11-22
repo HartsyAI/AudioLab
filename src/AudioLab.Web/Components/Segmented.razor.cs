@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue segmented control: a well that holds exclusive choices, the chosen one raised. The transport variant has raised items instead.</summary>
+/// <summary>The catalogue segmented control: a well of exclusive choices, the chosen one raised; the transport has raised items.</summary>
 public sealed partial class Segmented
 {
     /// <summary>The choices.</summary>

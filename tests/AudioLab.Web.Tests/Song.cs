@@ -36,7 +36,7 @@ internal static class Song
 
     public static Track WithMidi(string id, params MidiClip[] clips)
     {
-        Track track = ProjectDefaults.NewTrack(TrackId.From(id), id, TrackKind.Instrument, "#6c93f2");
+        Track track = ProjectDefaults.NewTrack(TrackId.From(id), id, TrackKind.Instrument, "#6c93f2", InstrumentPresets.CreateSynth("Soft Keys"));
         return track with { MidiClips = [.. clips] };
     }
 

@@ -7,4 +7,10 @@ namespace AudioLab.Web.Components;
 /// <param name="Label">The word, when there is no glyph.</param>
 /// <param name="Reason">Why the choice is unavailable now, or null when it is available.</param>
 /// <param name="Shortcut">The shortcut the tooltip shows.</param>
-public readonly record struct SegmentItem(string Id, string Name, IconName? Icon = null, string? Label = null, string? Reason = null, string? Shortcut = null);
+public readonly record struct SegmentItem(
+    string Id,
+    string Name,
+    IconName? Icon = null,
+    string? Label = null,
+    string? Reason = null,
+    string? Shortcut = null);

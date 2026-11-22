@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Maps a colour the document stores (#rgb, #rrggbb or #rrggbbaa) to the nearest of the twelve track colours, as the design says the UI does.</summary>
+/// <summary>Maps a stored colour (#rgb, #rrggbb or #rrggbbaa) to the nearest of the twelve track colours, as the design says the UI does.</summary>
 /// <remarks>The twelve values are read from the style sheet once at start, so <c>tokens.css</c> stays the only place a colour is declared.</remarks>
 public sealed class TrackColorMap
 {
@@ -21,7 +21,7 @@ public sealed class TrackColorMap
         {
             throw new ArgumentException($"The twelve track colours are needed, not {trackTokenValues.Count}.", nameof(trackTokenValues));
         }
-        _palette = [.. trackTokenValues.Select(value => TryParse(value, out (int, int, int) rgb) ? rgb : throw new ArgumentException($"'{value}' is not a colour.", nameof(trackTokenValues)))];
+        _palette = [.. trackTokenValues.Select(Parse)];
     }
 
     /// <summary>The 1-based number of the track colour nearest to a stored colour; an unreadable colour is the first.</summary>
@@ -54,6 +54,13 @@ public sealed class TrackColorMap
     public string Token(string? color) => $"var(--track-{Nearest(color)})";
 
     private static long Square(int value) => (long)value * value;
+
+    private static (int Red, int Green, int Blue) Parse(string value)
+    {
+        return TryParse(value, out (int Red, int Green, int Blue) rgb)
+            ? rgb
+            : throw new ArgumentException($"'{value}' is not a colour.", nameof(value));
+    }
 
     private static bool TryParse(string text, out (int Red, int Green, int Blue) rgb)
     {

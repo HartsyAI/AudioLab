@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue channel strip: name, effect slots, pan, fader beside the meter, then mute, solo and the level in decibels. The master is wider and selected-coloured.</summary>
+/// <summary>The catalogue channel strip: name, effect slots, pan, fader and meter, then M, S and the level. The master is wider.</summary>
 public sealed partial class ChannelStrip
 {
     private const int VisibleSlots = 2;

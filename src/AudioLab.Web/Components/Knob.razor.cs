@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue knob: a raised disc with a dark edge and a pointer, its value beside it. It shows a value; it does not take a gesture yet.</summary>
+/// <summary>The catalogue knob: a raised disc with a pointer and its value beside it; it shows a value and takes no gesture yet.</summary>
 public sealed partial class Knob
 {
     private const double SweepDegrees = 135;

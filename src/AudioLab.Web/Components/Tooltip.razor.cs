@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue tooltip around one button: the name, then the shortcut, after a pause and never over the control. The button is the trigger itself, so keyboard focus shows it.</summary>
+/// <summary>The catalogue tooltip around one button: its name, then its shortcut. The button is the trigger, so keyboard focus shows it.</summary>
 /// <remarks>The button's look comes from the component that uses this one, through <c>class</c> and the other attributes it passes.</remarks>
 public sealed partial class Tooltip
 {

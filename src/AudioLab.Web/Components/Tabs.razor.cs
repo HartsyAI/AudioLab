@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue tabs of the bottom panel: the arrow keys move between tabs, the active tab is strong with a two-pixel accent underline.</summary>
+/// <summary>The catalogue tabs: the arrow keys move between them, and the active tab is strong with a two-pixel accent underline.</summary>
 public sealed partial class Tabs
 {
     /// <summary>The tab names, in order.</summary>

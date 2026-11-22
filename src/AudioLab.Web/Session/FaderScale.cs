@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>The taper of every volume control, one scale for the header slider and the channel fader: five marked decibel values at even steps, as the fader's scale reads.</summary>
+/// <summary>The taper of every volume control, for the header slider and the channel fader: five marked decibel values at even steps.</summary>
 public static class FaderScale
 {
     private static readonly double[] _marks = [-48, -24, -12, 0, 6];

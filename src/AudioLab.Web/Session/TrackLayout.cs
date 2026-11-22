@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Where each track's row starts and how tall it is, from the heights the document keeps; the headers and the lanes read the same rows.</summary>
+/// <summary>Where each track's row starts and how tall it is, from the document's heights; the headers and the lanes read the same rows.</summary>
 public sealed class TrackLayout
 {
     /// <summary>The least a row is drawn, so a hand-edited file cannot make a header unusable.</summary>

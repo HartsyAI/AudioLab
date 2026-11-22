@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The status bar: the state of the connection to the server and what the document holds. The engine's figures (sample rate, load, dropouts) are not shown until an engine runs.</summary>
+/// <summary>The status bar: the connection to the server and what the document holds. The engine's figures wait for an engine.</summary>
 public sealed partial class StatusBar
 {
     /// <summary>The document.</summary>

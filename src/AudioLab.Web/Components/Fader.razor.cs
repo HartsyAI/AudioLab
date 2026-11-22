@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue channel fader: a vertical slot, a cap with a centre line, and the decibel scale at its left. It shows the gain; it does not take a gesture yet.</summary>
+/// <summary>The catalogue channel fader: a slot, a cap and the decibel scale at its left; it shows the gain and takes no gesture yet.</summary>
 public sealed partial class Fader
 {
     /// <summary>The position along the scale, from 0 at the bottom to 1 at the top.</summary>

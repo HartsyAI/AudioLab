@@ -1,7 +1,7 @@
 namespace AudioLab.Web.Session;
 
 /// <summary>The one place seconds become pixels: a linear scale, so a clip, a marker and a section sit where their seconds put them.</summary>
-/// <remarks>Bars are not uniform in seconds once the tempo changes, so the ruler asks <see cref="BarGrid"/> for each bar line instead of multiplying.</remarks>
+/// <remarks>Bars are not even in seconds once the tempo changes, so the ruler asks <see cref="BarGrid"/> for each bar line.</remarks>
 /// <param name="PixelsPerSecond">How many CSS pixels one second takes.</param>
 public readonly record struct TimelineGeometry(double PixelsPerSecond)
 {

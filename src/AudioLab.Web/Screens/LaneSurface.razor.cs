@@ -82,7 +82,8 @@ public sealed partial class LaneSurface
         StringBuilder path = new();
         foreach (BarLine bar in Bars.Where(bar => bar.Strong == strong))
         {
-            path.Append('M').Append((Math.Round(Geometry.X(bar.Time)) + 0.5).ToString("0.#", CultureInfo.InvariantCulture)).Append(" 0V").Append(LineHeight);
+            double x = Math.Round(Geometry.X(bar.Time)) + 0.5;
+            path.Append('M').Append(x.ToString("0.#", CultureInfo.InvariantCulture)).Append(" 0V").Append(LineHeight);
         }
         return path.ToString();
     }

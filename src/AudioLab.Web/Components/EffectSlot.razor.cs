@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue effect slot: a recessed slot that names its effect, or reads "Add effect" when empty. It is a display until the effects screen exists.</summary>
+/// <summary>The catalogue effect slot: a recessed slot that names its effect, or reads "Add effect" when empty; a display for now.</summary>
 public sealed partial class EffectSlot
 {
     /// <summary>The effect's name, or null for an empty slot.</summary>

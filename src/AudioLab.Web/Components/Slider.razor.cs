@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue slider: a recessed slot filled up to the value, a cap on the value and the value written beside it. It shows a value and does not take a gesture yet.</summary>
+/// <summary>The catalogue slider: a slot filled to the value, a cap on it and the value beside it; it takes no gesture yet.</summary>
 public sealed partial class Slider
 {
     /// <summary>The position along the slot, from 0 to 1.</summary>

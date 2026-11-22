@@ -3,7 +3,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Moves the keyboard focus between clips, so the arrangement has one tab stop and the arrow keys walk its clips, in plain code a test can drive.</summary>
+/// <summary>Moves the keyboard focus between clips: one tab stop, and the arrow keys walk the clips. Plain code, so a test drives it.</summary>
 public static class ClipNavigator
 {
     /// <summary>The clip a key moves to from <paramref name="current"/>, or null when the key moves nowhere.</summary>

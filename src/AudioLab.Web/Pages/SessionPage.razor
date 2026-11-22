@@ -2,7 +2,8 @@
 
 @if (_document is not null)
 {
-    <SessionScreen Document="_document" Revision="_revision" CanEdit="false" ReadOnlyReason="@ReadOnly" Dot="StatusDot.Caution" State="Read-only snapshot" />
+    <SessionScreen Document="_document" Revision="_revision" CanEdit="false" ReadOnlyReason="@ReadOnly" Dot="StatusDot.Caution"
+                   State="Read-only snapshot" />
 }
 else if (_failure is not null)
 {

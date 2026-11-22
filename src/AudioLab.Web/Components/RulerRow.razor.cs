@@ -40,9 +40,9 @@ public sealed partial class RulerRow
 
     private string SectionStyle(Section section)
     {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"left: {Geometry.X(section.Start) + 1:0.##}px; width: {Math.Max(2, Geometry.Width(section.End - section.Start) - 2):0.##}px; --block: {Colors.Token(section.Color)}");
+        double left = Geometry.X(section.Start) + 1;
+        double width = Math.Max(2, Geometry.Width(section.End - section.Start) - 2);
+        return string.Create(CultureInfo.InvariantCulture, $"left: {left:0.##}px; width: {width:0.##}px; --block: {Colors.Token(section.Color)}");
     }
 
     private string MarkerStyle(Marker marker)
