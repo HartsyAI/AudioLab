@@ -32,7 +32,7 @@ public static class ProjectContent
     }
 
     /// <summary>Every media file the project plays: the clips', the drum pads' and a sampler's sample.</summary>
-    /// <remarks>A media store keeps these and may drop the rest.</remarks>
+    /// <remarks>A media store keeps these, and must apply the rule to every history document too: an undo step can play a file the project no longer does.</remarks>
     public static IReadOnlySet<MediaId> ReferencedMedia(ProjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

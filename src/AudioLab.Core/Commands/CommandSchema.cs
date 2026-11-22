@@ -108,8 +108,10 @@ internal static class CommandSchema
                     node["description"] = description.Description;
                     break;
                 case RangeAttribute range:
-                    node["minimum"] = Convert.ToDouble(range.Minimum, CultureInfo.InvariantCulture);
-                    node["maximum"] = Convert.ToDouble(range.Maximum, CultureInfo.InvariantCulture);
+                    // On a list the range bounds each item.
+                    JsonObject bounded = IsArray(node) && node["items"] is JsonObject items ? items : node;
+                    bounded["minimum"] = Convert.ToDouble(range.Minimum, CultureInfo.InvariantCulture);
+                    bounded["maximum"] = Convert.ToDouble(range.Maximum, CultureInfo.InvariantCulture);
                     break;
                 case MinLengthAttribute min:
                     node[IsArray(node) ? "minItems" : "minLength"] = min.Length;

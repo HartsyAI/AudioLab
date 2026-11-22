@@ -12,11 +12,12 @@ public sealed record SetBeatLaneSteps : Command
     [Description("The drum lane to edit.")]
     public required BeatLaneId Lane { get; init; }
 
-    /// <summary>The steps to set, counted from 0 and below the pattern's step count, from 1 to 256.</summary>
-    [Description("The steps to set, counted from 0 and below the pattern's step count, from 1 to 256.")]
+    /// <summary>The steps to set, counted from 0 and below the pattern's step count, from 1 to 256 of them.</summary>
+    [Description("The steps to set, counted from 0 and below the pattern's step count, from 1 to 256 of them.")]
     [JsonConverter(typeof(ValueListJsonConverter<int>))]
     [MinLength(1)]
     [MaxLength(ProjectLimits.MaxBeatSteps)]
+    [Range(0, ProjectLimits.MaxBeatSteps - 1)]
     public required ValueList<int> Steps { get; init; }
 
     /// <summary>True to make the steps fire, false to silence them.</summary>

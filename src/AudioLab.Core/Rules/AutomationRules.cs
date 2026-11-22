@@ -5,8 +5,11 @@ namespace AudioLab.Core.Rules;
 /// <summary>The automation rules of the old DAW: a lane is a list of points by time, read as a piecewise-linear envelope.</summary>
 public static class AutomationRules
 {
-    /// <summary>The highest value of a volume lane, as the old DAW's lane drew it; the project would hold up to the fader's maximum.</summary>
-    public const double VolumeMax = 2;
+    /// <summary>The highest value of a volume lane: the fader's own maximum, which is what the validator accepts.</summary>
+    public const double VolumeMax = ProjectLimits.MaxGain;
+
+    /// <summary>The top of the volume lane as the old DAW drew it, in the same units; a view may scale the lane to this and clamp a drag there.</summary>
+    public const double VolumeDisplayMax = 2;
 
     /// <summary>How far before a written pass its lead-in point sits, in seconds, so the old curve holds until just before.</summary>
     public const double LeadIn = 0.01;
@@ -111,8 +114,9 @@ public static class AutomationRules
 
     /// <summary>Folds a recorded pass into a lane: the old curve leads in and the written points replace what was under them.</summary>
     /// <remarks>
-    /// With <paramref name="returnToOld"/> the old curve takes over again just after the pass. Points closer than <see cref="Epsilon"/>
-    /// in time merge, and a held value keeps only the ends of its run. A pass that wrote what was already there returns the lane as it was.
+    /// With <paramref name="returnToOld"/> the old curve takes over again just after the pass. Inside the pass, points closer than
+    /// <see cref="Epsilon"/> in time merge and a held value keeps only the ends of its run; the rest of the lane is not touched.
+    /// A pass that wrote what was already there returns the lane as it was.
     /// </remarks>
     public static ValueList<AutomationPoint> Commit(
         ValueList<AutomationPoint> lane,
@@ -138,19 +142,25 @@ public static class AutomationRules
         double before = At(lead);
         double after = At(tail);
         double keepUntil = returnToOld ? tail : last;
-        List<AutomationPoint> merged = [.. lane.Where(point => point.Time < lead || point.Time > keepUntil)];
+        List<AutomationPoint> replacement = [];
         if (first > LeadIn)
         {
-            merged.Add(new AutomationPoint(lead, before));
+            replacement.Add(new AutomationPoint(lead, before));
         }
-        merged.AddRange(pass);
+        replacement.AddRange(pass);
         if (returnToOld)
         {
-            merged.Add(new AutomationPoint(tail, after));
+            replacement.Add(new AutomationPoint(tail, after));
         }
-        List<AutomationPoint> sorted = [.. merged.OrderBy(point => point.Time)];
+        List<AutomationPoint> sorted = [.. replacement.OrderBy(point => point.Time)];
         List<AutomationPoint> unique = [.. sorted.Where((point, i) => i == 0 || point.Time - sorted[i - 1].Time > Epsilon)];
-        return [.. unique.Where((point, i) => IsEnd(unique, i))];
+        // Only the span of the pass is tidied: a step or a held run elsewhere in the lane is the user's and stays as it is.
+        return
+        [
+            .. lane.Where(point => point.Time < lead),
+            .. unique.Where((point, i) => IsEnd(unique, i)),
+            .. lane.Where(point => point.Time > keepUntil),
+        ];
     }
 
     // A held value is a run of equal points: only its ends carry information.

@@ -40,33 +40,28 @@ public sealed class AutomationRuleTests
     }
 
     [Theory]
-    [InlineData(AutomationParameter.Volume, 0, 2, 1)]
+    [InlineData(AutomationParameter.Volume, 0, 16, 1)]
     [InlineData(AutomationParameter.Pan, -1, 1, 0)]
     public void EachLaneHasItsRangeAndItsIdentity(AutomationParameter parameter, double min, double max, double identity)
     {
         Assert.Equal((min, max, identity), (AutomationRules.Min(parameter), AutomationRules.Max(parameter), AutomationRules.Identity(parameter)));
-        Assert.Equal(max, AutomationRules.Clamp(parameter, 9));
-        Assert.Equal(min, AutomationRules.Clamp(parameter, -9));
+        Assert.Equal(max, AutomationRules.Clamp(parameter, 99));
+        Assert.Equal(min, AutomationRules.Clamp(parameter, -99));
     }
 
     [Theory]
     [InlineData(AutomationParameter.Volume)]
     [InlineData(AutomationParameter.Pan)]
-    public void TheLaneRangesAreInsideWhatTheValidatorAccepts(AutomationParameter parameter)
+    public void TheLaneRangesAreExactlyWhatTheValidatorAccepts(AutomationParameter parameter)
     {
         double min = AutomationRules.Min(parameter);
         double max = AutomationRules.Max(parameter);
 
         Assert.Empty(ProjectValidator.Validate(WithLane(parameter, Lane((0, min), (1, max)))));
         Assert.NotEmpty(ProjectValidator.Validate(WithLane(parameter, Lane((0, min - 0.01)))));
-        if (parameter == AutomationParameter.Pan)
-        {
-            Assert.NotEmpty(ProjectValidator.Validate(WithLane(parameter, Lane((0, max + 0.01)))));
-        }
-        else
-        {
-            Assert.True(max < ProjectLimits.MaxGain, "the old lane stopped at 2 while the fader goes to 16");
-        }
+        Assert.NotEmpty(ProjectValidator.Validate(WithLane(parameter, Lane((0, max + 0.01)))));
+        Assert.Equal(AutomationRules.VolumeMax, ProjectLimits.MaxGain);
+        Assert.True(AutomationRules.VolumeDisplayMax <= AutomationRules.VolumeMax);
     }
 
     [Fact]
@@ -133,6 +128,22 @@ public sealed class AutomationRuleTests
 
         Assert.Equal([0.0, 3.99, 4.0, 5.0, 10.0], merged.Select(point => Math.Round(point.Time, 6)));
         Assert.Equal((0.6, 0.0), (merged[3].Value, merged[4].Value));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void APassLeavesTheRestOfTheLaneAsItWasIncludingAStepAndAHeldRunAwayFromIt(bool returnToOld)
+    {
+        ValueList<AutomationPoint> lane = Lane((0, 1), (5, 0.2), (5, 0.8), (10, 0.5), (20, 0.4), (21, 0.4), (22, 0.4), (30, 0));
+
+        ValueList<AutomationPoint> merged = AutomationRules.Commit(lane, [new(1, 0.9), new(1.5, 0.7)], AutomationParameter.Volume, returnToOld);
+
+        Assert.NotEqual(lane, merged);
+        Assert.Equal(lane.Where(point => point.Time > 1.6), merged.Where(point => point.Time > 1.6));
+        Assert.Equal(lane.Where(point => point.Time < 0.9), merged.Where(point => point.Time < 0.9));
+        Assert.Equal(2, merged.Count(point => point.Time == 5));
+        Assert.Equal(3, merged.Count(point => point.Time is 20 or 21 or 22));
     }
 
     [Fact]

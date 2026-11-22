@@ -26,8 +26,8 @@ public sealed record MoveAutomationPoint : Command
     [Range(0, ProjectLimits.MaxSeconds)]
     public required double Time { get; init; }
 
-    /// <summary>The new value: kept inside the lane, volume 0 to 2, pan -1 to 1.</summary>
-    [Description("The new value: kept inside the lane, volume 0 to 2, pan -1 to 1.")]
+    /// <summary>The new value: kept inside the lane, volume 0 to 16, pan -1 to 1.</summary>
+    [Description("The new value: kept inside the lane, volume 0 to 16, pan -1 to 1.")]
     [Range(-1, AutomationRules.VolumeMax)]
     public required double Value { get; init; }
 }

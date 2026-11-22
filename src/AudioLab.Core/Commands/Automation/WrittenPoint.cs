@@ -7,11 +7,11 @@ namespace AudioLab.Core.Commands;
 
 /// <summary>A point a recorded pass wrote.</summary>
 /// <param name="Time">Where it was written, in seconds from the start of the timeline.</param>
-/// <param name="Value">The value written: volume 0 to 2, pan -1 to 1.</param>
+/// <param name="Value">The value written: volume 0 to 16, pan -1 to 1.</param>
 public readonly record struct WrittenPoint(
     [property: Description("Where it was written, in seconds from the start of the timeline.")]
     [property: Range(0, ProjectLimits.MaxSeconds)]
     double Time,
-    [property: Description("The value written: volume 0 to 2, pan -1 to 1.")]
+    [property: Description("The value written: volume 0 to 16, pan -1 to 1.")]
     [property: Range(-1, AutomationRules.VolumeMax)]
     double Value);

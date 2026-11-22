@@ -287,6 +287,8 @@ public sealed class CommandSchemaContractTests
         Assert.Equal((0.0, 1.0), (swing.GetProperty("minimum").GetDouble(), swing.GetProperty("maximum").GetDouble()));
         Assert.Equal((0.0, ProjectLimits.MaxGain), (gain.GetProperty("minimum").GetDouble(), gain.GetProperty("maximum").GetDouble()));
         Assert.Equal((1, ProjectLimits.MaxBeatSteps), (list.GetProperty("minItems").GetInt32(), list.GetProperty("maxItems").GetInt32()));
+        Assert.Equal((0.0, ProjectLimits.MaxBeatSteps - 1.0), (list.GetProperty("items").GetProperty("minimum").GetDouble(), list.GetProperty("items").GetProperty("maximum").GetDouble()));
+        Assert.False(list.TryGetProperty("minimum", out _));
         Assert.Equal(["lane", "on", "project", "steps"], Required("beat_lane_set_steps"));
         Assert.DoesNotContain("media", Required("beat_lane_add"));
         Assert.DoesNotContain("name", Required("beat_lane_add"));

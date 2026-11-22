@@ -51,16 +51,16 @@ public sealed class AutomationCommandTests
     }
 
     [Fact]
-    public void ThePanLaneTakesMinusOneToOneAndTheVolumeLaneZeroToTwo()
+    public void ThePanLaneTakesMinusOneToOneAndTheVolumeLaneZeroToTheFadersMaximum()
     {
         Add(AutomationParameter.Pan, 0, -1);
         Add(AutomationParameter.Pan, 1, 1);
         Add(AutomationParameter.Volume, 0, 0);
-        Add(AutomationParameter.Volume, 1, 2);
+        Add(AutomationParameter.Volume, 1, ProjectLimits.MaxGain);
 
         (AutomationParameter, double)[] outside =
         [
-            (AutomationParameter.Pan, 1.01), (AutomationParameter.Pan, -1.01), (AutomationParameter.Volume, 2.01),
+            (AutomationParameter.Pan, 1.01), (AutomationParameter.Pan, -1.01), (AutomationParameter.Volume, ProjectLimits.MaxGain + 0.01),
             (AutomationParameter.Volume, -0.01), (AutomationParameter.Volume, double.NaN), (AutomationParameter.Pan, double.PositiveInfinity),
         ];
         foreach ((AutomationParameter parameter, double value) in outside)
@@ -119,11 +119,15 @@ public sealed class AutomationCommandTests
         // The client follows the point with the rule's own index, which is how it knows which point it is holding.
         foreach ((double time, double value) in new[] { (1.5, 0.3), (2.5, 0.9), (3.5, 1.1), (2.2, 0.4), (1.2, 0.15), (1.0, 0.1) })
         {
+            AutomationPoint target = new(time, value);
+            LaneEdit expected = AutomationRules.Move(Volume, index, target);
             CommandResult result = _rig.Run(
                 new MoveAutomationPoint { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Index = index, Time = time, Value = value },
                 drag);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Message)));
-            index = Volume.ToList().FindIndex(point => point.Time == time && point.Value == value);
+            Assert.Equal(expected.Points, Volume);
+            Assert.Equal(target, Volume[expected.Index]);
+            index = expected.Index;
         }
         _rig.History.EndGesture(_client, drag);
 
@@ -160,7 +164,9 @@ public sealed class AutomationCommandTests
         _rig.Ok(move with { Value = -0.5 });
         _rig.Ok(move with { Parameter = AutomationParameter.Volume, Value = -0.7 });
         Assert.Equal(0.0, Volume[0].Value);
-        _rig.RefusedWith(move with { Value = 2.1 }, CommandErrorCode.Invalid);
+        _rig.Ok(move with { Value = 2.1 });
+        Assert.Equal(1.0, Pan[0].Value);
+        _rig.RefusedWith(move with { Value = ProjectLimits.MaxGain + 0.1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(move with { Value = -1.1 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(move with { Value = double.NaN }, CommandErrorCode.Invalid);
         _rig.RefusedWith(move with { Time = -1 }, CommandErrorCode.Invalid);
@@ -224,7 +230,7 @@ public sealed class AutomationCommandTests
     public void ValuesAreKeptInTheLaneTheLastOfTwoForOnePointWinsAndBadListsAreRefused()
     {
         Seed((1, 0.2), (2, 0.4));
-        SetAutomationValues set = new() { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Points = [new PointValue(0, 9)] };
+        SetAutomationValues set = new() { Project = _rig.Id, Track = _track, Parameter = AutomationParameter.Volume, Points = [new PointValue(0, ProjectLimits.MaxGain + 0.5)] };
 
         _rig.RefusedWith(set, CommandErrorCode.Invalid);
         _rig.Ok(set with { Points = [new PointValue(0, 1.9), new PointValue(0, 1.5)] });
