@@ -3,7 +3,7 @@ namespace AudioLab.Audio.Tests.Support;
 /// <summary>Test signals and measurements.</summary>
 public static class Signals
 {
-    public static PcmAudio Constant(float value, double seconds, int rate = 48000, int channels = 1)
+    public static PcmAudio Constant(float value, double seconds, int rate = 48000, int channels = 2)
     {
         float[][] data = new float[channels][];
         for (int channel = 0; channel < channels; channel++)
@@ -13,7 +13,7 @@ public static class Signals
         return new PcmAudio(rate, data);
     }
 
-    public static PcmAudio Sine(double hertz, double seconds, int rate = 48000, double amplitude = 0.5, int channels = 1)
+    public static PcmAudio Sine(double hertz, double seconds, int rate = 48000, double amplitude = 0.5, int channels = 2)
     {
         float[] samples = new float[(int)Math.Round(seconds * rate)];
         for (int i = 0; i < samples.Length; i++)

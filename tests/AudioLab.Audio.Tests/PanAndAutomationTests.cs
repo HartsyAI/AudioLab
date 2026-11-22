@@ -1,5 +1,6 @@
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Tests;
 
@@ -84,5 +85,35 @@ public sealed class PanAndAutomationTests
 
         Assert.Equal(1f, audio.Left[100], 5);
         Assert.Equal(1f, audio.Right[100], 5);
+    }
+
+    [Theory]
+    [InlineData(0, 0.70710678, 0.70710678)]
+    [InlineData(-1, 1, 0)]
+    [InlineData(1, 0, 1)]
+    [InlineData(-0.5, 0.92387953, 0.38268343)]
+    public void AMonoTrackIsSharedOutByAConstantPowerLawThreeDecibelsDownAtTheCentre(double pan, float left, float right)
+    {
+        MemoryMedia mono = new MemoryMedia().Add("m", Signals.Constant(1, 2, Rendering.Rate, channels: 1));
+
+        RenderedAudio audio = Rendering.Render(TestProject.Create(Track(pan)), mono);
+
+        Assert.Equal(left, audio.Left[100], 5);
+        Assert.Equal(right, audio.Right[100], 5);
+    }
+
+    [Fact]
+    public void AMonoTrackWithAReverbHasTwoRoomsSoItIsPannedAsStereo()
+    {
+        MemoryMedia mono = new MemoryMedia().Add("m", Signals.Constant(1, 2, Rendering.Rate, channels: 1));
+        ReverbEffect room = (ReverbEffect)EffectRules.Create(EffectKind.Reverb, EffectId.From("r"));
+        ReverbEffect dry = room with { Mix = 0 };
+        ReverbEffect bypassed = room with { Enabled = false };
+
+        RenderedAudio audio = Rendering.Render(TestProject.Create(Track(0) with { Effects = [dry] }), mono);
+        RenderedAudio bypass = Rendering.Render(TestProject.Create(Track(0) with { Effects = [bypassed] }), mono);
+
+        Assert.Equal(1f, audio.Left[100], 5);
+        Assert.Equal(0.70710678f, bypass.Left[100], 5);
     }
 }

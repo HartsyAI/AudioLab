@@ -7,6 +7,9 @@ namespace AudioLab.Audio;
 /// </remarks>
 public interface ITrackSource
 {
+    /// <summary>Whether the source puts the same sound on both channels, which decides the pan law of its track.</summary>
+    public bool IsMono { get; }
+
     /// <summary>How long the source keeps sounding after its last note, in seconds.</summary>
     public double TailSeconds { get; }
 

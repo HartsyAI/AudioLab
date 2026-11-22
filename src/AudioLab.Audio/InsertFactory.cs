@@ -1,5 +1,4 @@
 using AudioLab.Core.Model;
-using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio;
 
@@ -15,7 +14,14 @@ internal static class InsertFactory
         {
             return null;
         }
-        // Refused, not skipped: a render that left out an enabled effect would be silently wrong.
-        throw new NotSupportedException($"The {EffectRules.KindOf(effect)} effect is not rendered yet.");
+        return effect switch
+        {
+            EqEffect eq => new EqInsert(eq, context.SampleRate),
+            CompressorEffect compressor => new CompressorInsert(compressor, context.SampleRate),
+            ReverbEffect reverb => new ReverbInsert(reverb, context.SampleRate),
+            DelayEffect delay => new DelayInsert(delay, context),
+            SaturationEffect saturation => new SaturationInsert(saturation),
+            _ => throw new NotSupportedException($"The effect {effect.GetType().Name} has no insert."),
+        };
     }
 }

@@ -45,7 +45,7 @@ public sealed class RenderPlan
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(options);
         AudioFormat format = new(options.SampleRate, 2);
-        InsertContext context = new(format.SampleRate, TempoMap.From(document));
+        InsertContext context = new(format.SampleRate, TempoSteps(document, format.SampleRate));
         Dictionary<TrackId, int> busSlots = [];
         foreach (Track track in document.Tracks.Where(track => track.Kind == TrackKind.Bus))
         {
@@ -73,6 +73,21 @@ public sealed class RenderPlan
             Frames(contentEnd, format.SampleRate),
             Frames(TailSeconds(planned, busSlots.Count), format.SampleRate),
             busSlots.Count);
+    }
+
+    // The tempo in force from each frame a tempo change falls on, so an effect can follow it without a search of the map.
+    private static TempoStep[] TempoSteps(ProjectDocument document, int sampleRate)
+    {
+        TempoMap tempo = TempoMap.From(document);
+        List<TempoStep> steps = [new TempoStep(0, tempo.BpmAt(0))];
+        IEnumerable<TempoChange> changes = document.TempoMap
+            .Where(change => double.IsFinite(change.Time) && double.IsFinite(change.Bpm) && change.Time > 1e-6 && change.Bpm > 0)
+            .OrderBy(change => change.Time);
+        foreach (TempoChange change in changes)
+        {
+            steps.Add(new TempoStep(Frames(change.Time, sampleRate), tempo.BpmAt(change.Time)));
+        }
+        return [.. steps];
     }
 
     // Plain rounding, so a clip lands on the same frame whichever way it is reached.
@@ -107,11 +122,15 @@ public sealed class RenderPlan
         (PlannedClip[] clips, long[] latestEnds) = track.Kind == TrackKind.Audio
             ? PlanClips(track, cache, sampleRate)
             : (Array.Empty<PlannedClip>(), Array.Empty<long>());
+        ITrackSource? source = track.Kind == TrackKind.Instrument
+            ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2))
+            : null;
         return new PlannedTrack
         {
             BusSlot = track.Kind == TrackKind.Bus ? busSlots[track.Id] : -1,
             FaderGain = muted ? 0 : (float)MixRules.TrackLevel(track, document.Groups),
             Pan = track.Pan,
+            Mono = IsMono(track, clips, source),
             SoloAudible = soloAudible,
             VolumeLane = automated && track.Automation.Volume.Count > 0 ? track.Automation.Volume : null,
             PanLane = automated && track.Automation.Pan.Count > 0 ? track.Automation.Pan : null,
@@ -119,8 +138,18 @@ public sealed class RenderPlan
             Inserts = [.. track.Effects.Select(effect => (options.InsertBuilder ?? InsertFactory.Create)(effect, context)).OfType<IInsert>()],
             Clips = clips,
             LatestEnds = latestEnds,
-            Source = track.Kind == TrackKind.Instrument ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2)) : null,
+            Source = source,
         };
+    }
+
+    // A track that is the same on both channels is panned by the mono law, as a mono source was in the old DAW; a reverb makes two rooms.
+    private static bool IsMono(Track track, PlannedClip[] clips, ITrackSource? source)
+    {
+        if (track.Kind == TrackKind.Bus || track.Effects.Any(effect => effect.Enabled && effect is ReverbEffect))
+        {
+            return false;
+        }
+        return track.Kind == TrackKind.Instrument ? source?.IsMono == true : clips.All(clip => clip.Audio.ChannelCount == 1);
     }
 
     private static (PlannedClip[] Clips, long[] LatestEnds) PlanClips(Track track, MediaCache cache, int sampleRate)

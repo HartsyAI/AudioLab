@@ -69,12 +69,12 @@ public sealed class ClipPlacementTests
     [Fact]
     public void AMonoFileSpeaksOnBothChannelsAndAStereoFileKeepsItsChannels()
     {
-        RenderedAudio mono = Render(TestProject.Clip("c", "m", 0, 1), Signals.Constant(0.5f, 1, Rate));
+        RenderedAudio mono = Render(TestProject.Clip("c", "m", 0, 1), Signals.Constant(0.5f, 1, Rate, channels: 1));
         float[] left = Enumerable.Repeat(0.25f, Rate).ToArray();
         RenderedAudio stereo = Render(TestProject.Clip("c", "m", 0, 1), Signals.Stereo(left, new float[Rate], Rate));
 
-        Assert.Equal(0.5f, mono.Left[100]);
-        Assert.Equal(0.5f, mono.Right[100]);
+        Assert.Equal(0.5f * (float)Math.Cos(Math.PI / 4), mono.Left[100], 6);
+        Assert.Equal(mono.Left[100], mono.Right[100]);
         Assert.Equal(0.25f, stereo.Left[100], 6);
         Assert.Equal(0f, stereo.Right[100]);
     }

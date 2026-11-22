@@ -33,14 +33,6 @@ public sealed class PlanTests
     }
 
     [Fact]
-    public void AnEnabledEffectIsRefusedUntilItsDspExists()
-    {
-        Track track = TestProject.Track("a") with { Effects = [EffectRules.Create(EffectKind.Reverb, EffectId.From("e1"))] };
-
-        Assert.Throws<NotSupportedException>(() => RenderPlan.Create(TestProject.Create(track), new MemoryMedia(), Options()));
-    }
-
-    [Fact]
     public void ABypassedEffectIsLeftOut()
     {
         Effect off = EffectRules.Create(EffectKind.Reverb, EffectId.From("e1")) with { Enabled = false };
@@ -105,6 +97,8 @@ public sealed class PlanTests
 
     private sealed class StubSource : ITrackSource
     {
+        public bool IsMono => false;
+
         public int Resets { get; private set; }
 
         public long LastStart { get; private set; }

@@ -190,7 +190,7 @@ public sealed class MixerGraph
     {
         if (track.VolumeLane is null && track.PanLane is null)
         {
-            StereoPan staticPan = new(track.Pan);
+            StereoPan staticPan = new(track.Pan, track.Mono);
             for (int i = 0; i < left.Length; i++)
             {
                 (left[i], right[i]) = staticPan.Apply(left[i] * track.FaderGain, right[i] * track.FaderGain);
@@ -213,7 +213,7 @@ public sealed class MixerGraph
             {
                 pan += AutomationRules.ValueAt(track.PanLane, (double)cell / rate) ?? 0;
             }
-            StereoPan cellPan = new(pan);
+            StereoPan cellPan = new(pan, track.Mono);
             for (int i = done; i < done + count; i++)
             {
                 double volume = from + ((to - from) * (Position + i - cell) / ControlFrames);
