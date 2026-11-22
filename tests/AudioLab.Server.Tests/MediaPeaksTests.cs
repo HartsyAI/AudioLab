@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AudioLab.Core.Model;
 using AudioLab.Server.Media;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using static AudioLab.Server.Tests.MediaTestSupport;
 
 namespace AudioLab.Server.Tests;
@@ -45,7 +47,7 @@ public sealed class MediaPeaksTests
 
     private static async Task<PeakData> StoredPeaksAsync(TestStore store, UserId user, MediaRecord record)
     {
-        return PeakFile.Read(await ReadAllAsync(store.MediaFiles.OpenPeaks(user, record.Id)));
+        return PeakFile.Read(await ReadAllAsync(await store.MediaFiles.OpenPeaksAsync(user, record.Id, _none)));
     }
 
     [Theory]
@@ -97,7 +99,7 @@ public sealed class MediaPeaksTests
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
 
         Assert.False(File.Exists(store.Paths.MediaPeaksFile(Users.Alice, record.Id)));
-        Assert.Throws<MediaNotFoundException>(() => store.MediaFiles.OpenPeaks(Users.Alice, record.Id));
+        await Assert.ThrowsAsync<MediaNotFoundException>(() => store.MediaFiles.OpenPeaksAsync(Users.Alice, record.Id, _none));
     }
 
     [Fact]
@@ -106,43 +108,155 @@ public sealed class MediaPeaksTests
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
-        Assert.Throws<MediaNotFoundException>(() => store.MediaFiles.OpenPeaks(Users.Bob, record.Id));
+        await Assert.ThrowsAsync<MediaNotFoundException>(() => store.MediaFiles.OpenPeaksAsync(Users.Bob, record.Id, _none));
+    }
+
+    private static async Task<byte[]> PeaksOfAsync(TestStore store, UserId user, MediaRecord record)
+    {
+        return await ReadAllAsync(await store.MediaFiles.OpenPeaksAsync(user, record.Id, _none));
     }
 
     [Fact]
-    public async Task AFileWhosePeaksAreMissingTruncatedOrOfAnotherFileIsRefusedAtStart()
+    public async Task AFileWhosePeaksAreMissingCorruptCutOrOfAnotherFileKeepsItsRecordAndGetsItsPeaksRebuilt()
     {
         using TempFolder folder = new();
-        MediaRecord good;
-        MediaRecord missing;
-        MediaRecord truncated;
-        MediaRecord swapped;
-        MediaRecord longer;
+        MediaRecord[] damaged = new MediaRecord[4];
+        byte[][] original = new byte[4][];
+        MediaRecord other;
         await using (TestStore first = TestStore.On(folder.Path))
         {
-            good = await first.UploadAsync(Users.Alice, Wav());
-            missing = await first.UploadAsync(Users.Alice, Wav());
-            truncated = await first.UploadAsync(Users.Alice, Wav());
-            swapped = await first.UploadAsync(Users.Alice, Wav());
-            longer = await first.UploadAsync(Users.Alice, Wav(48000));
-            File.Delete(first.Paths.MediaPeaksFile(Users.Alice, missing.Id));
-            string cut = first.Paths.MediaPeaksFile(Users.Alice, truncated.Id);
-            await using (FileStream stream = new(cut, FileMode.Open, FileAccess.Write))
+            for (int index = 0; index < 4; index++)
+            {
+                damaged[index] = await first.UploadAsync(Users.Alice, Wav(), $"d{index}.wav");
+                original[index] = await File.ReadAllBytesAsync(first.Paths.MediaPeaksFile(Users.Alice, damaged[index].Id));
+            }
+            other = await first.UploadAsync(Users.Alice, Wav(48000));
+            File.Delete(first.Paths.MediaPeaksFile(Users.Alice, damaged[0].Id));
+            string corrupt = first.Paths.MediaPeaksFile(Users.Alice, damaged[1].Id);
+            byte[] bytes = await File.ReadAllBytesAsync(corrupt);
+            bytes[0] = (byte)'X';
+            await File.WriteAllBytesAsync(corrupt, bytes);
+            await using (FileStream stream = new(first.Paths.MediaPeaksFile(Users.Alice, damaged[2].Id), FileMode.Open, FileAccess.Write))
             {
                 stream.SetLength(stream.Length - 2);
             }
-            string theirs = first.Paths.MediaPeaksFile(Users.Alice, longer.Id);
-            File.Copy(theirs, first.Paths.MediaPeaksFile(Users.Alice, swapped.Id), overwrite: true);
+            File.Copy(first.Paths.MediaPeaksFile(Users.Alice, other.Id), first.Paths.MediaPeaksFile(Users.Alice, damaged[3].Id), overwrite: true);
         }
 
         await using TestStore store = TestStore.On(folder.Path);
 
-        Assert.Equal(good, store.Media.Find(Users.Alice, good.Id));
-        Assert.Equal(longer, store.Media.Find(Users.Alice, longer.Id));
-        Assert.Null(store.Media.Find(Users.Alice, missing.Id));
-        Assert.Null(store.Media.Find(Users.Alice, truncated.Id));
-        Assert.Null(store.Media.Find(Users.Alice, swapped.Id));
-        Assert.Equal(3, store.MediaFiles.List(Users.Alice).Refused);
+        MediaListing listing = store.MediaFiles.List(Users.Alice);
+        Assert.Equal(0, listing.Refused);
+        Assert.Equal(5, listing.Files.Count);
+        foreach (MediaRecord record in damaged)
+        {
+            Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+        }
+        for (int index = 0; index < 4; index++)
+        {
+            Assert.Equal(original[index], await PeaksOfAsync(store, Users.Alice, damaged[index]));
+            Assert.Equal(original[index], await File.ReadAllBytesAsync(store.Paths.MediaPeaksFile(Users.Alice, damaged[index].Id)));
+        }
+        Assert.Equal(4, store.Rebuilder.Rebuilds);
+    }
+
+    [Fact]
+    public async Task ARequestThatFindsGoodPeaksRebuildsNothing()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        await PeaksOfAsync(store, Users.Alice, record);
+        await PeaksOfAsync(store, Users.Alice, record);
+        Assert.Equal(0, store.Rebuilder.Rebuilds);
+    }
+
+    [Fact]
+    public async Task ManyRequestsDuringARebuildShareOneAndAreAnswered503UntilItIsDone()
+    {
+        using TempFolder folder = new();
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using TestStore store = TestStore.On(
+            folder.Path,
+            media: new MediaOptions { PeaksRebuildWait = TimeSpan.FromMilliseconds(200) },
+            beforeRebuild: () => gate.Task);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        byte[] original = await File.ReadAllBytesAsync(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+        File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+
+        Task<byte[]>[] waiting = [.. Enumerable.Range(0, 6).Select(_ => Task.Run(() => PeaksOfAsync(store, Users.Alice, record)))];
+        foreach (Task<byte[]> request in waiting)
+        {
+            MediaPeaksPendingException pending = await Assert.ThrowsAsync<MediaPeaksPendingException>(() => request);
+            Assert.True(pending.RetryAfterSeconds >= 1);
+        }
+        Assert.Equal(0, store.Rebuilder.Rebuilds);
+
+        gate.SetResult();
+        byte[][] served = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => Task.Run(() => PeaksOfAsync(store, Users.Alice, record))));
+
+        Assert.All(served, bytes => Assert.Equal(original, bytes));
+        Assert.Equal(1, store.Rebuilder.Rebuilds);
+    }
+
+    [Fact]
+    public async Task RequestsThatArriveWhileARebuildFinishesWithinTheWaitAreServedNotRefused()
+    {
+        using TempFolder folder = new();
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using TestStore store = TestStore.On(
+            folder.Path,
+            media: new MediaOptions { PeaksRebuildWait = TimeSpan.FromSeconds(20) },
+            beforeRebuild: () => gate.Task);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        byte[] original = await File.ReadAllBytesAsync(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+        File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+
+        Task<byte[]>[] requests = [.. Enumerable.Range(0, 6).Select(_ => Task.Run(() => PeaksOfAsync(store, Users.Alice, record)))];
+        await Task.Delay(200);
+        gate.SetResult();
+
+        Assert.All(await Task.WhenAll(requests), bytes => Assert.Equal(original, bytes));
+        Assert.Equal(1, store.Rebuilder.Rebuilds);
+    }
+
+    [Fact]
+    public async Task AFileWhoseBytesFailTheWavChecksIsRefusedWhenItsPeaksAreAskedFor()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        MediaRecord keeper = await store.UploadAsync(Users.Alice, Wav());
+        string data = store.Paths.MediaDataFile(Users.Alice, record.Id);
+        byte[] bytes = await File.ReadAllBytesAsync(data);
+        bytes[8] = (byte)'X';
+        await File.WriteAllBytesAsync(data, bytes);
+        File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+
+        await Assert.ThrowsAsync<MediaNotFoundException>(() => PeaksOfAsync(store, Users.Alice, record));
+
+        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+        Assert.Equal(1, store.MediaFiles.List(Users.Alice).Refused);
+        Assert.Equal(keeper, store.Media.Find(Users.Alice, keeper.Id));
+    }
+
+    [Fact]
+    public async Task AFileDeletedWhileItsPeaksAreBeingRebuiltLeavesNoPeakFile()
+    {
+        using TempFolder folder = new();
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        MediaOptions options = new() { PeaksRebuildWait = TimeSpan.FromSeconds(20) };
+        await using TestStore store = TestStore.On(folder.Path, media: options, beforeRebuild: () => gate.Task);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+        Task<byte[]> request = Task.Run(() => PeaksOfAsync(store, Users.Alice, record));
+        await Task.Delay(100);
+
+        await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
+        gate.SetResult();
+
+        await Assert.ThrowsAsync<MediaNotFoundException>(() => request);
+        Assert.False(File.Exists(store.Paths.MediaPeaksFile(Users.Alice, record.Id)));
     }
 
     [Fact]
@@ -239,6 +353,51 @@ public sealed class MediaPeaksTests
             using HttpResponseMessage response = await server.Client.SendAsync(request);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task ThePeakRouteIsAnswered503WithRetryAfterOnlyWhileARebuildRunsAndThen200()
+    {
+        TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using RunningServer server = await RunningServer.StartAsync(
+            new Dictionary<string, string?> { ["AudioLab:Media:PeaksRebuildWait"] = "0:0:0.2" },
+            services => services.AddSingleton(new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, () => gate.Task)));
+        using HttpResponseMessage created = await server.Client.PostAsync("/api/media?name=a.wav", WavContent(Wav()));
+        MediaSummary summary = (await created.Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaSummary))!;
+        byte[] original = await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks");
+        string file = Directory.GetFiles(server.StoreFolder, "m*.peaks", SearchOption.AllDirectories).Single();
+        File.Delete(file);
+
+        using HttpResponseMessage waiting = await server.Client.GetAsync($"/api/media/{summary.Id}/peaks");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, waiting.StatusCode);
+        Assert.Equal("1", waiting.Headers.GetValues("Retry-After").Single());
+
+        gate.SetResult();
+        Assert.Equal(original, await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks"));
+        Assert.True(File.Exists(file));
+    }
+
+    [Fact]
+    public async Task PeaksThatARecordLacksAreRebuiltInTheBackgroundWhenTheServerStarts()
+    {
+        using TempFolder folder = new();
+        string peaks;
+        await using (TestStore seed = TestStore.On(folder.Path))
+        {
+            MediaRecord record = await seed.UploadAsync(Users.Alice, Wav());
+            peaks = seed.Paths.MediaPeaksFile(Users.Alice, record.Id);
+            File.Delete(peaks);
+        }
+
+        Dictionary<string, string?> settings = new() { ["AudioLab:Storage:Root"] = folder.Path };
+        await using RunningServer server = await RunningServer.StartAsync(settings);
+        for (int attempt = 0; attempt < 100 && !File.Exists(peaks); attempt++)
+        {
+            await Task.Delay(100);
+        }
+
+        Assert.True(File.Exists(peaks));
+        Assert.NotNull(PeakFile.Read(await File.ReadAllBytesAsync(peaks)));
     }
 
     private static ByteArrayContent WavContent(byte[] file)

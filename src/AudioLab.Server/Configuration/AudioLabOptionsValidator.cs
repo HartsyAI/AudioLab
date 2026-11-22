@@ -73,9 +73,17 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
 
     private static void ValidateMedia(MediaOptions media, List<string> problems)
     {
-        if (media.MaxUploadBytes is < 1024 or > MediaValidator.MaxLength)
+        if (media.MaxUploadBytes is < 1024 or > WavReader.MaxFileBytes)
         {
-            problems.Add($"AudioLab:Media:MaxUploadBytes must be 1024 to {MediaValidator.MaxLength}.");
+            problems.Add($"AudioLab:Media:MaxUploadBytes must be 1024 to {WavReader.MaxFileBytes}, the most a WAV file can hold.");
+        }
+        if (media.PeaksRebuildWait <= TimeSpan.Zero || media.PeaksRebuildWait > TimeSpan.FromMinutes(1))
+        {
+            problems.Add("AudioLab:Media:PeaksRebuildWait must be above zero and at most one minute.");
+        }
+        if (media.MaxConcurrentUploadsPerUser < 1)
+        {
+            problems.Add("AudioLab:Media:MaxConcurrentUploadsPerUser must be at least 1.");
         }
         if (media.MaxFilesPerUser < 1)
         {

@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Numerics;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Server.Media;
@@ -12,6 +13,9 @@ namespace AudioLab.Server.Media;
 /// </remarks>
 public static class WavReader
 {
+    /// <summary>The largest file a RIFF header can describe: a 32-bit size and the 8 bytes before it.</summary>
+    public const long MaxFileBytes = uint.MaxValue + 8L;
+
     private const int MaxChunks = 256;
     private const int ScanBufferBytes = 64 * 1024;
     private const ushort TagPcm = 1;
@@ -50,6 +54,8 @@ public static class WavReader
         long dataBytes = 0;
         long position = 12;
         int chunks = 0;
+        bool oddBefore = false;
+        const string PadHint = "; the chunk before it has an odd size and may be missing its pad byte";
         Span<byte> header = stackalloc byte[8];
         while (position < length)
         {
@@ -57,7 +63,7 @@ public static class WavReader
             {
                 throw Refuse($"the file has more than {MaxChunks} chunks");
             }
-            ReadAt(stream, position, header, "a chunk header is cut short");
+            ReadAt(stream, position, header, "a chunk header is cut short" + (oddBefore ? PadHint : string.Empty));
             uint size = BinaryPrimitives.ReadUInt32LittleEndian(header[4..8]);
             long start = position + 8;
             long end = start + size;
@@ -68,7 +74,8 @@ public static class WavReader
             }
             if (end > length)
             {
-                throw Refuse(isData ? "the audio data is truncated" : "a chunk runs past the end of the file");
+                string reason = isData ? "the audio data is truncated" : "a chunk runs past the end of the file";
+                throw Refuse(reason + (oddBefore ? PadHint : string.Empty));
             }
             if (header[..4].SequenceEqual("fmt "u8))
             {
@@ -88,6 +95,7 @@ public static class WavReader
                 dataBytes = size;
             }
             // A chunk of odd size is followed by a pad byte; the last chunk may leave it out.
+            oddBefore = (size & 1) == 1 && end < length;
             position = Math.Min(end + (size & 1), length);
         }
 
@@ -162,7 +170,11 @@ public static class WavReader
         int bits = BinaryPrimitives.ReadUInt16LittleEndian(bytes[14..16]);
         if (tag == TagExtensible)
         {
-            tag = ReadExtension(bytes, size, bits);
+            tag = ReadExtension(bytes, size, bits, channels);
+        }
+        else if (size != 16 && !(size == 18 && BinaryPrimitives.ReadUInt16LittleEndian(bytes[16..18]) == 0))
+        {
+            throw Refuse("the fmt chunk has bytes this format does not use");
         }
         SampleEncoding encoding = (tag, bits) switch
         {
@@ -192,15 +204,20 @@ public static class WavReader
     }
 
     // WAVE_FORMAT_EXTENSIBLE: the real format tag is the start of the sub-format GUID, and the valid bits must fill the container.
-    private static ushort ReadExtension(ReadOnlySpan<byte> bytes, uint size, int bits)
+    private static ushort ReadExtension(ReadOnlySpan<byte> bytes, uint size, int bits, int channels)
     {
-        if (size < 40 || BinaryPrimitives.ReadUInt16LittleEndian(bytes[16..18]) != 22)
+        if (size != 40 || BinaryPrimitives.ReadUInt16LittleEndian(bytes[16..18]) != 22)
         {
-            throw Refuse("the extensible fmt chunk is not 40 bytes with a 22-byte extension");
+            throw Refuse("the extensible fmt chunk is not exactly 40 bytes with a 22-byte extension");
         }
         if (BinaryPrimitives.ReadUInt16LittleEndian(bytes[18..20]) != bits)
         {
             throw Refuse("the valid bits per sample differ from the container size");
+        }
+        uint mask = BinaryPrimitives.ReadUInt32LittleEndian(bytes[20..24]);
+        if (mask != 0 && BitOperations.PopCount(mask) != channels)
+        {
+            throw Refuse("the channel mask names a different number of speakers than the file has channels");
         }
         if (!bytes[26..40].SequenceEqual(SubFormatTail))
         {

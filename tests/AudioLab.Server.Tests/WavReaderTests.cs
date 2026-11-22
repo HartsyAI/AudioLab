@@ -183,6 +183,39 @@ public sealed class WavReaderTests
     }
 
     [Fact]
+    public void AFmtChunkWithBytesItsFormatDoesNotUseIsRefusedAndAnEmptyExtensionIsNot()
+    {
+        byte[] data = TestWav.Chunk("data", new byte[40]);
+        byte[] plain = TestWav.Fmt(1, 1, 48000, 96000, 2, 16);
+        Assert.Equal(20, Read(TestWav.Riff(TestWav.Chunk("fmt ", [.. plain, 0, 0]), data)).Frames);
+        Refused(TestWav.Riff(TestWav.Chunk("fmt ", [.. plain, 2, 0]), data), "bytes this format does not use");
+        Refused(TestWav.Riff(TestWav.Chunk("fmt ", [.. plain, 0, 0, 0, 0]), data), "bytes this format does not use");
+        Refused(TestWav.Riff(TestWav.Chunk("fmt ", [.. plain, 0]), data), "bytes this format does not use");
+    }
+
+    [Fact]
+    public void AnExtensibleChannelMaskMustNameAsManySpeakersAsTheFileHasChannelsOrNone()
+    {
+        byte[] file = TestWav.Build(SampleEncoding.Pcm16, 2, 48000, 10, extensible: true);
+        byte[] wrong = [.. file];
+        BinaryPrimitives.WriteUInt32LittleEndian(wrong.AsSpan(12 + 8 + 20), 0b111);
+        Refused(wrong, "channel mask");
+        byte[] none = [.. file];
+        BinaryPrimitives.WriteUInt32LittleEndian(none.AsSpan(12 + 8 + 20), 0);
+        Assert.Equal(10, Read(none).Frames);
+    }
+
+    [Fact]
+    public void AnOddChunkWithoutItsPadByteInTheMiddleOfTheFileIsNamedAsTheLikelyCause()
+    {
+        byte[] oddNoPad = [.. "junk"u8, 3, 0, 0, 0, 1, 2, 3];
+        byte[] data = TestWav.Chunk("data", [.. Enumerable.Repeat((byte)0x55, 200)]);
+        byte[] file = TestWav.Riff(TestWav.Format(SampleEncoding.Pcm16, 1, 48000), oddNoPad, data);
+        MediaRejectedException error = Assert.Throws<MediaRejectedException>(() => Read(file));
+        Assert.Contains("pad byte", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AFloatFileWithANanOrAnInfinityIsRefusedAndALegalOneIsNot()
     {
         foreach (float bad in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity })

@@ -9,6 +9,7 @@ using AudioLab.Core.Model;
 using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AudioLab.Server.Tests;
@@ -111,6 +112,81 @@ public sealed class MediaRouteTests
         Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync($"/api/media/{summary.Id}/content")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await server.Client.DeleteAsync($"/api/media/{summary.Id}")).StatusCode);
         Assert.Empty(Media(server));
+    }
+
+    [Fact]
+    public async Task AHeadRequestAnswersWithTheHeadersOfTheFileAndNoBody()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        byte[] file = Wav();
+        MediaSummary summary = await UploadedAsync(server, file);
+
+        using HttpRequestMessage request = new(HttpMethod.Head, $"/api/media/{summary.Id}/content");
+        using HttpResponseMessage response = await server.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(file.Length, response.Content.Headers.ContentLength);
+        Assert.Equal($"\"{summary.Sha256}\"", response.Headers.ETag?.Tag);
+        Assert.Empty(await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task ABodyThatEndsBeforeItsAnnouncedLengthLeavesNothingAndTheServerGoesOn()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        byte[] file = Wav();
+        Uri address = server.Client.BaseAddress!;
+        using System.Net.Sockets.TcpClient client = new();
+        await client.ConnectAsync(address.Host, address.Port);
+        await using System.Net.Sockets.NetworkStream stream = client.GetStream();
+        string[] lines =
+        [
+            "POST /api/media?name=short.wav HTTP/1.1",
+            $"Host: {address.Authority}",
+            "Content-Type: audio/wav",
+            $"Content-Length: {file.Length + 5000}",
+            string.Empty,
+            string.Empty,
+        ];
+        string head = string.Join("\r\n", lines);
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(head));
+        await stream.WriteAsync(file);
+        client.Close();
+
+        await Task.Delay(500);
+        Assert.Empty(Media(server));
+        Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/api/media")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(408)]
+    [InlineData(413)]
+    public async Task AClientsOwnFailureIsAnsweredWithItsOwnStatusAndNeverAsAStoreFailure(int status)
+    {
+        MediaErrorFilter filter = new(Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaErrorFilter>.Instance);
+        Microsoft.AspNetCore.Http.DefaultHttpContext http = new();
+        EndpointFilterInvocationContext context = new DefaultEndpointFilterInvocationContext(http);
+
+        object? result = await filter.InvokeAsync(context, _ => throw new Microsoft.AspNetCore.Http.BadHttpRequestException("cut", status));
+        object? reset = await filter.InvokeAsync(context, _ => throw new Microsoft.AspNetCore.Connections.ConnectionResetException("gone"));
+
+        Assert.Equal(status, ((Microsoft.AspNetCore.Http.IStatusCodeHttpResult)result!).StatusCode);
+        Assert.Equal(400, ((Microsoft.AspNetCore.Http.IStatusCodeHttpResult)reset!).StatusCode);
+    }
+
+    [Fact]
+    public async Task BytesWithNoRecordAreSweptWhenTheServerStartsNotAtTheFirstRequest()
+    {
+        using TempFolder folder = new();
+        AudioLab.Server.Store.StorePaths paths = new(folder.Path);
+        string orphan = paths.MediaDataFile(UserId.Local, MediaId.From("med_orphan"));
+        Directory.CreateDirectory(Path.GetDirectoryName(orphan)!);
+        await File.WriteAllBytesAsync(orphan, [1, 2, 3]);
+
+        await using RunningServer server = await StartWith("AudioLab:Storage:Root", folder.Path);
+
+        Assert.False(File.Exists(orphan));
     }
 
     [Fact]
@@ -338,7 +414,7 @@ public sealed class MediaRouteTests
     [Fact]
     public async Task ConcurrentUploadsOfOneFileOverHttpAreAllStoredIntact()
     {
-        await using RunningServer server = await RunningServer.StartAsync();
+        await using RunningServer server = await StartWith("AudioLab:Media:MaxConcurrentUploadsPerUser", "16");
         byte[] file = Wav(48000);
         Task<MediaSummary>[] uploads = [.. Enumerable.Range(0, 8).Select(index => Task.Run(() => UploadedAsync(server, file, $"same-{index}.wav")))];
         MediaSummary[] summaries = await Task.WhenAll(uploads);
@@ -396,6 +472,8 @@ public sealed class MediaRouteTests
     [InlineData("MaxUploadBytes", "10")]
     [InlineData("MaxFilesPerUser", "0")]
     [InlineData("MaxBytesPerUser", "2048")]
+    [InlineData("MaxUploadBytes", "4294967305")]
+    [InlineData("MaxConcurrentUploadsPerUser", "0")]
     public void AMediaConfigurationTheServerCannotRunWithIsRefusedAtStart(string key, string value)
     {
         using TempFolder folder = new();

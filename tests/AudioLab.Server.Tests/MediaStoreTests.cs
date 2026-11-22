@@ -240,7 +240,7 @@ public sealed class MediaStoreTests
     public async Task ConcurrentUploadsOfTheSameContentAreSeparateFilesWithOneHashAndNeitherCorruptsTheOther()
     {
         using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path);
+        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxConcurrentUploadsPerUser = 16 });
         byte[] file = Wav(48000);
 
         Task<MediaRecord> Upload(int index) => Task.Run(() => store.UploadAsync(Users.Alice, file, $"same-{index}.wav"));
@@ -262,7 +262,7 @@ public sealed class MediaStoreTests
     public async Task ConcurrentUploadsCannotPassTheQuotaBetweenThem()
     {
         using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxFilesPerUser = 5 });
+        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxFilesPerUser = 5, MaxConcurrentUploadsPerUser = 20 });
         byte[] file = Wav(480);
 
         Task<MediaRecord>[] uploads = [.. Enumerable.Range(0, 14).Select(_ => Task.Run(() => store.UploadAsync(Users.Alice, file)))];
@@ -361,17 +361,19 @@ public sealed class MediaStoreTests
     }
 
     [Fact]
-    public async Task AFileBeingDeletedCannotBeNamedByAnyoneUntilTheDeleteIsRefused()
+    public async Task AFileWhoseDeleteHasBegunIsHiddenFromTheCatalogUntilTheDeleteIsRefused()
     {
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
 
-        Assert.NotNull(store.Media.BeginDelete(Users.Alice, record.Id));
+        Assert.Equal(record, store.Media.BeginDelete(Users.Alice, record.Id));
         Assert.Null(store.Media.Find(Users.Alice, record.Id));
-        Assert.Null(store.Media.BeginDelete(Users.Alice, record.Id));
+        Assert.Throws<MediaDeleteInProgressException>(() => store.Media.BeginDelete(Users.Alice, record.Id));
+        await Assert.ThrowsAsync<MediaDeleteInProgressException>(() => store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none));
         store.Media.CancelDelete(Users.Alice, record.Id);
         Assert.Equal(record, store.Media.Find(Users.Alice, record.Id));
+        Assert.Throws<MediaNotFoundException>(() => store.Media.BeginDelete(Users.Alice, MediaId.From("med_nothing")));
     }
 
     [Fact]
@@ -419,6 +421,195 @@ public sealed class MediaStoreTests
 
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
         Assert.Null(store.Media.Find(Users.Alice, record.Id));
+    }
+
+    [Fact]
+    public async Task ParallelChunkedUploadsCannotAddUpPastTheByteQuotaWhileTheyRun()
+    {
+        byte[] file = Wav(48000);
+        using TempFolder folder = new();
+        MediaOptions options = new() { MaxBytesPerUser = (file.Length * 5L / 2), MaxConcurrentUploadsPerUser = 12 };
+        await using TestStore store = TestStore.On(folder.Path, media: options);
+        using SemaphoreSlim half = new(0);
+        using SemaphoreSlim go = new(0);
+
+        // Each body sends half its bytes, waits until every upload has done the same, then sends the rest: all are in flight together.
+        Task<MediaRecord> Upload(int index)
+        {
+            return Task.Run(() => Send(store, new PausingStream(file, half, go), null, $"p{index}.wav"));
+        }
+        Task<MediaRecord>[] uploads = [.. Enumerable.Range(0, 8).Select(Upload)];
+        while (await half.WaitAsync(TimeSpan.FromMilliseconds(500)))
+        {
+            // Uploads the quota stops never reach the pause; the rest are all in flight once no more arrive.
+        }
+        go.Release(8);
+        foreach (Task<MediaRecord> upload in uploads)
+        {
+            try
+            {
+                await upload;
+            }
+            catch (MediaQuotaExceededException)
+            {
+                // Expected for those the quota stops.
+            }
+        }
+
+        int stored = uploads.Count(upload => upload.IsCompletedSuccessfully);
+        Assert.InRange(stored, 0, 2);
+        Assert.True(store.Media.UsageOf(Users.Alice).Bytes <= options.MaxBytesPerUser);
+        Assert.DoesNotContain(MediaFiles(store, Users.Alice), name => name.EndsWith(".tmp", StringComparison.Ordinal));
+        await store.UploadAsync(Users.Alice, Wav(100));
+    }
+
+    [Fact]
+    public async Task OnlyAFewUploadsMayRunAtOnceForOneUserAndTheSlotComesBack()
+    {
+        byte[] file = Wav(480);
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxConcurrentUploadsPerUser = 2 });
+        using SemaphoreSlim half = new(0);
+        using SemaphoreSlim go = new(0);
+        Task<MediaRecord> first = Task.Run(() => Send(store, new PausingStream(file, half, go), null));
+        Task<MediaRecord> second = Task.Run(() => Send(store, new PausingStream(file, half, go), null));
+        await half.WaitAsync(TimeSpan.FromSeconds(10));
+        await half.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Assert.ThrowsAsync<MediaBusyException>(() => store.UploadAsync(Users.Alice, file));
+        await store.UploadAsync(Users.Bob, file);
+        go.Release(2);
+        await Task.WhenAll(first, second);
+
+        await store.UploadAsync(Users.Alice, file);
+    }
+
+    [Fact]
+    public async Task AnUploadThatIsCancelledOrBrokenPartWayLeavesNoFileAndFreesItsSlot()
+    {
+        byte[] file = Wav();
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxConcurrentUploadsPerUser = 1 });
+
+        using CancellationTokenSource cancel = new();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => store.MediaFiles.UploadAsync(Users.Alice, "a.wav", new BreakingStream(file, cancel), null, cancel.Token));
+        await Assert.ThrowsAsync<IOException>(() => Send(store, new BreakingStream(file, null), null));
+
+        Assert.Empty(MediaFiles(store, Users.Alice));
+        Assert.Equal(new MediaUsage(0, 0), store.Media.UsageOf(Users.Alice));
+        await store.UploadAsync(Users.Alice, file);
+    }
+
+    [Fact]
+    public async Task AProjectFileAnotherProcessHoldsDoesNotFailADeleteOfAnUnrelatedFile()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
+        ProjectId project = await NewProjectAsync(store, Users.Alice, "Held");
+        using FileStream hold = new(store.Paths.ProjectFile(Users.Alice, project), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
+
+        Assert.Null(store.Media.Find(Users.Alice, record.Id));
+    }
+
+    [Fact]
+    public async Task ABreakingBodyLeavesTheRecordsOfOtherFilesAlone()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        MediaRecord kept = await store.UploadAsync(Users.Alice, Wav());
+        await Assert.ThrowsAsync<IOException>(() => Send(store, new BreakingStream(Wav(), null), null));
+        Assert.Equal(kept, store.Media.Find(Users.Alice, kept.Id));
+    }
+
+    private sealed class PausingStream(byte[] bytes, SemaphoreSlim half, SemaphoreSlim go) : Stream
+    {
+        private int _position;
+        private bool _paused;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!_paused && _position >= bytes.Length / 2)
+            {
+                _paused = true;
+                half.Release();
+                await go.WaitAsync(cancellationToken);
+            }
+            int count = Math.Min(Math.Min(buffer.Length, 16 * 1024), bytes.Length - _position);
+            bytes.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    // Sends part of the file and then fails as a dropped connection does, or cancels the token the upload was given.
+    private sealed class BreakingStream(byte[] bytes, CancellationTokenSource? cancel) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position >= bytes.Length / 2)
+            {
+                if (cancel is not null)
+                {
+                    cancel.Cancel();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                throw new IOException("The connection was reset.");
+            }
+            int count = Math.Min(Math.Min(buffer.Length, 8 * 1024), bytes.Length - _position);
+            bytes.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return ValueTask.FromResult(count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class ThrowingStream : Stream

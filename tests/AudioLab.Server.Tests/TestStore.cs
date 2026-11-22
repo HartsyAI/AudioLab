@@ -11,7 +11,13 @@ namespace AudioLab.Server.Tests;
 /// <summary>The whole store stack on a folder, with a clock a test moves and a write observer a test can set.</summary>
 public sealed class TestStore : IAsyncDisposable
 {
-    private TestStore(string folder, StoreOptions options, CommandRegistry? registry, IProjectEvents? events, MediaOptions mediaOptions)
+    private TestStore(
+        string folder,
+        StoreOptions options,
+        CommandRegistry? registry,
+        IProjectEvents? events,
+        MediaOptions mediaOptions,
+        Func<Task>? beforeRebuild)
     {
         Folder = folder;
         Options = options with { Root = folder };
@@ -22,8 +28,11 @@ public sealed class TestStore : IAsyncDisposable
         Ids = new IdService();
         Registry = registry ?? new CommandRegistryBuilder().Build();
         Open = new OpenProjects(Projects, Options, Time, Registry, Ids, NullLogger<OpenProjects>.Instance);
-        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), NullLogger<MediaStore>.Instance);
-        MediaFiles = new MediaService(Media, new MediaReferences(Open, Projects), Root, Ids, mediaOptions, Time);
+        Media = new MediaStore(Root, new OptionsMediaQuota(mediaOptions), mediaOptions, NullLogger<MediaStore>.Instance);
+        Media.SweepOrphans();
+        MediaReferences references = new(Open, Projects, NullLogger<MediaReferences>.Instance);
+        Rebuilder = new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, beforeRebuild);
+        MediaFiles = new MediaService(Media, references, Root, Ids, mediaOptions, Time, Rebuilder, NullLogger<MediaService>.Instance);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
         Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions());
     }
@@ -44,6 +53,8 @@ public sealed class TestStore : IAsyncDisposable
 
     public MediaService MediaFiles { get; }
 
+    public PeakRebuilder Rebuilder { get; }
+
     public OpenProjects Open { get; }
 
     public ProjectService Service { get; }
@@ -61,9 +72,10 @@ public sealed class TestStore : IAsyncDisposable
         StoreOptions? options = null,
         CommandRegistry? registry = null,
         IProjectEvents? events = null,
-        MediaOptions? media = null)
+        MediaOptions? media = null,
+        Func<Task>? beforeRebuild = null)
     {
-        return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions());
+        return new TestStore(folder, options ?? new StoreOptions(), registry, events, media ?? new MediaOptions(), beforeRebuild);
     }
 
     /// <summary>Uploads a file as a user would, through the service, with the body arriving as a stream.</summary>

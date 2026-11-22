@@ -81,7 +81,10 @@ public sealed partial class StorePaths
     public static bool IsDataFileName(string fileName) => DataNamePattern().IsMatch(fileName);
 
     /// <summary>The name of the media record a bytes or peaks file belongs to, or null when the name is not one.</summary>
-    public static string? RecordNameOfData(string fileName) => IsDataFileName(fileName) ? fileName[..fileName.IndexOf('.', StringComparison.Ordinal)] + RecordExtension : null;
+    public static string? RecordNameOfData(string fileName)
+    {
+        return IsDataFileName(fileName) ? fileName[..fileName.IndexOf('.', StringComparison.Ordinal)] + RecordExtension : null;
+    }
 
     /// <summary>Whether a file name is one the store could have written for a project or media record.</summary>
     public static bool IsRecordFileName(string fileName) => RecordNamePattern().IsMatch(fileName);
