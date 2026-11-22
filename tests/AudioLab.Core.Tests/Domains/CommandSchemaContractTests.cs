@@ -146,6 +146,32 @@ public sealed class CommandSchemaContractTests
         }
     }
 
+    [Fact]
+    public void AClipCommandStatesItsLimitsAndKinds()
+    {
+        JsonElement duration = Property("clip_add", "duration");
+        JsonElement start = Property("clip_add", "start");
+        JsonElement length = Property("midi_clip_add", "length");
+        JsonElement edge = Property("clip_trim", "edge");
+        JsonElement layer = Property("clip_reorder", "layer");
+        JsonElement gain = Property("clip_set_gain", "gain");
+
+        Assert.Equal(ProjectLimits.MaxSeconds, duration.GetProperty("maximum").GetDouble());
+        Assert.True(duration.GetProperty("minimum").GetDouble() > 0);
+        Assert.Equal(0, start.GetProperty("minimum").GetDouble());
+        Assert.Equal(MidiClip.MinLength, length.GetProperty("minimum").GetDouble());
+        Assert.Equal(["start", "end"], edge.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["front", "back"], layer.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(ProjectLimits.MaxGain, gain.GetProperty("maximum").GetDouble());
+        Assert.Equal(["clip", "edge", "project", "time"], Required("clip_trim"));
+        Assert.Equal(["clip", "project"], Required("clip_delete"));
+    }
+
+    private string[] Required(string command)
+    {
+        return [.. _registry.Find(command)!.Schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal)];
+    }
+
     private JsonElement Property(string command, string member)
     {
         return _registry.Find(command)!.Schema.GetProperty("properties").GetProperty(member);

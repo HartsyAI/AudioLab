@@ -73,6 +73,18 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheClipCommandsExist()
+    {
+        string[] names =
+        [
+            "clip_add", "midi_clip_add", "clip_move", "clip_trim", "clip_split", "clip_duplicate", "clip_delete", "clip_set_gain",
+            "clip_set_fades", "midi_clip_set_length", "clip_set_muted", "clip_rename", "clip_set_color", "clip_reorder",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
     public void TheDomainsShipTheirCommandsUnderStableNames()
     {
         Assert.Contains(_registry.Commands, command => command.Name == "tempo_change_add");

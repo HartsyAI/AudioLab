@@ -86,6 +86,51 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EveryClipCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track audio = sample.Tracks.First(track => track.Clips.Count > 0);
+        Track other = sample.Tracks.First(track => track.Kind == TrackKind.Audio && track.Id != audio.Id);
+        Track keys = sample.Tracks.First(track => track.Kind == TrackKind.Instrument && track.MidiClips.Count > 0);
+        AudioClip clip = audio.Clips[0];
+        MidiClip midi = keys.MidiClips[0];
+        ProjectId id = sample.Id;
+        double middle = clip.Start + (ClipRules.VisibleLength(clip) / 2);
+        Command[] commands =
+        [
+            new AddClip { Project = id, Track = other.Id, Media = clip.Media, Duration = 5 },
+            new AddMidiClip { Project = id, Track = keys.Id, Start = 100, Length = 2 },
+            new MoveClip { Project = id, Clip = clip.Id, Start = clip.Start + 1 },
+            new MoveClip { Project = id, Clip = clip.Id, Start = clip.Start, Track = other.Id },
+            new MoveClip { Project = id, Clip = midi.Id, Start = midi.Start + 1 },
+            new TrimClip { Project = id, Clip = clip.Id, Edge = ClipEdge.Start, Time = clip.Start + 1 },
+            new TrimClip { Project = id, Clip = clip.Id, Edge = ClipEdge.End, Time = ClipRules.EndOf(clip) - 1 },
+            new SplitClip { Project = id, Clip = clip.Id, At = middle },
+            new DuplicateClip { Project = id, Clip = clip.Id },
+            new DuplicateClip { Project = id, Clip = midi.Id },
+            new DeleteClip { Project = id, Clip = clip.Id },
+            new DeleteClip { Project = id, Clip = midi.Id },
+            new SetClipGain { Project = id, Clip = clip.Id, Gain = clip.Gain + 0.5 },
+            new SetClipFades { Project = id, Clip = clip.Id, FadeIn = clip.FadeIn + 0.01 },
+            new SetMidiClipLength { Project = id, Clip = midi.Id, Length = midi.Length + 1 },
+            new SetClipMuted { Project = id, Clip = clip.Id, Muted = !clip.Muted },
+            new SetClipMuted { Project = id, Clip = midi.Id, Muted = !midi.Muted },
+            new RenameClip { Project = id, Clip = clip.Id, Name = "Renamed" },
+            new SetClipColor { Project = id, Clip = clip.Id, Color = "#123456" },
+            new ReorderClip { Project = id, Clip = audio.Clips[0].Id, Layer = ClipLayer.Front },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
     public void RemovingATrackOfTheSampleProjectKeepsItsGroupsAndSendsConsistent()
     {
         CommandRig rig = new(Sample());
@@ -136,6 +181,22 @@ public sealed class RichProjectTests
         Assert.Same(x, result[0]);
         Assert.Same(z, result[2]);
         Assert.Equal(ClipId.From("clp_y"), result[0].Clips[0].Meta!.Score!.Parent);
+    }
+
+    [Fact]
+    public void AddingAClipToATrackWithTheMostClipsIsOutOfRange()
+    {
+        AudioClip template = Clip("clp_0");
+        AudioClip[] full = [.. Enumerable.Range(0, ProjectLimits.MaxClips).Select(index => template with { Id = ClipId.From($"clp_{index}") })];
+        Track track = BlankProject.Track("trk_1") with { Clips = [.. full] };
+        CommandRig rig = new(BlankProject.Create() with { Tracks = [track] });
+
+        CommandResult add = rig.Refused(new AddClip { Project = rig.Id, Track = track.Id, Media = template.Media, Duration = 1 });
+        CommandResult copy = rig.Refused(new DuplicateClip { Project = rig.Id, Clip = full[0].Id });
+        CommandResult split = rig.Refused(new SplitClip { Project = rig.Id, Clip = full[0].Id, At = 5 });
+
+        Assert.All(new[] { add, copy, split }, result => Assert.Equal(CommandErrorCode.Invalid, result.Errors[0].Code));
+        Assert.All(new[] { add, copy, split }, result => Assert.Contains("at most", result.Errors[0].Message, StringComparison.Ordinal));
     }
 
     [Fact]
