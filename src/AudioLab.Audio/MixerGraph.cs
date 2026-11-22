@@ -1,3 +1,4 @@
+using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio;
@@ -206,12 +207,12 @@ public sealed class MixerGraph
             long frame = Position + done;
             long cell = frame - (frame % ControlFrames);
             int count = (int)Math.Min(left.Length - done, cell + ControlFrames - frame);
-            double from = track.VolumeLane is null ? 1 : AutomationRules.ValueAt(track.VolumeLane, (double)cell / rate) ?? 1;
-            double to = track.VolumeLane is null ? 1 : AutomationRules.ValueAt(track.VolumeLane, (double)(cell + ControlFrames) / rate) ?? 1;
+            double from = track.VolumeLane is null ? 1 : LaneValue(track.VolumeLane, cell, rate);
+            double to = track.VolumeLane is null ? 1 : LaneValue(track.VolumeLane, cell + ControlFrames, rate);
             double pan = track.Pan;
             if (track.PanLane is not null)
             {
-                pan += AutomationRules.ValueAt(track.PanLane, (double)cell / rate) ?? 0;
+                pan += LaneValue(track.PanLane, cell, rate);
             }
             StereoPan cellPan = new(pan, track.Mono);
             for (int i = done; i < done + count; i++)
@@ -223,4 +224,8 @@ public sealed class MixerGraph
             done += count;
         }
     }
+
+    // The plan keeps only lanes that have points, so a lane always has a value.
+    private static double LaneValue(ValueList<AutomationPoint> lane, long frame, int rate) =>
+        AutomationRules.ValueAt(lane, (double)frame / rate)!.Value;
 }

@@ -116,7 +116,7 @@ public sealed class StemTests
         Stem silent = StemExporter.Render(muted, _media, Options(), [TrackId.From("t1")]).Single();
 
         Assert.DoesNotContain(TrackId.From("t1"), ids);
-        Assert.Equal(0, Signals.Peak(silent.Audio.Left.AsSpan(0, 8000)));
+        Assert.Equal(0, Signals.Peak(silent.Audio.Left));
         // The track's own level, not the master's: a mono sine of 0.2 panned right by the mono law, untouched by the master volume of 0.5.
         Assert.Equal(0.2 * Math.Sin(0.75 * Math.PI / 2), Signals.Peak(t2.Audio.Right), 2);
     }
@@ -244,5 +244,19 @@ public sealed class StemTests
     public void ASeparateStemOfATrackThatIsNotThereIsAnError()
     {
         Assert.Throws<ArgumentException>(() => StemExporter.Render(Project(), _media, Options(), [TrackId.From("nope")]));
+    }
+
+    [Fact]
+    public void ATrackSilencedBySoloStillGetsItsWholeStemInsteadOfOneCutAtTheSoloedContent()
+    {
+        MemoryMedia media = new MemoryMedia().Add("long", Signals.Sine(300, 3, Rate, 0.2)).Add("short", Signals.Sine(300, 1, Rate, 0.2));
+        ProjectDocument document = TestProject.Create(
+            TestProject.Track("quiet", TrackKind.Audio, TestProject.Clip("c1", "long", 0, 3)),
+            TestProject.Track("loud", TrackKind.Audio, TestProject.Clip("c2", "short", 0, 1)) with { Soloed = true });
+
+        Stem stem = StemExporter.Render(document, media, Options(), [TrackId.From("quiet")]).Single();
+
+        Assert.Equal(3 * Rate, stem.Audio.Frames);
+        Assert.True(Signals.Peak(stem.Audio.Left.AsSpan(2 * Rate)) > 0.1);
     }
 }

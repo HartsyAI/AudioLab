@@ -11,6 +11,13 @@ public static class BusyProject
         .Add("tone", Signals.Sine(440, 3, Rate, 0.7))
         .Add("pair", Signals.Stereo(Signals.Sine(300, 3, Rate, 0.6).Channel(0).ToArray(), Signals.Sine(500, 3, Rate, 0.6).Channel(0).ToArray()));
 
+    /// <summary>The same sounds as <see cref="Media"/> but recorded at 11.025 kHz, so the engine has to resample them.</summary>
+    public static MemoryMedia ResampledMedia() => new MemoryMedia()
+        .Add("tone", Signals.Sine(440, 3, 11025, 0.7))
+        .Add("pair", Signals.Stereo(Tone(300), Tone(500), 11025));
+
+    private static float[] Tone(double hertz) => Signals.Sine(hertz, 3, 11025, 0.6).Channel(0).ToArray();
+
     public static ProjectDocument Create()
     {
         GroupId group = GroupId.From("g");
@@ -22,7 +29,7 @@ public static class BusyProject
         {
             Pan = -0.3,
             Group = group,
-            Sends = [new Send(TrackId.From("bus"), 0.6, false, false), new Send(TrackId.From("bus"), 0.6, true, false)],
+            Sends = [new Send(TrackId.From("bus"), 0.6, false, false), new Send(TrackId.From("bus2"), 0.6, true, false)],
             Automation = new TrackAutomation
             {
                 Mode = AutomationMode.Read,
@@ -30,13 +37,14 @@ public static class BusyProject
                 Pan = new ValueList<AutomationPoint>([new(0.5, -0.4), new(1.5, 0.6)]),
             },
         };
-        Track second = TestProject.Track("t2", TrackKind.Audio, TestProject.Clip("c", "pair", 0, 2.5, gain: 0.9)) with
+        Track other = TestProject.Track("t2", TrackKind.Audio, TestProject.Clip("c", "pair", 0, 2.5, gain: 0.9)) with
         {
             Volume = 0.8,
             Pan = 0.4,
             Group = group,
         };
         Track bus = TestProject.Track("bus", TrackKind.Bus) with { Volume = 0.9 };
+        Track second = TestProject.Track("bus2", TrackKind.Bus);
         TrackGroup shared = new()
         {
             Id = group,
@@ -48,6 +56,6 @@ public static class BusyProject
             Soloed = false,
             Volume = 0.85,
         };
-        return TestProject.Create(first, second, bus) with { Groups = [shared], MasterVolume = 1.4, MasterLimiter = true };
+        return TestProject.Create(first, other, bus, second) with { Groups = [shared], MasterVolume = 1.4, MasterLimiter = true };
     }
 }

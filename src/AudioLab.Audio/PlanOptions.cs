@@ -15,8 +15,8 @@ public sealed record PlanOptions
     /// <remarks>Solo is ignored, the master volume is at unity and there is no limiter, so the stems of a project add up to its mix.</remarks>
     public TrackId? StemOf { get; init; }
 
-    /// <summary>Shares the decoded and resampled media of other plans made at the same rate.</summary>
-    internal MediaCache? Cache { get; init; }
+    /// <summary>Shares decoded, cleaned and resampled media between plans; its rate must be the plan's, and the plan's source is not asked.</summary>
+    public MediaCache? Cache { get; init; }
 
     /// <summary>Replaces how effects become inserts, so a test can run its own insert.</summary>
     internal Func<Effect, InsertContext, IInsert?>? InsertBuilder { get; init; }

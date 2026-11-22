@@ -51,7 +51,12 @@ public sealed class RenderPlan
         {
             busSlots[track.Id] = busSlots.Count;
         }
-        MediaCache cache = options.Cache ?? new MediaCache(media, format.SampleRate);
+        MediaCache shared = options.Cache ?? new MediaCache(media, format.SampleRate);
+        if (shared.SampleRate != format.SampleRate)
+        {
+            throw new ArgumentException("The media cache is at another sample rate than the plan.", nameof(options));
+        }
+        PlanMedia cache = new(shared);
         Track? target = options.StemOf is { } stem ? FindStemTrack(document, stem) : null;
         List<PlannedTrack> planned = [];
         // Tracks first, then buses, so a send always finds the bus it feeds after the audio has been mixed into it.
@@ -70,7 +75,7 @@ public sealed class RenderPlan
             }
         }
         cache.ThrowIfMissing();
-        double contentEnd = ContentEnd(document);
+        double contentEnd = ProjectContent.End(document, audibleOnly: true, ignoreSolo: target is not null);
         return new RenderPlan(
             format,
             [.. planned],
@@ -103,7 +108,7 @@ public sealed class RenderPlan
         ProjectDocument document,
         Track track,
         Dictionary<TrackId, int> busSlots,
-        MediaCache cache,
+        PlanMedia cache,
         InsertContext context,
         PlanOptions options,
         StemRole role,
@@ -140,12 +145,12 @@ public sealed class RenderPlan
             ? PlanClips(track, cache, sampleRate)
             : (Array.Empty<PlannedClip>(), Array.Empty<long>());
         ITrackSource? source = track.Kind == TrackKind.Instrument
-            ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2))
+            ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2), cache)
             : null;
         return new PlannedTrack
         {
             BusSlot = track.Kind == TrackKind.Bus ? busSlots[track.Id] : -1,
-            FaderGain = muted ? 0 : (float)MixRules.TrackLevel(track, document.Groups),
+            FaderGain = (float)MixRules.TrackLevel(track, document.Groups),
             Pan = track.Pan,
             Mono = IsMono(track, clips, source),
             SoloAudible = soloAudible,
@@ -186,9 +191,16 @@ public sealed class RenderPlan
         return track.Kind == TrackKind.Instrument ? source?.IsMono == true : clips.All(clip => clip.Audio.ChannelCount == 1);
     }
 
-    private static (PlannedClip[] Clips, long[] LatestEnds) PlanClips(Track track, MediaCache cache, int sampleRate)
+    private static (PlannedClip[] Clips, long[] LatestEnds) PlanClips(Track track, PlanMedia cache, int sampleRate)
     {
-        Dictionary<ClipId, AudioClip> byId = track.Clips.ToDictionary(clip => clip.Id);
+        Dictionary<ClipId, AudioClip> byId = [];
+        foreach (AudioClip clip in track.Clips)
+        {
+            if (!byId.TryAdd(clip.Id, clip))
+            {
+                throw new ArgumentException($"Track {track.Id} has two clips with the id {clip.Id}; the document is not valid.", "document");
+            }
+        }
         List<PlannedClip> clips = [];
         foreach (AudibleSpan span in LayerRules.AudibleSpans(track.Clips))
         {
@@ -241,21 +253,4 @@ public sealed class RenderPlan
     }
 
     private static double OwnTail(PlannedTrack track) => track.Inserts.Sum(insert => insert.TailSeconds) + (track.Source?.TailSeconds ?? 0);
-
-    private static double ContentEnd(ProjectDocument document)
-    {
-        double end = 0;
-        foreach (Track track in document.Tracks)
-        {
-            foreach (AudioClip clip in track.Clips.Where(clip => !clip.Muted))
-            {
-                end = Math.Max(end, ClipRules.EndOf(clip));
-            }
-            foreach (MidiClip clip in track.MidiClips.Where(clip => !clip.Muted))
-            {
-                end = Math.Max(end, ClipRules.EndOf(clip));
-            }
-        }
-        return end;
-    }
 }

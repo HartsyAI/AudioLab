@@ -28,4 +28,7 @@ public sealed record OfflineOptions
 
     /// <summary>Overrides how many frames the render runs on past its end, so that several renders can be the same length.</summary>
     public long? TailFrames { get; init; }
+
+    /// <summary>Keeps decoded and resampled media between renders; its rate must be <see cref="SampleRate"/>.</summary>
+    public MediaCache? Cache { get; init; }
 }

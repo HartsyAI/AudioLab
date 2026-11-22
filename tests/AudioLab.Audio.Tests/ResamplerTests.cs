@@ -50,4 +50,41 @@ public sealed class ResamplerTests
 
         Assert.Equal(0.5f, audio.Left[24000], 5);
     }
+
+    [Theory]
+    [InlineData(20000, 44100, 48000)]
+    [InlineData(23000, 96000, 48000)]
+    public void TheTopOctaveOfTheLowerRateIsKeptToWithinFourDecibels(double hertz, int from, int to)
+    {
+        RenderedAudio audio = Render(Signals.Sine(hertz, 1, from), to);
+        double gainDb = 20 * Math.Log10(Signals.Level(audio.Left.AsSpan(to / 4, to / 2), hertz, to) / 0.5);
+
+        Assert.InRange(gainDb, -4, 0.5);
+    }
+
+    [Theory]
+    [InlineData(26000, 96000, 48000)]
+    [InlineData(25000, 96000, 48000)]
+    public void AToneJustAboveTheNewNyquistIsRemovedInsteadOfFoldingBack(double hertz, int from, int to)
+    {
+        RenderedAudio audio = Render(Signals.Sine(hertz, 1, from), to);
+        // It would fold back to twice the new Nyquist less its own frequency.
+        double folded = Signals.Level(audio.Left.AsSpan(to / 4, to / 2), to - hertz, to);
+
+        Assert.True(folded < 0.5 * 0.003, $"folded level {folded}");
+    }
+
+    [Theory]
+    [InlineData(44100, 48000)]
+    [InlineData(48000, 44100)]
+    [InlineData(96000, 48000)]
+    [InlineData(22050, 48000)]
+    [InlineData(8000, 48000)]
+    [InlineData(48000, 8000)]
+    public void ADirectCurrentLevelSurvivesTheRatio(int from, int to)
+    {
+        RenderedAudio audio = Render(Signals.Constant(0.5f, 1, from), to);
+
+        Assert.Equal(0.5f, audio.Left[to / 2], 4);
+    }
 }

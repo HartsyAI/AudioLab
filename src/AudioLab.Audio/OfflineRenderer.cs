@@ -14,7 +14,13 @@ public static class OfflineRenderer
     }
 
     internal static PlanOptions PlanOptionsOf(OfflineOptions settings) =>
-        new() { SampleRate = settings.SampleRate, Sources = settings.Sources, StemOf = settings.StemOf };
+        new()
+        {
+            SampleRate = settings.SampleRate,
+            Sources = settings.Sources,
+            StemOf = settings.StemOf,
+            Cache = settings.Cache,
+        };
 
     internal static OfflineOptions Validate(OfflineOptions? options)
     {
@@ -22,6 +28,10 @@ public static class OfflineRenderer
         if (!double.IsFinite(settings.Start) || settings.Start < 0 || (settings.End is { } end && !double.IsFinite(end)))
         {
             throw new ArgumentOutOfRangeException(nameof(options), "The start and end must be finite times of at least 0.");
+        }
+        if (settings.End is { } endTime && endTime < settings.Start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The end must not be before the start.");
         }
         return settings;
     }

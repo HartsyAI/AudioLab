@@ -21,7 +21,7 @@ public static class EffectsProject
         Track bus = busy.Tracks[2] with { Effects = [hall] };
         return busy with
         {
-            Tracks = new ValueList<Track>([first, second, bus]),
+            Tracks = new ValueList<Track>([first, second, bus, .. busy.Tracks.Skip(3)]),
             TempoMap = new ValueList<TempoChange>([new TempoChange(TempoChangeId.From("tc"), 1.3, 90)]),
         };
     }

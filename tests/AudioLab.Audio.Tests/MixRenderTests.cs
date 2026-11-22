@@ -19,7 +19,7 @@ public sealed class MixRenderTests
         new(TrackId.From(bus), level, pre, muted);
 
     private static float Heard(params Track[] tracks) =>
-        Rendering.At(Rendering.Render(TestProject.Create(tracks), _media), 0.5);
+        Rendering.At(Rendering.Render(TestProject.Create(tracks), _media, end: 1), 0.5);
 
     [Fact]
     public void TracksAndTheirSendsSumAtTheMaster()
