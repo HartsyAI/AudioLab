@@ -65,8 +65,8 @@ public sealed class CoreCommandsTests
             "group_create", "group_assign", "group_ungroup", "group_rename", "group_set_color", "group_set_collapsed", "group_set_tint",
             "group_set_muted", "group_set_soloed", "group_set_volume", "group_move", "track_add", "track_remove", "track_rename",
             "track_set_color", "track_move", "mixer_set_track_volume", "mixer_set_track_pan", "mixer_set_track_muted",
-            "mixer_set_track_soloed", "mixer_set_master_volume", "mixer_set_master_limiter", "send_add", "send_remove",
-            "send_set_level", "send_set_pre", "send_set_muted",
+            "mixer_set_track_soloed", "mixer_set_master_volume", "mixer_set_master_limiter", "mixer_send_add", "mixer_send_remove",
+            "mixer_send_set_level", "mixer_send_set_pre", "mixer_send_set_muted",
         ];
 
         Assert.All(names, name => Assert.NotNull(_registry.Find(name)));

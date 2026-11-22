@@ -55,7 +55,7 @@ public sealed class GroupCommandTests
     [Fact]
     public void GroupingNeedsRealTracksAndAtLeastOne()
     {
-        _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [] }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [] }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a, TrackId.From("trk_none")] }, CommandErrorCode.NotFound);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a], Name = new string('g', 201) }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new CreateGroup { Project = _rig.Id, Tracks = [_a], Color = "red" }, CommandErrorCode.Invalid);
@@ -87,7 +87,7 @@ public sealed class GroupCommandTests
     public void AssigningToAMissingGroupOrAnEmptyListIsRefused()
     {
         _rig.RefusedWith(new AssignToGroup { Project = _rig.Id, Tracks = [_a], Group = GroupId.From("grp_none") }, CommandErrorCode.NotFound);
-        _rig.RefusedWith(new AssignToGroup { Project = _rig.Id, Tracks = [] }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new AssignToGroup { Project = _rig.Id, Tracks = [] }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new AssignToGroup { Project = _rig.Id, Tracks = [TrackId.From("trk_none")] }, CommandErrorCode.NotFound);
     }
 

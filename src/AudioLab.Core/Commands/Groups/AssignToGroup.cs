@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using AudioLab.Core.Model;
 
@@ -10,6 +11,7 @@ public sealed record AssignToGroup : Command
     /// <summary>The tracks to move; at least one.</summary>
     [Description("The tracks to move; at least one.")]
     [JsonConverter(typeof(ValueListJsonConverter<TrackId>))]
+    [MinLength(1)]
     public required ValueList<TrackId> Tracks { get; init; }
 
     /// <summary>The group to move them into; absent to take them out of their group.</summary>

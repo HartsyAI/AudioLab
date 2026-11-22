@@ -11,6 +11,7 @@ public sealed record CreateGroup : Command
     /// <summary>The tracks to group; at least one.</summary>
     [Description("The tracks to group; at least one.")]
     [JsonConverter(typeof(ValueListJsonConverter<TrackId>))]
+    [MinLength(1)]
     public required ValueList<TrackId> Tracks { get; init; }
 
     /// <summary>The group's name, up to 200 characters; "Group N" when absent or blank.</summary>

@@ -21,7 +21,7 @@ internal static class TrackEdits
     {
         if (ids.Count == 0)
         {
-            return CommandChecks.Rejected("Name at least one track.");
+            return CommandChecks.OutOfRange("Name at least one track.");
         }
         HashSet<TrackId> known = [.. document.Tracks.Select(track => track.Id)];
         TrackId missing = ids.FirstOrDefault(id => !known.Contains(id));

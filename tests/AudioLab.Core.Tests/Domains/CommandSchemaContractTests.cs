@@ -117,7 +117,7 @@ public sealed class CommandSchemaContractTests
     {
         JsonElement volume = Property("mixer_set_track_volume", "volume");
         JsonElement pan = Property("mixer_set_track_pan", "pan");
-        JsonElement send = Property("send_set_level", "level");
+        JsonElement send = Property("mixer_send_set_level", "level");
 
         Assert.Equal((0.0, ProjectLimits.MaxGain), (volume.GetProperty("minimum").GetDouble(), volume.GetProperty("maximum").GetDouble()));
         Assert.Equal((-1.0, 1.0), (pan.GetProperty("minimum").GetDouble(), pan.GetProperty("maximum").GetDouble()));
@@ -132,6 +132,17 @@ public sealed class CommandSchemaContractTests
 
         Assert.Equal(InstrumentPresets.Names, preset.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(["up", "down"], direction.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void AListOfTracksNeedsAtLeastOneItem()
+    {
+        foreach (string command in new[] { "group_create", "group_assign" })
+        {
+            JsonElement tracks = Property(command, "tracks");
+            Assert.Equal(1, tracks.GetProperty("minItems").GetInt32());
+            Assert.False(tracks.TryGetProperty("minLength", out _));
+        }
     }
 
     private JsonElement Property(string command, string member)

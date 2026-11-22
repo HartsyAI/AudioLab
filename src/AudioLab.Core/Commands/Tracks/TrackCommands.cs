@@ -57,7 +57,7 @@ internal static class TrackCommands
         IEnumerable<Track> remaining = document.Tracks
             .Where(track => track.Id != command.Track)
             .Select(track => removed.Kind == TrackKind.Bus ? track with { Sends = [.. track.Sends.Where(send => send.Bus != removed.Id)] } : track);
-        GroupedTracks grouped = GroupRules.Normalize(remaining, document.Groups);
+        GroupedTracks grouped = GroupRules.Normalize(ClipLinks.ClearDangling(remaining), document.Groups);
         return CommandResult.Ok(document with { Tracks = [.. grouped.Tracks], Groups = [.. grouped.Groups] });
     }
 

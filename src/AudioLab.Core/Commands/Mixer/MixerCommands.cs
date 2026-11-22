@@ -17,11 +17,11 @@ internal static class MixerCommands
             .Add("mixer_set_track_soloed", "Solos or unsolos a track.", json.SetTrackSoloed, SetSoloed)
             .Add("mixer_set_master_volume", "Sets the master fader.", json.SetMasterVolume, SetMasterVolume)
             .Add("mixer_set_master_limiter", "Switches the master limiter on or off.", json.SetMasterLimiter, SetMasterLimiter)
-            .Add("send_add", "Routes a track to an aux bus, post-fader.", json.AddSend, AddSend)
-            .Add("send_remove", "Removes the send of a track to a bus.", json.RemoveSend, RemoveSend)
-            .Add("send_set_level", "Sets the level of a send.", json.SetSendLevel, SetSendLevel)
-            .Add("send_set_pre", "Takes a send before or after the fader.", json.SetSendPre, SetSendPre)
-            .Add("send_set_muted", "Mutes or unmutes a send.", json.SetSendMuted, SetSendMuted);
+            .Add("mixer_send_add", "Routes a track to an aux bus, post-fader.", json.AddSend, AddSend)
+            .Add("mixer_send_remove", "Removes the send of a track to a bus.", json.RemoveSend, RemoveSend)
+            .Add("mixer_send_set_level", "Sets the level of a send.", json.SetSendLevel, SetSendLevel)
+            .Add("mixer_send_set_pre", "Takes a send before or after the fader.", json.SetSendPre, SetSendPre)
+            .Add("mixer_send_set_muted", "Mutes or unmutes a send.", json.SetSendMuted, SetSendMuted);
     }
 
     private static CommandResult SetVolume(ProjectDocument document, SetTrackVolume command, IIdService ids)

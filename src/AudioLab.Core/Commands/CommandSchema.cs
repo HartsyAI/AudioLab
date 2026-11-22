@@ -88,10 +88,10 @@ internal static class CommandSchema
                     node["maximum"] = Convert.ToDouble(range.Maximum, CultureInfo.InvariantCulture);
                     break;
                 case MinLengthAttribute min:
-                    node["minLength"] = min.Length;
+                    node[IsArray(node) ? "minItems" : "minLength"] = min.Length;
                     break;
                 case MaxLengthAttribute max:
-                    node["maxLength"] = max.Length;
+                    node[IsArray(node) ? "maxItems" : "maxLength"] = max.Length;
                     break;
                 case RegularExpressionAttribute pattern:
                     node["pattern"] = pattern.Pattern;
@@ -103,6 +103,8 @@ internal static class CommandSchema
         }
         return schema;
     }
+
+    private static bool IsArray(JsonObject node) => node["type"] is JsonValue type && type.GetValue<string>() == "array";
 
     private static JsonNode? AllowedValue(object? value)
     {
