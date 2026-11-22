@@ -173,6 +173,30 @@ public sealed class StemTests
     }
 
     [Fact]
+    public void EachStemInAZipIsDitheredWithNoiseOfItsOwn()
+    {
+        MemoryMedia silence = new MemoryMedia().Add("z", Signals.Constant(0, 1, Rate));
+        ProjectDocument document = TestProject.Create(
+            TestProject.Track("one", TrackKind.Audio, TestProject.Clip("c1", "z", 0, 1)),
+            TestProject.Track("two", TrackKind.Audio, TestProject.Clip("c2", "z", 0, 1)));
+        using MemoryStream zip = new();
+
+        StemExporter.WriteZip(document, silence, zip, new WavOptions { Format = WavFormat.Pcm16, Dither = DitherKind.Triangular }, Options());
+        zip.Position = 0;
+        using ZipArchive archive = new(zip, ZipArchiveMode.Read);
+        byte[][] data = [.. archive.Entries.Select(entry =>
+        {
+            using Stream stream = entry.Open();
+            using MemoryStream bytes = new();
+            stream.CopyTo(bytes);
+            return bytes.ToArray();
+        })];
+
+        Assert.Equal(data[0].Length, data[1].Length);
+        Assert.NotEqual(data[0], data[1]);
+    }
+
+    [Fact]
     public void TheZipIsTheSameEveryTime()
     {
         ProjectDocument document = Project();

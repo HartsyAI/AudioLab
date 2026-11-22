@@ -11,7 +11,7 @@ public sealed class WavWriterTests
     private static byte[] Write(RenderedAudio audio, WavOptions options, out long clipped)
     {
         using MemoryStream stream = new();
-        clipped = WavExporter.Write(audio, stream, options);
+        clipped = WavExporter.Write(audio, stream, options).ClippedSamples;
         return stream.ToArray();
     }
 
@@ -85,6 +85,23 @@ public sealed class WavWriterTests
         Assert.Equal([32767L, -32768, 16384, 0, 0], Enumerable.Range(0, 5).Select(i => file.Raw(i, 0)));
         // Two samples, each in both channels.
         Assert.Equal(4, clipped);
+    }
+
+    [Fact]
+    public void ASampleThatIsNotANumberIsCountedWhateverTheFormat()
+    {
+        float[] samples = [0.1f, float.NaN, float.NegativeInfinity];
+
+        using MemoryStream integer = new();
+        using MemoryStream floating = new();
+        WavResult pcm = WavExporter.Write(Audio(samples), integer, Options(WavFormat.Pcm24));
+        WavResult real = WavExporter.Write(Audio(samples), floating, Options(WavFormat.Float32));
+
+        // Two samples in each of two channels.
+        Assert.Equal(4, pcm.NonFiniteSamples);
+        Assert.Equal(4, real.NonFiniteSamples);
+        Assert.True(pcm.HasProblems);
+        Assert.False(WavExporter.Write(Audio([0.1f]), new MemoryStream(), Options(WavFormat.Pcm16)).HasProblems);
     }
 
     [Fact]

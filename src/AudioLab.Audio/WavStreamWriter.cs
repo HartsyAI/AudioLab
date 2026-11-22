@@ -55,6 +55,12 @@ public sealed class WavStreamWriter
     /// <summary>How many samples were pulled back to the edge of the integer range because they went past it.</summary>
     public long ClippedSamples { get; private set; }
 
+    /// <summary>How many samples were NaN or infinite.</summary>
+    public long NonFiniteSamples { get; private set; }
+
+    /// <summary>What was found in the samples written so far.</summary>
+    public WavResult Result => new(ClippedSamples, NonFiniteSamples);
+
     /// <summary>Writes the next frames, which must not run past the count given to the constructor.</summary>
     public void Write(ReadOnlySpan<float> left, ReadOnlySpan<float> right)
     {
@@ -132,6 +138,10 @@ public sealed class WavStreamWriter
 
     private int Put(Span<byte> bytes, int at, float sample, ref uint state)
     {
+        if (!float.IsFinite(sample))
+        {
+            NonFiniteSamples++;
+        }
         if (_format == WavFormat.Float32)
         {
             BinaryPrimitives.WriteSingleLittleEndian(bytes[at..], sample);

@@ -61,7 +61,8 @@ public static class StemExporter
             ZipArchiveEntry entry = archive.CreateEntry(FileName(i + 1, plans[i].Track.Name), CompressionLevel.NoCompression);
             entry.LastWriteTime = stamp;
             using Stream stream = entry.Open();
-            WavExporter.Write(plans[i].Plan, stream, wav, settings);
+            // Each stem has its own dither noise, so the noise of stems that are added together does not add coherently.
+            WavExporter.Write(plans[i].Plan, stream, wav with { Seed = wav.Seed + (uint)i }, settings);
         }
     }
 
