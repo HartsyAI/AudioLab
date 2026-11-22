@@ -1,0 +1,18 @@
+<dialog id="@DialogId" class="dialog" aria-labelledby="@TitleId">
+    <form class="dialog-form" @onsubmit="ConfirmAsync" @onsubmit:preventDefault>
+        <h2 id="@TitleId" class="dialog-title">@Title</h2>
+        @if (Description is not null)
+        {
+            <p class="dialog-text">@Description</p>
+        }
+        @ChildContent
+        @if (Error is not null)
+        {
+            <p class="dialog-error" role="alert">@Error</p>
+        }
+        <div class="dialog-actions">
+            <Button OnClick="RequestCloseAsync">Cancel</Button>
+            <Button Variant="@ConfirmVariant" Submit="true" Disabled="ConfirmDisabled">@ConfirmText</Button>
+        </div>
+    </form>
+</dialog>
