@@ -164,6 +164,7 @@ public sealed class RichProjectTests
         Command[] commands =
         [
             new AddBeatLane { Project = id, Name = "Clap", Media = MediaId.From("med_clap") },
+            new MoveBeatLane { Project = id, Lane = sample.BeatPattern.Lanes[0].Id, Direction = MoveDirection.Down },
             new RemoveBeatLane { Project = id, Lane = kick.Id },
             new RenameBeatLane { Project = id, Lane = kick.Id, Name = "Thump" },
             new SetBeatLaneGain { Project = id, Lane = kick.Id, Gain = 0.4 },
