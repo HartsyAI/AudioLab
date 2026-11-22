@@ -66,25 +66,38 @@ public sealed class ClipMediaTests
     }
 
     [Fact]
-    public void TheLyricsGoBecauseTheirTimesBelongToTheOldFileAndTheScoreAndStemRecordsStay()
+    public void AnOffsetThatLeavesLessThanTheMinimumOfTheNewFileGoesBackToTheStartAndOtherwiseStays()
     {
-        AudioClip replaced = ClipRules.ReplaceMedia(Clip(meta: Meta()), _new, 20);
+        AudioClip late = Clip(offset: 9, visible: 1);
 
-        Assert.Null(replaced.Meta!.Lyrics);
-        Assert.Equal("Version A", replaced.Meta.Score!.Label);
-        Assert.Equal("vocals", replaced.Meta.StemOf!.Value.Stem);
-        ClipMeta onlyLyrics = new() { Lyrics = Meta().Lyrics };
-        Assert.Null(ClipRules.ReplaceMedia(Clip(meta: onlyLyrics), _new, 20).Meta);
+        AudioClip reset = ClipRules.ReplaceMedia(late, _new, 3);
+        AudioClip edge = ClipRules.ReplaceMedia(late, _new, 9.04);
+        AudioClip kept = ClipRules.ReplaceMedia(late, _new, 9.1);
+
+        Assert.Equal((0.0, 1.0), (reset.Offset, ClipRules.VisibleLength(reset)));
+        Assert.Equal((0.0, 1.0), (edge.Offset, ClipRules.VisibleLength(edge)));
+        Assert.Equal(9.0, kept.Offset);
+        Assert.Equal(0.1, ClipRules.VisibleLength(kept), 9);
     }
 
     [Fact]
-    public void TheSameFileAndLengthChangeNothingNotEvenTheLyrics()
+    public void TheRuleLeavesTheMetadataToTheCommandAndTheSameFileAndLengthGiveTheSameClip()
     {
         AudioClip clip = Clip(meta: Meta());
 
         Assert.Same(clip, ClipRules.ReplaceMedia(clip, _old, 10));
         Assert.Equal(11.0, ClipRules.ReplaceMedia(clip, _old, 11).Duration);
-        Assert.Null(ClipRules.ReplaceMedia(clip, _old, 11).Meta!.Lyrics);
+        Assert.Equal(clip.Meta, ClipRules.ReplaceMedia(clip, _new, 20).Meta);
+    }
+
+    [Fact]
+    public void AFileUnderTheMinimumPlaysWholeAndATrimOfItChangesNothing()
+    {
+        AudioClip tiny = ClipRules.ReplaceMedia(Clip(), _new, 0.02);
+
+        Assert.Equal((0.0, 0.02), (tiny.Offset, ClipRules.VisibleLength(tiny)));
+        Assert.Equal(tiny, ClipRules.TrimEnd(tiny, tiny.Start + 0.01));
+        Assert.Equal(tiny, ClipRules.TrimStart(tiny, tiny.Start + 0.01));
     }
 
     // ----- the command
@@ -125,6 +138,63 @@ public sealed class ClipMediaTests
         Assert.Null(rig.Project.Tracks[0].Clips[0].Meta!.Lyrics);
         rig.History.Undo();
         Assert.Equal(before, rig.Project);
+    }
+
+    private static AudioClip Stem(string id, string stem, double? cut, bool lyrics = true)
+    {
+        ClipLyrics? text = lyrics ? new ClipLyrics { Text = "la", Words = [new LyricWord("la", 0.5, 1, 0)], Source = "aligned" } : null;
+        return new AudioClip
+        {
+            Id = ClipId.From(id),
+            Name = id,
+            Media = MediaId.From("med_stem"),
+            Start = 3,
+            Duration = 10,
+            Offset = 0,
+            TrimEnd = 0,
+            Gain = 1,
+            FadeIn = 0,
+            FadeOut = 0,
+            Muted = false,
+            Meta = new ClipMeta { StemOf = new StemOf(ClipId.From("clp_1"), stem, cut), Lyrics = text },
+        };
+    }
+
+    [Fact]
+    public void TheVocalStemsOfTheClipLoseTheLyricsWithItAndTheirCutsPastTheNewEndAreClamped()
+    {
+        CommandRig rig = Rig();
+        Track audio = rig.Project.Tracks[0] with
+        {
+            Clips = [.. rig.Project.Tracks[0].Clips, Stem("clp_voc", "vocals", 8), Stem("clp_late", "vocals", 2), Stem("clp_drums", "drums", 9, lyrics: false)],
+        };
+        rig = new CommandRig(rig.Project with { Tracks = [audio, rig.Project.Tracks[1]] });
+
+        rig.Ok(new ReplaceClipMedia { Project = rig.Id, Clip = ClipId.From("clp_1"), Media = _new, Duration = 5 });
+
+        IReadOnlyDictionary<string, AudioClip> byId = rig.Project.Tracks[0].Clips.ToDictionary(clip => clip.Id.Value);
+        Assert.Null(byId["clp_1"].Meta!.Lyrics);
+        Assert.Null(byId["clp_voc"].Meta!.Lyrics);
+        Assert.Null(byId["clp_late"].Meta!.Lyrics);
+        Assert.Equal(5.0, byId["clp_voc"].Meta!.StemOf!.Value.SourceOffset);
+        Assert.Equal(2.0, byId["clp_late"].Meta!.StemOf!.Value.SourceOffset);
+        Assert.Equal(5.0, byId["clp_drums"].Meta!.StemOf!.Value.SourceOffset);
+        Assert.Equal("Version A", byId["clp_1"].Meta!.Score!.Label);
+    }
+
+    [Fact]
+    public void AStemKeepsItsLyricsWhenTheClipHadNoneToLose()
+    {
+        CommandRig rig = Rig();
+        Track audio = rig.Project.Tracks[0] with
+        {
+            Clips = [rig.Project.Tracks[0].Clips[0] with { Meta = new ClipMeta { Score = new ScoreMeta { Label = "Version A" } } }, Stem("clp_voc", "vocals", 1)],
+        };
+        rig = new CommandRig(rig.Project with { Tracks = [audio, rig.Project.Tracks[1]] });
+
+        rig.Ok(new ReplaceClipMedia { Project = rig.Id, Clip = ClipId.From("clp_1"), Media = _new, Duration = 20 });
+
+        Assert.NotNull(rig.Project.Tracks[0].Clips[1].Meta!.Lyrics);
     }
 
     [Fact]

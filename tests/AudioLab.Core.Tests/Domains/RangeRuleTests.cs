@@ -171,6 +171,18 @@ public sealed class RangeRuleTests
         Assert.Equal([(2.0, 5.0), (5.0, 12.0)], Spans(RangeRules.Split([clip], 0, 5, NewId)));
     }
 
+    [Fact]
+    public void ASplitKeepsAPieceOfExactlyAMillisecondOnEitherSideLikeADelete()
+    {
+        AudioClip clip = Clip("a", 2, 10);
+
+        Assert.Equal(3, RangeRules.Split([clip], 4, 4.001, NewId).Count);
+        Assert.Equal(3, RangeRules.Split([clip], 2.001, 11.999, NewId).Count);
+        Assert.Equal(2, RangeRules.Split([clip], 4, 4.0005, NewId).Count);
+        Assert.Equal(2, RangeRules.Delete([clip], 4, 4.001, false, NewId).Count);
+        Assert.Equal(2, RangeRules.Delete([clip], 2.001, 11.999, false, NewId).Count);
+    }
+
     // ----- names
 
     [Fact]
@@ -180,20 +192,34 @@ public sealed class RangeRuleTests
         Section long1 = drop with { Name = new string('s', 150) };
 
         Assert.Equal("Drop 1 - supersaw", RangeRules.ClipName(drop, "supersaw"));
-        Assert.Equal(ProjectLimits.MaxName, RangeRules.ClipName(long1, new string('t', 150)).Length);
-        Assert.StartsWith(new string('s', 150) + " - ", RangeRules.ClipName(long1, new string('t', 150)));
+        Assert.Equal(new string('s', 47) + " - " + new string('t', 150), RangeRules.ClipName(long1, new string('t', 150)));
+    }
+
+    [Fact]
+    public void TheSectionPartIsCutFirstSoTheTrackNameStaysWholeAndNoDashDangles()
+    {
+        Section nearly = new() { Id = SectionId.From("sec_1"), Name = new string('s', 198), Start = 0, End = 8, Color = "#ff0000" };
+        Section spaced = nearly with { Name = new string('s', 191) + " " + new string('s', 20) };
+        string track = new string('t', 198);
+
+        Assert.Equal(new string('s', 192) + " - Drums", RangeRules.ClipName(nearly, "Drums"));
+        Assert.Equal(new string('s', 191) + " - Drums", RangeRules.ClipName(spaced, "Drums"));
+        string whole = RangeRules.ClipName(nearly, track);
+        Assert.True(whole.Length <= ProjectLimits.MaxName);
+        Assert.Equal(new string('s', 198), whole);
+        Assert.Equal("s - " + new string('t', 196), RangeRules.ClipName(nearly with { Name = "s" }, track));
     }
 
     [Fact]
     public void ACutThroughASurrogatePairLeavesWholeTextTheProjectKeeps()
     {
         string emoji = "\U0001F3B8";
-        Section drop = new() { Id = SectionId.From("sec_1"), Name = new string('s', 199) + emoji, Start = 0, End = 8, Color = "#ff0000" };
+        Section drop = new() { Id = SectionId.From("sec_1"), Name = new string('s', 191) + emoji, Start = 0, End = 8, Color = "#ff0000" };
 
         string name = RangeRules.ClipName(drop, "Drums");
 
         Assert.True(TextRules.IsClean(name));
         Assert.True(name.Length <= ProjectLimits.MaxName);
-        Assert.Equal(new string('s', 199), name);
+        Assert.Equal(new string('s', 191) + " - Drums", name);
     }
 }

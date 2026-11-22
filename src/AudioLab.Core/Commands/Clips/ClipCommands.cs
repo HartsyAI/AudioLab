@@ -257,13 +257,9 @@ internal static class ClipCommands
 
     private static CommandResult ReplaceMedia(ProjectDocument document, ReplaceClipMedia command, IIdService ids)
     {
-        if (ClipEdits.Find(document, command.Clip) is not { } at)
+        if (MetaEdits.Audio(document, command.Clip, out AudioClip clip) is { } missing)
         {
-            return ClipEdits.NoClip(command.Clip);
-        }
-        if (!at.IsAudio)
-        {
-            return ClipEdits.WrongKind(wantsAudio: true);
+            return missing;
         }
         if (CommandChecks.Finite((nameof(command.Duration), command.Duration)) is { } refusal)
         {
@@ -273,7 +269,14 @@ internal static class ClipCommands
         {
             return CommandChecks.OutOfRange($"A media file is longer than 0 and at most {ProjectLimits.MaxSeconds} seconds.");
         }
-        return ClipEdits.EditAudio(document, command.Clip, clip => ClipRules.ReplaceMedia(clip, command.Media, command.Duration));
+        AudioClip replaced = ClipRules.ReplaceMedia(clip, command.Media, command.Duration);
+        if (ReferenceEquals(replaced, clip))
+        {
+            return CommandResult.Ok(document);
+        }
+        // The lyrics were timed on the old file, so they go with those of the vocal stems that follow them (D26); stem cuts past the new end are clamped to it.
+        ProjectDocument edited = clip.Meta?.Lyrics is null ? MetaEdits.Replace(document, replaced) : MetaEdits.SetLyrics(document, replaced, null);
+        return CommandResult.Ok(MetaEdits.ClampStemCuts(edited, clip.Id, command.Duration));
     }
 
     private static CommandResult Delete(ProjectDocument document, DeleteClip command, IIdService ids)

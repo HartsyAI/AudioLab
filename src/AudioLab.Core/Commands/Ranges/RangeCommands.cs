@@ -99,7 +99,7 @@ internal static class RangeCommands
         {
             return invalid;
         }
-        return end - start < RangeRules.MinLength - ProjectLimits.Tolerance
+        return !ClipRules.FitsPiece(end - start)
             ? CommandChecks.OutOfRange($"The range must be at least {RangeRules.MinLength} seconds long.")
             : null;
     }

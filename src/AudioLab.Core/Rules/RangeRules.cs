@@ -3,10 +3,17 @@ using AudioLab.Core.Model;
 namespace AudioLab.Core.Rules;
 
 /// <summary>The range rules of the old DAW: what a range delete and a range split do to the clips of a track. Times are seconds.</summary>
+/// <remarks>
+/// Two tolerances apply and mean different things. <see cref="Tolerance"/> (a millionth of a second) decides whether a clip touches the range
+/// at all: one that overlaps it by less is left alone. <see cref="ProjectLimits.Tolerance"/> (a billionth) is only the slack of a subtraction when a
+/// length is compared with <see cref="MinLength"/>, in <see cref="ClipRules.FitsPiece"/>, so that exactly 4 to 4.001 is a millisecond. The
+/// minimum is the same for a range, a piece a delete leaves and a piece a split leaves. A piece may be shorter than the
+/// <see cref="ClipRules.MinClipLength"/> a trim leaves; a later trim of it then makes it at least that long where the file allows.
+/// </remarks>
 public static class RangeRules
 {
-    /// <summary>The shortest range, and the shortest piece of a clip a range delete leaves; a length within a billionth of it counts.</summary>
-    public const double MinLength = 0.001;
+    /// <summary>The shortest range, and the shortest piece of a clip a range delete or split leaves.</summary>
+    public const double MinLength = ClipRules.SplitMargin;
 
     /// <summary>Clips that touch a range only within this many seconds are not cut by it.</summary>
     public const double Tolerance = 1e-6;
@@ -47,8 +54,8 @@ public static class RangeRules
                 continue;
             }
             double clipEnd = ClipRules.EndOf(clip);
-            bool left = start - clip.Start >= MinLength - ProjectLimits.Tolerance;
-            bool right = clipEnd - end >= MinLength - ProjectLimits.Tolerance;
+            bool left = ClipRules.FitsPiece(start - clip.Start);
+            bool right = ClipRules.FitsPiece(clipEnd - end);
             if (left)
             {
                 kept.Add(LeftPiece(clip, start));
@@ -113,14 +120,34 @@ public static class RangeRules
     {
         ArgumentNullException.ThrowIfNull(section);
         ArgumentNullException.ThrowIfNull(trackName);
-        string name = $"{section.Name} - {trackName}";
-        if (name.Length <= ProjectLimits.MaxName)
+        string tail = $" - {trackName}";
+        if (section.Name.Length + tail.Length <= ProjectLimits.MaxName)
         {
-            return name;
+            return section.Name + tail;
         }
-        // Never cut a surrogate pair in half: a lone half is not text a project keeps.
-        int room = char.IsHighSurrogate(name[ProjectLimits.MaxName - 1]) ? ProjectLimits.MaxName - 1 : ProjectLimits.MaxName;
-        return name[..room].TrimEnd();
+        // The section's part is cut first, so the track's name stays whole and no dash is left dangling.
+        if (Cut(section.Name, ProjectLimits.MaxName - tail.Length) is { Length: > 0 } head)
+        {
+            return head + tail;
+        }
+        // The track's name alone fills the limit: cut the whole, and drop a dash the cut leaves at the end.
+        string whole = Cut(section.Name + tail, ProjectLimits.MaxName);
+        string trimmed = whole.TrimEnd('-', ' ');
+        return trimmed.Length > 0 ? trimmed : whole;
+    }
+
+    // At most room characters, never cutting a surrogate pair in half (a lone half is not text a project keeps), without trailing blanks.
+    private static string Cut(string text, int room)
+    {
+        if (room <= 0)
+        {
+            return string.Empty;
+        }
+        if (text.Length <= room)
+        {
+            return text;
+        }
+        return text[..(char.IsHighSurrogate(text[room - 1]) ? room - 1 : room)].TrimEnd();
     }
 
     private static bool Inside(MidiClip clip, double start, double end)

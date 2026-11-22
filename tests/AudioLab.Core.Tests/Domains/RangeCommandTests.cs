@@ -112,11 +112,44 @@ public sealed class RangeCommandTests
     }
 
     [Fact]
+    public void ARangeInAGapRemovesNothingAndInShuffleClosesTheGapForTheLaterClipsOnly()
+    {
+        ProjectDocument slip = _rig.Project;
+        CommandRig shuffle = new(Start(EditMode.Shuffle));
+        int steps = _rig.History.UndoCount;
+
+        Assert.Empty(_rig.Created(Delete(13, 16, _drums)));
+        Assert.Equal(slip, _rig.Project);
+        Assert.Equal(steps, _rig.History.UndoCount);
+        Assert.Empty(shuffle.Created(new DeleteRange { Project = shuffle.Id, Start = 13, End = 16, Tracks = [_drums] }));
+
+        Assert.Equal([(2.0, 12.0), (17.0, 21.0)], Spans(shuffle.Project.Tracks[0]));
+        Assert.Equal(shuffle.Project.Tracks[1], Start(EditMode.Shuffle).Tracks[1]);
+        int shuffleSteps = shuffle.History.UndoCount;
+        Assert.Empty(shuffle.Created(new DeleteRange { Project = shuffle.Id, Start = 30, End = 33, Tracks = [_drums] }));
+        Assert.Equal(shuffleSteps, shuffle.History.UndoCount);
+    }
+
+    [Fact]
+    public void ASplitAndADeleteKeepTheSamePiecesAtTheEdgeOfTheMinimum()
+    {
+        CommandRig split = new(Start(EditMode.Slip));
+
+        split.Created(SplitAt(4, 4.001, _drums));
+        _rig.Created(Delete(4, 4.001, _drums));
+
+        Assert.Equal([(2.0, 4.0), (4.0, 4.001), (4.001, 12.0), (20.0, 24.0)], Spans(split.Project.Tracks[0]));
+        Assert.Equal([(2.0, 4.0), (4.001, 12.0), (20.0, 24.0)], Spans(Track(_drums)));
+    }
+
+    [Fact]
     public void AMidiClipWhollyInsideTheRangeIsRemovedAndOneItCutsIntoIsRejectedAndNothingChanges()
     {
+        ProjectDocument before = _rig.Project;
         CommandResult refused = _rig.Refused(Delete(5, 8, _keys, _drums));
 
         Assert.Equal(CommandErrorCode.Rejected, refused.Errors[0].Code);
+        Assert.Equal(before, _rig.Project);
         _rig.Created(Delete(3.9, 6.1, _keys));
         Assert.Equal(["m2"], Track(_keys).MidiClips.Select(clip => clip.Id.Value));
     }
