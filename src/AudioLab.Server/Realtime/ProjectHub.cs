@@ -40,7 +40,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
         return base.OnDisconnectedAsync(exception);
     }
 
-    /// <summary>Joins a project the user owns and returns its state; every later change is sent with a higher revision, and none is missed.</summary>
+    /// <summary>Joins a project the user owns and returns its state; every later change is sent, or a later one in its place, so the last is never missed.</summary>
     /// <remarks>A change may reach the client before this call returns; the client keeps it and applies it if its revision is above the reply's.</remarks>
     [HubMethodName("Join")]
     public async Task<JoinReply> JoinAsync(string? project)
@@ -58,6 +58,12 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
             {
                 members.Add(state.User, id, state);
                 state.Add(id);
+                return Task.CompletedTask;
+            },
+            _ =>
+            {
+                members.Remove(state.User, id, state);
+                state.Remove(id);
                 return Task.CompletedTask;
             },
             Context.ConnectionAborted));
@@ -136,9 +142,9 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
         {
             return await call();
         }
-        catch (ProjectNotFoundException)
+        catch (ProjectNotFoundException exception)
         {
-            throw new HubException("There is no such project.");
+            throw new HubException(exception.Message);
         }
         catch (SessionClosedException)
         {

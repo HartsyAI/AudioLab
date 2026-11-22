@@ -16,28 +16,32 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
     /// <summary>Opens the project and, before any later change can be announced, calls <paramref name="subscribe"/>; returns the state to start from.</summary>
     /// <param name="user">The user the door resolved.</param>
     /// <param name="project">The project to join.</param>
-    /// <param name="subscribe">Adds the client to the project's group.</param>
+    /// <param name="subscribe">Adds the client to the project's members.</param>
+    /// <param name="unsubscribe">Takes the client out again, if the project closed while it was being added.</param>
     /// <param name="cancellationToken">Cancels the join.</param>
     /// <exception cref="ProjectNotFoundException">The user has no such project.</exception>
-    public async Task<ProjectSnapshot> JoinAsync(UserId user, ProjectId project, Func<CancellationToken, Task> subscribe, CancellationToken cancellationToken)
+    public async Task<ProjectSnapshot> JoinAsync(
+        UserId user,
+        ProjectId project,
+        Func<CancellationToken, Task> subscribe,
+        Func<CancellationToken, Task> unsubscribe,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(subscribe);
+        ArgumentNullException.ThrowIfNull(unsubscribe);
+
+        // Under the order, a deletion has either finished, so the project is not found, or has not begun, so this is announced to.
+        using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
-        await session.PublishOrder.WaitAsync(cancellationToken);
-        try
+        RequireNotClosing(session);
+        await subscribe(cancellationToken);
+        if (session.IsClosed)
         {
-            // The project may have been deleted while this waited for its turn; a closed session is a project that is gone.
-            if (session.IsClosed)
-            {
-                throw new ProjectNotFoundException();
-            }
-            await subscribe(cancellationToken);
-            return session.Snapshot;
+            // Closed while the client was being added, which the order does not cover; the client must not be left holding it.
+            await unsubscribe(CancellationToken.None);
+            throw Closing();
         }
-        finally
-        {
-            session.PublishOrder.Release();
-        }
+        return session.Snapshot;
     }
 
     /// <summary>Reads a command by its wire name and applies it for a client; a refusal is a reply, not an exception.</summary>
@@ -59,6 +63,7 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         GestureId? gesture,
         CancellationToken cancellationToken)
     {
+        using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
         if (name is null || json is null)
         {
@@ -73,16 +78,8 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         {
             return Refused(parsed.Errors, session.Snapshot.Revision);
         }
-        await session.PublishOrder.WaitAsync(cancellationToken);
-        try
-        {
-            EditOutcome outcome = session.Apply(command, client, gesture);
-            return await FinishAsync(user, outcome, name, outcome.Result?.Created.ToArray() ?? []);
-        }
-        finally
-        {
-            session.PublishOrder.Release();
-        }
+        EditOutcome outcome = session.Apply(command, client, gesture);
+        return await FinishAsync(user, outcome, name, outcome.Result?.Created.ToArray() ?? []);
     }
 
     /// <summary>Goes back one undo step for everyone in the project; the reply says whether there was one.</summary>
@@ -116,21 +113,14 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         Func<ProjectSession, EditOutcome?> step,
         CancellationToken cancellationToken)
     {
+        using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
-        await session.PublishOrder.WaitAsync(cancellationToken);
-        try
+        EditOutcome? outcome = step(session);
+        if (outcome is null)
         {
-            EditOutcome? outcome = step(session);
-            if (outcome is null)
-            {
-                return new CommandReply(false, false, session.Snapshot.Revision, [new HubCommandError(CommandErrorCode.Rejected, $"There is nothing to {reason}.")], []);
-            }
-            return await FinishAsync(user, outcome, reason, []);
+            return new CommandReply(false, false, session.Snapshot.Revision, [new HubCommandError(CommandErrorCode.Rejected, $"There is nothing to {reason}.")], []);
         }
-        finally
-        {
-            session.PublishOrder.Release();
-        }
+        return await FinishAsync(user, outcome, reason, []);
     }
 
     // The announcement is not tied to the caller's connection: if the sender goes away, the others still hear the change.
@@ -146,6 +136,16 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         }
         return new CommandReply(true, outcome.Changed, outcome.Snapshot.Revision, [], created);
     }
+
+    private static void RequireNotClosing(ProjectSession session)
+    {
+        if (session.IsClosed)
+        {
+            throw Closing();
+        }
+    }
+
+    private static ProjectNotFoundException Closing() => new("The project is closing; join it again.");
 
     private static CommandReply Refused(IEnumerable<CommandError> errors, long revision)
     {

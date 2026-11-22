@@ -183,6 +183,10 @@ Rules:
   reply returns. A client that takes nothing for `HubSendTimeout` (10 s) is disconnected. A command runs twice on a
   session, the second time with the ids of the first, so its size can be checked before it is applied; a handler must be
   pure (D18). Core's command limit (16 Mi characters) is above the hub's (2 Mi), which the owner may want to lower in Core.
+  The publish order belongs to the project's key, not to its session: a change, a join and a deletion each take it, even
+  for a project that is not open, so a join can never open a project beside its deletion; a session closed while a client
+  joins (not deleted) sends that client back with "the project is closing". Still unbounded: the cost of serialising the
+  whole document once per revision, which is done under the project's order and lock, and the number of connections.
   Not built: patches in place of whole documents, a limit on the rate of commands, sharing a project between users,
   and moving the hub's message types into `AudioLab.Core` (section 4 lets `AudioLab.Web` reference only Core and
   Audio, so the UI needs them there).

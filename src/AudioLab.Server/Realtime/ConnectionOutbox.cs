@@ -17,7 +17,6 @@ public sealed class ConnectionOutbox : IDisposable
     private readonly Action _abort;
     private readonly TimeSpan _sendTimeout;
     private readonly ILogger _logger;
-    private readonly Task _loop;
 
     /// <summary>Starts the writer loop for one connection.</summary>
     /// <param name="hub">Sends to the connection.</param>
@@ -32,7 +31,7 @@ public sealed class ConnectionOutbox : IDisposable
         _abort = abort;
         _sendTimeout = sendTimeout;
         _logger = logger;
-        _loop = Task.Run(RunAsync);
+        _ = Task.Run(RunAsync);
     }
 
     /// <summary>Queues a change; it replaces an older change of the same project that was not sent yet. Never waits.</summary>
@@ -120,37 +119,46 @@ public sealed class ConnectionOutbox : IDisposable
 
     private async Task<bool> SendAsync(Slot slot)
     {
-        IProjectClient client = _hub.Clients.Client(_connectionId);
-        Task send = slot.Deleted is { } closed ? client.ProjectDeleted(closed) : client.DocumentChanged(slot.Change!);
+        Task? send = null;
         try
         {
+            IProjectClient client = _hub.Clients.Client(_connectionId);
+            send = slot.Deleted is { } closed ? client.ProjectDeleted(closed) : client.DocumentChanged(slot.Change!);
             await send.WaitAsync(_sendTimeout, _stop.Token);
             return true;
         }
         catch (TimeoutException)
         {
             HubLog.SendTimedOut(_logger, (long)_sendTimeout.TotalMilliseconds);
-            _abort();
-            ObserveLater(send);
+            Abandon(send);
             return false;
         }
         catch (OperationCanceledException)
         {
+            // The outbox was disposed because the connection ended; there is nothing to abort.
             ObserveLater(send);
             return false;
         }
         catch (Exception exception)
         {
-            // The connection went away under the send; the disconnect is handled where it is reported.
+            // The loop ends here, so the client would silently stop hearing changes while it stayed connected: it is disconnected
+            // instead, and joins again.
             HubLog.SendFailed(_logger, exception);
+            Abandon(send);
             return false;
         }
     }
 
-    // A send that is abandoned may still fail later; its exception is then taken so it is never unobserved.
-    private static void ObserveLater(Task send)
+    private void Abandon(Task? send)
     {
-        _ = send.ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+        _abort();
+        ObserveLater(send);
+    }
+
+    // A send that is abandoned may still fail later; its exception is then taken so it is never unobserved.
+    private static void ObserveLater(Task? send)
+    {
+        _ = send?.ContinueWith(task => task.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
     }
 
     private sealed class Slot

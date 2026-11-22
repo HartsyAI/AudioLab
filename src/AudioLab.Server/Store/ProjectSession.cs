@@ -57,9 +57,6 @@ public sealed class ProjectSession
         _timer = time.CreateTimer(OnTimer, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
-    /// <summary>Held while a change is applied and announced, so every client of the project hears the revisions in the order they happened.</summary>
-    public SemaphoreSlim PublishOrder { get; } = new(1, 1);
-
     /// <summary>Whether the session has been closed or discarded, so a change to it would be refused.</summary>
     public bool IsClosed
     {

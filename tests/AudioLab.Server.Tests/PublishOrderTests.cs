@@ -29,26 +29,97 @@ public sealed class PublishOrderTests
     }
 
     [Fact]
-    public async Task AJoinThatWaitedForItsTurnWhileTheProjectWasDeletedFindsNoProjectAndSubscribesNothing()
+    public async Task AJoinThatWaitsForAnInFlightDeletionOfAProjectThatWasNotOpenFindsNoProject()
     {
         using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create());
+        OrderingEvents events = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create(), events: events);
         ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Song", _none)).Id);
-        ProjectSession session = await store.Open.OpenAsync(Users.Alice, id, _none);
-        await session.PublishOrder.WaitAsync(_none);
+        Assert.Null(store.Open.SessionIfOpen(Users.Alice, id));
+        events.HoldDeletion();
+        Task delete = store.Service.DeleteAsync(Users.Alice, id, _none);
+        await events.DeleteEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
         bool subscribed = false;
         Task<ProjectSnapshot> join = store.Edits.JoinAsync(Users.Alice, id, _ =>
         {
             subscribed = true;
             return Task.CompletedTask;
-        }, _none);
-        await Task.Delay(100);
+        }, _ => Task.CompletedTask, _none);
+        await Task.Delay(150);
         Assert.False(join.IsCompleted);
 
-        Assert.True(await store.Open.DeleteAsync(Users.Alice, id, _none));
-        session.PublishOrder.Release();
+        events.ReleaseDeletion();
+        await delete;
         await Assert.ThrowsAsync<ProjectNotFoundException>(() => join);
         Assert.False(subscribed);
+        Assert.Equal(["deleted"], events.Events);
+    }
+
+    [Fact]
+    public async Task AJoinAheadOfADeletionIsAnnouncedToAndNeverLeftHoldingTheDeletedProject()
+    {
+        using TempFolder folder = new();
+        OrderingEvents events = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create(), events: events);
+        ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Song", _none)).Id);
+        TaskCompletionSource subscribing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource carryOn = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<string> log = [];
+        Task<ProjectSnapshot> join = store.Edits.JoinAsync(Users.Alice, id, async _ =>
+        {
+            log.Add("subscribed");
+            subscribing.SetResult();
+            await carryOn.Task;
+        }, _ => Task.CompletedTask, _none);
+        await subscribing.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Task delete = store.Service.DeleteAsync(Users.Alice, id, _none);
+        await Task.Delay(150);
+        Assert.False(delete.IsCompleted);
+        carryOn.SetResult();
+        await join;
+        await delete;
+        Assert.Equal(["subscribed"], log);
+        Assert.Equal(["deleted"], events.Events);
+    }
+
+    [Fact]
+    public async Task AJoinWhoseProjectIsClosedWhileItSubscribesIsTakenBackOutAndToldTheProjectIsClosing()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, registry: TestCommandRegistry.Create());
+        ProjectId id = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Song", _none)).Id);
+        List<string> log = [];
+        ProjectNotFoundException error = await Assert.ThrowsAsync<ProjectNotFoundException>(() => store.Edits.JoinAsync(Users.Alice, id, async _ =>
+        {
+            log.Add("subscribed");
+            await store.Open.CloseAsync(Users.Alice, id, _none);
+        }, _ =>
+        {
+            log.Add("unsubscribed");
+            return Task.CompletedTask;
+        }, _none));
+        Assert.Equal(["subscribed", "unsubscribed"], log);
+        Assert.Contains("closing", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheOrderBelongsToTheProjectAndTwoUsersOrTwoProjectsNeverWaitForEachOther()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectId one = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "One", _none)).Id);
+        ProjectId two = ProjectId.From((await store.Service.CreateAsync(Users.Alice, "Two", _none)).Id);
+        using IDisposable held = await store.Open.EnterOrderAsync(Users.Alice, one, _none);
+        using IDisposable other = await store.Open.EnterOrderAsync(Users.Alice, two, _none).WaitAsync(TimeSpan.FromSeconds(5));
+        using IDisposable another = await store.Open.EnterOrderAsync(Users.Bob, one, _none).WaitAsync(TimeSpan.FromSeconds(5));
+        Task<IDisposable> second = store.Open.EnterOrderAsync(Users.Alice, one, _none);
+        await Task.Delay(100);
+        Assert.False(second.IsCompleted);
+        held.Dispose();
+        held.Dispose();
+        (await second.WaitAsync(TimeSpan.FromSeconds(5))).Dispose();
     }
 
     [Fact]

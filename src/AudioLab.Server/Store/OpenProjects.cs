@@ -52,6 +52,24 @@ public sealed class OpenProjects(
         }
     }
 
+    /// <summary>Takes the project's publish order, which a change is applied and announced under, and so are a join and a deletion.</summary>
+    /// <remarks>The order belongs to the project, not to its session, so a deletion can take it for a project that is not open and a join cannot slip in beside it. Dispose the result to give the order up.</remarks>
+    public async Task<IDisposable> EnterOrderAsync(UserId user, ProjectId id, CancellationToken cancellationToken)
+    {
+        SessionKey key = new(user, id);
+        Entry entry = Acquire(key);
+        try
+        {
+            await entry.Order.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            Release(key, entry);
+            throw;
+        }
+        return new OrderLease(this, key, entry);
+    }
+
     /// <summary>The session of an open project, or null when it is not open; it never opens the project.</summary>
     public ProjectSession? SessionIfOpen(UserId user, ProjectId id)
     {
@@ -234,9 +252,25 @@ public sealed class OpenProjects(
         }
     }
 
+    private sealed class OrderLease(OpenProjects owner, SessionKey key, Entry entry) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                entry.Order.Release();
+                owner.Release(key, entry);
+            }
+        }
+    }
+
     private sealed class Entry
     {
         public SemaphoreSlim Lock { get; } = new(1, 1);
+
+        public SemaphoreSlim Order { get; } = new(1, 1);
 
         public ProjectSession? Session { get; set; }
 

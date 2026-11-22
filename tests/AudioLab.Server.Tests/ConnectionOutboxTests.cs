@@ -66,6 +66,33 @@ public sealed class ConnectionOutboxTests
         outbox.PostDeleted(new ProjectClosed("a", "deleted"));
     }
 
+    [Fact]
+    public async Task AClientWhoseSendFailsForAnyReasonIsAbortedNotLeftConnectedAndDeaf()
+    {
+        FakeProjectClient client = new();
+        client.FailWith(new InvalidOperationException("the connection is in a bad state"));
+        TaskCompletionSource aborted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ConnectionOutbox outbox = new(new FakeHubContext(client), "c", () => aborted.TrySetResult(), TimeSpan.FromSeconds(30), NullLogger());
+        outbox.Post(Change("a", 1));
+        await aborted.Task.WaitAsync(_wait);
+        outbox.Post(Change("a", 2));
+        outbox.PostDeleted(new ProjectClosed("a", "deleted"));
+    }
+
+    [Fact]
+    public async Task AnOutboxThatIsDisposedAbortsNothing()
+    {
+        FakeProjectClient client = new();
+        int aborts = 0;
+        ConnectionOutbox outbox = new(new FakeHubContext(client), "c", () => Interlocked.Increment(ref aborts), TimeSpan.FromSeconds(30), NullLogger());
+        client.Close();
+        outbox.Post(Change("a", 1));
+        await client.Started.Task.WaitAsync(_wait);
+        outbox.Dispose();
+        await Task.Delay(200);
+        Assert.Equal(0, aborts);
+    }
+
     private static ProjectChange Change(string project, long revision) => new(project, revision, "{}", "test");
 
     private static Microsoft.Extensions.Logging.ILogger NullLogger() => Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;

@@ -8,6 +8,7 @@ public sealed class FakeProjectClient : IProjectClient
     private readonly object _sync = new();
     private readonly List<string> _sent = [];
     private TaskCompletionSource? _gate;
+    private Exception? _failure;
 
     public IReadOnlyList<string> Sent
     {
@@ -27,9 +28,16 @@ public sealed class FakeProjectClient : IProjectClient
 
     public void Open() => _gate?.TrySetResult();
 
+    /// <summary>Makes every send fail with <paramref name="exception"/>.</summary>
+    public void FailWith(Exception exception) => _failure = exception;
+
     public async Task DocumentChanged(ProjectChange change)
     {
         Started.TrySetResult();
+        if (_failure is { } failure)
+        {
+            throw failure;
+        }
         if (_gate is { } gate)
         {
             await gate.Task;
