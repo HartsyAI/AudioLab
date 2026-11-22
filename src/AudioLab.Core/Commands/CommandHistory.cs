@@ -83,7 +83,7 @@ public sealed class CommandHistory
         }
         if (gesture is null || gesture != _open)
         {
-            EndGesture();
+            CloseGesture();
             _undo.Add(new HistoryStep(_registry.NameOf(command) ?? string.Empty, Current));
             if (_undo.Count > _depth)
             {
@@ -96,20 +96,20 @@ public sealed class CommandHistory
         return result;
     }
 
-    /// <summary>Closes the open gesture, as the release of a drag does; one that ended where it began leaves no step.</summary>
-    public void EndGesture()
+    /// <summary>Closes the gesture as the release of a drag does, if it is the open one; one that ended where it began leaves no step.</summary>
+    /// <remarks>A release of another gesture, such as a late one from a second client, changes nothing.</remarks>
+    public void EndGesture(GestureId gesture)
     {
-        if (_open is not null && _undo.Count > 0 && _undo[^1].Document == Current)
+        if (gesture == _open)
         {
-            _undo.RemoveAt(_undo.Count - 1);
+            CloseGesture();
         }
-        _open = null;
     }
 
     /// <summary>Goes back one step, closing an open gesture first; null when there is nothing to undo.</summary>
     public ProjectDocument? Undo()
     {
-        EndGesture();
+        CloseGesture();
         if (_undo.Count == 0)
         {
             return null;
@@ -124,7 +124,7 @@ public sealed class CommandHistory
     /// <summary>Goes forward one step; null when there is nothing to redo. The same document comes back, ids included.</summary>
     public ProjectDocument? Redo()
     {
-        EndGesture();
+        CloseGesture();
         if (_redo.Count == 0)
         {
             return null;
@@ -134,5 +134,14 @@ public sealed class CommandHistory
         _undo.Add(new HistoryStep(step.Label, Current));
         Current = step.Document;
         return Current;
+    }
+
+    private void CloseGesture()
+    {
+        if (_open is not null && _undo.Count > 0 && _undo[^1].Document == Current)
+        {
+            _undo.RemoveAt(_undo.Count - 1);
+        }
+        _open = null;
     }
 }

@@ -22,4 +22,6 @@ namespace AudioLab.Core.Tests;
 [JsonSerializable(typeof(UnregisteredCommand))]
 [JsonSerializable(typeof(UnsealedCommand))]
 [JsonSerializable(typeof(ShapeCommand))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(string))]
 internal sealed partial class TestCommandJsonContext : JsonSerializerContext;

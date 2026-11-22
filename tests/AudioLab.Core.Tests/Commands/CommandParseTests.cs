@@ -66,7 +66,10 @@ public sealed class CommandParseTests
             Track = null,
             Tracks = [TrackId.From("trk_1"), TrackId.From("trk_2")],
             Kind = TrackKind.Bus,
+            Mode = TrackKind.Audio,
             Level = 0.5,
+            Flags = [true, false],
+            Labels = ["a", "b"],
         };
         string json = JsonSerializer.Serialize(shape, TestCommandJsonContext.Default.ShapeCommand);
 

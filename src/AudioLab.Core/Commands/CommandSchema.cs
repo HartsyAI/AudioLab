@@ -15,7 +15,7 @@ internal static class CommandSchema
     /// <summary>The schema of <paramref name="info"/> as a detached JSON element.</summary>
     public static JsonElement For(JsonTypeInfo info)
     {
-        JsonNode node = JsonSchemaExporter.GetJsonSchemaAsNode(info, _options);
+        JsonNode node = WithoutNull(JsonSchemaExporter.GetJsonSchemaAsNode(info, _options));
         using JsonDocument document = JsonDocument.Parse(node.ToJsonString());
         return document.RootElement.Clone();
     }
@@ -28,20 +28,45 @@ internal static class CommandSchema
         {
             return IdSchema(inner is not null);
         }
+        if (inner is not null && context.TypeInfo.Options.GetTypeInfo(inner).Converter is INamedEnumConverter optional)
+        {
+            return EnumSchema(optional, nullable: true);
+        }
         if (context.TypeInfo.Converter is INamedEnumConverter named)
         {
-            return new JsonObject { ["enum"] = new JsonArray([.. named.Names.Select(name => JsonValue.Create(name))]) };
+            return EnumSchema(named, nullable: false);
         }
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueList<>))
         {
             JsonTypeInfo item = context.TypeInfo.Options.GetTypeInfo(type.GetGenericArguments()[0]);
-            return new JsonObject { ["type"] = "array", ["items"] = JsonSchemaExporter.GetJsonSchemaAsNode(item, _options) };
-        }
-        if (context.Path.IsEmpty && schema is JsonObject root)
-        {
-            root["type"] = "object";
+            return new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = WithoutNull(JsonSchemaExporter.GetJsonSchemaAsNode(item, _options)),
+            };
         }
         return schema;
+    }
+
+    // A list holds no null and the command itself is never null, but the exporter marks reference types as nullable.
+    private static JsonNode WithoutNull(JsonNode schema)
+    {
+        if (schema is JsonObject node && node["type"] is JsonArray types)
+        {
+            string[] kept = [.. types.Select(type => type!.GetValue<string>()).Where(type => type != "null")];
+            node["type"] = kept.Length == 1 ? kept[0] : new JsonArray([.. kept.Select(type => JsonValue.Create(type))]);
+        }
+        return schema;
+    }
+
+    private static JsonObject EnumSchema(INamedEnumConverter converter, bool nullable)
+    {
+        JsonArray names = new([.. converter.Names.Select(name => JsonValue.Create(name))]);
+        if (nullable)
+        {
+            names.Add(null);
+        }
+        return new JsonObject { ["enum"] = names };
     }
 
     private static bool IsId(Type type)

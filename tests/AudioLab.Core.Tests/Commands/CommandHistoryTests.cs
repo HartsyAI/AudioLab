@@ -114,7 +114,7 @@ public sealed class CommandHistoryTests
     {
         GestureId drag = GestureId.From("drag");
         _history.Apply(Bpm(101), drag);
-        _history.EndGesture();
+        _history.EndGesture(drag);
         _history.Apply(Bpm(102), drag);
 
         Assert.Equal(2, _history.UndoCount);
@@ -178,6 +178,19 @@ public sealed class CommandHistoryTests
     }
 
     [Fact]
+    public void TheReleaseOfAnotherGestureLeavesTheOpenOneAlone()
+    {
+        GestureId drag = GestureId.From("drag");
+        _history.Apply(Bpm(101), drag);
+
+        _history.EndGesture(GestureId.From("late-release"));
+        _history.Apply(Bpm(102), drag);
+
+        Assert.Equal(drag, _history.OpenGesture);
+        Assert.Equal(1, _history.UndoCount);
+    }
+
+    [Fact]
     public void ACommandThatChangesNothingAddsNoStepAndKeepsRedo()
     {
         _history.Apply(Bpm(130));
@@ -199,7 +212,7 @@ public sealed class CommandHistoryTests
         _history.Apply(Bpm(150), drag);
         _history.Apply(Bpm(_initial.Bpm), drag);
 
-        _history.EndGesture();
+        _history.EndGesture(drag);
 
         Assert.Equal(1, _history.UndoCount);
         Assert.Equal("add_marker", _history.UndoLabel);

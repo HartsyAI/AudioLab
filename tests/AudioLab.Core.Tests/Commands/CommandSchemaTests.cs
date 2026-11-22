@@ -12,7 +12,7 @@ public sealed class CommandSchemaTests
         Assert.Equal("object", _schema.GetProperty("type").GetString());
         Assert.False(_schema.GetProperty("additionalProperties").GetBoolean());
         string[] required = [.. _schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!)];
-        Assert.Equal(["kind", "level", "project", "tracks"], required.Order(StringComparer.Ordinal));
+        Assert.Equal(["flags", "kind", "labels", "level", "project", "tracks"], required.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -48,6 +48,25 @@ public sealed class CommandSchemaTests
         JsonElement kind = _schema.GetProperty("properties").GetProperty("kind");
 
         Assert.Equal(["audio", "instrument", "bus"], kind.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void AnOptionalEnumMayAlsoBeNull()
+    {
+        JsonElement mode = _schema.GetProperty("properties").GetProperty("mode");
+
+        Assert.Equal(
+            ["audio", "instrument", "bus", null],
+            mode.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void ListsOfPlainValuesKeepTheirItemTypeAndAllowNoNull()
+    {
+        JsonElement properties = _schema.GetProperty("properties");
+
+        Assert.Equal("boolean", properties.GetProperty("flags").GetProperty("items").GetProperty("type").GetString());
+        Assert.Equal("string", properties.GetProperty("labels").GetProperty("items").GetProperty("type").GetString());
     }
 
     [Fact]

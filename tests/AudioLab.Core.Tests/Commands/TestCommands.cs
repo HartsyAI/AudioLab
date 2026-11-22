@@ -52,5 +52,13 @@ internal sealed record ShapeCommand : Command
 
     public required TrackKind Kind { get; init; }
 
+    public TrackKind? Mode { get; init; }
+
     public required double Level { get; init; }
+
+    [JsonConverter(typeof(ValueListJsonConverter<bool>))]
+    public required ValueList<bool> Flags { get; init; }
+
+    [JsonConverter(typeof(ValueListJsonConverter<string>))]
+    public required ValueList<string> Labels { get; init; }
 }

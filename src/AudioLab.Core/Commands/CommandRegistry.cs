@@ -42,9 +42,12 @@ public sealed class CommandRegistry
     {
         ArgumentNullException.ThrowIfNull(name);
         ArgumentNullException.ThrowIfNull(json);
-        return _byName.TryGetValue(name, out CommandRegistration? entry)
-            ? entry.Parse(json)
-            : CommandParseResult.Refuse(CommandErrorCode.UnknownCommand, $"No command is named {ProjectLimits.Shorten(name)}.");
+        if (_byName.TryGetValue(name, out CommandRegistration? entry))
+        {
+            return entry.Parse(json);
+        }
+        string named = CommandRegistryBuilder.IsValidName(name) ? $" named {name}" : string.Empty;
+        return CommandParseResult.Refuse(CommandErrorCode.UnknownCommand, $"No command{named} exists.");
     }
 
     /// <summary>Applies a command: a new document that passed <see cref="ProjectValidator"/>, or every reason it was refused.</summary>

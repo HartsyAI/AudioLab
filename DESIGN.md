@@ -143,7 +143,7 @@ Rules:
   command creates; the result lists the ids the handler allocated.
 - **History.** Undo and redo on the server, coalesced by gesture: a drag is one step. History is in memory and is
   lost on restart. A gesture's commands each apply and show at once and share one undo step; a different or no gesture
-  closes it; undo closes it first; a gesture that ends where it began leaves no step. A client that previews locally
+  closes it; undo closes it first; the release names its gesture, so a late release from another client closes nothing; a gesture that ends where it began leaves no step. A client that previews locally
   (below) sends one command on release, which is a gesture of one.
 - **Store.** Open documents, a lock per project, debounced autosave, atomic writes. Projects and media are scoped to
   the user who owns them (D12).
