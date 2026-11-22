@@ -104,11 +104,12 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
-| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Planned |
+| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Exists (host, the three doors) |
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
 | `tests/AudioLab.Core.Tests` | Model, ids, JSON round trips and rejection; command registry and history. | Core | Exists |
+| `tests/AudioLab.Server.Tests` | Doors, configuration, routes. | Server | Exists |
 | `tests/<Project>.Tests` | One test project per other source project. | its project | Planned |
 
 Rules:
@@ -702,7 +703,15 @@ that the scan under `src` and `tests` does not find (for example one inside a `b
 | Hosted | A reverse proxy maps a path on the site (for example `hartsy.ai/audiolab`) to the server. Same origin as the site. | The site's own sign-in. |
 
 - The server resolves a user for every request from the door it came through. It never trusts an identity header that
-  did not come from its own proxy.
+  did not come from its own proxy. Only the health route is outside the door: it names no user and shows no project.
+- The Swarm and hosted doors trust a proxy that sends the shared secret (`AudioLab:Door:ProxySecret`, 32 characters or
+  more, required at start) in `X-AudioLab-Secret` and the signed-in user in `X-AudioLab-User`: one printable ASCII name of up to
+  128 characters, hashed into the user id so that any name maps to a valid id and two names never share one. A request
+  without the secret gets 403, a proxied request without a usable user 401. The desktop door answers loopback peers only,
+  and, because a web page the user has open can send requests to the loopback address, also requires a loopback `Host` (against
+  DNS rebinding), refuses an `Origin` that is not its own scheme, host and port, and refuses a `Sec-Fetch-Site` other than
+  `same-origin` or `none`; each refusal is a 403 and is logged with its reason. A client that sends neither header is let through.
+- The desktop and Swarm doors refuse to start on an address that is not loopback; the hosted door may listen anywhere.
 - The child process listens on loopback only, takes a per-launch secret, and exits when its parent dies.
 - Showing a hosted instance inside another site's iframe (a different origin) is out of scope for now. It needs
   `frame-ancestors`, a token handoff and a microphone and MIDI permissions policy, and nothing requires it yet.
@@ -768,3 +777,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-21 | D14 evidence: keyboard, focus and axe-core checks in Chromium, WebKit and Firefox (7.5); O11 opened for the contrast of `--record` text. D14 stays Proposed. |
 | 2026-11-21 | O2 recorded as D17 (Proposed, Firefox dragging not shown to hold): DOM and inline SVG for the lanes, with Canvas2D through built-ins as the alternative and Skia not adopted; evidence under D17; 7.1 states how C# reads tokens. |
 | 2026-11-22 | Command registry and gesture-coalesced history added to `AudioLab.Core` with tests (sections 4 and 5); D18 proposed. No domain commands yet. |
+| 2026-11-22 | `AudioLab.Server` and `AudioLab.Server.Tests` added (section 4): the host skeleton, the desktop, Swarm and hosted doors, and the proxy contract (section 9); the desktop door also refuses a foreign `Host`, `Origin` or `Sec-Fetch-Site`. |
