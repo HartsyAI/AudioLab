@@ -892,3 +892,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-22 | The project list (D31): create, rename, delete and open, the typed route client, the hub client and the shortcut registry; the App bar row joined the catalogue. |
 | 2026-11-22 | The session screen, read-only (D32): the arrangement, headers, rulers, mixer and status bar drawn from the document, a placeholder waveform until media exists; O12 and O13 opened. |
 | 2026-11-22 | The session screen goes live (D33): the hub, the revision rule, five edits, a drag as one gesture, undo and redo; O14 opened with the measured cost of a revision. |
+| 2026-11-22 | The Bit.Bheadless wrappers for D14 (menu, tooltip) are in their own change, with the library's three scripts on `ScriptAllowlist.Packages`; no screen uses them yet, and the UI does not depend on them while D14 is Proposed. |

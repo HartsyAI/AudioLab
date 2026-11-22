@@ -5,6 +5,7 @@ using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using Bit.Bheadless;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
@@ -13,6 +14,7 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 Uri site = new(builder.HostEnvironment.BaseAddress);
 builder.Services.AddSingleton(new HttpClient { BaseAddress = site });
+builder.Services.AddBitBheadlessServices();
 if (OperatingSystem.IsBrowser())
 {
     builder.Services.AddScoped<INativeOverlay, NativeOverlay>();
