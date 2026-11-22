@@ -355,6 +355,27 @@ public sealed class LyricsCommandTests
     }
 
     [Fact]
+    public void AnLrcFileWhoseLinesHoldMoreTextThanLyricsMayIsRefusedBeforeItsTextIsBuilt()
+    {
+        string file = string.Concat(Enumerable.Repeat("[0:0]", 2000)) + new string('a', 900_000);
+
+        _rig.RefusedWith(new ImportLyricsLrc { Project = _rig.Id, Clip = _clip, Lrc = file }, CommandErrorCode.Invalid);
+    }
+
+    [Fact]
+    public void AnLrcFileWithNothingInsideTheClipsAudioIsRefusedWithItsOwnReason()
+    {
+        ImportLyricsLrc import = new() { Project = _rig.Id, Clip = _clip, Lrc = "[00:00.50]a\n[00:01.00]b", LastLine = 0 };
+
+        CommandResult before = _rig.Refused(import);
+        CommandResult lastLine = _rig.Refused(import with { Lrc = "[00:04.00]la" });
+
+        Assert.Equal(CommandErrorCode.Rejected, before.Errors[0].Code);
+        Assert.Contains("falls inside the clip", before.Errors[0].Message);
+        Assert.Equal(before.Errors[0].Message, lastLine.Errors[0].Message);
+    }
+
+    [Fact]
     public void AnLrcFileWithNoTimedLinesOrABadLastLineIsRefused()
     {
         ImportLyricsLrc import = new() { Project = _rig.Id, Clip = _clip, Lrc = "[00:01.00]la" };

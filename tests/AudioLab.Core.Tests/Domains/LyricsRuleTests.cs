@@ -22,6 +22,11 @@ public sealed class LyricsRuleTests
         public int GetHashCode(double value) => 0;
     }
 
+    private static ClipLyrics? Lrc(string file, Func<double, double> toSource, double lastLine = 4)
+    {
+        return LyricsRules.FromLrc(LyricsRules.ParseLrc(file, out _), toSource, lastLine);
+    }
+
     private static int[] Flagged(ValueList<LyricWord> words)
     {
         return [.. words.Select((word, i) => (word, i)).Where(pair => pair.word.Unsure == true).Select(pair => pair.i)];
@@ -280,6 +285,59 @@ public sealed class LyricsRuleTests
         Assert.Equal(lyrics.Words[0], early.Words[0]);
     }
 
+    // ----- hostile input
+
+    [Fact]
+    public void ALineWithManyStampsAndALongBodyIsCutShortBeforeItsTextIsBuilt()
+    {
+        string stamps = string.Concat(Enumerable.Repeat("[0:0]", 2000));
+        string file = stamps + new string('a', 900_000);
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file, out bool tooLarge);
+
+        Assert.True(tooLarge);
+        Assert.Empty(lines);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
+    public void ALineOfAHundredThousandStampsIsReadInLinearTime()
+    {
+        string file = string.Concat(Enumerable.Repeat("[0:01.5]", 100_000)) + "la";
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file, out bool tooLarge);
+
+        Assert.False(tooLarge);
+        Assert.Equal(100_000, lines.Count);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
+    public void ManyLinesOfShortWordsFillTheLimitAndNoFurther()
+    {
+        string stamps = string.Concat(Enumerable.Repeat("[0:0]", 3000));
+        string file = stamps + string.Join(' ', Enumerable.Repeat("a", 200_000));
+
+        Assert.Empty(LyricsRules.ParseLrc(file, out bool tooLarge));
+        Assert.True(tooLarge);
+    }
+
+    [Fact]
+    public void HundredsOfThousandsOfHeardWordsThatAreNotInTheTextCannotMakeAnAlignmentSlow()
+    {
+        string text = string.Join(' ', Enumerable.Repeat("la", 450_000));
+        TimedWord[] heard = [.. Enumerable.Range(0, 400_000).Select(i => new TimedWord($"zz{i}", i * 0.01, (i * 0.01) + 0.005))];
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+
+        ClipLyrics lyrics = LyricsRules.FromAlignment(text, heard, 0);
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"took {clock.Elapsed}");
+        Assert.Equal(400_000, lyrics.Words.Count);
+        Assert.All(lyrics.Words, word => Assert.Equal(0, word.Line));
+    }
+
     // ----- LRC
 
     [Fact]
@@ -287,18 +345,20 @@ public sealed class LyricsRuleTests
     {
         string file = "[ar:Someone]\n[00:12.50]Hello <00:12.80>world\r\n[01:02.3][00:05]Again\n[00:30.5]\nnoise";
 
-        IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file);
+        IReadOnlyList<LrcLine> lines = LyricsRules.ParseLrc(file, out bool tooLarge);
 
         Assert.Equal(["Again", "Hello world", "Again"], lines.Select(line => line.Text));
         Assert.Equal([5, 12.5, 62.3], lines.Select(line => line.Time), new TolerantComparer());
-        Assert.Empty(LyricsRules.ParseLrc(null));
-        Assert.True(LyricsRules.ParseLrc("[99999999999999999999:00]x").Single().Time > 1e20);
+        Assert.False(tooLarge);
+        Assert.Empty(LyricsRules.ParseLrc(null, out _));
+        Assert.True(LyricsRules.ParseLrc("[99999999999999999999:00]x", out _).Single().Time > 1e20);
+        Assert.Empty(LyricsRules.ParseLrc("[" + new string('9', 400) + ":00]x", out _));
     }
 
     [Fact]
     public void LrcLinesAreTimedByEstimateFromTheirOwnStartAndTheLastRunsForTheGivenTime()
     {
-        ClipLyrics? lyrics = LyricsRules.FromLrc("[00:01.00]one two\n[00:03.00]three", time => time, 2);
+        ClipLyrics? lyrics = Lrc("[00:01.00]one two\n[00:03.00]three", time => time, 2);
 
         Assert.Equal("one two\nthree", lyrics!.Text);
         Assert.Equal([(1.0, 2.0), (2.0, 3.0), (3.0, 4.2)], lyrics.Words.Select(word => (word.Start, word.End)));
@@ -308,13 +368,13 @@ public sealed class LyricsRuleTests
     [Fact]
     public void LrcLinesThatStartBeforeTheSourceBeginsAreCutAndBareTagsAreNotSungLines()
     {
-        ClipLyrics? lyrics = LyricsRules.FromLrc("[00:00.00][Chorus]\n[00:02.00]one two\n[00:04.00]x", time => time - 3, 2);
+        ClipLyrics? lyrics = Lrc("[00:00.00][Chorus]\n[00:02.00]one two\n[00:04.00]x", time => time - 3, 2);
 
         Assert.NotNull(lyrics);
         Assert.Equal("one two\nx", lyrics.Text);
         Assert.Equal(["two", "x"], lyrics.Words.Select(word => word.Word));
         Assert.Equal(0.0, lyrics.Words[0].Start);
-        Assert.Null(LyricsRules.FromLrc("just words\n[ti:Title]", time => time));
+        Assert.Null(Lrc("just words\n[ti:Title]", time => time));
     }
 
     // ----- links

@@ -157,9 +157,20 @@ internal static class LyricsCommands
         {
             return invalid;
         }
+        IReadOnlyList<LrcLine> parsed = LyricsRules.ParseLrc(command.Lrc, out bool tooLarge);
+        if (tooLarge)
+        {
+            return CommandChecks.OutOfRange("That file's lines, counted once for each time stamp, hold more text than lyrics may.");
+        }
         double lastLine = command.LastLine ?? LyricsRules.DefaultLastLine;
-        ClipLyrics? lyrics = LyricsRules.FromLrc(command.Lrc, time => time - clip.Start + clip.Offset, lastLine);
-        return lyrics is null ? CommandChecks.Rejected("That file has no timed lyric lines.") : Apply(document, clip, lyrics);
+        ClipLyrics? lyrics = LyricsRules.FromLrc(parsed, time => time - clip.Start + clip.Offset, lastLine);
+        if (lyrics is null)
+        {
+            return CommandChecks.Rejected("That file has no timed lyric lines.");
+        }
+        return lyrics.Words.Count == 0
+            ? CommandChecks.Rejected("No line of that file falls inside the clip's audio, or its last line has no length.")
+            : CommandResult.Ok(MetaEdits.SetLyrics(document, clip, lyrics));
     }
 
     // The words of a model's answer all go in; an answer none of whose words can be used changes nothing, so it is refused.

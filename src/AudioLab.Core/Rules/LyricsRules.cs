@@ -47,6 +47,9 @@ public static partial class LyricsRules
     /// <summary>The source that stays when the text of generated lyrics is edited.</summary>
     public const string GeneratedSource = "generated";
 
+    /// <summary>How many characters <see cref="AssignLines"/> may look at in all, which no honest answer comes near.</summary>
+    public const long SearchBudget = 1_000_000_000;
+
     /// <summary>How long the last line of an LRC file lasts when nothing says, in seconds.</summary>
     public const double DefaultLastLine = 4;
 
@@ -156,12 +159,19 @@ public static partial class LyricsRules
         }
         int pointer = 0;
         int last = 0;
+        long budget = SearchBudget;
+        HashSet<string> missing = [];
         List<LyricWord> result = [];
         foreach (LyricWord word in words)
         {
-            int found = text.IndexOf(word.Word.ToLowerInvariant(), pointer, StringComparison.Ordinal);
+            string wanted = word.Word.ToLowerInvariant();
+            // A word that was not found after an earlier point is not found after a later one, and a hostile answer must not make
+            // every word scan the whole text: once the budget of characters looked at is spent, the rest keep the line they are on.
+            int found = budget > 0 && !missing.Contains(wanted) ? text.AsSpan(pointer).IndexOf(wanted, StringComparison.Ordinal) : -1;
             if (found >= 0)
             {
+                found += pointer;
+                budget -= found - pointer + wanted.Length;
                 // The search only moves forward, so the line does too.
                 int line = last;
                 while (line + 1 < starts.Count && starts[line + 1] <= found)
@@ -169,7 +179,12 @@ public static partial class LyricsRules
                     line++;
                 }
                 last = line;
-                pointer = found + word.Word.Length;
+                pointer = found + wanted.Length;
+            }
+            else if (budget > 0)
+            {
+                budget -= text.Length - pointer;
+                missing.Add(wanted);
             }
             result.Add(word with { Line = last });
         }
@@ -313,39 +328,57 @@ public static partial class LyricsRules
     }
 
     /// <summary>The lines of an LRC file with their times in seconds, by time: metadata tags are skipped and word marks are removed.</summary>
-    public static IReadOnlyList<LrcLine> ParseLrc(string? text)
+    /// <remarks>
+    /// A line with several stamps gives a line per stamp, so the result is cut short and <paramref name="tooLarge"/> is true when
+    /// its text would pass what a clip may hold (<see cref="ProjectLimits.MaxLongText"/> characters, <see cref="ProjectLimits.MaxListItems"/> lines).
+    /// </remarks>
+    public static IReadOnlyList<LrcLine> ParseLrc(string? text, out bool tooLarge)
     {
         List<LrcLine> lines = [];
+        long characters = 0;
+        tooLarge = false;
         foreach (string raw in (text ?? string.Empty).Split('\n'))
         {
+            string line = raw.TrimEnd('\r');
             List<double> times = [];
-            string rest = raw.TrimEnd('\r');
-            for (Match stamp = Timestamp().Match(rest); stamp.Success; stamp = Timestamp().Match(rest))
+            int at = 0;
+            for (Match stamp = Timestamp().Match(line, at); stamp.Success; stamp = Timestamp().Match(line, at))
             {
-                string seconds = stamp.Groups[2].Value.Replace(':', '.');
                 double minutes = double.Parse(stamp.Groups[1].Value, CultureInfo.InvariantCulture);
-                times.Add((minutes * 60) + double.Parse(seconds, CultureInfo.InvariantCulture));
-                rest = rest[stamp.Length..];
+                double time = (minutes * 60) + double.Parse(stamp.Groups[2].Value.Replace(':', '.'), CultureInfo.InvariantCulture);
+                if (double.IsFinite(time))
+                {
+                    times.Add(time);
+                }
+                at = stamp.Index + stamp.Length;
             }
-            string body = WordMark().Replace(rest, string.Empty).Trim();
-            if (times.Count > 0 && body.Length > 0)
+            string body = times.Count == 0 ? string.Empty : WordMark().Replace(line[at..], string.Empty).Trim();
+            if (body.Length == 0)
             {
-                lines.AddRange(times.Select(time => new LrcLine(time, body)));
+                continue;
             }
+            characters += (long)times.Count * (body.Length + 1);
+            if (characters > ProjectLimits.MaxLongText || lines.Count + (long)times.Count > ProjectLimits.MaxListItems)
+            {
+                tooLarge = true;
+                return [];
+            }
+            lines.AddRange(times.Select(time => new LrcLine(time, body)));
         }
         return [.. lines.OrderBy(line => line.Time)];
     }
 
-    /// <summary>Lyrics from an LRC file, timed by estimate: each line runs to the next line's start.</summary>
+    /// <summary>Lyrics from the lines of an LRC file, timed by estimate: each line runs to the next line's start.</summary>
     /// <remarks>
     /// The last line runs for <paramref name="lastLine"/> seconds. <paramref name="toSource"/> turns a timeline second into a source second.
-    /// Null when the file has no timed line.
+    /// Null when no line is a sung one, and lyrics with no words when every line falls before the start of the source.
     /// </remarks>
-    public static ClipLyrics? FromLrc(string? lrc, Func<double, double> toSource, double lastLine = DefaultLastLine)
+    public static ClipLyrics? FromLrc(IReadOnlyList<LrcLine> parsed, Func<double, double> toSource, double lastLine = DefaultLastLine)
     {
+        ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(toSource);
         // A bare section tag is not a sung line; keeping it would shift every later line's time.
-        List<LrcLine> entries = [.. ParseLrc(lrc).Where(line => !TagLine().IsMatch(line.Text))];
+        List<LrcLine> entries = [.. parsed.Where(line => !TagLine().IsMatch(line.Text))];
         if (entries.Count == 0)
         {
             return null;
@@ -394,7 +427,7 @@ public static partial class LyricsRules
     [GeneratedRegex(@"^vocals?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex VocalStem();
 
-    [GeneratedRegex(@"^\s*\[([0-9]+):([0-9]{1,2}(?:[.:][0-9]{1,3})?)\]")]
+    [GeneratedRegex(@"\G\s*\[([0-9]+):([0-9]{1,2}(?:[.:][0-9]{1,3})?)\]")]
     private static partial Regex Timestamp();
 
     [GeneratedRegex(@"<[0-9]+:[0-9]{1,2}(?:[.:][0-9]{1,3})?>")]

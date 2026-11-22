@@ -226,6 +226,45 @@ public sealed class RichProjectTests
     }
 
     [Fact]
+    public void EditsOfTheLyricsKeepTheirUnknownFieldsAndANewAnswerOfAModelStartsAFreshRecord()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2 && candidate.Clips[0].Meta?.Lyrics is not null);
+        ClipId clip = track.Clips[0].Id;
+        ExtraFields old = track.Clips[0].Meta!.Lyrics!.Extra;
+        ProjectId id = sample.Id;
+        Command[] edits =
+        [
+            new SetLyricsText { Project = id, Clip = clip, Text = "[Verse]\nla la" },
+            new ShiftLyrics { Project = id, Clip = clip, Seconds = 1 },
+            new ClearLyricsTiming { Project = id, Clip = clip },
+            new SetLyricsWordTime { Project = id, Clip = clip, Word = 0, Start = 0.55 },
+        ];
+        Command[] fresh =
+        [
+            new ApplyLyricsAlignment { Project = id, Clip = clip, Text = "la", Words = [new HeardWord("la", 0, 1)] },
+            new ApplyLyricsTranscript { Project = id, Clip = clip, Words = [new HeardWord("la", 0, 1)] },
+            new EstimateLyricsTiming { Project = id, Clip = clip, Text = "la la" },
+            new ImportLyricsLrc { Project = id, Clip = clip, Lrc = "[00:03.00]la la" },
+        ];
+
+        Assert.False(old.IsEmpty);
+        foreach (Command command in edits)
+        {
+            CommandResult result = new CommandRig(sample).Run(command);
+            Assert.True(result.Succeeded, command.GetType().Name);
+            Assert.Equal(old, result.Document!.Tracks.First(candidate => candidate.Id == track.Id).Clips[0].Meta!.Lyrics!.Extra);
+        }
+        foreach (Command command in fresh)
+        {
+            CommandResult result = new CommandRig(sample).Run(command);
+            Assert.True(result.Succeeded, command.GetType().Name);
+            ClipLyrics lyrics = result.Document!.Tracks.First(candidate => candidate.Id == track.Id).Clips[0].Meta!.Lyrics!;
+            Assert.True(lyrics.Extra.IsEmpty, command.GetType().Name);
+        }
+    }
+
+    [Fact]
     public void EveryEffectCommandRunsAgainstTheSampleProject()
     {
         ProjectDocument sample = Sample();
