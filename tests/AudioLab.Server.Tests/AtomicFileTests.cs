@@ -124,7 +124,7 @@ public sealed class AtomicFileTests
                     seen = new byte[stream.Length];
                     stream.ReadExactly(seen);
                 }
-                catch (IOException)
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
                     continue;
                 }

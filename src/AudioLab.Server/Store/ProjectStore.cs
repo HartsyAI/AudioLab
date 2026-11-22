@@ -21,9 +21,17 @@ public sealed class ProjectStore(StoreRoot root, ILogger<ProjectStore> logger)
     public async Task<ProjectDocument> ReadAsync(UserId user, ProjectId id, CancellationToken cancellationToken)
     {
         string path = root.Paths.ProjectFile(user, id);
-        ProjectDocument document = await ReadFileAsync(path, cancellationToken) ?? throw new ProjectNotFoundException();
-        Verify(user, StorePaths.ProjectFileName(id), document);
-        return document;
+        try
+        {
+            ProjectDocument document = await ReadFileAsync(path, cancellationToken) ?? throw new ProjectNotFoundException();
+            Verify(user, StorePaths.ProjectFileName(id), document);
+            return document;
+        }
+        catch (ProjectFormatException exception)
+        {
+            StoreLog.FileRefused(logger, StorePaths.ProjectFileName(id), string.Join("; ", exception.Problems));
+            throw;
+        }
     }
 
     /// <summary>When a user's project file last changed.</summary>
