@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Web.Services;
 
@@ -12,10 +13,19 @@ public sealed class ProjectRenamer(IProjectHubFactory hubs, CommandSender sender
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(project);
         ArgumentNullException.ThrowIfNull(name);
-        await using IProjectHub hub = hubs.Create();
+        await using IProjectHub hub = hubs.Create(reconnects: false);
         await hub.ConnectAsync(cancellationToken);
         await hub.JoinAsync(project, cancellationToken);
         RenameProject command = new() { Project = ProjectId.From(project), Name = name };
-        return await sender.SendAsync(hub, command, null, cancellationToken);
+        CommandReply reply = await sender.SendAsync(hub, command, null, cancellationToken);
+        try
+        {
+            await hub.LeaveAsync(project, CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is HubException or InvalidOperationException)
+        {
+            // The rename is made; a connection that is about to be closed anyway need not say so.
+        }
+        return reply;
     }
 }

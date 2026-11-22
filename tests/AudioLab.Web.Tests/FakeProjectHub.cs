@@ -5,7 +5,7 @@ using AudioLab.Web.Services;
 namespace AudioLab.Web.Tests;
 
 /// <summary>A hub connection that records what is sent and answers with a prepared reply.</summary>
-public sealed class FakeProjectHub : IProjectHub
+internal sealed class FakeProjectHub : IProjectHub
 {
     public List<string> Calls { get; } = [];
 

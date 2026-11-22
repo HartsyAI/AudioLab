@@ -25,9 +25,20 @@ public sealed partial class Field
     [Parameter]
     public int MaxLength { get; set; } = 200;
 
+    /// <summary>Whether the value was refused; a field inside a dialog that shows a failure is marked as well.</summary>
+    [Parameter]
+    public bool Invalid { get; set; }
+
     /// <summary>Extra attributes forwarded to the input, such as an id.</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? Attributes { get; set; }
+
+    [CascadingParameter]
+    private DialogContext? Dialog { get; set; }
+
+    private string? AriaInvalid => Invalid || Dialog is { HasError: true } ? "true" : null;
+
+    private string? DescribedBy => Dialog is { HasError: true } ? Dialog.ErrorId : null;
 
     private Task ChangedAsync(ChangeEventArgs change)
     {
