@@ -2,10 +2,12 @@
   <Folder Name="/src/">
     <Project Path="src/AudioLab.Core/AudioLab.Core.csproj" />
     <Project Path="src/AudioLab.Server/AudioLab.Server.csproj" />
+    <Project Path="src/AudioLab.Web/AudioLab.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AudioLab.Conventions.Tests/AudioLab.Conventions.Tests.csproj" />
     <Project Path="tests/AudioLab.Core.Tests/AudioLab.Core.Tests.csproj" />
     <Project Path="tests/AudioLab.Server.Tests/AudioLab.Server.Tests.csproj" />
+    <Project Path="tests/AudioLab.Web.Tests/AudioLab.Web.Tests.csproj" />
   </Folder>
 </Solution>

@@ -25,6 +25,17 @@ dotnet test -c Release --no-build
 
 The build treats warnings and code-style violations as errors, and CI runs the same four commands.
 
+## Run
+
+The server builds and serves the UI. Start it and open <http://127.0.0.1:5280>:
+
+```bash
+dotnet run --project src/AudioLab.Server -c Release
+```
+
+Projects are stored under the user's local application data folder; `AudioLab__Storage__Root` names another folder, and
+`--urls` another address. One server at a time holds a store folder.
+
 ## License
 
 [MIT](LICENSE)

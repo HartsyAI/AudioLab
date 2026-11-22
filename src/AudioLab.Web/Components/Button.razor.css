@@ -1,0 +1,96 @@
+.button-root {
+    display: contents;
+}
+
+.button-root ::deep .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    min-height: var(--control-md);
+    padding: 0 var(--space-12);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--motion-fast);
+}
+
+.button-root ::deep .button:hover {
+    background: var(--surface-raised-active);
+}
+
+.button-root ::deep .button:active {
+    background: var(--surface-selected);
+}
+
+.button-root ::deep .button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.button-root ::deep .button[data-variant="primary"] {
+    background: var(--accent);
+    color: var(--ink);
+    font-weight: var(--font-weight-strong);
+}
+
+.button-root ::deep .button[data-variant="danger"] {
+    background: var(--record);
+    color: var(--ink);
+    font-weight: var(--font-weight-strong);
+}
+
+.button-root ::deep .button[data-variant="primary"]:hover,
+.button-root ::deep .button[data-variant="danger"]:hover {
+    filter: brightness(1.08);
+}
+
+.button-root ::deep .button[data-variant="icon"] {
+    width: var(--control-md);
+    padding: 0;
+    color: var(--text-dim);
+}
+
+.button-root ::deep .button:disabled,
+.button-root ::deep .button[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.button-root ::deep .button:disabled:hover,
+.button-root ::deep .button[aria-disabled="true"]:hover {
+    background: var(--surface-raised);
+    filter: none;
+}
+
+.button-root ::deep .tooltip {
+    z-index: var(--z-tooltip);
+    display: flex;
+    gap: var(--space-8);
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+    font-size: var(--font-size-label);
+}
+
+.button-root ::deep .tooltip[hidden] {
+    display: none;
+}
+
+.button-root ::deep .tooltip-name {
+    font-weight: var(--font-weight-medium);
+}
+
+.button-root ::deep .tooltip-shortcut {
+    color: var(--text-dim);
+    font-family: var(--font-ui);
+}

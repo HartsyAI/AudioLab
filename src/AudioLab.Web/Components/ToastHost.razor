@@ -1,0 +1,14 @@
+<div class="toast-root">
+    <BitBhToastViewport Id="@HostId" popover="manual" Context="toast" class="toasts">
+        <BitBhToast Item="toast" data-variant="@toast.Variant" class="toast">
+            <BitBhToastTitle class="toast-title">@toast.Title</BitBhToastTitle>
+            @if (toast.Options.ActionLabel is not null)
+            {
+                <BitBhToastAction class="toast-action" />
+            }
+            <BitBhToastClose aria-label="Dismiss notification" class="toast-close">
+                <Icon Name="IconName.Close" Size="10" />
+            </BitBhToastClose>
+        </BitBhToast>
+    </BitBhToastViewport>
+</div>

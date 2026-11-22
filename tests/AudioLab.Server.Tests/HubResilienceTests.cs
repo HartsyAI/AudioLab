@@ -106,8 +106,13 @@ public sealed class HubResilienceTests
     {
         await using RunningServer server = await StartAsync();
         List<RouteEndpoint> endpoints = [.. server.Services.GetServices<EndpointDataSource>().SelectMany(source => source.Endpoints).OfType<RouteEndpoint>()];
-        List<string> open = [.. endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<AudioLab.Server.Doors.DoorRequired>() is null).Select(endpoint => endpoint.RoutePattern.RawText ?? "?")];
+        bool NeedsDoor(RouteEndpoint endpoint) => endpoint.Metadata.GetMetadata<AudioLab.Server.Doors.DoorRequired>() is not null;
+        bool IsUi(RouteEndpoint endpoint) => endpoint.Metadata.GetMetadata<AudioLab.Server.Routes.UiEndpoint>() is not null;
+        IEnumerable<RouteEndpoint> unguarded = endpoints.Where(endpoint => !NeedsDoor(endpoint) && !IsUi(endpoint));
+        List<string> open = [.. unguarded.Select(endpoint => endpoint.RoutePattern.RawText ?? "?")];
         Assert.Equal(["/health"], open);
+        Assert.DoesNotContain(endpoints, endpoint => IsUi(endpoint) && NeedsDoor(endpoint));
+        Assert.Contains(endpoints, IsUi);
         Assert.True(endpoints.Count >= 8, "too few endpoints were found for this check to mean anything");
     }
 

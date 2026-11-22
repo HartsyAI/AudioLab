@@ -27,7 +27,10 @@ public static class ServerHost
     public static WebApplication Build(string[] args, IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null)
     {
         ArgumentNullException.ThrowIfNull(args);
-        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        // The static web assets manifests are named after the application; a test host or an in-process shell has another entry assembly.
+        WebApplicationOptions hostOptions = new() { Args = args, ApplicationName = typeof(ServerHost).Assembly.GetName().Name };
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(hostOptions);
+        builder.WebHost.UseStaticWebAssets();
         if (settings is not null)
         {
             builder.Configuration.AddInMemoryCollection(settings);
@@ -123,5 +126,6 @@ public static class ServerHost
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
         app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
+        UiRoutes.Map(app);
     }
 }

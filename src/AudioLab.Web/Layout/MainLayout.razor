@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<div class="shell">
+    <ErrorBoundary>
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent Context="problem">
+            <EmptyState Heading="Something went wrong" Message="@problem.Message">
+                <Button Variant="ButtonVariant.Primary" Href="">Go to your projects</Button>
+            </EmptyState>
+        </ErrorContent>
+    </ErrorBoundary>
+    <ToastHost />
+</div>
