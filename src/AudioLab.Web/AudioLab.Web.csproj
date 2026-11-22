@@ -9,6 +9,12 @@
     <StaticWebAssetsFingerprintingEnabled>false</StaticWebAssetsFingerprintingEnabled>
   </PropertyGroup>
 
+  <!-- The SDK picks the version of its Blazor script package from its own bundled list, so a newer SDK on CI would restore another
+       version than the one ScriptAllowlist approves; pinning it here keeps every machine on the approved script. -->
+  <ItemGroup>
+    <KnownAspNetCorePack Update="Microsoft.AspNetCore.App.Internal.Assets" AspNetCorePackVersion="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup>
     <SupportedPlatform Include="browser" />
     <InternalsVisibleTo Include="AudioLab.Web.Tests" />
