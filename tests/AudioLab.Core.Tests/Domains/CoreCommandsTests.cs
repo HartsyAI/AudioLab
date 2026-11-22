@@ -73,6 +73,38 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheMidiAndEffectCommandsExist()
+    {
+        string[] names =
+        [
+            "midi_note_add", "midi_notes_move", "midi_notes_resize", "midi_notes_set_velocity", "midi_notes_transpose",
+            "midi_notes_quantize", "midi_notes_delete", "midi_control_add", "midi_control_remove", "midi_control_clear",
+            "effect_add", "effect_remove", "effect_move", "effect_set_enabled", "effect_set_parameter", "effect_set_delay_sync",
+            "effect_apply_preset",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void ANoteListAndAnEffectCommandReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult notes = _registry.Parse("midi_notes_delete", $$"""{"project":"{{project}}","clip":"clp_1","notes":[1,2,7]}""");
+        CommandParseResult all = _registry.Parse("midi_notes_move", $$"""{"project":"{{project}}","clip":"clp_1","notes":[{"note":1,"start":0.5,"pitch":62},{"note":2,"start":1,"pitch":64}]}""");
+        CommandParseResult effect = _registry.Parse("effect_add", $$"""{"project":"{{project}}","track":"trk_1","kind":"delay","preset":"Slap"}""");
+        CommandParseResult zeroNote = _registry.Parse("midi_notes_delete", $$"""{"project":"{{project}}","clip":"clp_1","notes":[0]}""");
+        CommandParseResult wrongKind = _registry.Parse("effect_add", $$"""{"project":"{{project}}","track":"trk_1","kind":"chorus"}""");
+
+        Assert.Equal([new NoteId(1), new NoteId(2), new NoteId(7)], Assert.IsType<DeleteNotes>(notes.Command).Notes);
+        Assert.Equal([new NoteTarget(new NoteId(1), 0.5, 62), new NoteTarget(new NoteId(2), 1, 64)], Assert.IsType<MoveNotes>(all.Command).Notes);
+        Assert.Equal(EffectKind.Delay, Assert.IsType<AddEffect>(effect.Command).Kind);
+        Assert.False(zeroNote.Succeeded);
+        Assert.False(wrongKind.Succeeded);
+    }
+
+    [Fact]
     public void TheClipCommandsExist()
     {
         string[] names =

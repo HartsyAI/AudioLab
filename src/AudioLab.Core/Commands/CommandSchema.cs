@@ -25,7 +25,31 @@ internal static class CommandSchema
 
     private static JsonNode Transform(JsonSchemaExporterContext context, JsonNode schema)
     {
-        return Annotate(context, Describe(context, schema));
+        return Annotate(context, RequireConstructorParameters(context, Describe(context, schema)));
+    }
+
+    // The exporter lists required members but not the parameters of a record's constructor, which the reader also requires.
+    private static JsonNode RequireConstructorParameters(JsonSchemaExporterContext context, JsonNode schema)
+    {
+        if (schema is not JsonObject node || node["properties"] is not JsonObject properties || node["required"] is not null)
+        {
+            return schema;
+        }
+        System.Reflection.ConstructorInfo? constructor = context.TypeInfo.Type.GetConstructors()
+            .OrderByDescending(candidate => candidate.GetParameters().Length)
+            .FirstOrDefault();
+        string[] names =
+        [
+            .. (constructor?.GetParameters() ?? [])
+                .Where(parameter => !parameter.HasDefaultValue && parameter.Name is not null)
+                .Select(parameter => JsonNamingPolicy.CamelCase.ConvertName(parameter.Name!))
+                .Where(properties.ContainsKey),
+        ];
+        if (names.Length > 0)
+        {
+            node["required"] = new JsonArray([.. names.Select(name => JsonValue.Create(name))]);
+        }
+        return schema;
     }
 
     private static JsonNode Describe(JsonSchemaExporterContext context, JsonNode schema)

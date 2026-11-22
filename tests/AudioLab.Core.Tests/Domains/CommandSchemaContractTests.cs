@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Tests;
 
@@ -172,6 +173,70 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(MidiClip.MinLength, Property("midi_clip_set_length", "length").GetProperty("minimum").GetDouble());
         Assert.Equal(1, Property("clip_rename", "name").GetProperty("minLength").GetInt32());
         Assert.Equal(["clip", "project"], Required("clip_delete"));
+    }
+
+    [Fact]
+    public void AMidiCommandStatesItsRangesAndTheNoteList()
+    {
+        JsonElement pitch = Property("midi_note_add", "pitch");
+        JsonElement velocity = Property("midi_note_add", "velocity");
+        JsonElement semitones = Property("midi_notes_transpose", "semitones");
+        JsonElement notes = Property("midi_notes_delete", "notes");
+        JsonElement optional = Property("midi_notes_transpose", "notes");
+
+        Assert.Equal((0.0, 127.0), (pitch.GetProperty("minimum").GetDouble(), pitch.GetProperty("maximum").GetDouble()));
+        Assert.Equal((1.0, 127.0), (velocity.GetProperty("minimum").GetDouble(), velocity.GetProperty("maximum").GetDouble()));
+        Assert.Equal((-127.0, 127.0), (semitones.GetProperty("minimum").GetDouble(), semitones.GetProperty("maximum").GetDouble()));
+        Assert.Equal("array", notes.GetProperty("type").GetString());
+        Assert.Equal(1, notes.GetProperty("minItems").GetInt32());
+        Assert.Equal("integer", notes.GetProperty("items").GetProperty("type").GetString());
+        Assert.Equal(["clip", "notes", "project"], Required("midi_notes_move"));
+        Assert.DoesNotContain("notes", Required("midi_notes_transpose"));
+        Assert.Equal(1, optional.GetProperty("minItems").GetInt32());
+        Assert.Equal(ProjectLimits.MaxListItems, optional.GetProperty("maxItems").GetInt32());
+        JsonElement target = Property("midi_notes_move", "notes").GetProperty("items");
+        Assert.Equal(["note", "pitch", "start"], target.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
+        Assert.True(target.GetProperty("properties").GetProperty("start").TryGetProperty("description", out _));
+        Assert.True(optional.TryGetProperty("description", out _));
+    }
+
+    [Fact]
+    public void TheEffectSettingAndPresetNamesInTheSchemaAreExactlyTheRulesOwn()
+    {
+        string[] settings = [.. Property("effect_set_parameter", "parameter").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        string[] presets = [.. Property("effect_add", "preset").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+        string[] applied = [.. Property("effect_apply_preset", "preset").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];
+
+        Assert.Equal(EffectRules.AllParameterNames.Order(StringComparer.Ordinal), settings.Order(StringComparer.Ordinal));
+        Assert.Equal(EffectPresets.AllNames.Order(StringComparer.Ordinal), presets.Order(StringComparer.Ordinal));
+        Assert.Equal(presets, applied);
+    }
+
+    [Fact]
+    public void TheValueOfAnEffectSettingStatesEverySettingsRange()
+    {
+        string description = Property("effect_set_parameter", "value").GetProperty("description").GetString()!;
+        System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+        foreach (EffectKind kind in Enum.GetValues<EffectKind>())
+        {
+            foreach (EffectParameter setting in EffectRules.Parameters(kind))
+            {
+                string range = $"{setting.Name} {setting.Min.ToString("0.###", invariant)} to {setting.Max.ToString("0.###", invariant)}";
+                Assert.Contains(range, description, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void AnEffectCommandListsItsKindsPresetsAndDivisions()
+    {
+        JsonElement kind = Property("effect_add", "kind");
+        JsonElement division = Property("effect_set_delay_sync", "division");
+
+        Assert.Equal(["eq", "compressor", "reverb", "delay", "saturation"], kind.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(EffectRules.Divisions, division.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(["effect", "parameter", "project", "track", "value"], Required("effect_set_parameter"));
     }
 
     private string[] Required(string command)

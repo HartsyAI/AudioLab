@@ -121,7 +121,10 @@ internal static class SoundValidator
     private static void CheckDelay(DelayEffect delay, string path, ProblemList problems)
     {
         problems.Range(delay.Time, 0.02, 2, $"{path}.time");
-        problems.Text(delay.Division, 8, $"{path}.division");
+        if (!DelayEffect.Divisions.Contains(delay.Division))
+        {
+            problems.Add($"{path}.division: a division is one of {string.Join(", ", DelayEffect.Divisions)}.");
+        }
         problems.Range(delay.Feedback, 0, 0.9, $"{path}.feedback");
         problems.Range(delay.Tone, 500, 15000, $"{path}.tone");
         problems.Range(delay.Mix, 0, 1, $"{path}.mix");
