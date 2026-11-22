@@ -51,7 +51,7 @@ public sealed class SectionCommandTests
     [InlineData(0, -2)]
     public void ASectionBeforeTheStartOrShorterThanTheMinimumIsRefused(double start, double length)
     {
-        _rig.RefusedWith(new AddSection { Project = _rig.Id, Start = start, Length = length }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new AddSection { Project = _rig.Id, Start = start, Length = length }, CommandErrorCode.Invalid);
     }
 
     [Fact]

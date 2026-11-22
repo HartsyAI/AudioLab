@@ -10,7 +10,7 @@ internal static class CommandChecks
         {
             if (value is { } number && !double.IsFinite(number))
             {
-                return Rejected($"{name} must be a finite number.");
+                return OutOfRange($"{name} must be a finite number.");
             }
         }
         return null;
@@ -28,6 +28,9 @@ internal static class CommandChecks
         return CommandResult.Refuse(CommandErrorCode.NotFound, $"There is no {what} with the id {id}.");
     }
 
-    /// <summary>A rule forbids the edit.</summary>
+    /// <summary>A value is outside what the project allows, the same class of error as the validator's range failures.</summary>
+    public static CommandResult OutOfRange(string message) => CommandResult.Refuse(CommandErrorCode.Invalid, message);
+
+    /// <summary>The values are in range but a rule of the operation forbids the edit.</summary>
     public static CommandResult Rejected(string message) => CommandResult.Refuse(CommandErrorCode.Rejected, message);
 }

@@ -47,6 +47,45 @@ public sealed class TimelineRuleTests
         Assert.Equal(120, shuffled.BpmAt(0));
     }
 
+    [Theory]
+    [InlineData(0, 120)]
+    [InlineData(double.NaN, 120)]
+    [InlineData(double.PositiveInfinity, 120)]
+    [InlineData(-30, 1)]
+    [InlineData(0.2, 1)]
+    public void ANonsenseStartTempoNeverStopsTheClock(double bpm, double expected)
+    {
+        TempoMap map = TempoMap.From(bpm, []);
+
+        Assert.Equal(expected, map.BpmAt(0));
+        Assert.True(double.IsFinite(map.BeatsAt(10)));
+    }
+
+    [Fact]
+    public void AChangeWithNoUsableTempoOrTimeIsIgnored()
+    {
+        TempoMap map = TempoMap.From(
+            120,
+            [new TempoChange(_first, 4, 0), new TempoChange(_second, double.NaN, 90), new TempoChange(TempoChangeId.From("tmp_3"), 6, -5)]);
+
+        Assert.Equal(120, map.BpmAt(100));
+    }
+
+    [Fact]
+    public void BeatsAndTimeAreInversesThroughEveryChange()
+    {
+        TempoMap map = TempoMap.From(97.5, [new TempoChange(_first, 3.25, 133), new TempoChange(_second, 11, 41.5)]);
+
+        foreach (double time in new[] { 0, 0.5, 3.25, 7, 11, 11.001, 60 })
+        {
+            Assert.Equal(time, map.TimeAtBeat(map.BeatsAt(time)), 9);
+        }
+        foreach (double beat in new[] { 0, 1.5, 5, 12.3, 20, 80 })
+        {
+            Assert.Equal(beat, map.BeatsAt(map.TimeAtBeat(beat)), 9);
+        }
+    }
+
     [Fact]
     public void BarsAreMeasuredInSecondsThroughTheTempoMap()
     {

@@ -17,8 +17,8 @@ internal static class SectionCommands
             .Add("section_rename", "Renames a section.", json.RenameSection, Rename)
             .Add("section_set_color", "Recolours a section.", json.SetSectionColor, SetColor)
             .Add("section_remove", "Removes a section.", json.RemoveSection, Remove)
-            .Add("sections_clear", "Removes every section.", json.ClearSections, Clear)
-            .Add("sections_from_markers", "Replaces every section with one per marker and allocates their ids in order.", json.SectionsFromMarkers, FromMarkers);
+            .Add("section_clear", "Removes every section.", json.ClearSections, Clear)
+            .Add("section_from_markers", "Replaces every section with one per marker and allocates their ids in order.", json.SectionsFromMarkers, FromMarkers);
     }
 
     private static CommandResult Add(ProjectDocument document, AddSection command, IIdService ids)
@@ -29,11 +29,11 @@ internal static class SectionCommands
         }
         if (command.Start < 0)
         {
-            return CommandChecks.Rejected("A section starts at the beginning of the project or later.");
+            return CommandChecks.OutOfRange("A section starts at the beginning of the project or later.");
         }
         if (command.Length < Section.MinLength)
         {
-            return CommandChecks.Rejected($"A section is at least {Section.MinLength} seconds long.");
+            return CommandChecks.OutOfRange($"A section is at least {Section.MinLength} seconds long.");
         }
         double start = command.Start;
         double length = command.Length ?? TempoMap.From(document).BarsFrom(start, DefaultBars, document.TimeSignature);
@@ -59,12 +59,21 @@ internal static class SectionCommands
         {
             return refusal;
         }
+        if (command.Edit != SectionEdit.End && command.Start is null)
+        {
+            return CommandChecks.Rejected("start is required to move a section or its start edge.");
+        }
+        if (command.Edit == SectionEdit.End && command.End is null)
+        {
+            return CommandChecks.Rejected("end is required to move a section's end edge.");
+        }
         Section? current = document.Sections.FirstOrDefault(section => section.Id == command.Section);
         if (current is null)
         {
             return CommandChecks.NotFound("section", command.Section.Value);
         }
-        SectionSpan span = SectionRules.Constrain(document.Sections, command.Section, command.Start, command.End, command.Edit);
+        SectionSpan span = SectionRules.Constrain(
+            document.Sections, command.Section, command.Start ?? current.Start, command.End ?? current.End, command.Edit);
         if (Math.Abs(current.Start - span.Start) < TimelineRules.NoMove && Math.Abs(current.End - span.End) < TimelineRules.NoMove)
         {
             return CommandResult.Ok(document);
@@ -115,7 +124,7 @@ internal static class SectionCommands
         IReadOnlyList<SectionDraft> drafts = SectionRules.FromMarkers(document.Markers, end);
         if (drafts.Count == 0)
         {
-            return CommandResult.Ok(document);
+            return CommandChecks.Rejected("No marker leaves room for a section.");
         }
         List<Section> made = [];
         foreach (SectionDraft draft in drafts)

@@ -36,7 +36,7 @@ internal static class TempoCommands
         }
         if (command.Time < TimelineRules.MinTempoChangeTime)
         {
-            return CommandChecks.Rejected("A tempo change starts at 0.01 seconds or later; set the project tempo for the start.");
+            return CommandChecks.OutOfRange("A tempo change starts at 0.01 seconds or later; set the project tempo for the start.");
         }
         if (document.TempoMap.Any(change => Math.Abs(change.Time - command.Time) < TimelineRules.SameSpot))
         {

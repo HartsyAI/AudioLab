@@ -1,0 +1,119 @@
+using System.Text.Json;
+using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
+
+namespace AudioLab.Core.Tests;
+
+// The schema is what an MCP client reads (D11), so every parameter says what it is and what it may be.
+public sealed class CommandSchemaContractTests
+{
+    private readonly CommandRegistry _registry = CoreCommands.CreateRegistry();
+
+    [Fact]
+    public void EveryPropertyOfEveryCommandHasADescription()
+    {
+        List<string> missing = [];
+
+        foreach (CommandDescriptor command in _registry.Commands)
+        {
+            foreach (JsonProperty property in command.Schema.GetProperty("properties").EnumerateObject())
+            {
+                bool described = property.Value.TryGetProperty("description", out JsonElement text) && !string.IsNullOrWhiteSpace(text.GetString());
+                if (!described)
+                {
+                    missing.Add($"{command.Name}.{property.Name}");
+                }
+            }
+        }
+
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void TheTempoIsLimitedToTheProjectsRange()
+    {
+        foreach ((string command, string member) in new[] { ("tempo_set_bpm", "bpm"), ("tempo_change_add", "bpm"), ("tempo_change_set_bpm", "bpm") })
+        {
+            JsonElement bpm = Property(command, member);
+            Assert.Equal(ProjectLimits.MinBpm, bpm.GetProperty("minimum").GetDouble());
+            Assert.Equal(ProjectLimits.MaxBpm, bpm.GetProperty("maximum").GetDouble());
+        }
+    }
+
+    [Fact]
+    public void TheTimeSignatureListsItsAllowedValues()
+    {
+        JsonElement numerator = Property("time_signature_set", "numerator");
+        JsonElement denominator = Property("time_signature_set", "denominator");
+
+        Assert.Equal(1, numerator.GetProperty("minimum").GetDouble());
+        Assert.Equal(64, numerator.GetProperty("maximum").GetDouble());
+        Assert.Equal([1.0, 2.0, 4.0, 8.0, 16.0, 32.0], denominator.GetProperty("enum").EnumerateArray().Select(item => item.GetDouble()));
+    }
+
+    [Fact]
+    public void TimesHaveTheirMinimumAndTheMostTheProjectHolds()
+    {
+        JsonElement change = Property("tempo_change_add", "time");
+        JsonElement marker = Property("marker_add", "time");
+        JsonElement start = Property("section_add", "start");
+        JsonElement length = Property("section_add", "length");
+
+        Assert.Equal(0.01, change.GetProperty("minimum").GetDouble());
+        Assert.Equal(ProjectLimits.MaxSeconds, change.GetProperty("maximum").GetDouble());
+        Assert.Equal(0, marker.GetProperty("minimum").GetDouble());
+        Assert.Equal(0, start.GetProperty("minimum").GetDouble());
+        Assert.Equal(Section.MinLength, length.GetProperty("minimum").GetDouble());
+    }
+
+    [Fact]
+    public void NamesAndColoursHaveTheirLimits()
+    {
+        JsonElement added = Property("marker_add", "name");
+        JsonElement renamed = Property("section_rename", "name");
+        JsonElement color = Property("marker_set_color", "color");
+
+        Assert.Equal(ProjectLimits.MaxName, added.GetProperty("maxLength").GetInt32());
+        Assert.Equal(1, renamed.GetProperty("minLength").GetInt32());
+        Assert.Equal(ProjectLimits.MaxName, renamed.GetProperty("maxLength").GetInt32());
+        Assert.Equal(ProjectColor.SchemaPattern, color.GetProperty("pattern").GetString());
+    }
+
+    [Fact]
+    public void ASectionEditListsItsThreeKinds()
+    {
+        JsonElement edit = Property("section_set_span", "edit");
+
+        Assert.Equal(["move", "start", "end"], edit.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void OnlyTheValuesAnEditNeedsAreRequired()
+    {
+        JsonElement schema = _registry.Find("section_set_span")!.Schema;
+        string[] required = [.. schema.GetProperty("required").EnumerateArray().Select(item => item.GetString()!)];
+
+        Assert.Equal(["edit", "project", "section"], required.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void TheColourPatternMatchesWhatTheValidatorAccepts()
+    {
+        System.Text.RegularExpressions.Regex pattern = new(ProjectColor.SchemaPattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        foreach (string good in new[] { "#abc", "#aabbcc", "#aabbccdd", "#ABC123" })
+        {
+            Assert.True(pattern.IsMatch(good) && ProjectColor.IsValid(good), good);
+        }
+        foreach (string bad in new[] { "abc", "#ab", "#abcd", "#aabbccd", "#ggg", "red", "#abc\n" })
+        {
+            Assert.False(ProjectColor.IsValid(bad), bad);
+        }
+        Assert.DoesNotMatch(pattern, "#abcd");
+    }
+
+    private JsonElement Property(string command, string member)
+    {
+        return _registry.Find(command)!.Schema.GetProperty("properties").GetProperty(member);
+    }
+}

@@ -21,7 +21,7 @@ public sealed class TempoMap
     public static TempoMap From(double bpm, IEnumerable<TempoChange> changes)
     {
         ArgumentNullException.ThrowIfNull(changes);
-        List<(double Time, double Bpm, double Beat)> segments = [(0, Math.Max(1, bpm), 0)];
+        List<(double Time, double Bpm, double Beat)> segments = [(0, StartTempo(bpm), 0)];
         foreach (TempoChange change in changes.Where(change => change.Time > 1e-6 && change.Bpm > 0).OrderBy(change => change.Time))
         {
             (double time, double tempo, double beat) = segments[^1];
@@ -52,6 +52,9 @@ public sealed class TempoMap
     {
         return TimeAtBeat(BeatsAt(time) + (bars * MeterRules.BeatsPerBar(signature))) - time;
     }
+
+    // A missing or zero tempo plays at 120 and a negative one at the slowest, as the old DAW did.
+    private static double StartTempo(double bpm) => !double.IsFinite(bpm) || bpm == 0 ? 120 : Math.Max(1, bpm);
 
     private (double Time, double Bpm, double Beat) AtTime(double time)
     {

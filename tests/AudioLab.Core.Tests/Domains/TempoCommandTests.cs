@@ -69,7 +69,7 @@ public sealed class TempoCommandTests
     [InlineData(-3)]
     public void ATempoChangeAtTheStartIsRefusedBecauseThatIsTheProjectTempo(double time)
     {
-        _rig.RefusedWith(new AddTempoChange { Project = _rig.Id, Time = time, Bpm = 90 }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new AddTempoChange { Project = _rig.Id, Time = time, Bpm = 90 }, CommandErrorCode.Invalid);
     }
 
     [Fact]

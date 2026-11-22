@@ -25,7 +25,7 @@ internal static class MarkerCommands
         }
         if (command.Time < 0)
         {
-            return CommandChecks.Rejected("A marker cannot be before the start.");
+            return CommandChecks.OutOfRange("A marker cannot be before the start.");
         }
         double time = command.Time;
         if (document.Markers.Any(marker => Math.Abs(marker.Time - time) < TimelineRules.SameSpot))
