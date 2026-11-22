@@ -12,7 +12,8 @@ internal sealed class DelayInsert : IInsert
 {
     // The old DAW smoothed a retuned delay with a 15 ms time constant.
     private const double GlideSeconds = 0.015;
-    private const double ToneQDb = 0.707;
+    // A Butterworth low-pass has no peak, so the loop never gains; the old graph set 0.707 dB, which peaks 1.7 dB and let a high feedback grow.
+    private const double ToneQDb = -3.0103;
     private const double MaxTailSeconds = 30;
     private const double SilenceDb = -60;
 
@@ -120,6 +121,10 @@ internal sealed class DelayInsert : IInsert
         if (position < 0)
         {
             position += line.Length;
+        }
+        if (position >= line.Length)
+        {
+            position -= line.Length;
         }
         int index = (int)position;
         float fraction = (float)(position - index);

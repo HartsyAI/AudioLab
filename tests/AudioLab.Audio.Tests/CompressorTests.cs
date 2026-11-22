@@ -78,4 +78,14 @@ public sealed class CompressorTests
 
         Assert.Equal(audio.Left[^1] / 0.5, audio.Right[^1] / 0.05, 3);
     }
+
+    [Fact]
+    public void AHardKneeAtExactlyTheThresholdDoesNotDivideByZero()
+    {
+        // Full scale against a threshold of 0 dB with no knee puts the level exactly on the threshold.
+        float settled = Settled(Effect(threshold: 0, knee: 0), 1f);
+
+        Assert.True(float.IsFinite(settled));
+        Assert.Equal(1f, settled, 5);
+    }
 }
