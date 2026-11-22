@@ -43,7 +43,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D11 | MCP ships right after the command layer, before the UI is complete. | Proposed | It needs no UI, and agent control is the first reason this project exists. |
 | D12 | Projects and media belong to a user from the first commit of the store. | Proposed | The hosted door is multi-user; retrofitting ownership is a rewrite. |
 | D13 | The interface follows one design system: the rules, tokens and component catalogue in [section 7](#7-user-interface), pictured by [the session mock](docs/design/session-mock.html). One dark theme, graphite with a single accent, Inter, the same in every door. | Decided 2026-11-20 | The extension's stylesheet had no scale and drifted; a fixed, tested vocabulary keeps every screen consistent. The owner approved the look from the mock. |
-| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox; the failures are listed in 7.5. It ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. |
+| D14 | Dialogs use the native `<dialog>` element, driven from C#. Menus, select, combo box, popover, tooltip and toasts come from Bit.Bheadless 11.0.0-pre-23, a headless library with no styles, behind the catalogue wrappers in [7.5](#behaviour-library). MudBlazor behind the same wrappers is a candidate fallback, proven only for one dialog and with the caveats listed there. Proof pages: [spike/o10-primitives](https://github.com/HartsyAI/AudioLab/tree/spike/o10-primitives). | Proposed | For the controls it is used for, it supplied the behaviours checked in Chromium, WebKit and Firefox; the failures are listed in 7.5. It ships no CSS and sets no stacking value, and the native dialog needs no script. It is MIT. It is three weeks old, has no stable release and has one active author, so the wrapper boundary keeps it replaceable; the conditions for Decided and for leaving it are under 7.5, with the browser and axe-core results; a screen-reader pass is not done. The wrappers (menu, tooltip) and the library's three scripts are in their own change, which needs the owner's explicit exception for the pre-release until D14 is Decided (7.5). |
 | D15 | A project file with a member this version does not know is refused, so an older build cannot read a newer file; a change of format raises `version`. | Proposed | Guessing at an unknown member would lose it silently; clip metadata is the one free-form part and keeps its unknown fields. |
 | D16 | A project document is immutable and equal by value: collections are `ValueList<T>`, unknown fields are `ExtraFields`. | Proposed | Commands replace parts of a document; equality is how history and the hub tell that something changed. |
 | D17 | The timeline lanes, clips and waveforms are drawn as DOM with inline SVG waveforms, each clip a small component that redraws only when its own revision changes. A Canvas2D surface driven from C# through `[JSImport]` calls to browser built-ins (no script file) is the kept alternative, and the one to switch to if dragging in Firefox cannot be made to hold on the DOM. The Skia canvas is not adopted. See [the O2 evidence](#d17-evidence-the-o2-spike). | Proposed | Scrolling meets the pass line in Chromium and Firefox with no per-frame C#, native library or script, and the clips stay in the accessibility tree. Dragging in Firefox is unresolved: every candidate missed in the runs taken under CPU contention, and no quiet window was available to repeat them. |
@@ -691,11 +691,22 @@ unpublished or has no release for 90 days, or if two pre-releases in a row break
 code that names the library. These conditions are unchanged by the run above: Chromium, WebKit and Firefox with axe-core are
 done on 11.0.0-pre-23; the screen-reader pass and a stable release are not.
 
+**The wrappers ship ahead of D14, as an exception the owner decides.** The change that adds `Menu` and `Tooltip` pins
+Bit.Bheadless 11.0.0-pre-23 and puts its three scripts on `ScriptAllowlist.Packages`. D14's Decided gate asks for a
+stable release and a screen-reader pass, and neither exists: NuGet lists only pre-releases, pre-15 to pre-23, and pre-23
+is the newest (checked 2026-11-22). Merging it is therefore the owner accepting a pre-release and three scripts that
+section 8 does not approve until D14 is Decided: `Bit.Bheadless.4mg12f5a83.lib.module.js` (Blazor loads it at start),
+`bit-bheadless.js` (focus, keys, positioning) and `bit-bheadless-csp.js` (applies computed positions without inline
+style). Merging also ships the library to every page: Blazor loads the module on start and the services register for the
+whole app, +0.27 MB brotli, while no screen uses a menu or a tooltip yet. A screen that needs one uses these wrappers;
+without the owner's exception the change is closed, and the UI goes on without it.
+
 **Rules for the catalogue wrappers over the library:**
 
 - A wrapper has one root element of its own and styles the library's parts with `::deep` from it. The library's parts
   do not take Blazor's scoped-CSS attribute, and a part that renders in a portal under `<body>` needs the root inside
-  its content.
+  its content. `Menu` and `Tooltip` set `Portal="false"`, so their parts stay under the wrapper's root and its `::deep`
+  rules match.
 - A wrapper always passes a class to a part and never relies on the library's stacking: the `--z-*` tokens apply to the
   wrapper's class.
 - A closed part carries the `hidden` attribute, and a wrapper's own `display` beats it, so a part that sets `display`
@@ -709,6 +720,9 @@ done on 11.0.0-pre-23; the screen-reader pass and a stable release are not.
   new owner-approved entries. Bit.Bheadless 11.0.0-pre-23 ships three, `staticwebassets/Bit.Bheadless.4mg12f5a83.lib.module.js`
   (its file name carries a content hash), `staticwebassets/bit-bheadless-csp.js` and `staticwebassets/bit-bheadless.js`.
 - Not built: a table. Bit.Bheadless has a grid with cell navigation, but nothing in this catalogue is a table yet.
+- Built of the Select and menu row: the dropdown menu, with a default (text) and an icon (three dots) button. The context
+  menu, the select and the combo box are not built. Every `MenuItem` has a shortcut, because every command has one (7.6).
+  The tooltip shows its shortcut whether the control is disabled or not, as the menu does.
 
 ### 7.6 States, input and accessibility
 
@@ -754,7 +768,8 @@ When a script is unavoidable:
 
 - It is as small as it can be: a shim that moves data across the boundary. Logic stays in C#.
   The UI library of D14 is larger than that and carries logic (roving focus, typeahead, positioning, live regions). It is
-  an exception to this bullet that the owner approves with D14, and it is not approved until D14 is.
+  an exception to this bullet that the owner approves with D14, and it is not approved until D14 is. The owner may
+  approve the pre-release earlier, for the three scripts of 11.0.0-pre-23 and nothing else (7.5).
 - It is listed in [`ScriptAllowlist`](tests/AudioLab.Conventions.Tests/ScriptAllowlist.cs) with the reason C# could
   not do the job, and the owner approves that line in the pull request. That list is the full inventory of the
   scripts the tests can see; the end of this section says what they cannot.
@@ -892,4 +907,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-22 | The project list (D31): create, rename, delete and open, the typed route client, the hub client and the shortcut registry; the App bar row joined the catalogue. |
 | 2026-11-22 | The session screen, read-only (D32): the arrangement, headers, rulers, mixer and status bar drawn from the document, a placeholder waveform until media exists; O12 and O13 opened. |
 | 2026-11-22 | The session screen goes live (D33): the hub, the revision rule, five edits, a drag as one gesture, undo and redo; O14 opened with the measured cost of a revision. |
-| 2026-11-22 | The Bit.Bheadless wrappers for D14 (menu, tooltip) are in their own change, with the library's three scripts on `ScriptAllowlist.Packages`; no screen uses them yet, and the UI does not depend on them while D14 is Proposed. |
+| 2026-11-22 | The Bit.Bheadless wrappers for D14 (menu, tooltip) are in their own change, with the library's three scripts on `ScriptAllowlist.Packages`; no screen uses them yet, the UI does not depend on them while D14 is Proposed, and merging it needs the owner's explicit exception for the pre-release (7.5). |
