@@ -12,6 +12,9 @@ public sealed class MixerGraph
     /// <summary>The largest block the graph works on at once; a longer request is cut into several.</summary>
     public const int DefaultBlockFrames = 512;
 
+    // How often automation lanes are read, in frames: 0.7 ms at 48 kHz.
+    private const int ControlFrames = 32;
+
     private readonly RenderPlan _plan;
     private readonly MasterLimiter _limiter;
     private readonly int _blockFrames;
@@ -194,18 +197,30 @@ public sealed class MixerGraph
             }
             return;
         }
+        // The lanes are read on a grid of whole frames, not at every sample: the volume is straight between grid points and the pan holds
+        // one value per cell. The grid is fixed to the timeline, so the output does not depend on where a block starts.
         int rate = _plan.Format.SampleRate;
-        for (int i = 0; i < left.Length; i++)
+        int done = 0;
+        while (done < left.Length)
         {
-            double time = (double)(Position + i) / rate;
-            double volume = track.VolumeLane is null ? 1 : AutomationRules.ValueAt(track.VolumeLane, time) ?? 1;
-            float gain = track.FaderGain * (float)Math.Max(0, volume);
+            long frame = Position + done;
+            long cell = frame - (frame % ControlFrames);
+            int count = (int)Math.Min(left.Length - done, cell + ControlFrames - frame);
+            double from = track.VolumeLane is null ? 1 : AutomationRules.ValueAt(track.VolumeLane, (double)cell / rate) ?? 1;
+            double to = track.VolumeLane is null ? 1 : AutomationRules.ValueAt(track.VolumeLane, (double)(cell + ControlFrames) / rate) ?? 1;
             double pan = track.Pan;
             if (track.PanLane is not null)
             {
-                pan += AutomationRules.ValueAt(track.PanLane, time) ?? 0;
+                pan += AutomationRules.ValueAt(track.PanLane, (double)cell / rate) ?? 0;
             }
-            (left[i], right[i]) = new StereoPan(pan).Apply(left[i] * gain, right[i] * gain);
+            StereoPan cellPan = new(pan);
+            for (int i = done; i < done + count; i++)
+            {
+                double volume = from + ((to - from) * (Position + i - cell) / ControlFrames);
+                float gain = track.FaderGain * (float)Math.Max(0, volume);
+                (left[i], right[i]) = cellPan.Apply(left[i] * gain, right[i] * gain);
+            }
+            done += count;
         }
     }
 }

@@ -57,7 +57,7 @@ public sealed class RenderPlan
         IEnumerable<Track> ordered = document.Tracks.OrderBy(track => track.Kind == TrackKind.Bus);
         foreach (Track track in ordered)
         {
-            PlannedTrack? plan = PlanTrack(document, track, busSlots, cache, context, options.Sources);
+            PlannedTrack? plan = PlanTrack(document, track, busSlots, cache, context, options);
             if (plan is not null)
             {
                 planned.Add(plan);
@@ -84,7 +84,7 @@ public sealed class RenderPlan
         Dictionary<TrackId, int> busSlots,
         MediaCache cache,
         InsertContext context,
-        ITrackSourceFactory? sources)
+        PlanOptions options)
     {
         bool muted = MixRules.IsMuted(track, document.Groups);
         bool soloAudible = MixRules.IsSoloAudible(document, track);
@@ -116,10 +116,10 @@ public sealed class RenderPlan
             VolumeLane = automated && track.Automation.Volume.Count > 0 ? track.Automation.Volume : null,
             PanLane = automated && track.Automation.Pan.Count > 0 ? track.Automation.Pan : null,
             Sends = [.. sends],
-            Inserts = [.. track.Effects.Select(effect => InsertFactory.Create(effect, context)).OfType<IInsert>()],
+            Inserts = [.. track.Effects.Select(effect => (options.InsertBuilder ?? InsertFactory.Create)(effect, context)).OfType<IInsert>()],
             Clips = clips,
             LatestEnds = latestEnds,
-            Source = track.Kind == TrackKind.Instrument ? sources?.Create(document, track, new AudioFormat(sampleRate, 2)) : null,
+            Source = track.Kind == TrackKind.Instrument ? options.Sources?.Create(document, track, new AudioFormat(sampleRate, 2)) : null,
         };
     }
 
