@@ -30,13 +30,15 @@ public sealed class CommandRegistryBuilder
     /// <param name="description">One sentence: what the command does and which ids it allocates.</param>
     /// <param name="json">The type info from a source-generated context that refuses unknown, missing and null members.</param>
     /// <param name="handler">Applies the command to a document.</param>
+    /// <param name="undoable">False for a command that changes live state (see <c>LiveState</c>), which history does not record.</param>
     /// <exception cref="ArgumentException">The name or description is malformed, the type is not sealed, or the JSON rules are lax.</exception>
     /// <exception cref="InvalidOperationException">The name or the command type is already registered.</exception>
     public CommandRegistryBuilder Add<TCommand>(
         string name,
         string description,
         JsonTypeInfo<TCommand> json,
-        CommandHandler<TCommand> handler)
+        CommandHandler<TCommand> handler,
+        bool undoable = true)
         where TCommand : Command
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -58,7 +60,7 @@ public sealed class CommandRegistryBuilder
         {
             throw new InvalidOperationException($"The command {name} or the type {typeof(TCommand).Name} is already registered.");
         }
-        CommandDescriptor descriptor = new(name, description, typeof(TCommand), CommandSchema.For(json));
+        CommandDescriptor descriptor = new(name, description, typeof(TCommand), CommandSchema.For(json), undoable);
         TypedCommandRegistration<TCommand> registration = new(descriptor, json, handler);
         _byName.Add(name, registration);
         _byType.Add(typeof(TCommand), registration);

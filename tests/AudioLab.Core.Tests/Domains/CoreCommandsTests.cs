@@ -165,6 +165,44 @@ public sealed class CoreCommandsTests
     }
 
     [Fact]
+    public void TheProjectTrackAndInstrumentSettingsCommandsExist()
+    {
+        string[] names =
+        [
+            "project_rename", "project_set_metronome", "project_set_view", "track_set_armed", "track_set_monitor", "track_set_input",
+            "track_set_height", "track_set_icon", "instrument_set_preset", "instrument_set_parameter", "instrument_set_wave",
+            "instrument_set_root_note", "instrument_set_one_shot", "instrument_set_sample",
+        ];
+
+        Assert.All(names, name => Assert.NotNull(_registry.Find(name)));
+    }
+
+    [Fact]
+    public void ASettingsCommandReadsFromItsJsonAndRefusesAWrongOne()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult view = _registry.Parse(
+            "project_set_view",
+            $$"""{"project":"{{project}}","ruler":"time","editMode":"shuffle","grid":"1/8t"}""");
+        CommandParseResult input = _registry.Parse(
+            "track_set_input",
+            $$"""{"project":"{{project}}","track":"trk_1","channels":"single","channel":2,"deviceId":"d"}""");
+        string wavy = $$"""{"project":"{{project}}","track":"trk_1","oscillator":2,"wave":"sawtooth"}""";
+        CommandParseResult wave = _registry.Parse("instrument_set_wave", wavy);
+        CommandParseResult badWave = _registry.Parse("instrument_set_wave", wavy.Replace("sawtooth", "noise"));
+        CommandParseResult badMode = _registry.Parse("project_set_view", $$"""{"project":"{{project}}","editMode":"snap"}""");
+
+        SetProjectView parsedView = Assert.IsType<SetProjectView>(view.Command);
+        SetTrackInput parsedInput = Assert.IsType<SetTrackInput>(input.Command);
+        Assert.Equal((RulerMode.Time, EditMode.Shuffle, "1/8t"), (parsedView.Ruler, parsedView.EditMode, parsedView.Grid));
+        Assert.Equal((InputChannelMode.Single, 2), (parsedInput.Channels, parsedInput.Channel));
+        Assert.Equal(OscillatorWave.Sawtooth, Assert.IsType<SetOscillatorWave>(wave.Command).Wave);
+        Assert.False(badWave.Succeeded);
+        Assert.False(badMode.Succeeded);
+    }
+
+    [Fact]
     public void ANoteListAndAnEffectCommandReadFromTheirJson()
     {
         string project = BlankProject.Create().Id.Value;

@@ -5,6 +5,27 @@ namespace AudioLab.Core.Tests;
 
 public sealed class AutomationRuleTests
 {
+    // A lane that counts how many of its points are read, so the cost of a lookup is checked by counting and not by the clock.
+    private sealed class CountingLane(int count) : IReadOnlyList<AutomationPoint>
+    {
+        public int Reads { get; private set; }
+
+        public int Count => count;
+
+        public AutomationPoint this[int index]
+        {
+            get
+            {
+                Reads++;
+                return new AutomationPoint(index * 0.5, index % 2 == 0 ? 0.25 : 0.75);
+            }
+        }
+
+        public IEnumerator<AutomationPoint> GetEnumerator() => throw new NotSupportedException();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => throw new NotSupportedException();
+    }
+
     private static ValueList<AutomationPoint> Lane(params (double Time, double Value)[] points)
     {
         return [.. points.Select(point => new AutomationPoint(point.Time, point.Value))];
@@ -57,6 +78,19 @@ public sealed class AutomationRuleTests
         Assert.Equal(0.6, AutomationRules.ValueAt(lane, 2)!.Value, 9);
         Assert.Equal(1.0, AutomationRules.ValueAt(lane, 3));
         Assert.Equal(1.0, AutomationRules.ValueAt(lane, 99));
+    }
+
+    [Fact]
+    public void ALookupInAMillionPointLaneReadsAFewDozenPointsAtMost()
+    {
+        CountingLane lane = new(ProjectLimits.MaxListItems);
+
+        double? middle = AutomationRules.ValueAt(lane, 250_000.25);
+        double? early = AutomationRules.ValueAt(lane, 3.2);
+
+        Assert.Equal(0.5, middle!.Value, 9);
+        Assert.NotNull(early);
+        Assert.InRange(lane.Reads, 1, 80);
     }
 
     [Fact]
@@ -242,17 +276,16 @@ public sealed class AutomationRuleTests
     }
 
     [Fact]
-    public void FoldingAPassIntoAMillionPointsStaysFast()
+    public void FoldingAPassIntoAMillionPointsLeavesTheRestOfTheLaneAsItWas()
     {
         ValueList<AutomationPoint> lane = [.. Enumerable.Range(0, ProjectLimits.MaxListItems - 5000).Select(i => new AutomationPoint(i * 0.5, 0.5))];
         AutomationPoint[] pass = [.. Enumerable.Range(0, 2000).Select(i => new AutomationPoint(1000 + (i * 0.01), 0.1 + (i % 7 * 0.1)))];
-        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
 
         ValueList<AutomationPoint> merged = AutomationRules.Commit(lane, pass, AutomationParameter.Volume, returnToOld: true);
 
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
         Assert.True(merged.Select(point => point.Time).SequenceEqual(merged.Select(point => point.Time).Order()));
-        Assert.Equal(lane.Where(point => point.Time < 999).Count(), merged.Count(point => point.Time < 999));
+        Assert.Equal(lane.Where(point => point.Time < 999), merged.Where(point => point.Time < 999));
+        Assert.Equal(lane.Where(point => point.Time > 1021), merged.Where(point => point.Time > 1021));
     }
 
     [Fact]

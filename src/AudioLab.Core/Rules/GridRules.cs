@@ -8,6 +8,9 @@ public static class GridRules
     /// <summary>The grid a project falls back to for "auto" or a value it does not know: a sixteenth note.</summary>
     public const double FallbackBeats = 0.25;
 
+    /// <summary>The grid that follows the zoom of the view, which a server cannot know; it is read as <see cref="FallbackBeats"/>.</summary>
+    public const string Auto = "auto";
+
     private static readonly Dictionary<string, double> _beats = new(StringComparer.Ordinal)
     {
         ["1/2"] = 2,
@@ -49,6 +52,9 @@ public static class GridRules
         ArgumentNullException.ThrowIfNull(tempo);
         return Beats(grid, signature) is { } beats ? beats * 60 / tempo.BpmAt(at) : _seconds[grid];
     }
+
+    /// <summary>Every grid value a project may be set to, in the order the editor lists them: auto, a bar, note values, then times.</summary>
+    public static IReadOnlyList<string> Values { get; } = [Auto, "bar", .. _beats.Keys, .. _seconds.Keys];
 
     /// <summary>Whether <paramref name="grid"/> is a grid value the editor offers.</summary>
     public static bool IsKnown(string grid) => grid == "bar" || _beats.ContainsKey(grid) || _seconds.ContainsKey(grid);

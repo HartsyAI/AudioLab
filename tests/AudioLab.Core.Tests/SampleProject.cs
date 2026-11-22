@@ -90,8 +90,8 @@ public static class SampleProject
         using JsonDocument aligned = JsonDocument.Parse("\"future\"");
         return Plain(id, "Lead vocal", TrackKind.Audio) with
         {
-            Armed = true,
-            Monitor = true,
+            Armed = false,
+            Monitor = false,
             TakeCount = 3,
             Clips =
             [
