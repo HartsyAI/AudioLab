@@ -297,6 +297,7 @@ public sealed class SessionTests
         Task advance = Task.Run(() => store.Time.Advance(TimeSpan.FromSeconds(1)));
         Assert.True(writing.Wait(TimeSpan.FromSeconds(10)));
         session.Update(document => document with { Bpm = 200 });
+        Assert.Equal(store.Options.AutosaveDelay, store.Time.NextTimerDelay);
         store.Observer = null;
         release.Set();
         await advance;
@@ -388,5 +389,39 @@ public sealed class SessionTests
 
         release.Set();
         await close;
+    }
+
+    [Fact]
+    public async Task AfterLongFailingWritesAChangeIsStillDebouncedNotWrittenAtOnce()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        ProjectSession session = await OpenNewAsync(store);
+        store.Observer = (stage, temp) => throw new IOException("disk full");
+        session.Update(document => document with { Bpm = 77 });
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            store.Time.Advance(attempt == 0 ? store.Options.AutosaveDelay : store.Options.AutosaveMaxDelay);
+            await session.SettleAsync();
+        }
+        Assert.True(session.IsUnsaved);
+
+        session.Update(document => document with { Bpm = 78 });
+        Assert.Equal(store.Options.AutosaveDelay, store.Time.NextTimerDelay);
+    }
+
+    [Fact]
+    public async Task AfterARefusedWriteAChangeIsStillDebouncedNotWrittenAtOnce()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path, new StoreOptions { MaxFileBytes = 4096 });
+        ProjectSession session = await OpenNewAsync(store);
+        session.Update(document => document with { Markers = [.. Enumerable.Range(1, 200).Select(i => new Marker { Id = MarkerId.From($"mrk_{i}"), Time = i, Name = "a marker with a name" })] });
+        store.Time.Advance(store.Options.AutosaveDelay);
+        await session.SettleAsync();
+        store.Time.Advance(TimeSpan.FromMinutes(1));
+
+        session.Update(document => document with { Bpm = 99 });
+        Assert.Equal(store.Options.AutosaveDelay, store.Time.NextTimerDelay);
     }
 }

@@ -47,6 +47,19 @@ public sealed class ManualTimeProvider : TimeProvider
         }
     }
 
+    /// <summary>How long until the next armed timer is due, or null when none is armed.</summary>
+    public TimeSpan? NextTimerDelay
+    {
+        get
+        {
+            lock (_sync)
+            {
+                DateTimeOffset[] due = [.. _timers.Where(timer => timer.Due is not null).Select(timer => timer.Due!.Value)];
+                return due.Length == 0 ? null : due.Min() - _now;
+            }
+        }
+    }
+
     /// <summary>How many timers are armed.</summary>
     public int PendingTimers
     {

@@ -50,7 +50,8 @@ public sealed class StoreRoot : IDisposable
             return 0;
         }
         int removed = 0;
-        foreach (string file in Directory.EnumerateFiles(paths.UsersDirectory, "*.tmp", SearchOption.AllDirectories))
+        EnumerationOptions walk = new() { RecurseSubdirectories = true, IgnoreInaccessible = true };
+        foreach (string file in Directory.EnumerateFiles(paths.UsersDirectory, "*.tmp", walk))
         {
             string name = Path.GetFileName(file);
             if (!StorePaths.IsLeftoverTemp(name))

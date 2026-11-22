@@ -256,14 +256,36 @@ public sealed class ProjectServiceTests
     }
 
     [Theory]
-    [InlineData(112, true)]
-    [InlineData(-2147024784, true)]
-    [InlineData(-2147024857, true)]
-    [InlineData(28, true)]
-    [InlineData(5, false)]
-    [InlineData(-2147024864, false)]
-    public void DiskFullIsToldApartFromOtherFileErrors(int hresult, bool full)
+    [InlineData(-2147024784, true, false)]
+    [InlineData(-2147024857, true, false)]
+    [InlineData(-2147024864, false, false)]
+    [InlineData(112, false, false)]
+    [InlineData(39, false, false)]
+    [InlineData(28, false, true)]
+    [InlineData(5, false, false)]
+    public void DiskFullIsToldApartFromOtherFileErrors(int hresult, bool fullOnWindows, bool fullOnUnix)
     {
-        Assert.Equal(full, StoreIoErrors.IsDiskFull(new IOException("x", hresult)));
+        Assert.Equal(OperatingSystem.IsWindows() ? fullOnWindows : fullOnUnix, StoreIoErrors.IsDiskFull(new IOException("x", hresult)));
+    }
+
+    [Theory]
+    [InlineData("""{"id":{"id":"prj_nested"},"owner":"swarm-x","name":"n"}""")]
+    [InlineData("""{"id":"prj_a","owner":["swarm-x"],"name":"n"}""")]
+    [InlineData("""{"id":"prj_a","owner":"swarm-x","name":{"name":"n"}}""")]
+    [InlineData("""{"id":"prj_a","owner":"swarm-x"}""")]
+    public void TheHeaderIsNeverReadFromANestedValue(string json)
+    {
+        Assert.False(ProjectHeader.TryRead(System.Text.Encoding.UTF8.GetBytes(json), out ProjectHeader? header));
+        Assert.Null(header);
+    }
+
+    [Fact]
+    public void TheHeaderRefusesAnOverlongName()
+    {
+        string json = "{\"id\":\"prj_a\",\"owner\":\"swarm-x\",\"name\":\"" + new string('n', ProjectLimits.MaxName + 1) + "\"}";
+        Assert.False(ProjectHeader.TryRead(System.Text.Encoding.UTF8.GetBytes(json), out _));
+        string ok = "{\"id\":\"prj_a\",\"owner\":\"swarm-x\",\"name\":\"" + new string('n', ProjectLimits.MaxName) + "\"}";
+        Assert.True(ProjectHeader.TryRead(System.Text.Encoding.UTF8.GetBytes(ok), out ProjectHeader? header));
+        Assert.Equal("prj_a", header!.Id.Value);
     }
 }

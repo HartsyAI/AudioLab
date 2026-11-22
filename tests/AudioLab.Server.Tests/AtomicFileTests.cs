@@ -103,42 +103,24 @@ public sealed class AtomicFileTests
     }
 
     [Fact]
-    public async Task AReaderNeverSeesAHalfWrittenFileWhileAWriterReplacesIt()
+    public async Task AWriteWaitsOutAReaderThatHoldsTheDestinationBrieflyAndTheReaderStillSeesTheOldContent()
     {
         using TempFolder folder = new();
         string path = Path.Combine(folder.Path, "file.json");
-        byte[] a = Encoding.UTF8.GetBytes(new string('a', 300_000));
-        byte[] b = Encoding.UTF8.GetBytes(new string('b', 300_001));
-        await File.WriteAllBytesAsync(path, a);
+        await File.WriteAllBytesAsync(path, _old);
         AtomicFile writer = new();
-        bool done = false;
-        int reads = 0;
-        Task reader = Task.Run(async () =>
+        byte[] seen;
+        using (FileStream reader = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
         {
-            while (!Volatile.Read(ref done))
-            {
-                byte[] seen;
-                try
-                {
-                    using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                    seen = new byte[stream.Length];
-                    stream.ReadExactly(seen);
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    continue;
-                }
-                Assert.True(seen.SequenceEqual(a) || seen.SequenceEqual(b), "a reader saw content that is neither version");
-                reads++;
-                await Task.Delay(2);
-            }
-        });
-        for (int i = 0; i < 60; i++)
-        {
-            await writer.WriteAsync(path, i % 2 == 0 ? b : a, CancellationToken.None);
+            Task write = writer.WriteAsync(path, _new, CancellationToken.None);
+            await Task.Delay(30);
+            seen = new byte[reader.Length];
+            await reader.ReadExactlyAsync(seen);
+            reader.Close();
+            await write;
         }
-        Volatile.Write(ref done, true);
-        await reader;
-        Assert.True(reads > 0);
+        Assert.Equal(_old, seen);
+        Assert.Equal(_new, await File.ReadAllBytesAsync(path));
+        Assert.Equal([path], Directory.GetFiles(folder.Path));
     }
 }

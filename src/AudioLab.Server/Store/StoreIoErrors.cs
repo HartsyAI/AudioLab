@@ -12,6 +12,9 @@ public static class StoreIoErrors
     {
         ArgumentNullException.ThrowIfNull(exception);
         int code = exception.HResult;
-        return code == UnixNoSpace || (code & 0xFFFF) is WindowsDiskFull or WindowsHandleDiskFull;
+        // A Windows error arrives as 0x8007 and the Win32 code; on Unix the raw number is an errno, where 39 and 112 mean something else.
+        return OperatingSystem.IsWindows()
+            ? (code & unchecked((int)0xFFFF0000)) == unchecked((int)0x80070000) && (code & 0xFFFF) is WindowsDiskFull or WindowsHandleDiskFull
+            : code == UnixNoSpace;
     }
 }

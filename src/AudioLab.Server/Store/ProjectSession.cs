@@ -21,6 +21,7 @@ public sealed class ProjectSession
     private long _savedRevision;
     private DateTimeOffset _modified;
     private DateTimeOffset? _unsavedSince;
+    private DateTimeOffset? _writeStarted;
     private bool _closed;
     private Task _autosave = Task.CompletedTask;
 
@@ -121,7 +122,18 @@ public sealed class ProjectSession
             _snapshot = new ProjectSnapshot(next, _snapshot.Revision + 1);
             DateTimeOffset now = _time.GetUtcNow();
             _modified = now;
-            _unsavedSince ??= now;
+            if (_writeStarted is { } started)
+            {
+                // The write in flight covers the changes before it started; these are new and get their own full quiet period.
+                if (_unsavedSince is not { } since || since <= started)
+                {
+                    _unsavedSince = now;
+                }
+            }
+            else
+            {
+                _unsavedSince ??= now;
+            }
             TimeSpan wait = Min(_options.AutosaveDelay, _unsavedSince.Value + _options.AutosaveMaxDelay - now);
             _timer.Change(wait < TimeSpan.Zero ? TimeSpan.Zero : wait, Timeout.InfiniteTimeSpan);
             return _snapshot;
@@ -226,13 +238,30 @@ public sealed class ProjectSession
             {
                 return snapshot.Revision;
             }
+            _writeStarted = _time.GetUtcNow();
         }
-        await _store.WriteAsync(snapshot.Document, cancellationToken);
-        lock (_state)
+        bool written = false;
+        try
         {
-            _savedRevision = snapshot.Revision;
-            // Changes that arrived during the write start a new wait, so they are not written at once because the old one ran out.
-            _unsavedSince = _snapshot.Revision == snapshot.Revision ? null : _time.GetUtcNow();
+            await _store.WriteAsync(snapshot.Document, cancellationToken);
+            written = true;
+        }
+        finally
+        {
+            lock (_state)
+            {
+                _writeStarted = null;
+                if (written)
+                {
+                    _savedRevision = snapshot.Revision;
+                    _unsavedSince = _snapshot.Revision == snapshot.Revision ? null : _unsavedSince;
+                }
+                else
+                {
+                    // A write that failed or was refused must not leave an expired wait, or the next change would try again at once.
+                    _unsavedSince = null;
+                }
+            }
         }
         return snapshot.Revision;
     }

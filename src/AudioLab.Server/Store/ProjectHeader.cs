@@ -50,7 +50,7 @@ public sealed record ProjectHeader(ProjectId Id, UserId Owner, string Name)
         {
             return false;
         }
-        if (!IdRules.IsValid(id) || !IdRules.IsValid(owner) || name is null)
+        if (!IdRules.IsValid(id) || !IdRules.IsValid(owner) || name is null || name.Length > ProjectLimits.MaxName)
         {
             return false;
         }
@@ -60,6 +60,16 @@ public sealed record ProjectHeader(ProjectId Id, UserId Owner, string Name)
 
     private static string? ReadString(ref Utf8JsonReader reader)
     {
-        return reader.Read() && reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
+        if (!reader.Read())
+        {
+            return null;
+        }
+        if (reader.TokenType is JsonTokenType.StartObject or JsonTokenType.StartArray)
+        {
+            // A nested value is never the id, owner or name; its own members must not be read as if they were.
+            reader.TrySkip();
+            return null;
+        }
+        return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
     }
 }

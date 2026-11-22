@@ -26,12 +26,13 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
             await entry.Lock.WaitAsync(cancellationToken);
             try
             {
-                if (entry.Session is null)
+                if (SessionOf(entry) is not { } session)
                 {
                     ProjectDocument document = await store.ReadAsync(user, id, cancellationToken);
-                    entry.Session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, logger);
+                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, logger);
+                    SetSession(entry, session);
                 }
-                return entry.Session;
+                return session;
             }
             finally
             {
@@ -72,10 +73,10 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
             await entry.Lock.WaitAsync(cancellationToken);
             try
             {
-                if (entry.Session is { } session)
+                if (SessionOf(entry) is { } session)
                 {
                     await session.CloseAsync(cancellationToken);
-                    entry.Session = null;
+                    SetSession(entry, null);
                 }
             }
             finally
@@ -100,13 +101,13 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
             await entry.Lock.WaitAsync(cancellationToken);
             try
             {
-                bool wasOpen = entry.Session is not null;
-                if (entry.Session is { } session)
+                ProjectSession? open = SessionOf(entry);
+                if (open is not null)
                 {
-                    await session.DiscardAsync(cancellationToken);
-                    entry.Session = null;
+                    await open.DiscardAsync(cancellationToken);
+                    SetSession(entry, null);
                 }
-                return store.Delete(user, id) || wasOpen;
+                return store.Delete(user, id) || open is not null;
             }
             finally
             {
@@ -162,6 +163,23 @@ public sealed class OpenProjects(ProjectStore store, StoreOptions options, TimeP
                 StoreLog.FlushFailed(logger, session.Id.Value, exception);
                 await session.DiscardAsync(CancellationToken.None);
             }
+        }
+    }
+
+    // The session of an entry is read and written under the table's lock, the one lock every reader of it holds.
+    private ProjectSession? SessionOf(Entry entry)
+    {
+        lock (_table)
+        {
+            return entry.Session;
+        }
+    }
+
+    private void SetSession(Entry entry, ProjectSession? session)
+    {
+        lock (_table)
+        {
+            entry.Session = session;
         }
     }
 
