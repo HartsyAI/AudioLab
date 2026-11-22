@@ -159,7 +159,7 @@ public sealed class MediaRouteTests
     public async Task AnUploadThatIsNotAnAcceptedRequestOrFileIsRefusedAndLeavesNothingOnDisk()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        byte[] file = Wav(200);
+        byte[] file = Wav();
 
         using HttpResponseMessage wrongType = await UploadAsync(server, file, type: "audio/mpeg");
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, wrongType.StatusCode);

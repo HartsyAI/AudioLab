@@ -35,6 +35,12 @@ public static class MediaRoutes
     // The body is the WAV file itself, not a form: it is streamed to disk, never held in memory.
     private static async Task<IResult> UploadAsync(HttpContext http, MediaService service, MediaOptions options, CancellationToken cancellationToken)
     {
+        // Before any early refusal: a body the server does not read is drained under this limit, and a lower one resets the client.
+        IHttpMaxRequestBodySizeFeature? limit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (limit is { IsReadOnly: false })
+        {
+            limit.MaxRequestBodySize = options.MaxUploadBytes;
+        }
         if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? type)
             || !_wavTypes.Contains(type.MediaType.Value ?? string.Empty))
         {
@@ -45,11 +51,6 @@ public static class MediaRoutes
         if (!http.Request.Query.TryGetValue("name", out StringValues names) || names.Count != 1)
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Send the file's name once, as the query value name.");
-        }
-        IHttpMaxRequestBodySizeFeature? limit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (limit is { IsReadOnly: false })
-        {
-            limit.MaxRequestBodySize = options.MaxUploadBytes;
         }
         UserId user = http.RequireUser();
         MediaRecord record = await service.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);

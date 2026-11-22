@@ -253,6 +253,12 @@ public sealed class MediaStore : IMediaCatalog
             media.Refused++;
             MediaLog.RecordRefused(_logger, name, string.Join("; ", exception.Problems));
         }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // One file another process holds must not hide the rest of the user's media.
+            media.Refused++;
+            MediaLog.RecordRefused(_logger, name, exception.GetType().Name);
+        }
     }
 
     private static MediaRecord ReadRecord(string path)

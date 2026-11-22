@@ -16,6 +16,11 @@ public sealed class MediaStoreTests
         return store.MediaFiles.UploadAsync(Users.Alice, name, body, declared, _none);
     }
 
+    private static string MediaStoreFile(TempFolder folder, MediaRecord record)
+    {
+        return new StorePaths(folder.Path).MediaRecordFile(record.Owner, record.Id);
+    }
+
     private static string[] MediaFiles(TestStore store, UserId user)
     {
         string directory = store.Paths.MediaDirectory(user);
@@ -115,6 +120,29 @@ public sealed class MediaStoreTests
         MediaListing listing = store.MediaFiles.List(Users.Alice);
         Assert.Equal([kept.Id.Value], listing.Files.Select(summary => summary.Id));
         Assert.Equal(3, listing.Refused);
+    }
+
+    [Fact]
+    public async Task OneRecordFileAnotherProcessHoldsDoesNotHideTheRestOfTheUsersMedia()
+    {
+        using TempFolder folder = new();
+        MediaRecord held;
+        MediaRecord other;
+        await using (TestStore first = TestStore.On(folder.Path))
+        {
+            held = await first.UploadAsync(Users.Alice, Wav(), "held.wav");
+            other = await first.UploadAsync(Users.Alice, Wav(), "other.wav");
+        }
+
+        using FileStream hold = new(MediaStoreFile(folder, held), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        await using TestStore store = TestStore.On(folder.Path, media: new MediaOptions { MaxFilesPerUser = 2 });
+
+        Assert.Equal(other, store.Media.Find(Users.Alice, other.Id));
+        Assert.Null(store.Media.Find(Users.Alice, held.Id));
+        MediaListing listing = store.MediaFiles.List(Users.Alice);
+        Assert.Equal([other.Id.Value], listing.Files.Select(summary => summary.Id));
+        Assert.Equal(1, listing.Refused);
+        Assert.Equal(1, store.Media.UsageOf(Users.Alice).Files);
     }
 
     [Fact]
