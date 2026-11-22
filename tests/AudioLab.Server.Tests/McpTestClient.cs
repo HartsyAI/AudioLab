@@ -64,6 +64,16 @@ public static class McpTestClient
         return client.CallToolAsync(tool, arguments);
     }
 
+    public static ValueTask<CallToolResult> ApplyAsync(McpClient client, string tool, string project, params (string Key, object? Value)[] members)
+    {
+        Dictionary<string, object?> arguments = new() { ["project"] = project };
+        foreach ((string key, object? value) in members)
+        {
+            arguments[key] = value;
+        }
+        return client.CallToolAsync(tool, arguments);
+    }
+
     public static CommandReply Reply(CallToolResult result)
     {
         return result.StructuredContent!.Value.Deserialize(HubJsonContext.Default.CommandReply)!;

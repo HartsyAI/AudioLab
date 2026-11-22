@@ -149,7 +149,7 @@ The command record is the wire format, the undo unit and the MCP tool input. It 
 | `src/AudioLab.Audio` | The engine: DSP, mixer graph, real-time and offline rendering, synth and sampler, MIDI codec. Pure C#, no native dependencies. | Core | Planned |
 | `src/AudioLab.Devices` | Native audio and MIDI device I/O behind `IAudioDevice` and `IMidiInput`. | Core, Audio | Planned |
 | `src/AudioLab.Engine` | HartsyInference-backed services behind interfaces: providers, model install, TTS, STT, stems, alignment, music, voice, wake word. | Core | Planned |
-| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Exists (host, the three doors, store, hub, MCP read tools) |
+| `src/AudioLab.Server` | ASP.NET Core host: thin routes, the event hub, open-project sessions, the store, MCP, and serving the UI. | all of the above | Exists (host, the three doors, store, hub, MCP) |
 | `src/AudioLab.Web` | The Blazor WebAssembly UI. | Core, Audio | Planned |
 | `src/AudioLab.Desktop` | The desktop shell: starts the server in-process and opens the window. | Server | Planned |
 | `tests/AudioLab.Conventions.Tests` | Fails the build on style and policy the compiler cannot check. | none | Exists |
@@ -234,7 +234,7 @@ Rules:
   Not built: patches in place of whole documents, a limit on the rate of commands, sharing a project between users,
   and moving the hub's message types into `AudioLab.Core` (section 4 lets `AudioLab.Web` reference only Core and
   Audio, so the UI needs them there).
-- **MCP.** An agent connects to `/api/mcp` behind the door and acts as the user the door resolved (D36). It lists and reads that user's projects, and undoes and redoes, through the same `ProjectEditService` as the hub, so a change made by an agent reaches every client of the project (D20). The server keeps no MCP session. Not built: a tool per command, a limit on the rate of calls, and a credential for an agent on the hosted door.
+- **MCP.** An agent connects to `/api/mcp` behind the door and acts as the user the door resolved (D36). It has a tool for every command of the registry, built from the registry at start, and tools to list and read that user's projects, read the history and undo and redo. All of them run through the same `ProjectEditService` as the hub, so a change made by an agent reaches every client of the project (D20), and the media checks that D22, D25, D27 and D28 leave to the server apply to the hub and to MCP alike once they exist. The server keeps no MCP session. Not built: a limit on the rate of calls, a partial read of a document over the limit, and a credential for an agent on the hosted door. Use: [docs/mcp.md](docs/mcp.md).
 - **Gestures.** A continuous gesture (dragging a clip, drawing automation) is previewed locally with the shared rule
   code and committed as one command on release. The UI never waits on the network to move something under the pointer.
 
@@ -838,7 +838,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
 | 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14, D17 (O2) and D24 (O1) stay Proposed until the owner decides; Proposed is not closed. D17 also waits on a Firefox drag rerun on an idle machine. |
 | 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
-| 3 | MCP on the command registry (D11). In progress: the transport, identity and read tools are in (D36); the tool for each command is next. |
+| 3 | MCP on the command registry (D11). Built as D36 (Proposed): a tool for every command, the read tools and project resources, over Streamable HTTP behind the door; D11 stays Proposed. |
 | 4 | The audio engine: offline render and export, then real-time playback. |
 | 5 | The UI, one domain at a time: tempo, markers, sections and groups; tracks and mixer; clips and media; effects, automation, MIDI, piano roll and beats. |
 | 6 | Engine services and the model manager, and the media store: it must verify the existence, ownership (D12) and duration of the media that `clip_add`, `beat_lane_add`, `beat_lane_set_media` and `instrument_set_sample` name, which Core cannot check (D22, D25, D27). |
@@ -876,3 +876,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-22 | Project settings, track settings and instrument commands added to `AudioLab.Core` with the track and instrument rules (section 5); D27 proposed. |
 | 2026-11-22 | O1 recorded as D24 (Proposed): the engine runs in a web worker in the page behind a minimal `AudioWorklet` shim and held 10 minutes with zero dropouts at 93 ms of output buffering in Chrome and Firefox on a machine at 24 to 34% CPU; the main thread missed in Firefox; a server-side mix is named as the fallback, not built or measured; evidence under D24; section 6 names the worker. |
 | 2026-11-22 | MCP served by `AudioLab.Server` on the official C# SDK, stateless over Streamable HTTP behind the door: list, read, undo, redo and project resources (section 5); D36 proposed. D11 stays Proposed. |
+| 2026-11-22 | MCP: a tool for every command of the registry, generated at start from its name, description and schema, with the wire name as the tool name; `docs/mcp.md` tells a user how to connect a client (section 5, D36). |

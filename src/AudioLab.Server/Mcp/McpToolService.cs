@@ -14,6 +14,9 @@ namespace AudioLab.Server.Mcp;
 /// <remarks>Every call opens a project as that user, so a project of another user is never found. A refusal is a result, not an exception.</remarks>
 public sealed class McpToolService(ProjectService projects, ProjectEditService edits, McpToolCatalog catalog, AudioLabOptions options)
 {
+    /// <summary>What every client id of an agent starts with, so it can never be a hub connection id.</summary>
+    public const string ClientPrefix = "mcp-";
+
     /// <summary>Runs the tool called <paramref name="name"/>.</summary>
     /// <param name="user">The user the door resolved; the only user whose projects the call can touch.</param>
     /// <param name="name">The tool's name.</param>
@@ -40,7 +43,7 @@ public sealed class McpToolService(ProjectService projects, ProjectEditService e
                 McpToolNames.GetHistory => await WithProjectAsync(arguments, project => GetHistoryAsync(user, project, cancellationToken)),
                 McpToolNames.Undo => await WithProjectAsync(arguments, project => ReplyAsync(edits.UndoAsync(user, project, cancellationToken))),
                 McpToolNames.Redo => await WithProjectAsync(arguments, project => ReplyAsync(edits.RedoAsync(user, project, cancellationToken))),
-                _ => throw new McpProtocolException($"The server has no tool named {name}.", McpErrorCode.InvalidParams),
+                _ => await ApplyAsync(user, name, arguments, cancellationToken),
             };
         }
         catch (ProjectNotFoundException exception)
@@ -91,6 +94,26 @@ public sealed class McpToolService(ProjectService projects, ProjectEditService e
     {
         HistoryState state = await edits.HistoryAsync(user, project, cancellationToken);
         return McpResults.Ok(state, McpJsonContext.Default.HistoryState);
+    }
+
+    // The tool's arguments are the command itself: its text goes to the registry as sent, and the project it names is where it is applied.
+    private async Task<CallToolResult> ApplyAsync(
+        UserId user,
+        string name,
+        IDictionary<string, JsonElement>? arguments,
+        CancellationToken cancellationToken)
+    {
+        if (arguments is null
+            || !arguments.TryGetValue("project", out JsonElement project)
+            || project.ValueKind != JsonValueKind.String
+            || !IdRules.IsValid(project.GetString()))
+        {
+            return McpResults.Refused(CommandErrorCode.Malformed, "project must be the id of one of your projects.");
+        }
+        string json = JsonSerializer.Serialize(arguments, McpJsonContext.Default.IDictionaryStringJsonElement);
+        ClientId client = ClientId.From(ClientPrefix + Guid.NewGuid().ToString("N"));
+        CommandReply reply = await edits.ApplyAsync(user, ProjectId.From(project.GetString()!), client, name, json, null, cancellationToken);
+        return McpResults.Reply(reply);
     }
 
     private static async Task<CallToolResult> ReplyAsync(Task<CommandReply> reply) => McpResults.Reply(await reply);

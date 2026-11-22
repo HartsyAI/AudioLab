@@ -4,6 +4,7 @@ using AudioLab.Core.Model;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Store;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -15,14 +16,17 @@ public sealed class McpToolTests
     private static readonly string[] _builtIns = ["get_history", "get_project", "list_projects", "redo", "undo"];
 
     [Fact]
-    public async Task TheReadAndHistoryToolsAreOfferedWithADescribedSchema()
+    public async Task TheReadAndHistoryToolsAreOfferedBesideTheCommandsWithADescribedSchema()
     {
         await using RunningServer server = await McpTestClient.StartAsync();
         await using McpClient client = await McpTestClient.ConnectAsync(server);
 
         IList<McpClientTool> tools = await client.ListToolsAsync();
-        Assert.Equal(_builtIns, tools.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray());
-        foreach (McpClientTool tool in tools)
+        string[] commands = [.. server.Services.GetRequiredService<CommandRegistry>().Commands.Select(command => command.Name)];
+        string[] offered = [.. tools.Select(tool => tool.Name).Order(StringComparer.Ordinal)];
+        string[] expected = [.. _builtIns, .. commands];
+        Assert.Equal(expected.Order(StringComparer.Ordinal).ToArray(), offered);
+        foreach (McpClientTool tool in tools.Where(candidate => _builtIns.Contains(candidate.Name)))
         {
             Assert.False(string.IsNullOrWhiteSpace(tool.Description));
             Assert.Equal("object", tool.JsonSchema.GetProperty("type").GetString());
