@@ -11,14 +11,28 @@ public static class UiRoutes
 
     private const string IndexFile = "index.html";
 
+    // Another origin may not frame the program, so a page of it cannot be laid under a click (D30). Showing it inside another site is out of scope for now (section 9).
+    private const string FrameAncestors = "frame-ancestors 'self'";
+
     /// <summary>Maps the UI's static files and a fallback to its start page into <paramref name="app"/>, which must use the path base.</summary>
     /// <remarks>
     /// These endpoints carry no <c>DoorRequired</c>: they hold the program, never a project. The path base is written into the start
-    /// page, because Blazor resolves every address against its base tag.
+    /// page, because Blazor resolves every address against its base tag. Each answer forbids framing by another origin and sniffing.
     /// </remarks>
     public static void Map(WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
+        app.Use(async (context, next) =>
+        {
+            if (context.GetEndpoint()?.Metadata.GetMetadata<UiEndpoint>() is not null)
+            {
+                IHeaderDictionary headers = context.Response.Headers;
+                headers.ContentSecurityPolicy = FrameAncestors;
+                headers.XFrameOptions = "SAMEORIGIN";
+                headers.XContentTypeOptions = "nosniff";
+            }
+            await next();
+        });
         RouteGroupBuilder ui = app.MapGroup(string.Empty).WithMetadata(new UiEndpoint());
         ui.MapStaticAssets();
         IFileProvider files = app.Environment.WebRootFileProvider;

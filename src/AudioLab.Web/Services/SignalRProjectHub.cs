@@ -10,18 +10,19 @@ public sealed class SignalRProjectHub : IProjectHub
     private readonly HubConnection _connection;
 
     /// <summary>Creates a connection to the hub at <paramref name="hub"/>; it opens on <see cref="ConnectAsync"/>.</summary>
-    public SignalRProjectHub(Uri hub)
+    /// <param name="hub">The hub's address.</param>
+    /// <param name="reconnects">Whether the connection opens again by itself after a loss; a one-shot request must not.</param>
+    public SignalRProjectHub(Uri hub, bool reconnects)
     {
         ArgumentNullException.ThrowIfNull(hub);
-        _connection = new HubConnectionBuilder()
+        IHubConnectionBuilder builder = new HubConnectionBuilder()
             .WithUrl(hub, options =>
             {
                 options.Transports = HttpTransportType.WebSockets;
                 options.SkipNegotiation = true;
             })
-            .AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default)
-            .WithAutomaticReconnect()
-            .Build();
+            .AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
+        _connection = (reconnects ? builder.WithAutomaticReconnect() : builder).Build();
         _connection.On<ProjectChange>(HubProtocol.DocumentChanged, change => DocumentChanged?.Invoke(change));
         _connection.On<ProjectClosed>(HubProtocol.ProjectDeleted, closed => ProjectDeleted?.Invoke(closed));
         _connection.Reconnecting += _ => Raise(HubState.Reconnecting);

@@ -4,7 +4,7 @@ using System.Text;
 namespace AudioLab.Web.Tests;
 
 /// <summary>Answers every request with one prepared response and keeps what it was asked.</summary>
-public sealed class StubHandler(
+internal sealed class StubHandler(
     HttpStatusCode status,
     string body,
     string contentType = "application/json",

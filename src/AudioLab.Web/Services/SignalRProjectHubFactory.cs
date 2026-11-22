@@ -5,5 +5,5 @@ namespace AudioLab.Web.Services;
 public sealed class SignalRProjectHubFactory(Uri hub) : IProjectHubFactory
 {
     /// <inheritdoc />
-    public IProjectHub Create() => new SignalRProjectHub(hub);
+    public IProjectHub Create(bool reconnects) => new SignalRProjectHub(hub, reconnects);
 }

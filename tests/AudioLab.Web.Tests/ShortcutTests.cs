@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the shortcut tests.</summary>
 public sealed class ShortcutTests
 {
+    /// <summary>No two commands share an id or a chord.</summary>
     [Fact]
     public void NoTwoCommandsShareAnIdOrAChord()
     {
@@ -12,6 +14,7 @@ public sealed class ShortcutTests
         Assert.Equal(Shortcuts.All.Count, Shortcuts.All.Select(shortcut => shortcut.Display).Distinct().Count());
     }
 
+    /// <summary>A chord matches only its own modifiers.</summary>
     [Fact]
     public void AChordMatchesOnlyItsOwnModifiers()
     {

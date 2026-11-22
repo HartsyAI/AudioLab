@@ -69,7 +69,15 @@ public sealed class ProjectApi(HttpClient http)
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> type,
         CancellationToken cancellationToken)
     {
-        T? value = await response.Content.ReadFromJsonAsync(type, cancellationToken);
+        T? value;
+        try
+        {
+            value = await response.Content.ReadFromJsonAsync(type, cancellationToken);
+        }
+        catch (JsonException)
+        {
+            throw new ApiException(response.StatusCode, "The server answered with something this page cannot read.");
+        }
         return value ?? throw new ApiException(response.StatusCode, "The server answered with nothing.");
     }
 

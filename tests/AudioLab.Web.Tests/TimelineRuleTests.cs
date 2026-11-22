@@ -3,8 +3,10 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the timeline rule tests.</summary>
 public sealed class TimelineRuleTests
 {
+    /// <summary>Bars start where the tempo map puts them and every fourth is strong.</summary>
     [Fact]
     public void BarsStartWhereTheTempoMapPutsThemAndEveryFourthIsStrong()
     {
@@ -16,6 +18,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(new BarLine(5, 8, true), lines[4]);
     }
 
+    /// <summary>A tempo change moves the bars after it and they stay evenly timed within each tempo.</summary>
     [Fact]
     public void ATempoChangeMovesTheBarsAfterItAndTheyStayEvenlyTimedWithinEachTempo()
     {
@@ -28,6 +31,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(12, lines[4].Time);
     }
 
+    /// <summary>Bar lines follow a long arrangement but never past the cap.</summary>
     [Fact]
     public void BarLinesFollowALongArrangementButNeverPastTheCap()
     {
@@ -35,6 +39,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(BarGrid.MaximumBars, BarGrid.Lines(Song.Empty(), 1_000_000).Count);
     }
 
+    /// <summary>The counter names the bar beat and sixteenth at a time.</summary>
     [Fact]
     public void TheCounterNamesTheBarBeatAndSixteenthAtATime()
     {
@@ -43,6 +48,7 @@ public sealed class TimelineRuleTests
         Assert.Equal("1.1.1", BarGrid.Position(Song.Empty(), -3));
     }
 
+    /// <summary>The lanes cover at least twenty four bars and reach four bars past the last clip.</summary>
     [Fact]
     public void TheLanesCoverAtLeastTwentyFourBarsAndReachFourBarsPastTheLastClip()
     {
@@ -52,6 +58,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(120, SessionExtent.LengthSeconds(long_));
     }
 
+    /// <summary>Rows stack at the heights the document keeps and no row is too small to use.</summary>
     [Fact]
     public void RowsStackAtTheHeightsTheDocumentKeepsAndNoRowIsTooSmallToUse()
     {
@@ -64,6 +71,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(180, layout.Total);
     }
 
+    /// <summary>The scale is linear in seconds.</summary>
     [Fact]
     public void TheScaleIsLinearInSeconds()
     {
@@ -74,6 +82,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(2, geometry.Seconds(68));
     }
 
+    /// <summary>The counter writes a fixed width time.</summary>
     [Theory]
     [InlineData(0.0, "0:00:00.000")]
     [InlineData(18.5, "0:00:18.500")]
@@ -84,6 +93,7 @@ public sealed class TimelineRuleTests
         Assert.Equal(expected, TimeText.Counter(seconds));
     }
 
+    /// <summary>The ruler writes minutes and seconds and hours only when there are some.</summary>
     [Fact]
     public void TheRulerWritesMinutesAndSecondsAndHoursOnlyWhenThereAreSome()
     {

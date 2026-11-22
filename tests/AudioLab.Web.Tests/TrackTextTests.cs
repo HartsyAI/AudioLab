@@ -3,8 +3,10 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the track text tests.</summary>
 public sealed class TrackTextTests
 {
+    /// <summary>The source line says where an audio track records and what an instrument plays.</summary>
     [Fact]
     public void TheSourceLineSaysWhereAnAudioTrackRecordsAndWhatAnInstrumentPlays()
     {
@@ -21,6 +23,7 @@ public sealed class TrackTextTests
         Assert.Equal(((SynthInstrument)keys.Instrument!).Preset, TrackText.Source(keys));
     }
 
+    /// <summary>Pan is centre or a side and a percent.</summary>
     [Theory]
     [InlineData(0.0, "C")]
     [InlineData(-0.28, "L28")]
@@ -31,6 +34,7 @@ public sealed class TrackTextTests
         Assert.Equal(expected, TrackText.Pan(pan));
     }
 
+    /// <summary>The time ruler labels stay at least sixty four pixels apart at any scale.</summary>
     [Fact]
     public void TheTimeRulerLabelsStayAtLeastSixtyFourPixelsApartAtAnyScale()
     {

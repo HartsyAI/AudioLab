@@ -2,10 +2,12 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Tests;
 
+/// <summary>Holds the modified text tests.</summary>
 public sealed class ModifiedTextTests
 {
     private static readonly DateTimeOffset _now = new(2026, 11, 22, 15, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Recent changes are said in minutes and hours.</summary>
     [Theory]
     [InlineData(30, "just now")]
     [InlineData(5 * 60, "5 min ago")]
@@ -15,6 +17,7 @@ public sealed class ModifiedTextTests
         Assert.Equal(expected, ModifiedText.Of(_now.AddSeconds(-secondsAgo), _now, TimeZoneInfo.Utc));
     }
 
+    /// <summary>An earlier day is yesterday then the date.</summary>
     [Fact]
     public void AnEarlierDayIsYesterdayThenTheDate()
     {
@@ -22,6 +25,7 @@ public sealed class ModifiedTextTests
         Assert.Equal("19 Nov 2026", ModifiedText.Of(new DateTimeOffset(2026, 11, 19, 8, 0, 0, TimeSpan.Zero), _now, TimeZoneInfo.Utc));
     }
 
+    /// <summary>The day is the viewers own not utc.</summary>
     [Fact]
     public void TheDayIsTheViewersOwnNotUtc()
     {

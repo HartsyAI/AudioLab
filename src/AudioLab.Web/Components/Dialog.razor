@@ -1,18 +1,22 @@
-<dialog id="@DialogId" class="dialog" aria-labelledby="@TitleId">
+<dialog id="@DialogId" class="dialog" aria-labelledby="@TitleId" aria-describedby="@DescribedBy">
     <form class="dialog-form" @onsubmit="ConfirmAsync" @onsubmit:preventDefault>
         <h2 id="@TitleId" class="dialog-title">@Title</h2>
         @if (Description is not null)
         {
-            <p class="dialog-text">@Description</p>
+            <p id="@TextId" class="dialog-text">@Description</p>
         }
-        @ChildContent
+        <CascadingValue Value="_context">@ChildContent</CascadingValue>
         @if (Error is not null)
         {
-            <p class="dialog-error" role="alert">@Error</p>
+            <p id="@ErrorId" class="dialog-error" role="alert">@Error</p>
+        }
+        @if (ConfirmDisabled && ConfirmDisabledReason is not null)
+        {
+            <p class="dialog-reason">@ConfirmDisabledReason</p>
         }
         <div class="dialog-actions">
             <Button OnClick="RequestCloseAsync">Cancel</Button>
-            <Button Variant="@ConfirmVariant" Submit="true" Disabled="ConfirmDisabled">@ConfirmText</Button>
+            <Button Variant="@ConfirmVariant" Submit="true" Disabled="ConfirmDisabled" DisabledReason="@ConfirmDisabledReason">@ConfirmText</Button>
         </div>
     </form>
 </dialog>

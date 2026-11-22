@@ -12,6 +12,8 @@ public sealed partial class Dialog
 
     private bool _watching;
 
+    private DialogContext _context = new(string.Empty, false);
+
     /// <summary>Whether the dialog is open.</summary>
     [Parameter]
     public bool Open { get; set; }
@@ -40,6 +42,10 @@ public sealed partial class Dialog
     [Parameter]
     public bool ConfirmDisabled { get; set; }
 
+    /// <summary>Why the confirm button does nothing yet, in one sentence; it shows beside the buttons and as the button's title.</summary>
+    [Parameter]
+    public string? ConfirmDisabledReason { get; set; }
+
     /// <summary>Fields of a form dialog, placed between the text and the buttons.</summary>
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
@@ -58,6 +64,25 @@ public sealed partial class Dialog
     private string DialogId => $"dialog-{_id}";
 
     private string TitleId => $"dialog-title-{_id}";
+
+    private string TextId => $"dialog-text-{_id}";
+
+    private string ErrorId => $"dialog-error-{_id}";
+
+    private string? DescribedBy
+    {
+        get
+        {
+            string[] ids = [.. new[] { Description is null ? null : TextId, Error is null ? null : ErrorId }.OfType<string>()];
+            return ids.Length == 0 ? null : string.Join(' ', ids);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        _context = new DialogContext(ErrorId, Error is not null);
+    }
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)

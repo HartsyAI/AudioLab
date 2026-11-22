@@ -112,8 +112,23 @@ public sealed class HubResilienceTests
         List<string> open = [.. unguarded.Select(endpoint => endpoint.RoutePattern.RawText ?? "?")];
         Assert.Equal(["/health"], open);
         Assert.DoesNotContain(endpoints, endpoint => IsUi(endpoint) && NeedsDoor(endpoint));
-        Assert.Contains(endpoints, IsUi);
+        List<RouteEndpoint> ui = [.. endpoints.Where(IsUi)];
+        // Two wildcards only: the start page for any address that is not a file, and the static files' own catch-all for one that is.
+        // Every other open endpoint is a static file at a fixed address.
+        IEnumerable<string> patterns = ui.Select(endpoint => endpoint.RoutePattern.RawText ?? "?");
+        IEnumerable<string> wildcards = patterns.Where(pattern => pattern.Contains('{', StringComparison.Ordinal)).Distinct().Order();
+        Assert.Equal(["/{**path:file}", "/{*path:nonfile}"], wildcards);
+        Assert.DoesNotContain(ui, endpoint => OutsideTheProgram(endpoint.RoutePattern.RawText ?? "?"));
+        Assert.All(ui, endpoint => Assert.All(
+            endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["(any method)"],
+            method => Assert.Contains(method, new[] { "GET", "HEAD" })));
+        Assert.True(ui.Count >= 5, "too few UI endpoints were found for this check to mean anything");
         Assert.True(endpoints.Count >= 8, "too few endpoints were found for this check to mean anything");
+    }
+
+    private static bool OutsideTheProgram(string pattern)
+    {
+        return pattern.StartsWith("/api", StringComparison.OrdinalIgnoreCase) || pattern.StartsWith("/health", StringComparison.OrdinalIgnoreCase);
     }
 
     private static Task<RunningServer> StartAsync(IDictionary<string, string?>? settings = null)
