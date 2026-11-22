@@ -4,20 +4,24 @@ namespace AudioLab.Audio;
 
 /// <summary>Convolves one channel with a long impulse response with no delay.</summary>
 /// <remarks>
-/// The first block of taps is a direct sum over the recent input, the next ones are multiplied in the frequency domain in short
-/// blocks, and the long rest in long blocks, which costs far less. It works from a sample counter of its own, so the output does not
-/// depend on how the caller cuts the input into blocks.
+/// The first taps are a direct sum over the recent input, the next ones are multiplied in the frequency domain in short blocks, and the
+/// long rest in long blocks, which costs far less. Each frequency stage spreads its work over its block. It works from a sample counter of
+/// its own, so the output does not depend on how the caller cuts the input into blocks.
 /// </remarks>
 internal sealed class PartitionedConvolver
 {
-    /// <summary>The length, in taps, of the direct head and the block of the short stage.</summary>
+    /// <summary>The block of the short stage, which is also a handy length to work in.</summary>
     public const int Block = 128;
 
-    /// <summary>The block of the long stage, which takes the taps from here on.</summary>
-    public const int LongBlock = 4096;
+    /// <summary>The block of the long stage.</summary>
+    public const int LongBlock = 2048;
 
-    private readonly float[] _head = new float[Block];
-    private readonly float[] _history = new float[2 * Block];
+    // Each stage takes its taps from two of its own blocks on, which is what gives its work a whole block of slack.
+    private const int HeadTaps = 2 * Block;
+    private const int LongStageStart = 2 * LongBlock;
+
+    private readonly float[] _head = new float[HeadTaps];
+    private readonly float[] _history = new float[2 * HeadTaps];
     private readonly FrequencyStage _short;
     private readonly FrequencyStage _long;
     private int _position;
@@ -29,11 +33,11 @@ internal sealed class PartitionedConvolver
             throw new ArgumentException("The impulse response needs at least one frame.", nameof(impulse));
         }
         // The head is stored backwards, so that it lines up with the window of input that runs oldest to newest.
-        for (int k = 0; k < Block && k < impulse.Length; k++)
+        for (int k = 0; k < HeadTaps && k < impulse.Length; k++)
         {
-            _head[Block - 1 - k] = impulse[k];
+            _head[HeadTaps - 1 - k] = impulse[k];
         }
-        _short = new FrequencyStage(Block, impulse, LongBlock);
+        _short = new FrequencyStage(Block, impulse, LongStageStart);
         _long = new FrequencyStage(LongBlock, impulse, impulse.Length);
     }
 
@@ -52,9 +56,9 @@ internal sealed class PartitionedConvolver
         for (int i = 0; i < samples.Length; i++)
         {
             float x = samples[i];
-            // Every sample is written twice, Block apart, so the last Block samples are always in one run.
+            // Every sample is written twice, a head apart, so the last HeadTaps samples are always in one run.
             _history[_position] = x;
-            _history[_position + Block] = x;
+            _history[_position + HeadTaps] = x;
             float output = Direct(_position + 1);
             if (!_short.IsEmpty)
             {
@@ -65,16 +69,16 @@ internal sealed class PartitionedConvolver
                 output += _long.Next(x);
             }
             samples[i] = output;
-            _position = _position + 1 == Block ? 0 : _position + 1;
+            _position = _position + 1 == HeadTaps ? 0 : _position + 1;
         }
     }
 
     private float Direct(int windowStart)
     {
-        ReadOnlySpan<float> window = _history.AsSpan(windowStart, Block);
+        ReadOnlySpan<float> window = _history.AsSpan(windowStart, HeadTaps);
         Vector<float> sum = Vector<float>.Zero;
         int lanes = Vector<float>.Count;
-        for (int k = 0; k < Block; k += lanes)
+        for (int k = 0; k < HeadTaps; k += lanes)
         {
             sum += new Vector<float>(window[k..]) * new Vector<float>(_head.AsSpan(k));
         }

@@ -1,7 +1,7 @@
 namespace AudioLab.Audio;
 
 /// <summary>The coefficients of one second-order filter section, with the first denominator coefficient normalised to one.</summary>
-/// <remarks>The formulas are those of the Web Audio biquad filter, which the old DAW's equaliser and tone filters were.</remarks>
+/// <remarks>The formulas are those of the Web Audio biquad filter; the resonance of a pass filter is in decibels.</remarks>
 internal readonly record struct BiquadCoefficients(double B0, double B1, double B2, double A1, double A2)
 {
     /// <summary>A section that passes the signal unchanged.</summary>

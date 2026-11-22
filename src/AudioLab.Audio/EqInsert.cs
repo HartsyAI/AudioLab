@@ -2,10 +2,10 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Audio;
 
-/// <summary>The five-band equaliser: high-pass, low shelf, mid peak, high shelf and low-pass in series, as the old DAW chained them.</summary>
+/// <summary>The five-band equaliser: high-pass, low shelf, mid peak, high shelf and low-pass in series.</summary>
 internal sealed class EqInsert : IInsert
 {
-    // The old filters took 0.707 as a Q in decibels, which is what Web Audio defines for the pass filters.
+    // The resonance of a pass filter, in decibels.
     private const double PassQDb = 0.707;
 
     private readonly Biquad[] _left;

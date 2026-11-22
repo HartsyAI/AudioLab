@@ -10,7 +10,15 @@ namespace AudioLab.Audio;
 /// </remarks>
 public sealed class RenderPlan
 {
-    private RenderPlan(AudioFormat format, PlannedTrack[] tracks, double masterGain, bool limiter, long contentFrames, long tailFrames, int busCount)
+    private RenderPlan(
+        AudioFormat format,
+        PlannedTrack[] tracks,
+        double masterGain,
+        bool limiter,
+        long contentFrames,
+        long tailFrames,
+        int busCount,
+        bool tailIsCut)
     {
         Format = format;
         Tracks = tracks;
@@ -19,6 +27,7 @@ public sealed class RenderPlan
         ContentFrames = contentFrames;
         TailFrames = tailFrames;
         BusCount = busCount;
+        TailIsCut = tailIsCut;
     }
 
     /// <summary>The format the plan renders: stereo at the plan's sample rate.</summary>
@@ -29,6 +38,9 @@ public sealed class RenderPlan
 
     /// <summary>How long the effects and instruments ring on after the content, in frames.</summary>
     public long TailFrames { get; }
+
+    /// <summary>Whether a tail was cut short at its limit, so that a render of it should fade out.</summary>
+    public bool TailIsCut { get; }
 
     internal PlannedTrack[] Tracks { get; }
 
@@ -83,7 +95,8 @@ public sealed class RenderPlan
             target is null && document.MasterLimiter,
             Frames(contentEnd, format.SampleRate),
             Frames(TailSeconds(planned, busSlots.Count), format.SampleRate),
-            busSlots.Count);
+            busSlots.Count,
+            planned.Any(track => track.Inserts.Any(insert => insert.TailIsCut)));
     }
 
     // The tempo in force from each frame a tempo change falls on, so an effect can follow it without a search of the map.
@@ -181,7 +194,7 @@ public sealed class RenderPlan
         return target.Kind == TrackKind.Bus && track.Kind != TrackKind.Bus ? StemRole.Sender : StemRole.Left;
     }
 
-    // A track that is the same on both channels is panned by the mono law, as a mono source was in the old DAW; a reverb makes two rooms.
+    // A track that is the same on both channels is panned by the mono law; a reverb gives each channel its own room.
     private static bool IsMono(Track track, PlannedClip[] clips, ITrackSource? source)
     {
         if (track.Kind == TrackKind.Bus || track.Effects.Any(effect => effect.Enabled && effect is ReverbEffect))

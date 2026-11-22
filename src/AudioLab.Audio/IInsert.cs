@@ -10,6 +10,12 @@ public interface IInsert
     /// <summary>How long the effect keeps sounding after its input stops, in seconds, so an export can run on until it has.</summary>
     public double TailSeconds { get; }
 
+    /// <summary>How many frames the effect delays its signal; the mixer does not make up for it on other tracks.</summary>
+    public int LatencyFrames => 0;
+
+    /// <summary>Whether <see cref="TailSeconds"/> stops short of the effect's end, so that an export fades the cut.</summary>
+    public bool TailIsCut => false;
+
     /// <summary>Forgets everything the effect holds from earlier audio.</summary>
     public void Reset();
 

@@ -92,4 +92,33 @@ public sealed class DelayTests
 
         Assert.Equal(0.5, (double)plan.TailFrames / Rate, 3);
     }
+
+    [Fact]
+    public void TheLineIsSizedFromTheLongestTimeTheDelayWillUse()
+    {
+        InsertContext steady = new(Rate, [new TempoStep(0, 120)]);
+        InsertContext changing = new(Rate, [new TempoStep(0, 120), new TempoStep(Rate, 30)]);
+
+        DelayInsert plain = new(Effect() with { Time = 0.05 }, steady);
+        DelayInsert synced = new(Effect() with { Sync = true, Division = "1/4" }, changing);
+
+        Assert.InRange(plain.LineFrames, (int)(0.05 * Rate), (int)(0.05 * Rate) + 8);
+        // A quarter note is half a second at 120 and two seconds at 30.
+        Assert.InRange(synced.LineFrames, 2 * Rate, (2 * Rate) + 8);
+    }
+
+    [Fact]
+    public void ATailThatHadToBeCutFadesOutAndOneThatDidNotIsLeftAlone()
+    {
+        DelayEffect long2 = Effect() with { Time = 2, Feedback = 0.9, Mix = 1 };
+        DelayEffect short1 = Effect() with { Time = 0.05, Feedback = 0.3, Mix = 1 };
+        PcmAudio hit = EffectRig.Impulses(8000, 1, 0.1);
+
+        RenderedAudio cut = EffectRig.Run(long2, hit, tail: true);
+        RenderedAudio whole = EffectRig.Run(short1, hit, tail: true);
+
+        Assert.True(Math.Abs(cut.Left[^1]) < 1e-3 * Signals.Peak(cut.Left));
+        Assert.True(DelayInsert.TailFor(short1, new InsertContext(8000, [new TempoStep(0, 120)])) < 30);
+        Assert.True(Signals.Peak(whole.Left.AsSpan(whole.Frames - 400)) < 0.01);
+    }
 }

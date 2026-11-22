@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 namespace AudioLab.Audio.Tests.Support;
@@ -16,6 +17,9 @@ public static class GoldenFile
         string path = Path.Combine(Path.GetDirectoryName(caller)!, "Golden", name + ".f32");
         if (Environment.GetEnvironmentVariable(UpdateVariable) == "1")
         {
+            Assert.True(
+                Environment.GetEnvironmentVariable("CI") != "true",
+                $"{UpdateVariable} is set in CI, which would make every golden test pass by rewriting its own fixture.");
             Write(path, audio);
             return;
         }
@@ -38,9 +42,12 @@ public static class GoldenFile
 
     private static void Write(string path, RenderedAudio audio)
     {
-        float[] all = [.. audio.Left, .. audio.Right];
-        byte[] bytes = new byte[all.Length * sizeof(float)];
-        Buffer.BlockCopy(all, 0, bytes, 0, bytes.Length);
+        byte[] bytes = new byte[audio.Frames * 2 * sizeof(float)];
+        for (int i = 0; i < audio.Frames; i++)
+        {
+            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(i * sizeof(float)), audio.Left[i]);
+            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan((audio.Frames + i) * sizeof(float)), audio.Right[i]);
+        }
         File.WriteAllBytes(path, bytes);
     }
 
@@ -48,7 +55,10 @@ public static class GoldenFile
     {
         byte[] bytes = File.ReadAllBytes(path);
         float[] all = new float[bytes.Length / sizeof(float)];
-        Buffer.BlockCopy(bytes, 0, all, 0, bytes.Length);
+        for (int i = 0; i < all.Length; i++)
+        {
+            all[i] = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(i * sizeof(float)));
+        }
         return all;
     }
 }

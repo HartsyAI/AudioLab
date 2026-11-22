@@ -20,7 +20,7 @@ internal static class InsertFactory
             CompressorEffect compressor => new CompressorInsert(compressor, context.SampleRate),
             ReverbEffect reverb => new ReverbInsert(reverb, context.SampleRate),
             DelayEffect delay => new DelayInsert(delay, context),
-            SaturationEffect saturation => new SaturationInsert(saturation),
+            SaturationEffect saturation => new SaturationInsert(saturation, context.SampleRate),
             _ => throw new NotSupportedException($"The effect {effect.GetType().Name} has no insert."),
         };
     }

@@ -1,10 +1,10 @@
 namespace AudioLab.Audio;
 
 /// <summary>The reverb's generated impulse response: noise with a power-law decay, seeded from the settings so a room never changes.</summary>
-/// <remarks>The seed and the generator are the old DAW's, so a room sounds as it did there; the level is the Web Audio convolver's.</remarks>
+/// <remarks>The seed and the generator are fixed, so a room always sounds the same; the level is that of the Web Audio convolver.</remarks>
 internal static class ReverbImpulse
 {
-    // The convolver's calibration, which the old DAW relied on to keep a reverb's loudness near the dry signal's.
+    // The convolver's calibration, which keeps a reverb's loudness near the dry signal's.
     private const double Calibration = 0.00125;
     private const int CalibrationRate = 44100;
     private const double MinPower = 0.000125;
