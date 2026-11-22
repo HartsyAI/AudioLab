@@ -21,7 +21,8 @@ internal static class McpTestRegistry
             builder = builder
                 .Add("fail_with", "Is refused with the class it is told.", json.FailWithCommand, (document, command, ids) => Fail(command))
                 .Add("bad_bpm", "Leaves a tempo the validator refuses.", json.BadBpmCommand, (d, c, ids) => Ok(d with { Bpm = 0 }))
-                .Add("no_change", "Changes nothing.", json.NoChangeCommand, (document, command, ids) => Ok(document));
+                .Add("no_change", "Changes nothing.", json.NoChangeCommand, (document, command, ids) => Ok(document))
+                .Add("add_many", "Adds markers and allocates an id for each.", json.AddManyCommand, AddMany);
         }
         if (extraName is not null)
         {
@@ -41,6 +42,13 @@ internal static class McpTestRegistry
     public static string Wire(CommandErrorCode code)
     {
         return System.Text.Json.JsonSerializer.Serialize(code).Trim('"');
+    }
+
+    private static CommandResult AddMany(ProjectDocument document, AddManyCommand command, IIdService ids)
+    {
+        Marker[] added = [.. Enumerable.Range(0, command.Count).Select(index => new Marker { Id = ids.Next<MarkerId>(), Time = index, Name = "M" })];
+        ProjectDocument edited = document with { Markers = [.. document.Markers.Concat(added).OrderBy(marker => marker.Time)] };
+        return CommandResult.Ok(edited, [.. added.Select(marker => marker.Id.Value)]);
     }
 
     private static CommandResult AddMarker(ProjectDocument document, AddMarkerCommand command, IIdService ids)

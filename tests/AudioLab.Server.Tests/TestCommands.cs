@@ -30,6 +30,11 @@ internal sealed record BadBpmCommand : Command;
 
 internal sealed record NoChangeCommand : Command;
 
+internal sealed record AddManyCommand : Command
+{
+    public required int Count { get; init; }
+}
+
 internal sealed record SlowCommand : Command;
 
 internal sealed record BulkCommand : Command

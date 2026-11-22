@@ -91,14 +91,18 @@ more with `section`:
 A list section also takes `offset` and `count`, and says its `total`, so a long list is read in pages. Every id comes from
 an earlier result; never invent one.
 
+A part cannot be divided further than this table: one track's automation and effects (`tracks`), the tempo map (`settings`),
+the drum machine and a single clip are each returned whole. If one is over the limit the read is refused and there is
+nothing smaller to ask for; the resource gives the whole document, up to its own limit.
+
 ### Results are bounded
 
 A result is at most 80,000 characters (`AudioLab:Mcp:MaxResultChars`). A client puts the whole result in its context:
 Claude Code warns above 10,000 tokens of tool output and by default refuses above 25,000 (`MAX_MCP_OUTPUT_TOKENS` raises
 it; see [its MCP docs](https://code.claude.com/docs/en/mcp)). Dense JSON can be 3 characters to a token, so 80,000
-characters can be more than that default: lower the limit, or read less at a time. A longer result is refused with a
+characters can be more than that default: lower the limit, or read less at a time. A longer read is refused with a
 `limit` error that says how to read less (a smaller `section`, `count` and `offset`, or one `track` or `clip`). The JSON
-is sent once, as text.
+is sent once, as text. The answer to a command, an undo or a redo is never replaced: the change has been made.
 
 ### A call
 
@@ -126,6 +130,10 @@ are refused as `rejected`, with the project's current revision, when the project
 Read the history again and decide. Every command an agent sends is one undo step and clears the redo steps, as a person's
 does.
 
+A person's drag in progress (a gesture that is not ended) is not in the history, and a drag that has paused leaves the
+revision where `get_history` saw it. An `undo` then closes the gesture and takes it back, as the UI's own undo would.
+When the history shows nothing to undo, an `undo` can still change the project if someone is mid-gesture.
+
 ### Refusals
 
 A command that is refused is an ordinary result with `isError: true`, not a protocol error, and changes nothing:
@@ -138,7 +146,7 @@ A command that is refused is an ordinary result with `isError: true`, not a prot
 |--------|---------|------------|
 | `malformed` | The arguments are not valid for the tool: a member missing, unknown or of the wrong type. | Fix the call from the tool's schema. |
 | `invalid` | A value is out of range, or the edit would leave a project that breaks the rules. | Use a value inside the range the schema states. |
-| `rejected` | The values are fine but a rule forbids it: nothing to undo, the project moved on since `expectedRevision`, or it cannot be opened. | Read the project and the history, and choose another call. |
+| `rejected` | A rule forbids it: nothing to undo, the project moved on since `expectedRevision`, or it cannot be opened. | Read again, choose another call. |
 | `not_found` | The project, track, clip or other target does not exist (or is not yours). | List or read again; ids come from results. |
 | `limit` | A limit of the server was reached: a result or a project too large. | Do less in one call, or read the message. |
 

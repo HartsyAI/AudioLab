@@ -149,6 +149,43 @@ public sealed class McpToolTests
     }
 
     [Fact]
+    public async Task AnUndoWhileAPersonsGestureIsOpenClosesItAndTakesItBackAsTheHubsUndoDoesAndAMoveInBetweenIsRefused()
+    {
+        await using RunningServer server = await McpTestClient.StartAsync();
+        string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
+        await using HubClient ui = await HubClient.ConnectAsync(server);
+        await ui.JoinAsync(project);
+        await using McpClient agent = await McpTestClient.ConnectAsync(server);
+        string bpm(int value) => "{\"project\":\"" + project + "\",\"bpm\":" + value + "}";
+
+        // A person is dragging: the first move of gesture g1 is applied and the gesture is not ended.
+        Assert.True((await ui.ApplyAsync(project, "set_bpm", bpm(90), "g1")).Succeeded);
+        _ = await ui.NextChangeAsync();
+        HistoryState open = McpTestClient.Reply(await McpTestClient.CallAsync(agent, "get_history", project), McpJsonContext.Default.HistoryState);
+
+        // History shows nothing to undo, as an open gesture is not counted, though the revision has moved.
+        Assert.Equal(new HistoryState(2, 0, 0, null, null), open);
+
+        // The person moves again before the agent's undo: the revision no longer matches, so the agent is refused and nothing changes.
+        Assert.True((await ui.ApplyAsync(project, "set_bpm", bpm(95), "g1")).Succeeded);
+        _ = await ui.NextChangeAsync();
+        CallToolResult stale = await McpTestClient.StepAsync(agent, "undo", project, open.Revision);
+        Assert.Equal(CommandErrorCode.Rejected, Assert.Single(McpTestClient.Reply(stale).Errors).Code);
+        Assert.True(await ui.HeardNothingAsync());
+
+        // The person pauses and the agent reads the revision it sees now: the undo goes through and takes the drag back, as the hub's would.
+        HistoryState paused = McpTestClient.Reply(await McpTestClient.CallAsync(agent, "get_history", project), McpJsonContext.Default.HistoryState);
+        CommandReply undone = McpTestClient.Reply(await McpTestClient.StepAsync(agent, "undo", project, paused.Revision));
+        Assert.True(undone.Succeeded && undone.Changed);
+        ProjectChange change = await ui.NextChangeAsync();
+        Assert.Equal((paused.Revision + 1, "undo", 120d), (change.Revision, change.Reason, ProjectJson.Read(change.Document).Bpm));
+        HistoryState after = McpTestClient.Reply(await McpTestClient.CallAsync(agent, "get_history", project), McpJsonContext.Default.HistoryState);
+        Assert.Equal((0, 1, "set_bpm"), (after.UndoCount, after.RedoCount, after.RedoLabel));
+        await ui.EndGestureAsync(project, "g1");
+        Assert.True(await ui.HeardNothingAsync());
+    }
+
+    [Fact]
     public async Task TheUndoAndRedoDescriptionsWarnThatTheHistoryIsSharedAndSayWhatEveryCommandDoesToIt()
     {
         await using RunningServer server = await McpTestClient.StartAsync();

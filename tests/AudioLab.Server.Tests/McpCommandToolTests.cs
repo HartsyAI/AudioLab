@@ -196,6 +196,28 @@ public sealed class McpCommandToolTests
     }
 
     [Fact]
+    public async Task AnAnswerToACommandIsNeverReplacedByTheResultLimitBecauseTheChangeIsMade()
+    {
+        Dictionary<string, string?> settings = new() { ["AudioLab:Mcp:MaxResultChars"] = "1024" };
+        await using RunningServer server = await StartAsync(McpTestRegistry.Create(withFailures: true), settings);
+        string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
+        await using McpClient agent = await McpTestClient.ConnectAsync(server);
+
+        CallToolResult added = await McpTestClient.ApplyAsync(agent, "add_many", project, ("count", 40));
+
+        Assert.True(McpResults.Length(added) > 1024);
+        Assert.NotEqual(true, added.IsError);
+        CommandReply reply = McpTestClient.Reply(added);
+        Assert.True(reply.Succeeded && reply.Changed);
+        Assert.Equal(40, reply.Created.Length);
+        Assert.Equal(2, reply.Revision);
+        // A read of the same size is refused, so the limit is in force.
+        Dictionary<string, object?> markers = new() { ["project"] = project, ["section"] = "markers" };
+        CallToolResult read = await agent.CallToolAsync("get_project", markers);
+        Assert.Equal(CommandErrorCode.Limit, Assert.Single(McpTestClient.Reply(read).Errors).Code);
+    }
+
+    [Fact]
     public async Task ACommandThatWouldMakeTheProjectTooLargeIsRefusedWithLimit()
     {
         Dictionary<string, string?> settings = new() { ["AudioLab:Storage:MaxFileBytes"] = "3000" };
@@ -303,8 +325,8 @@ public sealed class McpCommandToolTests
         }
     }
 
-    private static Task<RunningServer> StartAsync(CommandRegistry registry)
+    private static Task<RunningServer> StartAsync(CommandRegistry registry, IDictionary<string, string?>? settings = null)
     {
-        return McpTestClient.StartAsync(configureServices: services => services.AddSingleton(registry));
+        return McpTestClient.StartAsync(settings, services => services.AddSingleton(registry));
     }
 }

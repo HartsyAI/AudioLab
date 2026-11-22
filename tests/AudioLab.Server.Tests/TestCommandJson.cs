@@ -19,6 +19,7 @@ namespace AudioLab.Server.Tests;
 [JsonSerializable(typeof(FailWithCommand))]
 [JsonSerializable(typeof(BadBpmCommand))]
 [JsonSerializable(typeof(NoChangeCommand))]
+[JsonSerializable(typeof(AddManyCommand))]
 [JsonSerializable(typeof(BulkCommand))]
 [JsonSerializable(typeof(SlowCommand))]
 [JsonSerializable(typeof(bool))]
