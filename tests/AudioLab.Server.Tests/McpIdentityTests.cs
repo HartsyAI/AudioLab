@@ -45,13 +45,13 @@ public sealed class McpIdentityTests
         CallToolResult missing = await McpTestClient.CallAsync(bob, "get_project", "nosuchproject");
         foreach (string tool in new[] { "get_project", "get_history", "undo", "redo" })
         {
-            CallToolResult refused = await McpTestClient.CallAsync(bob, tool, alices);
+            CallToolResult refused = await McpTestClient.CallAsync(bob, tool, alices, tool is "undo" or "redo" ? 1 : null);
             Assert.True(refused.IsError);
             Assert.Equal(CommandErrorCode.NotFound, Assert.Single(McpTestClient.Reply(refused).Errors).Code);
             Assert.Equal(Assert.Single(McpTestClient.Reply(missing).Errors).Message, Assert.Single(McpTestClient.Reply(refused).Errors).Message);
         }
         CallToolResult own = await McpTestClient.CallAsync(alice, "get_project", alices);
-        Assert.Equal(1, McpTestClient.Reply(own, McpJsonContext.Default.ProjectDocumentResult).Revision);
+        Assert.Equal(1, McpTestClient.Json(own).GetProperty("revision").GetInt64());
     }
 
     [Fact]
@@ -100,12 +100,24 @@ public sealed class McpIdentityTests
     public async Task TheEndpointKeepsNoSessionSoAnotherUserCannotReplayOne()
     {
         await using RunningServer server = await McpTestClient.StartAsync(McpTestClient.SwarmSettings());
+        string alices = await McpTestClient.CreateProjectAsync(server, McpTestClient.SwarmUser("alice"), "Alice's song");
+        string bobsProject = await McpTestClient.CreateProjectAsync(server, McpTestClient.SwarmUser("bob"), "Bob's song");
 
         using HttpResponseMessage initialized = await PostAsync(server, Initialize, McpTestClient.AsUser("alice"));
         Assert.Equal(HttpStatusCode.OK, initialized.StatusCode);
         Assert.False(initialized.Headers.Contains("Mcp-Session-Id"));
-        using HttpResponseMessage replay = await PostAsync(server, Initialize, McpTestClient.AsUser("bob"), session: "anything");
-        Assert.False(replay.Headers.Contains("Mcp-Session-Id"));
+        const string ListProjects = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"list_projects\",\"arguments\":{}}}";
+        // A session id is not a credential here: a request that carries one is refused, and one without it is Bob's alone.
+        using HttpResponseMessage replay = await PostAsync(server, ListProjects, McpTestClient.AsUser("bob"), session: "anything");
+        Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode);
+        Assert.Contains("stateless", await replay.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        using HttpResponseMessage bobs = await PostAsync(server, ListProjects, McpTestClient.AsUser("bob"));
+        string answer = await bobs.Content.ReadAsStringAsync();
+        Assert.True(bobs.StatusCode == HttpStatusCode.OK, answer);
+        Assert.False(bobs.Headers.Contains("Mcp-Session-Id"));
+        Assert.Contains(bobsProject, answer, StringComparison.Ordinal);
+        Assert.DoesNotContain(alices, answer, StringComparison.Ordinal);
         using HttpResponseMessage get = await server.Client.SendAsync(Request(server, HttpMethod.Get, null, McpTestClient.AsUser("alice")));
         Assert.Equal(HttpStatusCode.MethodNotAllowed, get.StatusCode);
         using HttpResponseMessage delete = await server.Client.SendAsync(Request(server, HttpMethod.Delete, null, McpTestClient.AsUser("alice")));
@@ -113,14 +125,14 @@ public sealed class McpIdentityTests
     }
 
     [Fact]
-    public async Task TheAgentsClientIdIsIssuedByTheServerAndNamesNoGesture()
+    public async Task AnArgumentThatNamesAClientOrAGestureIsRefusedNotObeyed()
     {
         await using RunningServer server = await McpTestClient.StartAsync();
         string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
         await using McpClient agent = await McpTestClient.ConnectAsync(server);
 
         // An argument that names a client or a gesture is not a member of any tool: it is refused, not obeyed.
-        Dictionary<string, object?> arguments = new() { ["project"] = project, ["client"] = "hub-1", ["gesture"] = "g1" };
+        Dictionary<string, object?> arguments = new() { ["project"] = project, ["expectedRevision"] = 1, ["client"] = "hub-1", ["gesture"] = "g1" };
         CallToolResult named = await agent.CallToolAsync("undo", arguments);
         Assert.Equal(CommandErrorCode.Malformed, Assert.Single(McpTestClient.Reply(named).Errors).Code);
     }

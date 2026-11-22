@@ -20,7 +20,7 @@ public sealed class McpResultTests
             Assert.False(reply.Changed);
             Assert.Equal(7, reply.Revision);
             Assert.Equal(new HubCommandError(code, "Because."), Assert.Single(reply.Errors));
-            Assert.Equal(McpTestClient.Text(result), result.StructuredContent!.Value.GetRawText());
+            Assert.Null(result.StructuredContent);
         }
     }
 

@@ -6,7 +6,7 @@ using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Services;
 
-/// <summary>Edits open projects with commands for the hub, and later for MCP: parse, apply under the project's order, announce.</summary>
+/// <summary>Edits open projects with commands for the hub and for MCP: parse, apply under the project's order, announce.</summary>
 /// <remarks>
 /// Every method takes the user from the door and opens the project as that user, so a project of another user is
 /// never found. A change and its announcement happen under the project's publish order, so clients hear revisions in order.
@@ -89,15 +89,23 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
     }
 
     /// <summary>Goes back one undo step for everyone in the project; the reply says whether there was one.</summary>
-    public Task<CommandReply> UndoAsync(UserId user, ProjectId project, CancellationToken cancellationToken)
+    /// <param name="user">The user the door resolved.</param>
+    /// <param name="project">The project to step back in.</param>
+    /// <param name="cancellationToken">Cancels the call before the change is made.</param>
+    /// <param name="expectedRevision">When given, the step is taken only if the project is at this revision, else refused as <c>rejected</c>.</param>
+    public Task<CommandReply> UndoAsync(UserId user, ProjectId project, CancellationToken cancellationToken, long? expectedRevision = null)
     {
-        return StepAsync(user, project, "undo", session => session.Undo(), cancellationToken);
+        return StepAsync(user, project, "undo", session => session.Undo(), expectedRevision, cancellationToken);
     }
 
     /// <summary>Goes forward one redo step for everyone in the project; the reply says whether there was one.</summary>
-    public Task<CommandReply> RedoAsync(UserId user, ProjectId project, CancellationToken cancellationToken)
+    /// <param name="user">The user the door resolved.</param>
+    /// <param name="project">The project to step forward in.</param>
+    /// <param name="cancellationToken">Cancels the call before the change is made.</param>
+    /// <param name="expectedRevision">When given, the step is taken only if the project is at this revision, else refused as <c>rejected</c>.</param>
+    public Task<CommandReply> RedoAsync(UserId user, ProjectId project, CancellationToken cancellationToken, long? expectedRevision = null)
     {
-        return StepAsync(user, project, "redo", session => session.Redo(), cancellationToken);
+        return StepAsync(user, project, "redo", session => session.Redo(), expectedRevision, cancellationToken);
     }
 
     /// <summary>What undo and redo hold in a project of the user's, with the revision it is at.</summary>
@@ -125,10 +133,16 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         ProjectId project,
         string reason,
         Func<ProjectSession, EditOutcome?> step,
+        long? expectedRevision,
         CancellationToken cancellationToken)
     {
         using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
+        if (expectedRevision is { } expected && session.Snapshot.Revision != expected)
+        {
+            string changed = $"The project is at revision {session.Snapshot.Revision}, not {expected}: it changed since you read it, so nothing was changed; read the history again.";
+            return new CommandReply(false, false, session.Snapshot.Revision, [new HubCommandError(CommandErrorCode.Rejected, changed)], []);
+        }
         EditOutcome? outcome = step(session);
         if (outcome is null)
         {

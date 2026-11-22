@@ -29,9 +29,61 @@ public sealed class McpCommandToolTests
         foreach (CommandDescriptor command in registry.Commands)
         {
             McpClientTool tool = tools.Single(candidate => candidate.Name == command.Name);
-            Assert.Equal(command.Description, tool.Description);
+            Assert.Equal(McpToolHints.DescriptionOf(command), tool.Description);
             Assert.True(JsonElement.DeepEquals(command.Schema, tool.JsonSchema), $"{command.Name}: the schema differs from the registry's.");
         }
+    }
+
+    [Fact]
+    public async Task EveryToolOfTheRealRegistryHasAValidNameAndASchemaWithoutRefPointers()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        await using McpClient client = await McpTestClient.ConnectAsync(server);
+
+        foreach (McpClientTool tool in await client.ListToolsAsync())
+        {
+            Assert.Matches("^[a-zA-Z0-9_-]{1,64}$", tool.Name);
+            Assert.DoesNotContain("\"$ref\"", tool.JsonSchema.GetRawText(), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task ACommandThatIsNoUndoStepSaysSoInItsDescriptionAndTheHintsFollowTheCommandsName()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        CommandRegistry registry = server.Services.GetRequiredService<CommandRegistry>();
+        await using McpClient client = await McpTestClient.ConnectAsync(server);
+        IList<McpClientTool> tools = await client.ListToolsAsync();
+
+        CommandDescriptor[] live = [.. registry.Commands.Where(command => !command.Undoable)];
+        Assert.Contains(live, command => command.Name == "track_set_armed");
+        Assert.Contains(live, command => command.Name == "track_set_monitor");
+        foreach (CommandDescriptor command in registry.Commands)
+        {
+            string description = tools.Single(tool => tool.Name == command.Name).Description!;
+            Assert.Equal(!command.Undoable, description.Contains(McpToolHints.NotUndoable, StringComparison.Ordinal));
+        }
+
+        ToolAnnotations Annotations(string name) => tools.Single(tool => tool.Name == name).ProtocolTool.Annotations!;
+        foreach (string name in new[] { "track_remove", "marker_remove", "clip_delete", "midi_notes_delete", "group_ungroup", "score_clear" })
+        {
+            Assert.True(Annotations(name).DestructiveHint, name);
+        }
+        foreach (string name in new[] { "marker_add", "tempo_set_bpm", "marker_rename", "clip_move", "track_set_armed" })
+        {
+            Assert.False(Annotations(name).DestructiveHint, name);
+        }
+        foreach (string name in new[] { "tempo_set_bpm", "marker_rename", "marker_remove", "track_set_armed" })
+        {
+            Assert.True(Annotations(name).IdempotentHint, name);
+        }
+        foreach (string name in new[] { "marker_add", "track_add", "clip_split", "lyrics_shift", "midi_notes_transpose" })
+        {
+            Assert.False(Annotations(name).IdempotentHint, name);
+        }
+        Assert.All(registry.Commands, command => Assert.False(Annotations(command.Name).ReadOnlyHint));
+        Assert.True(Annotations("undo").DestructiveHint);
+        Assert.True(Annotations("get_project").ReadOnlyHint);
     }
 
     [Fact]
@@ -87,7 +139,7 @@ public sealed class McpCommandToolTests
         Assert.False(same.Changed);
         Assert.True(await ui.HeardNothingAsync());
 
-        Assert.True(McpTestClient.Reply(await McpTestClient.CallAsync(agent, "undo", project)).Changed);
+        Assert.True(McpTestClient.Reply(await McpTestClient.StepAsync(agent, "undo", project, 3)).Changed);
         Assert.Equal("undo", (await ui.NextChangeAsync()).Reason);
     }
 
@@ -206,12 +258,49 @@ public sealed class McpCommandToolTests
     }
 
     [Fact]
-    public void AnAgentsClientIdIsAValidServerIssuedIdThatNoHubConnectionCanHave()
+    public async Task EveryCommandCallIsAppliedUnderAClientIdTheServerIssuedForIt()
     {
-        ClientId client = ClientId.From(McpToolService.ClientPrefix + Guid.NewGuid().ToString("N"));
+        RecordingClientIds issuer = new();
+        await using RunningServer server = await McpTestClient.StartAsync(configureServices: services => services.AddSingleton<McpClientIds>(issuer));
+        string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
+        await using HubClient ui = await HubClient.ConnectAsync(server);
+        await using McpClient agent = await McpTestClient.ConnectAsync(server);
 
-        Assert.StartsWith("mcp-", client.Value, StringComparison.Ordinal);
-        Assert.Equal(McpToolService.ClientPrefix.Length + 32, client.Value.Length);
+        await McpTestClient.ApplyAsync(agent, "set_bpm", project, ("bpm", 90));
+        await McpTestClient.ApplyAsync(agent, "add_marker", project, ("time", 1), ("name", "A"));
+        await McpTestClient.ApplyAsync(agent, "add_marker", project, ("time", 2), ("name", "B"), ("client", "hub-1"), ("gesture", "g1"));
+        await McpTestClient.CallAsync(agent, "get_history", project);
+        await McpTestClient.ApplyAsync(agent, "set_bpm", "Not An Id", ("bpm", 90));
+
+        // One id for each call that reached the project, none for a read or a call that named no project, and none the agent chose.
+        ClientId[] issued = issuer.Issued();
+        Assert.Equal(3, issued.Length);
+        Assert.Equal(3, issued.Distinct().Count());
+        Assert.All(issued, id => Assert.StartsWith(McpClientIds.Prefix, id.Value, StringComparison.Ordinal));
+        Assert.DoesNotContain(issued, id => id.Value is "hub-1" || id.Value == ui.ConnectionId);
+    }
+
+    private sealed class RecordingClientIds : McpClientIds
+    {
+        private readonly List<ClientId> _issued = [];
+
+        public ClientId[] Issued()
+        {
+            lock (_issued)
+            {
+                return [.. _issued];
+            }
+        }
+
+        public override ClientId Issue()
+        {
+            ClientId id = base.Issue();
+            lock (_issued)
+            {
+                _issued.Add(id);
+            }
+            return id;
+        }
     }
 
     private static Task<RunningServer> StartAsync(CommandRegistry registry)
