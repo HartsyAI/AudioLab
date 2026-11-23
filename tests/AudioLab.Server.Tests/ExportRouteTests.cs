@@ -5,7 +5,7 @@ using System.Text.Json;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
-using AudioLab.Server.Render;
+using AudioLab.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using static AudioLab.Server.Tests.ExportTestSupport;
@@ -366,7 +366,7 @@ public sealed class ExportRouteTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal("too_large", (await ProblemAsync(response)).GetProperty("reason").GetString());
         AssertNoFileHeaders(response);
-        Assert.Equal(0, server.Services.GetRequiredService<RenderGate>().Running);
+        Assert.Equal(0, server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Export).Running);
     }
 
     [Fact]
@@ -408,7 +408,7 @@ public sealed class ExportRouteTests
         MediaSummary bobMedia = await UploadAsync(server, Constant(), "bob");
         ProjectId bobProject = await CreateProjectAsync(server, "B", "bob");
         _ = await AddClipAsync(server, bob, bobProject, bobMedia);
-        RenderGate gate = server.Services.GetRequiredService<RenderGate>();
+        ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Export);
 
         using HttpResponseMessage running = await ExportAsync(server, aliceProject, "mix", Huge, "alice", HttpCompletionOption.ResponseHeadersRead);
         Assert.Equal(HttpStatusCode.OK, running.StatusCode);
@@ -498,7 +498,7 @@ public sealed class ExportRouteTests
             new Dictionary<string, string?> { ["Logging:LogLevel:AudioLab.Server.Render.ExportErrorFilter"] = "Information" },
             services => services.AddSingleton<ILoggerProvider>(logs));
         (ProjectId project, _) = await LongProjectAsync(server);
-        RenderGate gate = server.Services.GetRequiredService<RenderGate>();
+        ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Export);
 
         using (HttpResponseMessage response = await ExportAsync(server, project, "mix", Huge, completion: HttpCompletionOption.ResponseHeadersRead))
         {
@@ -523,7 +523,7 @@ public sealed class ExportRouteTests
             new Dictionary<string, string?> { ["AudioLab:Render:MaxTime"] = "00:10:00" },
             services => services.AddSingleton<TimeProvider>(time));
         (ProjectId project, _) = await LongProjectAsync(server);
-        RenderGate gate = server.Services.GetRequiredService<RenderGate>();
+        ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Export);
         using HttpResponseMessage response = await ExportAsync(server, project, "mix", Huge, completion: HttpCompletionOption.ResponseHeadersRead);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         long promised = response.Content.Headers.ContentLength!.Value;
