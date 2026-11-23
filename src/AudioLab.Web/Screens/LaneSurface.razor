@@ -20,7 +20,8 @@
             {
                 <Clip @key="clip.Id" Midi="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@MidiWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnOpen="OnOpenClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
+                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnOpen="OnOpenClip" OnKey="OnClipKey"
+                      OnPointerDown="OnClipPointerDown" />
             }
         </div>
     }

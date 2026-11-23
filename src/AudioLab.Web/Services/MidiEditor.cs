@@ -8,7 +8,7 @@ namespace AudioLab.Web.Services;
 /// <summary>The edits of MIDI clips the session screen makes, each one command sent by wire name; the server's reasons come back as words.</summary>
 public sealed class MidiEditor(LiveProject live)
 {
-    /// <summary>Adds an empty clip of one bar to an instrument track at <paramref name="start"/>, or after the track's last clip; its id is in the result.</summary>
+    /// <summary>Adds an empty clip of one bar to an instrument track at <paramref name="start"/> or after its last clip.</summary>
     public Task<EditResult> AddClipAsync(TrackId track, double? start = null)
     {
         return EditRunner.RunAsync(live, project =>

@@ -7,8 +7,8 @@
     <div class="body">
         @if (Midi is not null)
         {
-            <svg class="notes" viewBox="0 0 @Css.Number(MidiPreview.Width) @Css.Number(MidiPreview.Height)" preserveAspectRatio="none" aria-hidden="true"
-                 data-notes="@Midi.Notes.Count"><path d="@_notes"></path></svg>
+            <svg class="notes" viewBox="0 0 @Css.Number(MidiPreview.Width) @Css.Number(MidiPreview.Height)" preserveAspectRatio="none"
+                 aria-hidden="true" data-notes="@Midi.Notes.Count"><path d="@_notes"></path></svg>
         }
         else
         {
