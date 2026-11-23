@@ -9,6 +9,9 @@ public static class Resampler
     // The cutoff sits just under half the lower rate, so the transition band ends at it and nothing above it can fold back.
     private const double Guard = 0.97;
 
+    // Output frames converted between two looks at the token: a few milliseconds of work.
+    private const int SliceFrames = 1 << 16;
+
     /// <summary>How many frames <paramref name="sourceFrames"/> at <paramref name="fromRate"/> make at <paramref name="toRate"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The result is more than an array can hold.</exception>
     public static int OutputFrames(long sourceFrames, int fromRate, int toRate)
@@ -29,28 +32,25 @@ public static class Resampler
     /// <exception cref="OperationCanceledException">The token was cancelled while the audio was converted.</exception>
     public static PcmAudio ToRate(PcmAudio source, int rate, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        if (source.SampleRate == rate)
+        ResampleJob job = new(source, rate);
+        while (!job.IsDone)
         {
-            return source;
+            cancellationToken.ThrowIfCancellationRequested();
+            job.Run(SliceFrames);
         }
-        double ratio = (double)source.SampleRate / rate;
+        return job.Result;
+    }
+
+    /// <summary>The filter's settings for a ratio of source rate to output rate.</summary>
+    internal static (double Cutoff, double Extent, int Reach) Shape(double ratio)
+    {
         double cutoff = Guard * Math.Min(1, 1 / ratio);
         double extent = HalfTaps / cutoff;
-        int reach = (int)Math.Ceiling(extent);
-        int taps = 2 * reach;
-        float[] table = BuildTable(cutoff, extent, reach, taps);
-        int frames = OutputFrames(source.Frames, source.SampleRate, rate);
-        float[][] output = new float[source.ChannelCount][];
-        for (int channel = 0; channel < output.Length; channel++)
-        {
-            output[channel] = Convert(source.Channel(channel), frames, ratio, reach, taps, table, cancellationToken);
-        }
-        return new PcmAudio(rate, output);
+        return (cutoff, extent, (int)Math.Ceiling(extent));
     }
 
     // Row p holds the weights for a fractional position p / Phases past a source sample; each row sums to one.
-    private static float[] BuildTable(double cutoff, double extent, int reach, int taps)
+    internal static float[] BuildTable(double cutoff, double extent, int reach, int taps)
     {
         float[] table = new float[(Phases + 1) * taps];
         double[] weights = new double[taps];
@@ -73,22 +73,12 @@ public static class Resampler
         return table;
     }
 
-    private static float[] Convert(
-        ReadOnlySpan<float> source,
-        int frames,
-        double ratio,
-        int reach,
-        int taps,
-        float[] table,
-        CancellationToken cancellationToken)
+    /// <summary>Converts output frames <paramref name="from"/> up to <paramref name="to"/> of one channel into <paramref name="output"/>.</summary>
+    internal static void Convert(
+        ReadOnlySpan<float> source, float[] output, int from, int to, double ratio, int reach, int taps, float[] table)
     {
-        float[] output = new float[frames];
-        for (int n = 0; n < frames; n++)
+        for (int n = from; n < to; n++)
         {
-            if ((n & 0xFFFF) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
             double position = n * ratio;
             int index = (int)position;
             double phasePosition = (position - index) * Phases;
@@ -109,7 +99,6 @@ public static class Resampler
             }
             output[n] = sum;
         }
-        return output;
     }
 
     private static double Sinc(double x) => Math.Abs(x) < 1e-12 ? 1 : Math.Sin(Math.PI * x) / (Math.PI * x);

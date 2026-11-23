@@ -2,6 +2,7 @@ using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
@@ -28,11 +29,18 @@ public sealed partial class RulerRow
     [Parameter]
     public double Length { get; set; }
 
+    /// <summary>Raised with the click when the row is pressed, which the timeline turns into a move of the playhead.</summary>
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnSeek { get; set; }
+
     /// <summary>Maps a stored colour to the nearest track colour.</summary>
     [Parameter, EditorRequired]
     public TrackColorMap Colors { get; set; } = null!;
 
     private double Width => Geometry.Width(Length);
+
+    // Only the bars row moves the playhead; a press on a section or a marker row is not a place in time.
+    private Task SeekAsync(MouseEventArgs press) => Kind == RulerRowKind.Bars ? OnSeek.InvokeAsync(press) : Task.CompletedTask;
 
     private IEnumerable<double> Times => TimeTicks.Times(Geometry, Length);
 

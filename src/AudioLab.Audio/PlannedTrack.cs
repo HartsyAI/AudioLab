@@ -5,6 +5,9 @@ namespace AudioLab.Audio;
 /// <summary>Everything the render loop needs to run one track or bus, worked out when the plan is prepared.</summary>
 internal sealed class PlannedTrack
 {
+    /// <summary>The track this plans, so a meter reading can say whose level it is.</summary>
+    public required TrackId Id { get; init; }
+
     /// <summary>The slot of this bus among the plan's buses, or -1 for a track.</summary>
     public required int BusSlot { get; init; }
 

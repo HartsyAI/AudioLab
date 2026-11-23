@@ -10,6 +10,9 @@ public sealed partial class ShortcutListener : IShortcutListener
 {
     private static readonly string[] _editable = ["INPUT", "TEXTAREA", "SELECT"];
 
+    // The space bar presses a focused button or link, as the page has always taught it; a shortcut on it would press that and play as well.
+    private static readonly string[] _activates = ["BUTTON", "A", "SUMMARY"];
+
     private Func<KeyChord, bool>? _handler;
 
     private JSObject? _document;
@@ -61,7 +64,8 @@ public sealed partial class ShortcutListener : IShortcutListener
             press.GetPropertyAsString("key") ?? string.Empty,
             press.GetPropertyAsBoolean("ctrlKey") || press.GetPropertyAsBoolean("metaKey"),
             press.GetPropertyAsBoolean("shiftKey"),
-            press.GetPropertyAsBoolean("altKey"));
+            press.GetPropertyAsBoolean("altKey"),
+            press.GetPropertyAsBoolean("repeat"));
         bool handled = _handler(chord);
         if (handled)
         {
@@ -79,7 +83,8 @@ public sealed partial class ShortcutListener : IShortcutListener
         }
         string tag = target.GetPropertyAsString("tagName") ?? string.Empty;
         using JSObject? dialog = Closest(target, "dialog");
-        return _editable.Contains(tag, StringComparer.OrdinalIgnoreCase) || target.GetPropertyAsBoolean("isContentEditable") || dialog is not null;
+        return _editable.Contains(tag, StringComparer.OrdinalIgnoreCase) || target.GetPropertyAsBoolean("isContentEditable") || dialog is not null
+            || (press.GetPropertyAsString("key") == " " && _activates.Contains(tag, StringComparer.OrdinalIgnoreCase));
     }
 
     [JSImport("globalThis.document.querySelector")]
