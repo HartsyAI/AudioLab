@@ -18,7 +18,8 @@
             {
                 Track track = Document.Tracks[index];
                 <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.Heights[index]" Selected="@(track.Id == Selection.Track)"
-                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" OnMute="Actions.ToggleMute"
+                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" Reason="@Actions.Reason"
+                             OnMute="Actions.ToggleMute"
                              OnSolo="Actions.ToggleSolo" OnRename="Actions.RenameTrack" />
             }
         </div>

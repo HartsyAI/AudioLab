@@ -28,6 +28,12 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
 
     private bool _lost;
 
+    private bool _deleted;
+
+    private bool _stranded;
+
+    private bool _starting;
+
     private int _gestures;
 
     /// <summary>Raised when the document, the connection state or the problem changed.</summary>
@@ -45,17 +51,43 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
     /// <summary>Why the project cannot be followed any more (deleted, or a document this build cannot read), or null.</summary>
     public string? Problem { get; private set; }
 
+    /// <summary>Whether the document held is the server's now and edits may be sent: the connection is up and its join has answered.</summary>
+    /// <remarks>A reconnect that has not rejoined yet is not live, however connected it says it is.</remarks>
+    public bool Ready => Document is not null && Problem is null && State == HubState.Connected && _joined && !_lost;
+
+    /// <summary>Whether <see cref="ReconnectAsync"/> may help: the connection gave up, or it came back and the project could not be joined.</summary>
+    public bool CanReconnect => !_deleted && (State == HubState.Disconnected || _stranded);
+
     /// <summary>Connects, joins the project and holds its document; every later revision is applied as it is sent.</summary>
     public async Task OpenAsync(string project, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(project);
         _project = project;
-        _hub = hubs.Create(reconnects: true);
-        _hub.StateChanged += OnState;
-        _hub.DocumentChanged += OnChange;
-        _hub.ProjectDeleted += OnDeleted;
-        await _hub.ConnectAsync(cancellationToken);
-        await JoinAsync(cancellationToken);
+        await StartAsync(cancellationToken);
+    }
+
+    /// <summary>Starts over on a new connection after the old one gave up: the document stays on screen, and the join answer replaces it.</summary>
+    /// <remarks>Edits stay paused until the join answers. A failure leaves it disconnected and is thrown, so the caller can say why.</remarks>
+    public async Task ReconnectAsync(CancellationToken cancellationToken = default)
+    {
+        await DetachAsync();
+        _lost = true;
+        _joined = false;
+        _stranded = false;
+        Problem = null;
+        State = HubState.Connecting;
+        Raise();
+        try
+        {
+            await StartAsync(cancellationToken);
+        }
+        catch
+        {
+            await DetachAsync();
+            State = HubState.Disconnected;
+            Raise();
+            throw;
+        }
     }
 
     /// <summary>Sends a command, and returns once the revision it made has been applied here; a refusal is in the reply.</summary>
@@ -94,13 +126,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_hub is { } hub)
-        {
-            hub.StateChanged -= OnState;
-            hub.DocumentChanged -= OnChange;
-            hub.ProjectDeleted -= OnDeleted;
-            await hub.DisposeAsync();
-        }
+        await DetachAsync();
         foreach ((long _, TaskCompletionSource done) in _waiters)
         {
             done.TrySetResult();
@@ -111,6 +137,38 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
 
     private string Project => _project ?? throw new InvalidOperationException("The project is not open.");
 
+    private async Task StartAsync(CancellationToken cancellationToken)
+    {
+        _starting = true;
+        try
+        {
+            _hub = hubs.Create(reconnects: true);
+            _hub.StateChanged += OnState;
+            _hub.DocumentChanged += OnChange;
+            _hub.ProjectDeleted += OnDeleted;
+            await _hub.ConnectAsync(cancellationToken);
+            await JoinAsync(cancellationToken);
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    // Lets go of the connection, so no event of it reaches this project any more.
+    private async Task DetachAsync()
+    {
+        if (_hub is not { } hub)
+        {
+            return;
+        }
+        _hub = null;
+        hub.StateChanged -= OnState;
+        hub.DocumentChanged -= OnChange;
+        hub.ProjectDeleted -= OnDeleted;
+        await hub.DisposeAsync();
+    }
+
     private async Task JoinAsync(CancellationToken cancellationToken)
     {
         _joined = false;
@@ -118,6 +176,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
         Adopt(reply.Revision, reply.Document, force: _lost);
         _joined = true;
         _lost = false;
+        _stranded = false;
         if (_early is { } early)
         {
             _early = null;
@@ -142,6 +201,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
 
     private void OnDeleted(ProjectClosed closed)
     {
+        _deleted = true;
         Problem = "This project was deleted.";
         Raise();
     }
@@ -154,7 +214,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
             _lost = true;
         }
         Raise();
-        if (state == HubState.Connected && _lost && _hub is not null)
+        if (state == HubState.Connected && _lost && _hub is not null && !_starting)
         {
             _ = RejoinAsync();
         }
@@ -167,8 +227,10 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
         {
             await JoinAsync(CancellationToken.None);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or Microsoft.AspNetCore.SignalR.HubException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            // Whatever the failure was, edits stay paused and the page offers to start over.
+            _stranded = true;
             Problem = "The project could not be joined again after the connection dropped.";
             Raise();
         }

@@ -7,13 +7,19 @@ namespace AudioLab.Web.Screens;
 public sealed class SessionActions
 {
     /// <summary>A set of actions that does nothing, with the reason; what the screen shows before the project is live.</summary>
-    public static SessionActions ReadOnly(string reason) => new() { CanEdit = false, Reason = reason };
+    public static SessionActions ReadOnly(string reason, Func<Task>? reconnect = null)
+    {
+        return new SessionActions { CanEdit = false, Reason = reason, Reconnect = reconnect };
+    }
 
     /// <summary>Whether the project may be edited from here now.</summary>
     public bool CanEdit { get; init; }
 
     /// <summary>Why it may not, for the tooltip of a control that would edit it; null when it may.</summary>
     public string? Reason { get; init; }
+
+    /// <summary>Connects again and rejoins the project, or null when that cannot help (it is connected, or the project is gone).</summary>
+    public Func<Task>? Reconnect { get; init; }
 
     /// <summary>Adds a track.</summary>
     public Func<Task> AddTrack { get; init; } = () => Task.CompletedTask;

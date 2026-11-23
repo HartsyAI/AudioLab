@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using AudioLab.Server.Media;
 using AudioLab.Server.Services;
 using AudioLab.Web.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -64,7 +65,10 @@ public sealed class WebLiveProjectTests
         TrackId first = TrackId.From((await editor.AddTrackAsync()).Created.Single());
         TrackId second = TrackId.From((await editor.AddTrackAsync()).Created.Single());
         ProjectId project = live.Document!.Id;
-        AddClip add = new() { Project = project, Track = first, Media = MediaId.From("media-1"), Duration = 4, Start = 8 };
+        byte[] wav = MediaTestSupport.Wav();
+        MediaRecord media = await server.Services.GetRequiredService<MediaService>()
+            .UploadAsync(UserId.Local, "clip.wav", new MemoryStream(wav), wav.Length, CancellationToken.None);
+        AddClip add = new() { Project = project, Track = first, Media = media.Id, Duration = media.Duration, Start = 8 };
         CommandReply clip = await live.SendAsync(add);
         ClipId clipId = ClipId.From(clip.Created.Single());
 

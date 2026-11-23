@@ -20,8 +20,13 @@ public sealed class ClipDragState
     public void Moved() => Changed?.Invoke();
 
     /// <summary>Ends the drag, whether it was released or cancelled.</summary>
-    public void End()
+    /// <param name="drag">The drag that ends; when another drag has begun since, that one goes on. Null ends whatever is in progress.</param>
+    public void End(ClipDrag? drag = null)
     {
+        if (drag is not null && !ReferenceEquals(drag, Current))
+        {
+            return;
+        }
         Current = null;
         Changed?.Invoke();
     }

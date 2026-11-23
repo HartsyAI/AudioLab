@@ -22,6 +22,7 @@ Uri site = new(builder.HostEnvironment.BaseAddress);
 builder.Services.AddSingleton(new HttpClient { BaseAddress = site });
 if (OperatingSystem.IsBrowser())
 {
+    Shortcut.CommandKey = BrowserPlatform.IsApple() ? "Cmd" : "Ctrl";
     builder.Services.AddScoped<INativeOverlay, NativeOverlay>();
     builder.Services.AddSingleton<ITokenReader, TokenReader>();
     builder.Services.AddSingleton<IElementFocus, ElementFocus>();

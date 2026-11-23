@@ -27,6 +27,10 @@ public sealed partial class ChannelStrip
     [Parameter]
     public EventCallback<TrackId> OnSolo { get; set; }
 
+    /// <summary>Why the toggles do nothing now, for their titles; null when they act.</summary>
+    [Parameter]
+    public string? Reason { get; set; }
+
     /// <summary>The track's or the master's name.</summary>
     [Parameter, EditorRequired]
     public string Name { get; set; } = string.Empty;
@@ -96,7 +100,7 @@ public sealed partial class ChannelStrip
     protected override bool ShouldRender()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Name}:{effect.Enabled}"));
-        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}";
+        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Editable}";
         bool same = now == _shown;
         _shown = now;
         return !same;

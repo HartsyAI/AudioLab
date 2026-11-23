@@ -176,6 +176,93 @@ public sealed class LiveProjectTests
         Assert.Null(live.Problem);
     }
 
+    /// <summary>A connection that is back is not live until its join has answered, so no edit is made from a stale document.</summary>
+    [Fact]
+    public async Task AConnectionThatIsBackIsNotLiveUntilItsJoinHasAnswered()
+    {
+        await using LiveProject live = Live();
+        await live.OpenAsync("song");
+        Assert.True(live.Ready);
+        TaskCompletionSource gate = new();
+        _hub.BeforeJoinReturns = () => gate.Task;
+
+        _hub.Move(HubState.Reconnecting);
+        Assert.False(live.Ready);
+        _hub.Move(HubState.Connected);
+
+        Assert.Equal(HubState.Connected, live.State);
+        Assert.False(live.Ready);
+        gate.SetResult();
+        await Task.Delay(50);
+        Assert.True(live.Ready);
+    }
+
+    /// <summary>A join that fails after a reconnect, whatever the failure was, pauses edits and offers to start over.</summary>
+    [Fact]
+    public async Task AFailedRejoinOfAnyKindPausesEditsAndOffersToStartOver()
+    {
+        await using LiveProject live = Live();
+        await live.OpenAsync("song");
+        _hub.ThrowOnJoin = new System.Net.WebSockets.WebSocketException("closed");
+
+        _hub.Move(HubState.Reconnecting);
+        _hub.Move(HubState.Connected);
+        await Task.Delay(50);
+
+        Assert.False(live.Ready);
+        Assert.NotNull(live.Problem);
+        Assert.True(live.CanReconnect);
+    }
+
+    /// <summary>After the connection gave up, reconnecting opens a new connection, joins again and is live.</summary>
+    [Fact]
+    public async Task ReconnectingAfterTheConnectionGaveUpJoinsOnANewConnectionAndIsLive()
+    {
+        await using LiveProject live = Live();
+        await live.OpenAsync("song");
+        _hub.Move(HubState.Disconnected);
+        Assert.True(live.CanReconnect);
+        Assert.False(live.Ready);
+        _hub.JoinRevision = 12;
+
+        await live.ReconnectAsync();
+
+        Assert.Equal(2, _factory.Created);
+        Assert.True(live.Ready);
+        Assert.False(live.CanReconnect);
+        Assert.Equal(12, live.Revision);
+        Assert.Equal(2, _hub.Calls.Count(call => call == "join song"));
+    }
+
+    /// <summary>A reconnect that cannot connect leaves the project disconnected, and says why to the caller.</summary>
+    [Fact]
+    public async Task AReconnectThatCannotConnectLeavesTheProjectDisconnectedAndThrows()
+    {
+        await using LiveProject live = Live();
+        await live.OpenAsync("song");
+        _hub.Move(HubState.Disconnected);
+        _hub.ThrowOnConnect = new System.Net.WebSockets.WebSocketException("refused");
+
+        await Assert.ThrowsAsync<System.Net.WebSockets.WebSocketException>(() => live.ReconnectAsync());
+
+        Assert.Equal(HubState.Disconnected, live.State);
+        Assert.True(live.CanReconnect);
+        Assert.False(live.Ready);
+    }
+
+    /// <summary>A deleted project cannot be reconnected to.</summary>
+    [Fact]
+    public async Task ADeletedProjectCannotBeReconnectedTo()
+    {
+        await using LiveProject live = Live();
+        await live.OpenAsync("song");
+
+        _hub.Close(new ProjectClosed("song", "deleted"));
+        _hub.Move(HubState.Disconnected);
+
+        Assert.False(live.CanReconnect);
+    }
+
     /// <summary>Every gesture id is new and fits the rule for ids.</summary>
     [Fact]
     public async Task EveryGestureIdIsNewAndFitsTheRuleForIds()
