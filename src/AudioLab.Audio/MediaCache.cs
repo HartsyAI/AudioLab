@@ -61,7 +61,7 @@ public sealed class MediaCache
     }
 
     /// <summary>Keeps decoded audio that the caller already holds, cleaned and converted in slices with a pause between them.</summary>
-    /// <remarks>For a thread that must stay responsive while it prepares media: a slice is a few milliseconds of work, and the audio is not asked of the source.</remarks>
+    /// <remarks>For a thread that must stay responsive while it prepares media: a slice is a few milliseconds, and the source is not asked.</remarks>
     /// <param name="id">The media file the audio is.</param>
     /// <param name="decoded">The audio at its own rate.</param>
     /// <param name="pause">Awaited between slices.</param>

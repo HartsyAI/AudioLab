@@ -12,6 +12,9 @@ namespace AudioLab.Core.Playback;
 /// <param name="Chunks">How many chunks have been rendered.</param>
 /// <param name="Overruns">How many chunks took longer to render than the audio they hold lasts.</param>
 /// <param name="MaxRenderMs">The longest render of a chunk since the last report, in milliseconds.</param>
+/// <param name="LongestGapMs">The longest time between two chunks rendered since the last report, in milliseconds.</param>
+/// <param name="Master">The master's peak levels since the last report.</param>
+/// <param name="Tracks">The peak level of each track since the last report, after its fader and pan.</param>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record HostStatus(
     TransportState State,
@@ -22,4 +25,7 @@ public sealed record HostStatus(
     string? Problem,
     long Chunks,
     long Overruns,
-    double MaxRenderMs);
+    double MaxRenderMs,
+    double LongestGapMs,
+    LevelPair Master,
+    IReadOnlyList<TrackLevel> Tracks);

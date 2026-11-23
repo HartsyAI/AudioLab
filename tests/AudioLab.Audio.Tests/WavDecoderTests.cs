@@ -56,7 +56,8 @@ public sealed class WavDecoderTests
         eightBit[34] = 8;
 
         WavFormatException first = await Assert.ThrowsAsync<WavFormatException>(() => WavDecoder.DecodeAsync(notWav, Pause, CancellationToken.None));
-        WavFormatException second = await Assert.ThrowsAsync<WavFormatException>(() => WavDecoder.DecodeAsync(eightBit, Pause, CancellationToken.None));
+        WavFormatException second = await Assert.ThrowsAsync<WavFormatException>(
+            () => WavDecoder.DecodeAsync(eightBit, Pause, CancellationToken.None));
 
         Assert.Contains("RIFF", first.Message);
         Assert.Contains("8 bits", second.Message);

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using AudioLab.Audio.Instruments;
@@ -7,7 +8,7 @@ using AudioLab.Core.Playback;
 
 namespace AudioLab.Audio.Live;
 
-/// <summary>What the page's worker runs: it keeps the engine's plan current with the project, fetches the clips it needs, and renders chunks on demand.</summary>
+/// <summary>What the page's worker runs: it keeps the plan current with the project, fetches the clips it needs and renders chunks.</summary>
 /// <remarks>
 /// One thread: every member is called from the worker's event loop, so a call is never interrupted except at an await. The newest document
 /// wins: one that arrives while an older one is still preparing replaces it, and a failed build leaves the plan that was playing. Fetching and
@@ -39,6 +40,8 @@ public sealed class LiveHost
     private int _loading;
     private bool _pumping;
     private double _maxRenderMs;
+    private double _longestGapMs;
+    private long _lastRender;
 
     /// <summary>Creates a host that renders chunks of <paramref name="chunkFrames"/> frames at <paramref name="sampleRate"/>.</summary>
     public LiveHost(IClipSource clips, int sampleRate, int chunkFrames, Func<CancellationToken, Task> pause)
@@ -58,7 +61,7 @@ public sealed class LiveHost
     /// <summary>The engine this host drives.</summary>
     public LiveEngine Engine => _engine;
 
-    /// <summary>Makes the project at <paramref name="revision"/> the one to play; the task ends when the newest document is in place or has failed.</summary>
+    /// <summary>Makes the project at <paramref name="revision"/> the one to play; the task ends when the newest is in place or failed.</summary>
     /// <remarks>A revision not above the newest seen is ignored. An unreadable document is reported through the status.</remarks>
     public async Task SetDocumentAsync(string json, long revision)
     {
@@ -110,23 +113,39 @@ public sealed class LiveHost
     /// <summary>Turns the loop on or off over a range of seconds.</summary>
     public void SetLoop(bool on, double startSeconds, double endSeconds) => _engine.SetLoop(on, Frames(startSeconds), Frames(endSeconds));
 
-    /// <summary>Renders the next chunk: <see cref="HeaderBytes"/> of header, then the left channel and the right as 32-bit floats. The array is reused.</summary>
+    /// <summary>Renders the next chunk: <see cref="HeaderBytes"/> of header, then left and right as 32-bit floats; the array is reused.</summary>
     public byte[] RenderChunk()
     {
+        long now = Stopwatch.GetTimestamp();
+        if (_lastRender != 0)
+        {
+            _longestGapMs = Math.Max(_longestGapMs, (now - _lastRender) * 1000.0 / Stopwatch.Frequency);
+        }
+        _lastRender = now;
         BinaryPrimitives.WriteDoubleLittleEndian(_chunk, _engine.Position);
         Span<float> samples = MemoryMarshal.Cast<byte, float>(_chunk.AsSpan(HeaderBytes));
         _engine.Render(samples[.._chunkFrames], samples[_chunkFrames..]);
         return _chunk;
     }
 
-    /// <summary>What the page is told: the transport, the plan, and how the rendering is going; the longest render is cleared by the reading.</summary>
+    /// <summary>What the page is told: the transport, the plan and how the rendering is going; a reading clears the longest render.</summary>
     public string ReadStatus()
     {
         RenderStats stats = _engine.TakeStats();
         _maxRenderMs = Math.Max(_maxRenderMs, stats.MaxMilliseconds);
+        MeterReading levels = _engine.TakeLevels();
+        int count = levels.Tracks.Count;
+        TrackLevel[] tracks = new TrackLevel[count];
+        for (int i = 0; i < count; i++)
+        {
+            tracks[i] = new TrackLevel(levels.Tracks[i].Value, new LevelPair(levels.Peaks[i * 2], levels.Peaks[(i * 2) + 1]));
+        }
+        LevelPair master = count == 0 ? default : new LevelPair(levels.Peaks[count * 2], levels.Peaks[(count * 2) + 1]);
         HostStatus status = new(
-            _engine.State, _engine.Position, _rate, _engine.Revision, _loading, _problem, stats.Chunks, stats.Overruns, _maxRenderMs);
+            _engine.State, _engine.Position, _rate, _engine.Revision, _loading, _problem, stats.Chunks, stats.Overruns, _maxRenderMs,
+            _longestGapMs, master, tracks);
         _maxRenderMs = 0;
+        _longestGapMs = 0;
         return JsonSerializer.Serialize(status, PlaybackJsonContext.Default.HostStatus);
     }
 

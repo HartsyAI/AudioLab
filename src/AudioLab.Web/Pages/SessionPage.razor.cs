@@ -55,6 +55,9 @@ public sealed partial class SessionPage
     [Inject]
     private ClipDragState Drags { get; set; } = default!;
 
+    [Inject]
+    private PlaybackService Playback { get; set; } = default!;
+
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
     private StatusDot Dot => _live is { Ready: true } ? StatusDot.Go : StatusDot.Caution;
 
@@ -104,6 +107,7 @@ public sealed partial class SessionPage
         _live = live;
         _editor = new SessionEditor(live);
         live.Changed += OnLiveChanged;
+        Playback.Follow(live);
         Rebuild();
         try
         {
@@ -132,6 +136,7 @@ public sealed partial class SessionPage
         if (_live is { } live)
         {
             live.Changed -= OnLiveChanged;
+            Playback.Unfollow();
             _live = null;
             _editor = null;
             await live.DisposeAsync();

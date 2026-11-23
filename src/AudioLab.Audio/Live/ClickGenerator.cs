@@ -3,8 +3,8 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Live;
 
-/// <summary>The metronome: a short sine click on every beat of the project's meter, louder and higher on the downbeat, placed by the tempo map.</summary>
-/// <remarks>It is live only: an export never has it (D35). Every click is worked out from the absolute frame, so any block size gives the same sound.</remarks>
+/// <summary>The metronome: a short sine click on every beat of the meter, louder and higher on the downbeat, placed by the tempo map.</summary>
+/// <remarks>Live only: an export never has it (D35). Each click comes from the absolute frame, so any block size sounds the same.</remarks>
 public sealed class ClickGenerator
 {
     private const double Level = 0.35;
@@ -31,7 +31,7 @@ public sealed class ClickGenerator
         _clicksPerBar = Math.Max(1, (long)Math.Round(MeterRules.BeatsPerBar(document.TimeSignature) / _unit));
     }
 
-    /// <summary>Adds the clicks that sound in <paramref name="left"/> and <paramref name="right"/>, the frames from <paramref name="start"/> on.</summary>
+    /// <summary>Adds the clicks that sound in the two buffers, which hold the frames from <paramref name="start"/> on.</summary>
     public void Mix(long start, Span<float> left, Span<float> right)
     {
         long end = start + left.Length;

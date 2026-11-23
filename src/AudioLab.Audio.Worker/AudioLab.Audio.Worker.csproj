@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
 
-  <!-- Hosts the engine in a web worker: a second .NET runtime that the page's worker script starts and calls through the exports compiled in below. -->
+  <!-- Hosts the engine in a web worker: a second .NET runtime that the worker script starts and calls through the exports compiled in below. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>AudioLab.Web.Interop.Worker</RootNamespace>
@@ -8,6 +8,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <WasmFingerprintDotnetJs>false</WasmFingerprintDotnetJs>
     <StaticWebAssetBasePath>worker</StaticWebAssetBasePath>
+    <!-- A build with the debugger component interprets several times slower, and the engine renders audio on time or not at all. -->
+    <WasmDebugLevel>0</WasmDebugLevel>
   </PropertyGroup>
 
   <ItemGroup>

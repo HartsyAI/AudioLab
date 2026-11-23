@@ -5,7 +5,8 @@ namespace AudioLab.Audio.Live;
 
 /// <summary>Plays a render plan live: the transport, the loop, the click and the swap of a plan for the next one, one chunk at a time.</summary>
 /// <remarks>
-/// Playing does not stop at the end of the content, as in most workstations; only a stop, a pause or the loop ends it. One caller at a time. <see cref="Render"/> allocates nothing and takes no lock; every other member is called between two chunks.
+/// Playing does not stop at the end of the content, as in most workstations; only a stop or a pause ends it. One caller at a time.
+/// <see cref="Render"/> allocates nothing and takes no lock; every other member is called between two chunks.
 /// Pausing and stopping fade out over a few milliseconds, as starting fades in, so a transport change does not click. A new plan is
 /// started cold at the playhead (D35: its effects start empty, so a reverb or delay tail of the old plan is cut) and crossfaded over
 /// one chunk with the old one, which hides the step but not the missing tail.
@@ -19,6 +20,8 @@ public sealed class LiveEngine
     private readonly float[] _swapRight;
     private MixerGraph? _graph;
     private MixerGraph? _next;
+    private RenderPlan? _graphPlan;
+    private RenderPlan? _nextPlan;
     private ClickGenerator? _click;
     private ClickGenerator? _nextClick;
     private long _nextRevision;
@@ -60,7 +63,7 @@ public sealed class LiveEngine
     public bool Loop => _loop;
 
     /// <summary>Hands the engine a plan to play from the next chunk on, and the click for the same document.</summary>
-    /// <remarks>A plan not yet played when a newer one arrives is dropped. While playing, the swap is crossfaded; otherwise it is immediate.</remarks>
+    /// <remarks>A plan not yet played when a newer one arrives is dropped. While playing the swap is crossfaded, otherwise immediate.</remarks>
     public void Install(RenderPlan plan, long revision, ClickGenerator? click)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -69,11 +72,13 @@ public sealed class LiveEngine
         if (State == TransportState.Playing && _graph is not null)
         {
             _next = graph;
+            _nextPlan = plan;
             _nextRevision = revision;
             _nextClick = click;
             return;
         }
         _graph = graph;
+        _graphPlan = plan;
         _next = null;
         _click = click;
         Revision = revision;
@@ -142,6 +147,18 @@ public sealed class LiveEngine
     /// <summary>Turns the metronome on or off.</summary>
     public void SetClick(bool on) => _clickOn = on;
 
+    /// <summary>Reads and clears the peak levels of the plan being played; empty before the first plan.</summary>
+    public MeterReading TakeLevels()
+    {
+        if (_graph is not { } graph || _graphPlan is not { } plan)
+        {
+            return new MeterReading([], []);
+        }
+        float[] peaks = new float[graph.PeakCount];
+        graph.TakePeaks(peaks);
+        return new MeterReading(plan.TrackIds, peaks);
+    }
+
     /// <summary>Reads and clears the render timings.</summary>
     public RenderStats TakeStats()
     {
@@ -197,6 +214,7 @@ public sealed class LiveEngine
                 right[i] += (swapRight[i] - right[i]) * blend;
             }
             _graph = next;
+            _graphPlan = _nextPlan;
             _next = null;
             _click = _nextClick;
             Revision = _nextRevision;
