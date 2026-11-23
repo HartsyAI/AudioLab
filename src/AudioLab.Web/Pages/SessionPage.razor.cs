@@ -15,6 +15,8 @@ public sealed partial class SessionPage
 
     private SessionEditor? _editor;
 
+    private MidiEditor? _midi;
+
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
     private string? _opened;
@@ -103,6 +105,7 @@ public sealed partial class SessionPage
         LiveProject live = Factory.Create();
         _live = live;
         _editor = new SessionEditor(live);
+        _midi = new MidiEditor(live);
         live.Changed += OnLiveChanged;
         Rebuild();
         try
@@ -134,6 +137,7 @@ public sealed partial class SessionPage
             live.Changed -= OnLiveChanged;
             _live = null;
             _editor = null;
+            _midi = null;
             await live.DisposeAsync();
         }
     }
@@ -189,7 +193,9 @@ public sealed partial class SessionPage
             : new SessionActions
             {
                 CanEdit = true,
-                AddTrack = AddTrackAsync,
+                AddTrack = () => AddTrackAsync(TrackKind.Audio),
+                AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
+                Midi = MidiActions.For(_midi!, ShowAsync),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
@@ -199,7 +205,7 @@ public sealed partial class SessionPage
             };
     }
 
-    private async Task AddTrackAsync()
+    private async Task AddTrackAsync(TrackKind kind)
     {
         // A second press while the first is on its way would add a second track.
         if (_adding)
@@ -209,7 +215,7 @@ public sealed partial class SessionPage
         _adding = true;
         try
         {
-            EditResult result = await ShowAsync(_editor!.AddTrackAsync());
+            EditResult result = await ShowAsync(_editor!.AddTrackAsync(kind));
             if (result.Succeeded && result.Created.Count > 0)
             {
                 Selection.SelectTrack(TrackId.From(result.Created[0]));
@@ -218,6 +224,15 @@ public sealed partial class SessionPage
         finally
         {
             _adding = false;
+        }
+    }
+
+    private async Task AddMidiClipAsync(TrackId track)
+    {
+        EditResult result = await _actions.Midi.AddClip(track, null);
+        if (result.Succeeded && result.Created.Count > 0)
+        {
+            Selection.SelectClip(track, ClipId.From(result.Created[0]));
         }
     }
 
@@ -313,6 +328,11 @@ public sealed partial class SessionPage
         else if (Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord))
         {
             _ = InvokeAsync(() => _actions.Redo());
+        }
+        else if (Shortcuts.AddMidiClip.Matches(chord) && Selection.Track is { } target
+            && _live?.Document?.Tracks.Any(candidate => candidate.Id == target && candidate.Kind == TrackKind.Instrument) == true)
+        {
+            _ = InvokeAsync(() => AddMidiClipAsync(target));
         }
         else if (Shortcuts.RenameTrack.Matches(chord) && Selection.Track is { } track)
         {

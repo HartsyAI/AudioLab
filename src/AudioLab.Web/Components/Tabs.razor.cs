@@ -25,12 +25,24 @@ public sealed partial class Tabs
     [Parameter]
     public RenderFragment<string>? TabContent { get; set; }
 
+    /// <summary>The open tab when the parent holds it; null when the tabs keep their own.</summary>
+    [Parameter]
+    public string? Selected { get; set; }
+
+    /// <summary>Raised with the tab name when the user opens another tab.</summary>
+    [Parameter]
+    public EventCallback<string> SelectedChanged { get; set; }
+
     [Inject]
     private IElementFocus Focus { get; set; } = default!;
 
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        if (Selected is not null && Names.Contains(Selected))
+        {
+            _active = Selected;
+        }
         if (!Names.Contains(_active))
         {
             _active = Names.Count > 0 ? Names[0] : string.Empty;
@@ -57,12 +69,13 @@ public sealed partial class Tabs
 
     private static string Slug(string tab) => tab.ToLowerInvariant().Replace(' ', '-');
 
-    private void Activate(string tab)
+    private Task Activate(string tab)
     {
         _active = tab;
+        return SelectedChanged.InvokeAsync(tab);
     }
 
-    private void KeyDown(string tab, KeyboardEventArgs press)
+    private Task KeyDown(string tab, KeyboardEventArgs press)
     {
         int at = Names.ToList().IndexOf(tab);
         int? target = press.Key switch
@@ -77,6 +90,8 @@ public sealed partial class Tabs
         {
             _active = Names[next];
             _focus = _active;
+            return SelectedChanged.InvokeAsync(_active);
         }
+        return Task.CompletedTask;
     }
 }

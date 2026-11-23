@@ -1,5 +1,6 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -19,6 +20,10 @@ public sealed partial class Clip
     private MidiClip? _midi;
 
     private (string, bool, bool, bool, bool, double, double?, double, double?, string?) _shown;
+
+    private MidiClip? _pathFor;
+
+    private string _notes = string.Empty;
 
     private bool _drawn;
 
@@ -74,6 +79,10 @@ public sealed partial class Clip
     [Parameter]
     public EventCallback<ClipId> OnSelect { get; set; }
 
+    /// <summary>Raised with the clip's id when a MIDI clip is double-clicked or opened with its key, to edit its notes.</summary>
+    [Parameter]
+    public EventCallback<ClipId> OnOpen { get; set; }
+
     /// <summary>Raised with the key and the clip's id for a key the arrangement handles, such as an arrow.</summary>
     [Parameter]
     public EventCallback<(ClipId Clip, KeyboardEventArgs Key)> OnKey { get; set; }
@@ -91,15 +100,15 @@ public sealed partial class Clip
 
     private string Name => Audio?.Name ?? Midi!.Name;
 
-    private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
-
     private const string PlaceholderNote = "The waveform is a placeholder until the media exists.";
 
     private string Description => Midi is null
         ? string.Create(CultureInfo.InvariantCulture, $"{Name}, audio clip. {PlaceholderNote}")
         : string.Create(CultureInfo.InvariantCulture, $"{Name}, MIDI clip");
 
-    private string? Hint => Midi is null ? PlaceholderNote : null;
+    private string? Hint => Midi is null
+        ? PlaceholderNote
+        : $"Double-click or press {Shortcuts.OpenClip.Display} to open the piano roll.";
 
     private string PlaceStyle
     {
@@ -110,6 +119,17 @@ public sealed partial class Clip
                 ? place + string.Create(CultureInfo.InvariantCulture, $"; top: {top:0.##}px; bottom: auto; height: {height:0.##}px")
                 : place;
         }
+    }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        // The path is built when the notes change, so a lifted copy that follows the pointer does not build it again on every move.
+        if (Midi is not null && !ReferenceEquals(_pathFor, Midi) && !Equals(_pathFor, Midi))
+        {
+            _notes = MidiPreview.Path(Midi);
+        }
+        _pathFor = Midi;
     }
 
     /// <inheritdoc />
@@ -126,18 +146,22 @@ public sealed partial class Clip
         return !same;
     }
 
-    private static string NoteStyle(NoteBox note)
-    {
-        return string.Create(CultureInfo.InvariantCulture, $"left: {note.X:0.##}%; top: {note.Y:0.##}%; width: {note.Width:0.##}%");
-    }
-
     private Task SelectAsync()
     {
         return Lifted ? Task.CompletedTask : OnSelect.InvokeAsync(Id);
     }
 
+    private Task OpenAsync()
+    {
+        return Lifted || Midi is null ? Task.CompletedTask : OnOpen.InvokeAsync(Id);
+    }
+
     private Task KeyAsync(KeyboardEventArgs key)
     {
+        if (Midi is not null && Shortcuts.OpenClip.Matches(key))
+        {
+            return OnOpen.InvokeAsync(Id);
+        }
         return key.Key is "Enter" or " " ? OnSelect.InvokeAsync(Id) : OnKey.InvokeAsync((Id, key));
     }
 

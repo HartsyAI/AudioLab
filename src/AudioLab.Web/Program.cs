@@ -41,6 +41,7 @@ builder.Services.AddScoped<ProjectApi>();
 builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
+builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddSingleton<WavePathCache>();
 builder.Services.AddSingleton(provider => new TrackColorMap(
