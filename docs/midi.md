@@ -1,7 +1,7 @@
 # MIDI files in and out
 
 The server turns a Standard MIDI File into a MIDI clip on an instrument track, and a MIDI clip back into a file. The design
-is [DESIGN.md D52 and D42](../DESIGN.md#2-decisions) (Proposed). All routes are behind the door: the project is the
+is [DESIGN.md D50 and D42](../DESIGN.md#2-decisions) (Proposed). All routes are behind the door: the project is the
 signed-in user's, or it is a 404.
 
 | Route | Answer |
@@ -51,8 +51,8 @@ running status that crosses a meta event and the like are refused rather than gu
 A clip is written as a format 0 file that starts where the clip does, at the project's tempo there, with the project's later
 tempo changes and its time signature. Notes are cut at the clip's end, controller events after it are left out, and a sustain
 pedal still down at the end is let up. A track with no MIDI clip, or with several, is a `422` (`rejected`); the answer for
-several names the clip ids to export one by one. The file name comes from the clip's (or track's) name with anything a file
-name cannot hold made an underscore.
+several names their ids, each exported by `GET /api/projects/{id}/clips/{clip}/midi`. The file name comes from the
+clip's (or track's) name with anything a file name cannot hold made an underscore.
 
 ## From an agent
 

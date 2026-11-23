@@ -51,7 +51,7 @@ public static class WavExporter
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(wav);
-        OfflineOptions settings = OfflineRenderer.Validate(render);
+        OfflineOptions settings = OfflineRenderer.Validate(render) with { CancellationToken = cancellationToken };
         RenderPlan plan = RenderPlan.Create(document, media, OfflineRenderer.PlanOptionsOf(settings));
         return WriteAsync(plan, output, wav, settings, cancellationToken);
     }

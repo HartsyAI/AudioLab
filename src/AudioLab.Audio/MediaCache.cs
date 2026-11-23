@@ -39,7 +39,8 @@ public sealed class MediaCache
     public long Bytes { get; private set; }
 
     /// <summary>The audio of a media file at the cache's rate, or null when the source has none (that is not remembered).</summary>
-    public PcmAudio? Get(MediaId id)
+    /// <exception cref="OperationCanceledException">The token was cancelled before or while the audio was converted.</exception>
+    public PcmAudio? Get(MediaId id, CancellationToken cancellationToken = default)
     {
         lock (_lock)
         {
@@ -54,7 +55,8 @@ public sealed class MediaCache
         {
             return null;
         }
-        PcmAudio audio = Resampler.ToRate(Sanitise(found), SampleRate);
+        cancellationToken.ThrowIfCancellationRequested();
+        PcmAudio audio = Resampler.ToRate(Sanitise(found), SampleRate, cancellationToken);
         lock (_lock)
         {
             if (_entries.TryGetValue(id, out LinkedListNode<Entry>? raced))

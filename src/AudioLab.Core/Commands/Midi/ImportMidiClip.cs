@@ -22,7 +22,14 @@ public sealed record ImportMidiClip : Command
     public required double Length { get; init; }
 
     /// <summary>The notes, which get the note ids 1, 2, 3 and so on in this order; at most 1,000,000.</summary>
-    [Description("The notes, which get the note ids 1, 2, 3 and so on in this order; at most 1,000,000.")]
+    /// <remarks>
+    /// Sent as JSON the clip is bounded by the limits of the hub (2 Mi characters) and MCP (1 MiB) on a command; the .mid route applies
+    /// the command in process, so a file is bounded only by its own limit and the size of the project.
+    /// </remarks>
+    [Description(
+        "The notes, which get the note ids 1, 2, 3 and so on in this order; at most 1,000,000. Sent as JSON the clip is bounded by the hub "
+        + "and MCP limits on a command (2 Mi characters, 1 MiB); the .mid import route applies the command in process and is bounded "
+        + "by its file limit and the project size.")]
     [MaxLength(ProjectLimits.MaxListItems)]
     public required IReadOnlyList<ImportedNote> Notes { get; init; }
 

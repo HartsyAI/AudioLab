@@ -52,7 +52,7 @@ report the short transfer as an error.)
 
 All under `AudioLab:Render`: `MaxSeconds` (3600), `MaxBytes` (2 GiB), `MaxTime` (10 minutes, request to last byte),
 `MaxConcurrentExportsPerUser` (2), `MaxConcurrentExports` (half the processor cores, at least 2), `MaxTailSeconds` (60),
-`MaxDecodedBytesPerFile` (1 GiB) and `MediaCacheBytes` (512 MiB). The server refuses to start on a value that cannot work.
+`MaxDecodedBytesPerFile` (1 GiB) and `MaxDecodedBytesPerRender` (2 GiB). The server refuses to start on a value that cannot work.
 
 ## Examples
 

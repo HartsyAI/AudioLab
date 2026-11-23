@@ -1,7 +1,7 @@
 namespace AudioLab.Audio;
 
 /// <summary>Converts audio to another sample rate with a windowed-sinc filter, once, when a render is prepared.</summary>
-internal static class Resampler
+public static class Resampler
 {
     private const int HalfTaps = 32;
     private const int Phases = 256;
@@ -9,8 +9,25 @@ internal static class Resampler
     // The cutoff sits just under half the lower rate, so the transition band ends at it and nothing above it can fold back.
     private const double Guard = 0.97;
 
+    /// <summary>How many frames <paramref name="sourceFrames"/> at <paramref name="fromRate"/> make at <paramref name="toRate"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The result is more than an array can hold.</exception>
+    public static int OutputFrames(long sourceFrames, int fromRate, int toRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(sourceFrames);
+        ArgumentOutOfRangeException.ThrowIfLessThan(fromRate, AudioFormat.MinSampleRate);
+        ArgumentOutOfRangeException.ThrowIfLessThan(toRate, AudioFormat.MinSampleRate);
+        double frames = Math.Round(sourceFrames * ((double)toRate / fromRate));
+        if (frames > Array.MaxLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceFrames), "The audio would be longer than a buffer can hold at that sample rate.");
+        }
+        return (int)frames;
+    }
+
     /// <summary>The audio at <paramref name="rate"/>; the same instance when it already is.</summary>
-    public static PcmAudio ToRate(PcmAudio source, int rate)
+    /// <exception cref="ArgumentOutOfRangeException">The result would be more than an array can hold.</exception>
+    /// <exception cref="OperationCanceledException">The token was cancelled while the audio was converted.</exception>
+    public static PcmAudio ToRate(PcmAudio source, int rate, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (source.SampleRate == rate)
@@ -23,11 +40,11 @@ internal static class Resampler
         int reach = (int)Math.Ceiling(extent);
         int taps = 2 * reach;
         float[] table = BuildTable(cutoff, extent, reach, taps);
-        int frames = (int)Math.Round(source.Frames / ratio);
+        int frames = OutputFrames(source.Frames, source.SampleRate, rate);
         float[][] output = new float[source.ChannelCount][];
         for (int channel = 0; channel < output.Length; channel++)
         {
-            output[channel] = Convert(source.Channel(channel), frames, ratio, reach, taps, table);
+            output[channel] = Convert(source.Channel(channel), frames, ratio, reach, taps, table, cancellationToken);
         }
         return new PcmAudio(rate, output);
     }
@@ -56,11 +73,22 @@ internal static class Resampler
         return table;
     }
 
-    private static float[] Convert(ReadOnlySpan<float> source, int frames, double ratio, int reach, int taps, float[] table)
+    private static float[] Convert(
+        ReadOnlySpan<float> source,
+        int frames,
+        double ratio,
+        int reach,
+        int taps,
+        float[] table,
+        CancellationToken cancellationToken)
     {
         float[] output = new float[frames];
         for (int n = 0; n < frames; n++)
         {
+            if ((n & 0xFFFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             double position = n * ratio;
             int index = (int)position;
             double phasePosition = (position - index) * Phases;

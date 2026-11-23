@@ -69,7 +69,8 @@ public static class StemExporter
     {
         ArgumentNullException.ThrowIfNull(wav);
         ArgumentNullException.ThrowIfNull(output);
-        Prepared prepared = Prepare(document, media, options, tracks);
+        OfflineOptions cancellable = (options ?? new OfflineOptions()) with { CancellationToken = cancellationToken };
+        Prepared prepared = Prepare(document, media, cancellable, tracks);
         Preflight(prepared, wav);
         ZipWriter zip = new(output);
         for (int i = 0; i < prepared.Stems.Count; i++)
