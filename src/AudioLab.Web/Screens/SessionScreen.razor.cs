@@ -2,7 +2,6 @@ using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
@@ -29,8 +28,6 @@ public sealed partial class SessionScreen : IDisposable
     [Parameter]
     public string State { get; set; } = string.Empty;
 
-    private bool _dropping;
-
     [Inject]
     private SessionSelection Selection { get; set; } = default!;
 
@@ -44,12 +41,6 @@ public sealed partial class SessionScreen : IDisposable
     protected override void OnInitialized()
     {
         Selection.Changed += OnSelectionChanged;
-    }
-
-    // Only a drag that carries files opens the drop target; text and links dragged across the page leave it alone.
-    private void DragEnter(DragEventArgs drag)
-    {
-        _dropping = drag.DataTransfer.Types.Contains("Files");
     }
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);

@@ -16,7 +16,7 @@ public static class WavePath
 
     private const double Reach = 46;
 
-    // A silent column would draw nothing; this is the thinnest line a column keeps, in units of the 100-high box.
+    // A column of one value would draw nothing; this is half the thinnest a column is drawn, in units of the 100-high box.
     private const double Thinnest = 0.5;
 
     /// <summary>How many columns a clip of this width is drawn with: one for each pixel, never more than <see cref="MaxColumns"/>.</summary>
@@ -56,8 +56,14 @@ public static class WavePath
                     high = Math.Max(high, values[at + 1]);
                 }
             }
-            double top = Math.Min(Middle - (high / 32768.0 * Reach), Middle - Thinnest);
-            double under = Math.Max(Middle - (low / 32768.0 * Reach), Middle + Thinnest);
+            double top = Middle - (high / 32768.0 * Reach);
+            double under = Middle - (low / 32768.0 * Reach);
+            if (under - top < 2 * Thinnest)
+            {
+                double centre = (top + under) / 2;
+                top = centre - Thinnest;
+                under = centre + Thinnest;
+            }
             string x = (column / (double)(columns - 1) * Box).ToString("0.#", CultureInfo.InvariantCulture);
             path.Append(" L").Append(x).Append(',').Append(top.ToString("0.#", CultureInfo.InvariantCulture));
             bottom[column] = string.Concat(" L", x, ",", under.ToString("0.#", CultureInfo.InvariantCulture));

@@ -21,9 +21,9 @@ public static class ClipInsertion
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(file);
-        Track? track = selectedTrack is { } chosen
-            ? document.Tracks.FirstOrDefault(candidate => candidate.Id == chosen)
-            : document.Tracks.FirstOrDefault(candidate => candidate.Kind == TrackKind.Audio);
+        // A selection that names a track that is gone (another client removed it) is no selection.
+        Track? track = (selectedTrack is { } chosen ? document.Tracks.FirstOrDefault(candidate => candidate.Id == chosen) : null)
+            ?? document.Tracks.FirstOrDefault(candidate => candidate.Kind == TrackKind.Audio);
         if (track is null)
         {
             return (null, "Add an audio track first; a file needs an audio track to go on.");

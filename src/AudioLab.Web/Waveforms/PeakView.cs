@@ -7,4 +7,4 @@ namespace AudioLab.Web.Waveforms;
 /// <param name="Header">The file's header, when the level is here.</param>
 /// <param name="Level">The level the zoom needs, when it is here.</param>
 /// <param name="Failure">Why there are no peaks, when they failed.</param>
-public sealed record PeakView(WavePhase Phase, PeakHeader? Header, PeakLevel? Level, string? Failure);
+public readonly record struct PeakView(WavePhase Phase, PeakHeader? Header, PeakLevel? Level, string? Failure);

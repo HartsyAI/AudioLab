@@ -13,7 +13,7 @@ namespace AudioLab.Web.Components;
 /// Every clip stays in the page (D17). The lifted copy that follows the pointer carries the overlay shadow and moves by
 /// <c>left</c> and <c>top</c>; the clip it was lifted from is left as it was.
 /// </remarks>
-public sealed partial class Clip
+public sealed partial class Clip : IDisposable
 {
     private AudioClip? _audio;
 
@@ -22,6 +22,10 @@ public sealed partial class Clip
     private (string, bool, bool, bool, bool, double, double?, double, double?, ClipWave) _shown;
 
     private bool _drawn;
+
+    private ClipWave _wave = ClipWave.Loading;
+
+    private bool _wasSelected;
 
     /// <summary>The clip, when it is an audio clip.</summary>
     [Parameter]
@@ -67,9 +71,9 @@ public sealed partial class Clip
     [Parameter]
     public bool TabStop { get; set; }
 
-    /// <summary>What an audio clip draws for its waveform: nothing while the peaks load, a path from them, or why there is none.</summary>
+    /// <summary>How many pixels a second of the timeline takes, which picks the level of peaks an audio clip draws its waveform from.</summary>
     [Parameter]
-    public ClipWave Wave { get; set; } = ClipWave.Loading;
+    public double PixelsPerSecond { get; set; } = TimelineGeometry.Default.PixelsPerSecond;
 
     /// <summary>Raised with the clip's id when it is pressed or activated.</summary>
     [Parameter]
@@ -93,6 +97,12 @@ public sealed partial class Clip
     private string Name => Audio?.Name ?? Midi!.Name;
 
     private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
+
+    [Inject]
+    private WaveformService Waves { get; set; } = default!;
+
+    // What an audio clip draws for its waveform: nothing while the peaks load, a path from them, or why there is none.
+    private ClipWave Wave => _wave;
 
     private string PeaksName => Wave.Phase.ToString().ToLowerInvariant();
 
@@ -118,6 +128,44 @@ public sealed partial class Clip
             return Top is double top && Height is double height
                 ? place + string.Create(CultureInfo.InvariantCulture, $"; top: {top:0.##}px; bottom: auto; height: {height:0.##}px")
                 : place;
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Waves.Arrived -= OnPeaksArrived;
+    }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        Waves.Arrived += OnPeaksArrived;
+    }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (Audio is null)
+        {
+            return;
+        }
+        _wave = Waves.For(Audio, Width, PixelsPerSecond);
+        // A clip that is selected while its waveform has failed asks for the peaks again, however it was selected.
+        if (Selected && !_wasSelected && _wave.Phase == WavePhase.Failed)
+        {
+            Waves.RetryIfFailed(Audio);
+        }
+        _wasSelected = Selected;
+    }
+
+    // Only a clip of the file whose peaks came, or failed, draws again; the lanes around it are left as they are.
+    private void OnPeaksArrived(string media)
+    {
+        if (Audio is { } audio && audio.Media.Value == media)
+        {
+            _wave = Waves.For(audio, Width, PixelsPerSecond);
+            _ = InvokeAsync(StateHasChanged);
         }
     }
 

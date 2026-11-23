@@ -30,7 +30,6 @@
     cursor: pointer;
     /* Text selected under the pointer would start a native drag, which ends the pointer drag onto the lanes. */
     user-select: none;
-    touch-action: none;
 }
 
 .media-main:hover {

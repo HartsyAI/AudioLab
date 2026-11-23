@@ -1,6 +1,6 @@
 namespace AudioLab.Web.Session;
 
-/// <summary>Where the playhead is, in seconds: a view state of this client, set by whatever moves it. Until the transport exists it is the start.</summary>
+/// <summary>Where the playhead is, in seconds: a view state of this client, set by what moves it; until the transport exists, the start.</summary>
 public sealed class SessionPlayhead
 {
     /// <summary>The playhead's time.</summary>

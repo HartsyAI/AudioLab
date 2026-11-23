@@ -4,10 +4,12 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>Holds the tests of dragging a media file onto the lanes and of adding it with the keyboard.</summary>
+/// <summary>Holds the tests of dragging a media file onto the lanes and of where the keyboard adds it.</summary>
 public sealed class MediaDragTests
 {
     private static readonly (double Left, double Top) _lanes = (300, 100);
+
+    private static readonly TimelineGeometry _geometry = TimelineGeometry.Default;
 
     private readonly ProjectDocument _song = WithGrid(
         Song.Empty().With(
@@ -18,25 +20,23 @@ public sealed class MediaDragTests
 
     private static ProjectDocument WithGrid(ProjectDocument document, string grid) => document with { View = document.View with { Grid = grid } };
 
-    private static MediaSummary File(double duration = 2.5) =>
-        new("med_1", "kick.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, duration, 44100, 2, 100, new string('0', 64), DateTimeOffset.UnixEpoch);
-
-    private MediaDrag Press(ProjectDocument? document = null)
-    {
-        ProjectDocument shown = document ?? _song;
-        return new MediaDrag(File(), shown, TimelineGeometry.Default, TrackLayout.Of(shown), 50, 700);
-    }
+    private static MediaSummary File(double duration = 2.5) => Song.Media("med_1", "kick.wav", duration);
 
     // The client point of a lane point, with the lane surface at its place on the page.
     private static (double X, double Y) At(double seconds, double row) => (_lanes.Left + (seconds * 34), _lanes.Top + (row * 64) + 30);
+
+    private void Move(MediaDrag drag, (double X, double Y) at, ProjectDocument? document = null)
+    {
+        drag.Move(at.X, at.Y, _lanes, document ?? _song, _geometry);
+    }
 
     /// <summary>A press that does not travel is a click: there is no drag, no target and nothing to add.</summary>
     [Fact]
     public void APressThatDoesNotTravelIsAClick()
     {
-        MediaDrag drag = Press();
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(51, 701, _lanes);
+        drag.Move(51, 701, _lanes, _song, _geometry);
 
         Assert.False(drag.Active);
         Assert.Null(drag.Target);
@@ -47,10 +47,9 @@ public sealed class MediaDragTests
     [Fact]
     public void OverAnAudioLaneTheFileLandsOnTheGridUnderThePointerWithTheWidthOfItsDuration()
     {
-        MediaDrag drag = Press();
-        (double x, double y) = At(5.7, 2);
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(x, y, _lanes);
+        Move(drag, At(5.7, 2));
 
         MediaTarget target = Assert.NotNull(drag.Target);
         Assert.Equal(2, target.Row);
@@ -69,11 +68,24 @@ public sealed class MediaDragTests
     [Fact]
     public void TheStartIsNeverBeforeTheStartOfTheProject()
     {
-        MediaDrag drag = Press();
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(_lanes.Left + 0.4, _lanes.Top + 30, _lanes);
+        drag.Move(_lanes.Left + 0.4, _lanes.Top + 30, _lanes, _song, _geometry);
 
         Assert.Equal(0, Assert.NotNull(drag.Target).Start);
+    }
+
+    /// <summary>The zoom that is given is the zoom that is used: at twice the scale the same pointer is half the time.</summary>
+    [Fact]
+    public void TheZoomThatIsGivenIsTheZoomThatIsUsed()
+    {
+        MediaDrag drag = new(File(), 50, 700);
+        (double x, double y) = At(10, 0);
+
+        drag.Move(x, y, _lanes, _song, new TimelineGeometry(68));
+
+        Assert.Equal(5.0, Assert.NotNull(drag.Target).Start, 6);
+        Assert.Equal((5.0 * 68) + 1, Assert.NotNull(drag.Target).Left, 6);
     }
 
     /// <summary>After a tempo change the file snaps to the lines the lanes draw, as a dragged clip does.</summary>
@@ -83,41 +95,57 @@ public sealed class MediaDragTests
         ProjectDocument slowing = WithGrid(
             Song.Empty(120, [new TempoChange(TempoChangeId.From("t1"), 4.25, 60)]).With(Song.NewTrack("t1", 64)),
             "1/4");
-        MediaDrag drag = new(File(), slowing, TimelineGeometry.Default, TrackLayout.Of(slowing), 50, 700);
-        (double x, double y) = At(5.7, 0);
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(x, y, _lanes);
+        Move(drag, At(5.7, 0), slowing);
 
         Assert.Equal(5.75, Assert.NotNull(drag.Target).Start, 6);
+    }
+
+    /// <summary>A track that another client added during the drag is the one the release lands on: the document is read at every move.</summary>
+    [Fact]
+    public void ATrackAddedDuringTheDragIsTheTrackTheReleaseLandsOn()
+    {
+        ProjectDocument before = Song.Empty().With(Song.NewTrack("t1", 64), Song.NewTrack("t2", 64));
+        ProjectDocument after = Song.Empty().With(Song.NewTrack("new", 64), Song.NewTrack("t1", 64), Song.NewTrack("t2", 64));
+        MediaDrag drag = new(File(), 50, 700);
+
+        Move(drag, At(3, 1), before);
+        Assert.Equal(TrackId.From("t2"), Assert.NotNull(drag.Commit()).Track);
+        Move(drag, At(3, 1), after);
+
+        Assert.Equal(TrackId.From("t1"), Assert.NotNull(drag.Commit()).Track);
     }
 
     /// <summary>Over a lane the file does not fit it says why, and a release there adds nothing.</summary>
     [Fact]
     public void OverALaneTheFileDoesNotFitItSaysWhyAndAReleaseThereAddsNothing()
     {
-        MediaDrag drag = Press();
-        (double x, double y) = At(3, 1);
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(x, y, _lanes);
+        Move(drag, At(3, 1));
 
         Assert.Null(drag.Target);
         Assert.Equal("\"kick.wav\" is audio and goes on an audio track; \"keys\" is an instrument track.", drag.Refusal);
         Assert.Null(drag.Commit());
     }
 
-    /// <summary>Away from the lanes, or over the headers, there is no target and no reason.</summary>
+    /// <summary>Away from the lanes, over the headers or rulers, or below the last track there is no target, no reason and nothing to add.</summary>
     [Fact]
-    public void AwayFromTheLanesOrOverTheHeadersThereIsNoTargetAndNoReason()
+    public void AwayFromTheLanesOrBelowTheLastTrackThereIsNoTargetAndNoReason()
     {
-        MediaDrag drag = Press();
+        MediaDrag drag = new(File(), 50, 700);
 
-        drag.Move(500, 700, null);
+        drag.Move(500, 700, null, _song, _geometry);
         Assert.Null(drag.Target);
         Assert.Null(drag.Refusal);
-        drag.Move(_lanes.Left - 20, _lanes.Top + 30, _lanes);
+        drag.Move(_lanes.Left - 20, _lanes.Top + 30, _lanes, _song, _geometry);
         Assert.Null(drag.Target);
-        drag.Move(_lanes.Left + 100, _lanes.Top - 10, _lanes);
+        drag.Move(_lanes.Left + 100, _lanes.Top - 10, _lanes, _song, _geometry);
         Assert.Null(drag.Target);
+        drag.Move(_lanes.Left + 100, _lanes.Top + (3 * 64) + 5, _lanes, _song, _geometry);
+        Assert.Null(drag.Target);
+        Assert.Null(drag.Refusal);
         Assert.Null(drag.Commit());
         Assert.True(drag.Active);
     }
@@ -126,13 +154,25 @@ public sealed class MediaDragTests
     [Fact]
     public void ATargetThatWasFoundAndThenLeftIsGone()
     {
-        MediaDrag drag = Press();
-        (double x, double y) = At(5, 0);
-        drag.Move(x, y, _lanes);
+        MediaDrag drag = new(File(), 50, 700);
+        Move(drag, At(5, 0));
         Assert.NotNull(drag.Target);
 
-        drag.Move(500, 700, null);
+        drag.Move(500, 700, null, _song, _geometry);
 
+        Assert.Null(drag.Commit());
+    }
+
+    /// <summary>Where the project cannot be edited the drag follows the pointer and says so, and a release adds nothing.</summary>
+    [Fact]
+    public void WhereTheProjectCannotBeEditedTheDragSaysSo()
+    {
+        MediaDrag drag = new(File(), 50, 700, "Reconnecting to the server.");
+
+        Move(drag, At(5, 0));
+
+        Assert.Null(drag.Target);
+        Assert.Equal("kick.wav cannot be added now. Reconnecting to the server.", drag.Refusal);
         Assert.Null(drag.Commit());
     }
 
@@ -141,8 +181,8 @@ public sealed class MediaDragTests
     public void EndingADragThatAnotherHasReplacedLeavesTheNewerOneGoing()
     {
         MediaDragState state = new();
-        MediaDrag first = Press();
-        MediaDrag second = Press();
+        MediaDrag first = new(File(), 50, 700);
+        MediaDrag second = new(File(), 50, 700);
         state.Begin(first);
         state.Begin(second);
 
@@ -167,15 +207,17 @@ public sealed class MediaDragTests
         Assert.Equal(TrackId.From("t1"), firstAudio!.Value.Track);
     }
 
-    /// <summary>The keyboard says why it cannot: no audio track, or an instrument track selected.</summary>
+    /// <summary>A selected track that is gone falls back to the first audio track; the keyboard says why when it really cannot add.</summary>
     [Fact]
-    public void TheKeyboardSaysWhyItCannot()
+    public void ASelectedTrackThatIsGoneFallsBackAndTheKeyboardSaysWhyItCannot()
     {
         ProjectDocument none = Song.Empty().With(Song.WithMidi("keys"));
 
+        (MediaPlacement? fallback, _) = ClipInsertion.For(_song, File(), TrackId.From("gone"), null, 2);
         (MediaPlacement? noAudio, string? first) = ClipInsertion.For(none, File(), null, null, 0);
         (MediaPlacement? onKeys, string? second) = ClipInsertion.For(_song, File(), TrackId.From("keys"), null, 0);
 
+        Assert.Equal((TrackId.From("t1"), 2.0), (fallback!.Value.Track, fallback.Value.Start));
         Assert.Null(noAudio);
         Assert.Equal("Add an audio track first; a file needs an audio track to go on.", first);
         Assert.Null(onKeys);

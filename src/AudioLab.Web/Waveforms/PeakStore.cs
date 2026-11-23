@@ -4,18 +4,18 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Waveforms;
 
-/// <summary>The peaks of the media files the page draws, fetched once for each file and level, never twice at once, and held within a budget.</summary>
+/// <summary>The peaks of the media files the page draws, fetched once for each file and level and held within a budget.</summary>
 /// <remarks>
 /// A file's header comes first; it says which levels exist, and the level a zoom needs is then asked for as its own byte range. A 503
 /// (the server is rebuilding the peaks) is asked again after the time the server named, a few times; any other refusal fails the file
 /// until <see cref="Retry"/>.
 /// </remarks>
-public sealed class PeakStore(MediaApi api, TimeProvider clock, long budget = PeakStore.Budget)
+public sealed class PeakStore(MediaApi api, TimeProvider clock, ILogger<PeakStore> log, long budget = PeakStore.Budget)
 {
     /// <summary>The most bytes of peak values the store keeps unless it is given another; the least recently drawn level goes first.</summary>
     public const long Budget = 64L * 1024 * 1024;
 
-    /// <summary>How many times a 503 is asked again before the file is given up on.</summary>
+    /// <summary>How many requests are made for a header or a level, at most: a 503 is asked again until they are used up.</summary>
     public const int Attempts = 4;
 
     private static readonly TimeSpan _longestWait = TimeSpan.FromSeconds(10);
@@ -96,14 +96,15 @@ public sealed class PeakStore(MediaApi api, TimeProvider clock, long budget = Pe
 
     private async Task FetchAsync(string media, Entry entry, int? level)
     {
-        await _slots.WaitAsync();
-        try
+        string? failure = null;
+        PeakHeader? header = null;
+        PeakLevel? fetched = null;
+        for (int attempt = 1; attempt <= Attempts && failure is null && header is null && fetched is null; attempt++)
         {
-            string? failure = null;
-            PeakHeader? header = null;
-            PeakLevel? fetched = null;
-            for (int attempt = 1; attempt <= Attempts && fetched is null && header is null && failure is null; attempt++)
+            try
             {
+                // The slot is held for the request only, never for the wait that follows a 503, so a busy file does not hold up the others.
+                await _slots.WaitAsync();
                 try
                 {
                     if (level is int wanted)
@@ -115,25 +116,26 @@ public sealed class PeakStore(MediaApi api, TimeProvider clock, long budget = Pe
                         header = await api.GetPeakHeaderAsync(media);
                     }
                 }
-                catch (ApiException busy) when (busy.Status == HttpStatusCode.ServiceUnavailable && attempt < Attempts)
+                finally
                 {
-                    await Task.Delay(Wait(busy), clock);
-                }
-                catch (Exception exception)
-                {
-                    // No token is passed, so a cancellation here is the client's own timeout: a failure like any other, never a clip stuck loading.
-                    failure = FailureText.Of(exception);
+                    _slots.Release();
                 }
             }
-            Store(entry, level, header, fetched, failure);
-        }
-        finally
-        {
-            _slots.Release();
-            lock (_gate)
+            catch (ApiException busy) when (busy.Status == HttpStatusCode.ServiceUnavailable && attempt < Attempts)
             {
-                entry.Running.Remove(level ?? -1);
+                await Task.Delay(Wait(busy), clock);
             }
+            catch (Exception exception)
+            {
+                // No token is passed, so a cancellation here is the client's own timeout: a failure like any other, never a clip stuck loading.
+                PeakLog.FetchFailed(log, exception);
+                failure = FailureText.Of(exception);
+            }
+        }
+        Store(entry, level, header, fetched, failure);
+        lock (_gate)
+        {
+            entry.Running.Remove(level ?? -1);
         }
         Arrived?.Invoke(media);
     }

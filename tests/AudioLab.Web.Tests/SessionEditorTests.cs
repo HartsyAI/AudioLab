@@ -72,8 +72,7 @@ public sealed class SessionEditorTests
         await using (live)
         {
             _hub.Reply = new CommandReply(false, false, 1, [new HubCommandError(CommandErrorCode.NotFound, "There is no such media file.")], []);
-            MediaSummary file = new(
-                "med_9", "a.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 1, 44100, 2, 100, new string('0', 64), DateTimeOffset.UnixEpoch);
+            MediaSummary file = Song.Media("med_9", "a.wav");
 
             EditResult result = await editor.AddClipAsync(new Media.MediaPlacement(file, TrackId.From("t2"), 0));
 

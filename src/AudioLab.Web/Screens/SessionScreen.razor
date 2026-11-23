@@ -1,8 +1,7 @@
-<div class="session" @ondragenter="DragEnter" @ondragover:preventDefault="@(!_dropping)" @ondrop:preventDefault="@(!_dropping)">
+<div class="session">
     <TopBar Document="Document" Actions="Actions" />
     <Timeline Document="Document" Actions="Actions" />
     <BottomPanel Document="Document" Selected="Selection.Track" Actions="Actions" />
     <StatusBar Document="Document" Revision="Revision" Dot="Dot" State="@State" Retry="Actions.Reconnect" />
-    <MediaDropOverlay @bind-Active="_dropping" />
     <MediaDragLayer />
 </div>

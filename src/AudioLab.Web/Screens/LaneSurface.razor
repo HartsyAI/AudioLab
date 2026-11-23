@@ -12,8 +12,8 @@
             {
                 <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@AudioWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" Wave="@Waves.For(clip, AudioWidth(clip), Geometry.PixelsPerSecond)"
-                      OnSelect="SelectAudioAsync" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
+                      TabStop="@(clip.Id == TabStop)" PixelsPerSecond="Geometry.PixelsPerSecond"
+                      OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
             }
             @foreach (MidiClip clip in track.MidiClips)
             {

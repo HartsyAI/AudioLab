@@ -1,4 +1,4 @@
-.drag-chip {
+.drag-label {
     position: fixed;
     z-index: var(--z-popover);
     display: flex;
@@ -14,20 +14,20 @@
     pointer-events: none;
 }
 
-.chip-name {
+.label-name {
     overflow: hidden;
     font-weight: var(--font-weight-strong);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.chip-detail {
+.label-detail {
     color: var(--text-dim);
     font-size: var(--font-size-label);
     font-variant-numeric: tabular-nums;
 }
 
-.chip-reason {
+.label-reason {
     color: var(--text-soft);
     font-size: var(--font-size-label);
     line-height: 1.3;

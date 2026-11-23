@@ -46,7 +46,7 @@ internal sealed class RenderedMarkup : Renderer
         services?.Invoke(collection);
         await using ServiceProvider provider = collection.BuildServiceProvider();
         RenderedMarkup renderer = new(provider);
-        T component = Activator.CreateInstance<T>();
+        T component = (T)renderer.InstantiateComponent(typeof(T));
         int id = renderer.AssignRootComponentId(component);
         await renderer.Dispatcher.InvokeAsync(() => renderer.RenderRootComponentAsync(id, ParameterView.FromDictionary(parameters)));
         return renderer;

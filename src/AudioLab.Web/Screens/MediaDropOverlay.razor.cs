@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>Covers the session while files are dragged over it, so the drop lands on a file chooser that hands the files to the media library.</summary>
+/// <summary>Covers the page while files are dragged over it, so the drop lands on a chooser that hands the files to the media library.</summary>
 /// <remarks>A drop on the chooser itself is the one way the browser gives a page the files of a drop without a script.</remarks>
 public sealed partial class MediaDropOverlay
 {

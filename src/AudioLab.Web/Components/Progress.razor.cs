@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue progress, attached to the thing that is busy: an accent bar in a well for a known share, a spinner for an unknown one.</summary>
+/// <summary>The catalogue progress, attached to what is busy: an accent bar in a well for a known share, a spinner for an unknown one.</summary>
 public sealed partial class Progress
 {
     /// <summary>What is busy, as a screen reader says it, such as "Uploading kick.wav".</summary>

@@ -41,9 +41,14 @@ builder.Services.AddSingleton<CommandSender>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<SessionClient>();
 builder.Services.AddScoped<ProjectApi>();
-builder.Services.AddScoped<MediaApi>();
+// A large upload takes as long as it takes: its client has no timeout, and only the user stops it.
+builder.Services.AddScoped(provider => new MediaApi(
+    provider.GetRequiredService<HttpClient>(),
+    new HttpClient { BaseAddress = site, Timeout = Timeout.InfiniteTimeSpan }));
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<MediaDragState>();
+builder.Services.AddScoped<MediaAdder>();
+builder.Services.AddScoped<TimelineZoom>();
 builder.Services.AddScoped<MediaDragger>();
 builder.Services.AddScoped<SessionPlayhead>();
 builder.Services.AddScoped<ProjectRenamer>();

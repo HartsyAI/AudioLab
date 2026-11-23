@@ -52,7 +52,7 @@ public sealed class SessionEditor(LiveProject live)
         });
     }
 
-    /// <summary>Adds a media file as a clip: one gesture of one command, one undo step, with the file's own duration sent as the server measured it.</summary>
+    /// <summary>Adds a media file as a clip: one gesture of one command, one undo step, with the duration the server measured.</summary>
     public Task<EditResult> AddClipAsync(MediaPlacement placement)
     {
         string name = Path.GetFileNameWithoutExtension(placement.File.Name);
