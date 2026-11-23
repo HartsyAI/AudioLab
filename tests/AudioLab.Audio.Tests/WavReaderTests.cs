@@ -1,16 +1,17 @@
 using System.Buffers.Binary;
+using AudioLab.Audio.Tests.Support;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
-using AudioLab.Server.Media;
 
-namespace AudioLab.Server.Tests;
+namespace AudioLab.Audio.Tests;
 
 public sealed class WavReaderTests
 {
-    private static WavFormat Read(byte[] file) => WavReader.Read(new MemoryStream(file));
+    private static WavHeader Read(byte[] file) => WavReader.Read(new MemoryStream(file));
 
     private static void Refused(byte[] file, string reason)
     {
-        MediaRejectedException error = Assert.Throws<MediaRejectedException>(() => Read(file));
+        WavFormatException error = Assert.Throws<WavFormatException>(() => Read(file));
         Assert.Contains(reason, error.Message, StringComparison.Ordinal);
     }
 
@@ -24,7 +25,7 @@ public sealed class WavReaderTests
     [InlineData(SampleEncoding.Float32, 6, 48000, true)]
     public void EveryAcceptedEncodingIsReadWithItsMeasuredShape(SampleEncoding encoding, int channels, int rate, bool extensible)
     {
-        WavFormat format = Read(TestWav.Build(encoding, channels, rate, 1000, extensible: extensible));
+        WavHeader format = Read(TestWav.Build(encoding, channels, rate, 1000, extensible: extensible));
         Assert.Equal(encoding, format.Encoding);
         Assert.Equal(channels, format.Channels);
         Assert.Equal(rate, format.SampleRate);
@@ -69,7 +70,7 @@ public sealed class WavReaderTests
         byte[] whole = TestWav.Build(SampleEncoding.Pcm16, 2, 48000, 100);
         foreach (int cut in new[] { 12, 15, 20, 36, 44, 100, whole.Length - 1 })
         {
-            Assert.Throws<MediaRejectedException>(() => Read(whole[..cut]));
+            Assert.Throws<WavFormatException>(() => Read(whole[..cut]));
         }
     }
 
@@ -136,7 +137,7 @@ public sealed class WavReaderTests
     public void CompressedAndUnknownFormatTagsAreRefusedAndSaySoWithTheAcceptedList(int tag, string label)
     {
         byte[] fmt = TestWav.Chunk("fmt ", TestWav.Fmt((ushort)tag, 1, 48000, 96000, 2, 16));
-        MediaRejectedException error = Assert.Throws<MediaRejectedException>(() => Read(TestWav.Riff(fmt, TestWav.Chunk("data", new byte[20]))));
+        WavFormatException error = Assert.Throws<WavFormatException>(() => Read(TestWav.Riff(fmt, TestWav.Chunk("data", new byte[20]))));
         Assert.Contains("16, 24 or 32-bit PCM or 32-bit float", error.Message, StringComparison.Ordinal);
         Assert.NotEmpty(label);
     }
@@ -151,7 +152,7 @@ public sealed class WavReaderTests
     {
         int blockAlign = bits / 8;
         byte[] fmt = TestWav.Chunk("fmt ", TestWav.Fmt((ushort)tag, 1, 48000, 48000 * blockAlign, blockAlign, bits));
-        Assert.Throws<MediaRejectedException>(() => Read(TestWav.Riff(fmt, TestWav.Chunk("data", new byte[64]))));
+        Assert.Throws<WavFormatException>(() => Read(TestWav.Riff(fmt, TestWav.Chunk("data", new byte[64]))));
     }
 
     [Theory]
@@ -211,7 +212,7 @@ public sealed class WavReaderTests
         byte[] oddNoPad = [.. "junk"u8, 3, 0, 0, 0, 1, 2, 3];
         byte[] data = TestWav.Chunk("data", [.. Enumerable.Repeat((byte)0x55, 200)]);
         byte[] file = TestWav.Riff(TestWav.Format(SampleEncoding.Pcm16, 1, 48000), oddNoPad, data);
-        MediaRejectedException error = Assert.Throws<MediaRejectedException>(() => Read(file));
+        WavFormatException error = Assert.Throws<WavFormatException>(() => Read(file));
         Assert.Contains("pad byte", error.Message, StringComparison.Ordinal);
     }
 
@@ -222,9 +223,9 @@ public sealed class WavReaderTests
         {
             byte[] file = TestWav.Build(SampleEncoding.Float32, 2, 48000, 5000, (frame, _) => frame == 4321 ? bad : 0.25);
             using MemoryStream stream = new(file);
-            WavFormat format = WavReader.Read(stream);
+            WavHeader format = WavReader.Read(stream);
             Task Scan() => WavReader.RequireFiniteAsync(stream, format, CancellationToken.None);
-            MediaRejectedException error = await Assert.ThrowsAsync<MediaRejectedException>(Scan);
+            WavFormatException error = await Assert.ThrowsAsync<WavFormatException>(Scan);
             Assert.Contains("not a finite number", error.Message, StringComparison.Ordinal);
         }
         byte[] good = TestWav.Build(SampleEncoding.Float32, 2, 48000, 5000, (frame, _) => frame % 2 == 0 ? 1e30 : -1e-40);

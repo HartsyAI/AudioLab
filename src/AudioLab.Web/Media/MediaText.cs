@@ -1,5 +1,6 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Media;
 
@@ -19,19 +20,7 @@ public static class MediaText
     }
 
     /// <summary>The file's size with a binary unit, such as 258 KiB or 12.4 MiB.</summary>
-    public static string Size(long bytes)
-    {
-        string[] units = ["B", "KiB", "MiB", "GiB"];
-        double value = Math.Max(0, bytes);
-        int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-        string number = unit == 0 || value >= 100 ? value.ToString("0", CultureInfo.InvariantCulture) : value.ToString("0.#", CultureInfo.InvariantCulture);
-        return $"{number} {units[unit]}";
-    }
+    public static string Size(long bytes) => UploadChecks.Size(bytes);
 
     /// <summary>The sample format and rate and the channels, such as 16-bit 44.1 kHz stereo.</summary>
     public static string Format(MediaSummary file)

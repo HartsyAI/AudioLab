@@ -51,9 +51,32 @@ public sealed partial class MediaItem
     /// <summary>The id of a file's row, so the list can move the focus to it.</summary>
     public static string IdOf(string file) => $"media-{file}";
 
+    // A row is drawn again only when something it shows changed: a clock tick or a progress report for another row costs it nothing.
+    private (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) _shown;
+
+    private bool _drawn;
+
     private string ElementId => IdOf(File!.Id);
 
     private string Description => $"{File!.Name}, {MediaText.Length(File.Duration)} long, {MediaText.Format(File)}, {MediaText.Size(File.Bytes)}";
+
+    /// <inheritdoc />
+    protected override bool ShouldRender()
+    {
+        (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) now = (
+            File,
+            Job,
+            Selected,
+            TabStop,
+            Job?.State,
+            Job is null ? 0 : (int)(Job.Fraction * 100),
+            Job?.Failure,
+            Job is { State: UploadState.Sending } ? (long)(Now - (Job.SendingSince ?? Now)).TotalSeconds : 0);
+        bool same = _drawn && Equals(_shown.Item1, now.Item1) && ReferenceEquals(_shown.Item2, now.Item2) && _shown == now;
+        _shown = now;
+        _drawn = true;
+        return !same;
+    }
 
     private string StateName => Job!.State.ToString().ToLowerInvariant();
 

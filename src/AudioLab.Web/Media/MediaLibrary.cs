@@ -28,6 +28,19 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
 
     private Task? _loading;
 
+    // Counts what changed the files on the server, so a read that began before a change is never taken for the list after it.
+    private int _version;
+
+    private bool _refreshing;
+
+    private bool _refreshAgain;
+
+    private readonly List<(string Name, string Reason)> _failed = [];
+
+    private readonly List<string> _added = [];
+
+    private int _sameName;
+
     /// <summary>Raised when the list, the uploads or the state changed.</summary>
     public event Action? Changed;
 
@@ -55,13 +68,18 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         return _loading is { IsCompleted: false } running ? running : _loading = ReadAsync(cancellationToken);
     }
 
-    /// <summary>Starts uploading the chosen files, a few at a time, and returns their jobs at once; each file's outcome shows in <see cref="Uploads"/> and in a toast.</summary>
+    /// <summary>Starts uploading the chosen files, a few at a time, and returns their jobs; each outcome shows in <see cref="Uploads"/>.</summary>
     public IReadOnlyList<UploadJob> Add(IEnumerable<IUploadSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
         List<UploadJob> added = [];
+        HashSet<string> names = [.. _files.Select(file => file.Name)];
         foreach (IUploadSource source in sources)
         {
+            if (!names.Add(source.Name))
+            {
+                _sameName++;
+            }
             UploadJob job;
             lock (_gate)
             {
@@ -69,6 +87,10 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
                 _uploads.Add(job);
             }
             added.Add(job);
+        }
+        // Every job of the batch is listed before the first one starts, so a job that ends at once does not end the batch.
+        foreach (UploadJob job in added)
+        {
             _ = RunAsync(job);
         }
         Changed?.Invoke();
@@ -90,7 +112,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         }
     }
 
-    /// <summary>Stops an upload that is waiting or running, or removes a refused one from the list; the server keeps nothing of a stopped upload.</summary>
+    /// <summary>Stops an upload that is waiting or running, or removes a refused one; the server keeps nothing of a stopped upload.</summary>
     public void Cancel(long job)
     {
         UploadJob? target = _uploads.Find(candidate => candidate.Id == job);
@@ -120,6 +142,50 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         lock (_gate)
         {
             _files = [.. _files.Where(candidate => candidate.Id != file.Id)];
+            _version++;
+        }
+        Changed?.Invoke();
+        _ = RefreshAsync();
+    }
+
+    /// <summary>Reads the list again without showing a load, as the tab opens and after an upload or delete; a failure keeps the list.</summary>
+    public Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        if (State != LibraryState.Ready)
+        {
+            return LoadAsync(cancellationToken);
+        }
+        if (_refreshing)
+        {
+            _refreshAgain = true;
+            return Task.CompletedTask;
+        }
+        return KeepFreshAsync(cancellationToken);
+    }
+
+    private async Task KeepFreshAsync(CancellationToken cancellationToken)
+    {
+        _refreshing = true;
+        try
+        {
+            do
+            {
+                _refreshAgain = false;
+                try
+                {
+                    await ApplyAsync(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    // The list on the screen is still right as far as the page knows; the reason is for the console, not for the user.
+                    MediaLog.ListFailed(log, exception);
+                }
+            }
+            while (_refreshAgain && !cancellationToken.IsCancellationRequested);
+        }
+        finally
+        {
+            _refreshing = false;
         }
         Changed?.Invoke();
     }
@@ -131,18 +197,12 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         Changed?.Invoke();
         try
         {
-            MediaListing listing = await api.ListAsync(cancellationToken);
-            HashSet<string> listed = [.. listing.Files.Select(file => file.Id)];
-            lock (_gate)
-            {
-                _files = [.. _addedBeforeReady.Where(file => !listed.Contains(file.Id)).Reverse(), .. listing.Files];
-                _addedBeforeReady.Clear();
-            }
-            Refused = listing.Refused;
+            await ApplyAsync(cancellationToken);
             State = LibraryState.Ready;
         }
         catch (OperationCanceledException)
         {
+            // Only the caller stops a read: the panel went, and the next one to open it reads again.
             State = LibraryState.NotLoaded;
         }
         catch (Exception exception)
@@ -151,6 +211,28 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             Failure = FailureText.Of(exception);
             State = LibraryState.Failed;
         }
+        Changed?.Invoke();
+    }
+
+    // A read that began before a change on the server is read again, so a stale answer never undoes a delete or hides an upload.
+    private async Task ApplyAsync(CancellationToken cancellationToken)
+    {
+        MediaListing listing;
+        int version;
+        int attempts = 0;
+        do
+        {
+            version = _version;
+            listing = await api.ListAsync(cancellationToken);
+        }
+        while (version != _version && ++attempts < 3);
+        HashSet<string> listed = [.. listing.Files.Select(file => file.Id)];
+        lock (_gate)
+        {
+            _files = [.. _addedBeforeReady.Where(file => !listed.Contains(file.Id)).Reverse(), .. listing.Files];
+            _addedBeforeReady.Clear();
+        }
+        Refused = listing.Refused;
         Changed?.Invoke();
     }
 
@@ -165,6 +247,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         catch (OperationCanceledException)
         {
             Remove(job);
+            Settle();
             return;
         }
         try
@@ -181,19 +264,23 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             MediaSummary created = await SendAsync(job, cancellation.Token);
             lock (_gate)
             {
+                _version++;
                 _files = [created, .. _files.Where(file => file.Id != created.Id)];
                 if (State != LibraryState.Ready)
                 {
                     _addedBeforeReady.Add(created);
                 }
             }
+            _added.Add(created.Name);
             Remove(job);
+            _ = RefreshAsync();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
+            // The user stopped it; any other cancellation is a failure to report, and the client turns those into other exceptions.
             Remove(job);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception)
         {
             MediaLog.UploadFailed(log, exception);
             Fail(job, FailureText.Of(exception));
@@ -202,6 +289,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         {
             job.Cancellation = null;
             _slots.Release();
+            Settle();
         }
     }
 
@@ -220,8 +308,12 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         return await api.UploadAsync(job.Name, job.Source.Open(), job.Length, progress, cancellationToken);
     }
 
-    private static async Task<string?> CheckAsync(IUploadSource source)
+    private async Task<string?> CheckAsync(IUploadSource source)
     {
+        if (source.Length > api.MaxUploadBytes)
+        {
+            return UploadChecks.TooLarge(source.Length, api.MaxUploadBytes);
+        }
         IReadOnlyList<string> name = MediaValidator.ValidateName(source.Name);
         if (name.Count > 0)
         {
@@ -248,8 +340,39 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
     {
         job.State = UploadState.Failed;
         job.Failure = reason;
-        toasts.Show(ToastKind.Error, $"{job.Name} was not added. {reason}");
+        _failed.Add((job.Name, reason));
         Changed?.Invoke();
+    }
+
+    // When nothing is waiting or running, the files added and the files not added are each said once, not one toast for each file.
+    private void Settle()
+    {
+        if (_uploads.Exists(job => job.State != UploadState.Failed))
+        {
+            return;
+        }
+        if (_added.Count > 0)
+        {
+            string same = _sameName switch
+            {
+                0 => string.Empty,
+                1 => " One has the name of a file you already had.",
+                _ => $" {_sameName} have the names of files you already had.",
+            };
+            string text = _added.Count == 1 ? $"{_added[0]} was added." : $"{_added.Count} files were added.";
+            toasts.Show(ToastKind.Success, text + same);
+        }
+        if (_failed.Count > 0)
+        {
+            (string name, string reason) = _failed[0];
+            string text = _failed.Count == 1
+                ? $"{name} was not added. {reason}"
+                : $"{_failed.Count} files were not added; they are listed in the Media tab. The first, {name}: {reason}";
+            toasts.Show(ToastKind.Error, text);
+        }
+        _added.Clear();
+        _failed.Clear();
+        _sameName = 0;
     }
 
     private void Remove(UploadJob job)

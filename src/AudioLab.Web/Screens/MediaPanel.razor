@@ -1,6 +1,9 @@
 @implements IDisposable
 
-<div class="media-panel">
+@{
+    MediaListView view = View;
+}
+<div id="media-panel" class="media-panel" tabindex="-1">
     <header class="media-bar">
         <span class="media-count" role="status">@CountText</span>
         <span class="media-hint">Drop WAV files anywhere on the page to add them.</span>
@@ -27,15 +30,22 @@
     }
     else
     {
-        <ul class="media-list" aria-label="Media files">
+        <ul id="media-list" class="media-list" aria-label="Media files">
             @foreach (UploadJob job in Library.Uploads)
             {
                 <MediaItem @key="job.Id" Job="job" Now="Now" OnCancel="CancelUpload" OnRetry="RetryUpload" />
             }
-            @foreach (MediaSummary file in Library.Files)
+            @foreach (MediaSummary file in view.Visible)
             {
-                <MediaItem @key="file.Id" File="file" Selected="file.Id == _selected" TabStop="file.Id == TabStopId" OnSelect="Select"
+                <MediaItem @key="file.Id" File="file" Selected="file.Id == _selected" TabStop="file.Id == view.TabStopId" OnSelect="Select"
                            OnKey="KeyAsync" OnDelete="BeginDelete" />
+            }
+            @if (view.Hidden > 0)
+            {
+                <li class="media-more">
+                    <Button OnClick="ShowMore">Show @Math.Min(MediaListView.PageSize, view.Hidden) more</Button>
+                    <span class="media-more-count">@view.Hidden not shown</span>
+                </li>
             }
         </ul>
     }

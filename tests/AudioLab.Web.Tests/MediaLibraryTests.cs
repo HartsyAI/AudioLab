@@ -8,15 +8,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>Holds the media library tests: the list, uploads, refusals, cancelling and delete.</summary>
+/// <summary>Holds the media library tests: the list, uploads, refusals, cancelling, timeouts and delete.</summary>
 public sealed class MediaLibraryTests
 {
     private static readonly Uri _site = new("http://audiolab.test/");
-
-    private static string Summary(string id, string name) =>
-        $"{{\"id\":\"{id}\",\"name\":\"{name}\",\"kind\":\"audio\",\"format\":\"wav\",\"encoding\":\"pcm16\",\"duration\":1.5,"
-        + "\"sampleRate\":44100,\"channels\":2,\"bytes\":264644,"
-        + "\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"created\":\"2026-11-22T10:00:00+00:00\"}";
 
     private static byte[] Wav(int length)
     {
@@ -27,15 +22,10 @@ public sealed class MediaLibraryTests
         return bytes;
     }
 
-    private static HttpResponseMessage Json(HttpStatusCode status, string body, string type = "application/json")
-    {
-        return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, type) };
-    }
-
-    private static (MediaLibrary Library, ToastService Toasts) Library(HttpMessageHandler handler)
+    private static (MediaLibrary Library, ToastService Toasts) Library(FakeMediaServer server)
     {
         ToastService toasts = new(TimeProvider.System);
-        MediaApi api = new(new HttpClient(handler) { BaseAddress = _site });
+        MediaApi api = new(new HttpClient(server, false) { BaseAddress = _site }, new HttpClient(server, false) { BaseAddress = _site });
         return (new MediaLibrary(api, toasts, TimeProvider.System, NullLogger<MediaLibrary>.Instance), toasts);
     }
 
@@ -52,85 +42,93 @@ public sealed class MediaLibraryTests
     [Fact]
     public async Task TheListIsReadAndAFailedReadCanBeRepeated()
     {
-        bool fail = true;
-        RecordingHandler handler = new(_ => fail
-            ? Json(HttpStatusCode.ServiceUnavailable, "{\"title\":\"The media store is not available; try again.\"}", "application/problem+json")
-            : Json(HttpStatusCode.OK, $"{{\"files\":[{Summary("m2", "b.wav")},{Summary("m1", "a.wav")}],\"refused\":1}}"));
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new(["m1", "m2"]) { ListStatus = HttpStatusCode.ServiceUnavailable };
+        (MediaLibrary library, _) = Library(server);
 
         await library.LoadAsync();
 
         Assert.Equal(LibraryState.Failed, library.State);
         Assert.Equal("The media store is not available; try again.", library.Failure);
-        fail = false;
+        server.ListStatus = HttpStatusCode.OK;
         await library.LoadAsync();
         Assert.Equal(LibraryState.Ready, library.State);
         Assert.Equal(["m2", "m1"], library.Files.Select(file => file.Id));
-        Assert.Equal(1, library.Refused);
         Assert.Equal("a.wav", library.Find("m1")?.Name);
     }
 
-    /// <summary>An uploaded file appears first in the list with the server's own measurements, and its upload row goes.</summary>
+    /// <summary>A list read that times out is a failure with a reason and Try again, not a list that stays unloaded.</summary>
     [Fact]
-    public async Task AnUploadedFileAppearsFirstAndItsRowGoes()
+    public async Task AListReadThatTimesOutIsAFailureWithAReason()
     {
-        byte[] file = Wav(300_000);
-        RecordingHandler handler = new(request => request.Method == HttpMethod.Post
-            ? Json(HttpStatusCode.Created, Summary("m9", "kick.wav"))
-            : Json(HttpStatusCode.OK, $"{{\"files\":[{Summary("m1", "a.wav")}],\"refused\":0}}"));
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new([]) { TimeOut = HttpMethod.Get };
+        (MediaLibrary library, _) = Library(server);
+
         await library.LoadAsync();
 
-        library.Add([new FakeSource("kick.wav", file)]);
-        await UntilAsync(() => library.Uploads.Count == 0);
-
-        Assert.Equal(["m9", "m1"], library.Files.Select(item => item.Id));
-        SentRequest sent = handler.Requests.Single(request => request.Method == HttpMethod.Post);
-        Assert.Equal("/api/media?name=kick.wav", sent.Path);
-        Assert.Equal(file, sent.Body);
+        Assert.Equal(LibraryState.Failed, library.State);
+        Assert.Equal("The server took too long to answer. Try again.", library.Failure);
+        server.TimeOut = null;
+        await library.LoadAsync();
+        Assert.Equal(LibraryState.Ready, library.State);
     }
 
-    /// <summary>A file that is not a WAV file is refused before anything is sent, with a reason, in the row and in a toast that stays.</summary>
+    /// <summary>An uploaded file appears first, its row goes, and the list is read again so what the server holds is what is shown.</summary>
+    [Fact]
+    public async Task AnUploadedFileAppearsFirstItsRowGoesAndTheListIsReadAgain()
+    {
+        FakeMediaServer server = new(["m1"]);
+        (MediaLibrary library, ToastService toasts) = Library(server);
+        await library.LoadAsync();
+        int reads = server.Reads;
+
+        library.Add([new FakeSource("kick.wav", Wav(300_000))]);
+        await UntilAsync(() => library.Uploads.Count == 0 && server.Reads > reads);
+
+        Assert.Equal(["m2", "m1"], library.Files.Select(item => item.Id));
+        Assert.Equal(("/api/media?name=kick.wav", 300_000), (server.Uploads.Single().Path, server.Uploads.Single().Body.Length));
+        Assert.Equal("kick.wav was added.", Assert.Single(toasts.Items).Message);
+    }
+
+    /// <summary>A file that is not a WAV file is refused before anything is sent, with a reason, in the row and in one toast that stays.</summary>
     [Fact]
     public async Task AFileThatIsNotWavIsRefusedBeforeAnythingIsSent()
     {
-        RecordingHandler handler = new(_ => Json(HttpStatusCode.Created, Summary("m9", "x.wav")));
-        (MediaLibrary library, ToastService toasts) = Library(handler);
+        FakeMediaServer server = new([]);
+        (MediaLibrary library, ToastService toasts) = Library(server);
 
         library.Add([new FakeSource("notes.wav", Encoding.ASCII.GetBytes(new string('x', 100)))]);
         await UntilAsync(() => library.Uploads.Any(job => job.State == UploadState.Failed));
 
         UploadJob job = library.Uploads.Single();
         Assert.Equal("Only WAV files can be added, and this is not one.", job.Failure);
-        Assert.Empty(handler.Requests);
+        Assert.Empty(server.Uploads);
         ToastItem toast = Assert.Single(toasts.Items);
         Assert.Equal(ToastKind.Error, toast.Kind);
         Assert.Equal("notes.wav was not added. Only WAV files can be added, and this is not one.", toast.Message);
     }
 
-    /// <summary>A name the server would refuse is refused here, with the same words.</summary>
+    /// <summary>A name the server would refuse is refused here, with the same words, and a file over the limit is refused unread.</summary>
     [Fact]
-    public async Task ANameTheServerWouldRefuseIsRefusedHere()
+    public async Task ANameTheServerWouldRefuseAndAFileOverTheLimitAreRefusedHere()
     {
-        RecordingHandler handler = new(_ => Json(HttpStatusCode.Created, Summary("m9", "x.wav")));
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new([]);
+        (MediaLibrary library, _) = Library(server);
 
-        library.Add([new FakeSource(new string('n', ProjectLimits.MaxName + 1), Wav(100))]);
-        await UntilAsync(() => library.Uploads.Any(job => job.State == UploadState.Failed));
+        string longName = new('n', ProjectLimits.MaxName + 1);
+        library.Add([new FakeSource(longName, Wav(100)), new BigSource("huge.wav", MediaApi.DefaultMaxUploadBytes + 1)]);
+        await UntilAsync(() => library.Uploads.Count(job => job.State == UploadState.Failed) == 2);
 
-        Assert.StartsWith("The name is not valid:", library.Uploads.Single().Failure, StringComparison.Ordinal);
-        Assert.Empty(handler.Requests);
+        Assert.StartsWith("The name is not valid:", library.Uploads[0].Failure, StringComparison.Ordinal);
+        Assert.Equal("The file is too large: it is 512 MiB and the server accepts at most 512 MiB.", library.Uploads[1].Failure);
+        Assert.Empty(server.Uploads);
     }
 
     /// <summary>A refusal by the server shows its words, and Try again sends the same file again.</summary>
     [Fact]
     public async Task ARefusalShowsTheServersWordsAndTryAgainSendsTheFileAgain()
     {
-        int posts = 0;
-        RecordingHandler handler = new(_ => ++posts == 1
-            ? Json(HttpStatusCode.Conflict, "{\"title\":\"You already have 5000 media files, the most allowed; delete one first.\"}", "application/problem+json")
-            : Json(HttpStatusCode.Created, Summary("m9", "kick.wav")));
-        (MediaLibrary library, ToastService toasts) = Library(handler);
+        FakeMediaServer server = new([]) { NextUploads = [HttpStatusCode.Conflict] };
+        (MediaLibrary library, ToastService toasts) = Library(server);
 
         library.Add([new FakeSource("kick.wav", Wav(200))]);
         await UntilAsync(() => library.Uploads.Any(job => job.State == UploadState.Failed));
@@ -139,96 +137,162 @@ public sealed class MediaLibraryTests
         Assert.Contains("the most allowed", Assert.Single(toasts.Items).Message, StringComparison.Ordinal);
         library.Retry(library.Uploads.Single().Id);
         await UntilAsync(() => library.Uploads.Count == 0);
-        Assert.Equal("m9", library.Files.Single().Id);
-        Assert.Equal(2, posts);
+        Assert.Equal("m1", library.Files.Single().Id);
+        Assert.Equal(2, server.Uploads.Count);
     }
 
-    /// <summary>A refused row is dismissed with cancel, and cancelling a running upload stops the request and raises no failure.</summary>
+    /// <summary>Cancelling a running upload stops the request and raises no failure; cancelling a refused row dismisses it.</summary>
     [Fact]
-    public async Task CancellingARunningUploadStopsItAndRaisesNoFailure()
+    public async Task CancellingARunningUploadStopsItAndDismissingARefusedRowRemovesIt()
     {
-        TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        GateHandler handler = new(async (_, cancellation) =>
-        {
-            started.TrySetResult();
-            await Task.Delay(Timeout.Infinite, cancellation);
-            return Json(HttpStatusCode.Created, Summary("m9", "x.wav"));
-        });
-        (MediaLibrary library, ToastService toasts) = Library(handler);
-
+        FakeMediaServer server = new([]) { Stall = true };
+        (MediaLibrary library, ToastService toasts) = Library(server);
         library.Add([new FakeSource("long.wav", Wav(500))]);
-        await started.Task;
+        await UntilAsync(() => server.Stalled);
+
         library.Cancel(library.Uploads.Single().Id);
         await UntilAsync(() => library.Uploads.Count == 0);
 
         Assert.Empty(toasts.Items);
         Assert.Empty(library.Files);
+        library.Add([new FakeSource("bad.wav", Encoding.ASCII.GetBytes(new string('x', 100)))]);
+        await UntilAsync(() => library.Uploads.Any(job => job.State == UploadState.Failed));
+        library.Cancel(library.Uploads.Single().Id);
+        Assert.Empty(library.Uploads);
     }
 
-    /// <summary>No more than three uploads run at once, so a fourth window or tab still gets one of the server's four.</summary>
+    /// <summary>An upload that the browser ends on its own stays as a refused row with the reason; only the user cancel removes a row.</summary>
+    [Fact]
+    public async Task AnUploadThatTheBrowserEndsOnItsOwnStaysAsARefusedRow()
+    {
+        FakeMediaServer server = new([]) { TimeOut = HttpMethod.Post };
+        (MediaLibrary library, ToastService toasts) = Library(server);
+
+        library.Add([new FakeSource("kick.wav", Wav(500))]);
+        await UntilAsync(() => library.Uploads.Any(job => job.State == UploadState.Failed));
+
+        Assert.Equal(UploadInterruptedException.GaveUp, library.Uploads.Single().Failure);
+        Assert.Contains("kick.wav was not added.", Assert.Single(toasts.Items).Message, StringComparison.Ordinal);
+        server.TimeOut = null;
+        library.Retry(library.Uploads.Single().Id);
+        await UntilAsync(() => library.Uploads.Count == 0);
+        Assert.Equal("m1", library.Files.Single().Id);
+    }
+
+    /// <summary>No more than three uploads run at once, so a fourth window or tab still gets one of the server four.</summary>
     [Fact]
     public async Task NoMoreThanThreeUploadsRunAtOnce()
     {
-        int running = 0;
-        int most = 0;
-        int done = 0;
-        GateHandler handler = new(async (_, _) =>
-        {
-            int now = Interlocked.Increment(ref running);
-            most = Math.Max(most, now);
-            await Task.Delay(30);
-            Interlocked.Decrement(ref running);
-            return Json(HttpStatusCode.Created, Summary($"m{Interlocked.Increment(ref done)}", "x.wav"));
-        });
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new([]) { UploadDelay = TimeSpan.FromMilliseconds(30) };
+        (MediaLibrary library, _) = Library(server);
 
         library.Add(Enumerable.Range(0, 8).Select(index => new FakeSource($"f{index}.wav", Wav(100))));
         await UntilAsync(() => library.Files.Count == 8);
 
-        Assert.Equal(3, most);
+        Assert.Equal(3, server.MostAtOnce);
+    }
+
+    /// <summary>The files and the failures of one batch are each said once: one toast of each kind, however many files there were.</summary>
+    [Fact]
+    public async Task TheFilesAndTheFailuresOfOneBatchAreEachSaidOnce()
+    {
+        FakeMediaServer server = new(["m1"]);
+        (MediaLibrary library, ToastService toasts) = Library(server);
+        await library.LoadAsync();
+
+        library.Add(
+        [
+            new FakeSource("a.wav", Wav(100)),
+            new FakeSource("b.wav", Wav(100)),
+            new FakeSource("c.wav", Wav(100)),
+            new FakeSource("bad1.wav", Encoding.ASCII.GetBytes(new string('x', 100))),
+            new FakeSource("bad2.wav", Encoding.ASCII.GetBytes(new string('y', 100))),
+        ]);
+        await UntilAsync(() => toasts.Items.Count == 2);
+
+        Assert.Equal("3 files were added. One has the name of a file you already had.", toasts.Items[0].Message);
+        Assert.Equal(ToastKind.Success, toasts.Items[0].Kind);
+        Assert.Equal(ToastKind.Error, toasts.Items[1].Kind);
+        Assert.StartsWith("2 files were not added; they are listed in the Media tab. The first, bad1.wav:", toasts.Items[1].Message, Ordinal);
     }
 
     /// <summary>A file that finished uploading before the first read of the list came back is kept by that read.</summary>
     [Fact]
     public async Task AFileThatFinishedBeforeTheFirstReadIsKept()
     {
-        RecordingHandler handler = new(request => request.Method == HttpMethod.Post
-            ? Json(HttpStatusCode.Created, Summary("m9", "kick.wav"))
-            : Json(HttpStatusCode.OK, $"{{\"files\":[{Summary("m1", "a.wav")}],\"refused\":0}}"));
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new(["m1"]);
+        (MediaLibrary library, _) = Library(server);
 
         library.Add([new FakeSource("kick.wav", Wav(100))]);
         await UntilAsync(() => library.Uploads.Count == 0);
         await library.LoadAsync();
 
-        Assert.Equal(["m9", "m1"], library.Files.Select(file => file.Id));
+        Assert.Equal(["m2", "m1"], library.Files.Select(file => file.Id));
     }
 
-    /// <summary>A delete removes the file from the list, a file already gone counts as deleted, and a refusal keeps the file and says why.</summary>
+    /// <summary>A read that began before a delete and answers after it never brings the deleted file back.</summary>
     [Fact]
-    public async Task ADeleteRemovesTheFileAndARefusalKeepsIt()
+    public async Task AReadThatBeganBeforeADeleteNeverBringsTheDeletedFileBack()
     {
-        string list = $"{{\"files\":[{Summary("m3", "c.wav")},{Summary("m2", "b.wav")},{Summary("m1", "a.wav")}],\"refused\":0}}";
-        RecordingHandler handler = new(request => request.Method == HttpMethod.Get
-            ? Json(HttpStatusCode.OK, list)
-            : request.RequestUri!.AbsolutePath.EndsWith("m3", StringComparison.Ordinal)
-                ? new HttpResponseMessage(HttpStatusCode.NoContent)
-                : request.RequestUri.AbsolutePath.EndsWith("m2", StringComparison.Ordinal)
-                    ? Json(HttpStatusCode.NotFound, "{\"title\":\"There is no such media file.\"}", "application/problem+json")
-                    : Json(
-                        HttpStatusCode.Conflict,
-                        "{\"title\":\"The file is still used by your project \\\"Song\\\"; remove it from your projects before deleting it.\"}",
-                        "application/problem+json"));
-        (MediaLibrary library, _) = Library(handler);
+        FakeMediaServer server = new(["m1", "m2"]);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.HoldFirstList = release.Task;
+        (MediaLibrary library, _) = Library(server);
+
+        Task load = library.LoadAsync();
+        await UntilAsync(() => server.Reads == 1);
+        await library.DeleteAsync(library.Find("m1") ?? Gone("m1"));
+        release.SetResult();
+        await load;
+
+        Assert.Equal(["m2"], library.Files.Select(file => file.Id));
+    }
+
+    /// <summary>A delete removes the file, one already gone counts as deleted, a refusal keeps it and a timeout is thrown for the dialog.</summary>
+    [Fact]
+    public async Task ADeleteRemovesTheFileAndARefusalOrATimeoutKeepsIt()
+    {
+        FakeMediaServer server = new(["m1", "m2", "m3"]) { InUse = ["m1"], Gone = ["m2"] };
+        (MediaLibrary library, _) = Library(server);
         await library.LoadAsync();
 
         await library.DeleteAsync(library.Find("m3")!);
         await library.DeleteAsync(library.Find("m2")!);
         ApiException refused = await Assert.ThrowsAsync<ApiException>(() => library.DeleteAsync(library.Find("m1")!));
+        server.TimeOut = HttpMethod.Delete;
+        TimeoutException slow = await Assert.ThrowsAsync<TimeoutException>(() => library.DeleteAsync(library.Find("m1")!));
 
         Assert.Equal(["m1"], library.Files.Select(file => file.Id));
         Assert.Equal(HttpStatusCode.Conflict, refused.Status);
         Assert.Contains("still used by your project \"Song\"", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("The server took too long to answer. Try again.", FailureText.Of(slow));
+    }
+
+    /// <summary>Reading the list again keeps what is shown when the read fails, and takes the server list when it answers.</summary>
+    [Fact]
+    public async Task ReadingTheListAgainKeepsWhatIsShownWhenTheReadFails()
+    {
+        FakeMediaServer server = new(["m1"]);
+        (MediaLibrary library, _) = Library(server);
+        await library.LoadAsync();
+        server.Add("m2", "b.wav");
+
+        server.ListStatus = HttpStatusCode.ServiceUnavailable;
+        await library.RefreshAsync();
+        Assert.Equal(["m1"], library.Files.Select(file => file.Id));
+        server.ListStatus = HttpStatusCode.OK;
+        await library.RefreshAsync();
+
+        Assert.Equal(LibraryState.Ready, library.State);
+        Assert.Equal(["m2", "m1"], library.Files.Select(file => file.Id));
+    }
+
+    private const StringComparison Ordinal = StringComparison.Ordinal;
+
+    private static MediaSummary Gone(string id)
+    {
+        return new MediaSummary(
+            id, "a.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 1, 44100, 2, 1, new string('0', 64), DateTimeOffset.UnixEpoch);
     }
 
     private sealed class FakeSource(string name, byte[] bytes) : IUploadSource
@@ -240,15 +304,12 @@ public sealed class MediaLibraryTests
         public Stream Open() => new MemoryStream(bytes);
     }
 
-    private sealed class GateHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> answer) : HttpMessageHandler
+    private sealed class BigSource(string name, long length) : IUploadSource
     {
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (request.Content is not null)
-            {
-                await request.Content.ReadAsByteArrayAsync(cancellationToken);
-            }
-            return await answer(request, cancellationToken);
-        }
+        public string Name => name;
+
+        public long Length => length;
+
+        public Stream Open() => throw new InvalidOperationException("A file over the limit must not be opened.");
     }
 }

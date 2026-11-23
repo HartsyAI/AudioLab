@@ -28,6 +28,24 @@
     font-size: var(--font-size-label);
 }
 
+.media-panel:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+}
+
+.media-more {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    padding: var(--space-8) var(--space-12);
+    list-style: none;
+}
+
+.media-more-count {
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
 .media-list {
     flex: 1;
     min-height: 0;
