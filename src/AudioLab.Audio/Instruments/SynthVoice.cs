@@ -5,7 +5,7 @@ namespace AudioLab.Audio.Instruments;
 /// Allocation-free once built. Everything it does depends on the frames since its own start, never on how a render is cut into blocks:
 /// the filter is recalculated every <see cref="SynthSettings.ControlInterval"/> frames counted from the voice's start.
 /// </remarks>
-internal sealed class SynthVoice(SynthSettings settings)
+internal sealed class SynthVoice(SynthSettings settings) : InstrumentVoice
 {
     private double _phase1;
     private double _phase2;
@@ -23,17 +23,11 @@ internal sealed class SynthVoice(SynthSettings settings)
     private double _s1;
     private double _s2;
 
-    /// <summary>Where the voice is in its life.</summary>
-    public VoiceState State { get; private set; }
+    /// <inheritdoc />
+    public override double Level => _envelope;
 
-    /// <summary>The frame the voice's note started on, which is how old it is against another voice.</summary>
-    public long StartFrame { get; private set; }
-
-    /// <summary>The level of the envelope now.</summary>
-    public double Level => _envelope;
-
-    /// <summary>Starts a note at <paramref name="startFrame"/>, to be let go at <paramref name="offFrame"/>.</summary>
-    public void Start(long startFrame, long offFrame, int pitch, float velocity)
+    /// <inheritdoc />
+    public override void Start(long startFrame, long offFrame, int pitch, float velocity, long elapsed)
     {
         double frequency = SynthSettings.Frequency(pitch);
         int rate = settings.SampleRate;
@@ -49,23 +43,20 @@ internal sealed class SynthVoice(SynthSettings settings)
         _attacking = true;
         _s1 = 0;
         _s2 = 0;
-        StartFrame = startFrame;
+        StartFrame = startFrame - elapsed;
         _offFrame = offFrame;
         State = VoiceState.Held;
     }
 
-    /// <summary>Stops the voice at once and frees it.</summary>
-    public void Stop() => State = VoiceState.Free;
-
-    /// <summary>Lets a voice that is taken over for a newer note fade out over a few milliseconds instead of cutting off.</summary>
-    public void Take()
+    /// <inheritdoc />
+    public override void Take()
     {
         _fadeStep = _envelope / settings.FadeFrames;
         State = VoiceState.Fading;
     }
 
-    /// <summary>Adds <paramref name="count"/> frames of the voice, which begin at timeline frame <paramref name="startFrame"/>, to the mix.</summary>
-    public void Render(long startFrame, int count, Span<float> mix)
+    /// <inheritdoc />
+    public override void Render(long startFrame, int count, Span<float> left, Span<float> right)
     {
         for (int i = 0; i < count && State != VoiceState.Free; i++)
         {
@@ -77,7 +68,9 @@ internal sealed class SynthVoice(SynthSettings settings)
             {
                 UpdateFilter();
             }
-            mix[i] += (float)(Filter(Oscillate()) * _envelope);
+            float sample = (float)(Filter(Oscillate()) * _envelope);
+            left[i] += sample;
+            right[i] += sample;
             _age++;
             Advance();
         }

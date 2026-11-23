@@ -355,28 +355,28 @@ public sealed class SynthTests
     [Fact]
     public void ANoteThatTakesAVoiceFromTheOldestHeldNoteWhenNoneIsDying()
     {
-        (SynthSource source, float[] left, float[] right) = Rig(40, shortestOneAt: -1);
+        (PolyphonicSource source, float[] left, float[] right) = Rig(40, shortestOneAt: -1);
 
         source.Render(0, left, right);
 
-        Assert.Equal(SynthSource.MaxHeldVoices, source.CountedVoices);
-        Assert.True(source.SoundingVoices <= SynthSource.PoolSize);
+        Assert.Equal(PolyphonicSource.MaxHeldVoices, source.CountedVoices);
+        Assert.True(source.SoundingVoices <= PolyphonicSource.PoolSize);
         Assert.Equal(8 * Rate / 100, source.OldestHeldFrame);
     }
 
     [Fact]
     public void ANoteTakesTheDyingVoiceBeforeAHeldOne()
     {
-        (SynthSource source, float[] left, float[] right) = Rig(40, shortestOneAt: 30);
+        (PolyphonicSource source, float[] left, float[] right) = Rig(40, shortestOneAt: 30);
 
         source.Render(0, left, right);
 
-        Assert.Equal(SynthSource.MaxHeldVoices, source.CountedVoices);
+        Assert.Equal(PolyphonicSource.MaxHeldVoices, source.CountedVoices);
         Assert.Equal(7 * Rate / 100, source.OldestHeldFrame);
     }
 
     [Fact]
-    public void TheFactoryBuildsASourceForASynthAndNothingForASamplerOrAnInstrumentTrackWithNoInstrument()
+    public void TheFactoryBuildsASourceForASynthAndNothingForASamplerWithNoSampleOrAnInstrumentTrackWithNoInstrument()
     {
         InstrumentSourceFactory factory = new();
         ProjectDocument project = Project(Plain, Clip("a", 0, 1, []));
@@ -440,7 +440,7 @@ public sealed class SynthTests
     // What the source itself makes, before the mixer, which would hide a sample that is not a number by making it silence.
     private static float[] FromSource(SynthInstrument synth, MidiClip clip, int rate, double seconds)
     {
-        SynthSource source = new(new SynthSettings(synth, rate), NoteSchedule.Build([clip], rate));
+        PolyphonicSource source = Source(synth, rate, clip);
         float[] left = new float[(int)(seconds * rate)];
         float[] right = new float[left.Length];
         for (int done = 0; done < left.Length; done += 997)
@@ -477,12 +477,12 @@ public sealed class SynthTests
     }
 
     // A source that plays the given number of notes, one every 10 ms, each held 5 s; the one at shortestOneAt, if it is 0 or more, lasts 50 ms.
-    private static (SynthSource Source, float[] Left, float[] Right) Rig(int count, int shortestOneAt)
+    private static (PolyphonicSource Source, float[] Left, float[] Right) Rig(int count, int shortestOneAt)
     {
         SynthInstrument synth = Plain with { Release = 3, Attack = 0.001 };
         MidiNote[] notes = [.. Enumerable.Range(0, count).Select(i =>
             Note(i + 1, 40 + i, i * 0.01, i == shortestOneAt ? 0.05 : 5))];
-        SynthSource source = new(new SynthSettings(synth, Rate), NoteSchedule.Build([Clip("a", 0, 10, notes)], Rate));
+        PolyphonicSource source = Source(synth, Rate, Clip("a", 0, 10, notes));
         int frames = (count * Rate / 100) + 200;
         return (source, new float[frames], new float[frames]);
     }
@@ -496,7 +496,7 @@ public sealed class SynthTests
     public void AHeldPluckThatHasDecayedToNothingFreesItsVoiceAndLeavesExactSilence()
     {
         MidiClip clip = Clip("a", 0, 40, [Note(1, 60, 0, 35)], new MidiControlChange(0.1, 64, 127));
-        SynthSource source = Make(InstrumentPresets.CreateSynth("Pluck"), 8000, clip);
+        PolyphonicSource source = Source(InstrumentPresets.CreateSynth("Pluck"), 8000, clip);
         float[] left = new float[8000 * 30];
         float[] right = new float[left.Length];
 
@@ -513,7 +513,7 @@ public sealed class SynthTests
     public void RepeatedNotesOfOnePitchEachTakeANewVoiceAsTheOldDawDid()
     {
         MidiNote[] notes = [.. Enumerable.Range(0, 5).Select(i => Note(i + 1, 60, i * 0.01, 3))];
-        SynthSource source = Make(Plain, Rate, Clip("a", 0, 4, notes));
+        PolyphonicSource source = Source(Plain, Rate, Clip("a", 0, 4, notes));
         float[] left = new float[Rate / 10];
         float[] right = new float[left.Length];
 
@@ -537,8 +537,8 @@ public sealed class SynthTests
     {
         MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 40 + i, i * 0.01, 5))];
         MidiClip clip = Clip("a", 0, 10, notes, new MidiControlChange(0, 64, 127));
-        SynthSource continuous = Make(Plain with { Release = 3 }, Rate, clip);
-        SynthSource seeked = Make(Plain with { Release = 3 }, Rate, clip);
+        PolyphonicSource continuous = Source(Plain with { Release = 3 }, Rate, clip);
+        PolyphonicSource seeked = Source(Plain with { Release = 3 }, Rate, clip);
         float[] left = new float[(int)(0.45 * Rate)];
         float[] right = new float[left.Length];
         continuous.Render(0, left, right);
@@ -548,7 +548,4 @@ public sealed class SynthTests
         Assert.Equal(continuous.OldestHeldFrame, seeked.OldestHeldFrame);
         Assert.Equal(continuous.CountedVoices, seeked.CountedVoices);
     }
-
-    private static SynthSource Make(SynthInstrument synth, int rate, params MidiClip[] clips) =>
-        new(new SynthSettings(synth, rate), NoteSchedule.Build(clips, rate));
 }
