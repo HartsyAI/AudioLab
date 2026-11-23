@@ -12,13 +12,16 @@
         <Button Variant="ButtonVariant.Icon" Name="Redo" Shortcut="@Shortcuts.Redo.Display" Disabled="@(!Actions.CanEdit)"
                 DisabledReason="@Actions.Reason" OnClick="Actions.Redo"><Icon Name="IconName.Redo" Size="14" /></Button>
     </div>
-    <Segmented Transport="true" Label="Transport" Items="TransportItems" Wide="play" />
-    <Counter Cells="Cells" />
+    <Segmented Transport="true" Label="Transport" Items="TransportItems" Value="@(Playing ? "play" : null)" Wide="play"
+               ValueChanged="ChooseAsync" />
+    <TransportCounter Document="Document" />
     <div class="toggles">
-        <Toggle Label="Loop" Name="Loop" Disabled="true" Reason="@NotYet" />
-        <Toggle Label="Click" Name="Click" On="Document.Metronome" Disabled="true" Reason="@NotYet" />
-        <Toggle Label="Punch" Name="Punch" Disabled="true" Reason="@NotYet" />
-        <Toggle Label="Follow" Name="Follow" Disabled="true" Reason="@NotYet" />
+        <Toggle Label="Loop" Name="@LoopName" On="Playback.Looping" Disabled="@(!Playback.Available)" Reason="@PlaybackReason"
+                OnClick="ToggleLoop" />
+        <Toggle Label="Click" Name="@ClickName" On="Document.Metronome" Disabled="@(!Actions.CanEdit)" Reason="@Actions.Reason"
+                OnClick="ToggleClickAsync" />
+        <Toggle Label="Punch" Name="Punch" Disabled="true" Reason="Punching in arrives with recording, which needs the audio devices." />
+        <Toggle Label="Follow" Name="Follow" Disabled="true" Reason="Following the playhead arrives with scrolling the timeline." />
     </div>
     <div class="spacer"></div>
     <Segmented Label="Tool" Items="ToolItems" Value="pointer" />

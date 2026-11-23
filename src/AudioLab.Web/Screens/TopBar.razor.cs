@@ -1,17 +1,18 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Core.Playback;
 using AudioLab.Web.Components;
-using AudioLab.Web.Session;
+using AudioLab.Web.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The top bar of the session: project, transport (not working yet), counter, toggles, tool, grid, who is here, export.</summary>
-public sealed partial class TopBar
+/// <summary>The top bar of the session: project, transport, counter, toggles, tool, grid, who is here, export.</summary>
+public sealed partial class TopBar : IDisposable
 {
-    private const string NoPlayback = "Playback arrives with the audio engine.";
+    private const string NoEngine = "This browser cannot run the audio engine: it needs an audio worklet and a web worker.";
 
-    private const string NotYet = "This control arrives with the transport and the audio engine.";
+    private (bool Playing, bool Available, bool Looping) _drawn;
 
     /// <summary>The document.</summary>
     [Parameter, EditorRequired]
@@ -21,12 +22,25 @@ public sealed partial class TopBar
     [Parameter, EditorRequired]
     public SessionActions Actions { get; set; } = null!;
 
-    private static IReadOnlyList<SegmentItem> TransportItems { get; } =
+    [Inject]
+    private PlaybackService Playback { get; set; } = default!;
+
+    private bool Playing => Playback.Transport == TransportState.Playing;
+
+    private string? PlaybackReason => Playback.Available ? null : NoEngine;
+
+    private string LoopName => Playback.Looping ? "Loop on" : "Loop";
+
+    private string ClickName => Document.Metronome ? "Click on" : "Click";
+
+    private IReadOnlyList<SegmentItem> TransportItems =>
     [
-        new("start", "Go to start", IconName.ToStart, Reason: NoPlayback),
-        new("stop", "Stop", IconName.Stop, Reason: NoPlayback),
-        new("play", "Play", IconName.Play, Reason: NoPlayback),
-        new("record", "Record", IconName.Record, Reason: NoPlayback),
+        new("start", "Go to start", IconName.ToStart, Reason: PlaybackReason, Shortcut: Shortcuts.ToStart.Display),
+        new("stop", "Stop", IconName.Stop, Reason: PlaybackReason, Shortcut: Shortcuts.Stop.Display),
+        Playing
+            ? new SegmentItem("play", "Pause", IconName.Pause, Reason: PlaybackReason, Shortcut: Shortcuts.PlayPause.Display)
+            : new SegmentItem("play", "Play", IconName.Play, Reason: PlaybackReason, Shortcut: Shortcuts.PlayPause.Display),
+        new("record", "Record", IconName.Record, Reason: "Recording arrives with the audio devices."),
     ];
 
     private static IReadOnlyList<SegmentItem> ToolItems { get; } =
@@ -37,13 +51,53 @@ public sealed partial class TopBar
 
     private static IReadOnlyList<PresenceMember> People { get; } = [new("You", "You")];
 
-    private IReadOnlyList<CounterCell> Cells =>
-    [
-        new("TIME", TimeText.Counter(0), true),
-        new("BARS", BarGrid.Position(Document, 0), true),
-        new("TEMPO", Document.Bpm.ToString("0.00", CultureInfo.InvariantCulture)),
-        new("METER", $"{Document.TimeSignature.Numerator}/{Document.TimeSignature.Denominator}"),
-    ];
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        Playback.Changed -= OnPlaybackChanged;
+    }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        _drawn = Snapshot();
+        Playback.Changed += OnPlaybackChanged;
+    }
+
+    // The transport changes the bar only when it starts or stops: the position counts in a component of its own.
+    private (bool, bool, bool) Snapshot() => (Playing, Playback.Available, Playback.Looping);
+
+    private void OnPlaybackChanged()
+    {
+        if (Snapshot() != _drawn)
+        {
+            _ = InvokeAsync(() =>
+            {
+                _drawn = Snapshot();
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task ChooseAsync(string id)
+    {
+        switch (id)
+        {
+            case "start":
+                Playback.Seek(0);
+                break;
+            case "stop":
+                Playback.Stop();
+                break;
+            case "play":
+                await Playback.TogglePlayAsync();
+                break;
+        }
+    }
+
+    private void ToggleLoop() => Playback.SetLoop(!Playback.Looping);
+
+    private Task ToggleClickAsync() => Actions.SetMetronome(!Document.Metronome);
 
     private string Summary
     {
