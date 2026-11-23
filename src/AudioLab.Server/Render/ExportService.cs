@@ -2,6 +2,8 @@ using AudioLab.Audio;
 using AudioLab.Audio.Instruments;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Server.Routes;
+using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Render;
@@ -13,16 +15,15 @@ namespace AudioLab.Server.Render;
 /// </remarks>
 public sealed class ExportService(
     OpenProjects open,
-    ProjectStore store,
+    ProjectReader reader,
     RenderMediaProvider media,
-    RenderGate gate,
+    [FromKeyedServices(GateKeys.Export)] ConcurrencyGate gate,
     RenderOptions options,
     TimeProvider time,
     ILogger<ExportService> logger)
 {
     private const string ZipType = "application/zip";
     private const string WavType = "audio/wav";
-    private const int MaxNameLength = 100;
 
     private static readonly int[] _rates = [44100, 48000, 88200, 96000];
 
@@ -40,13 +41,13 @@ public sealed class ExportService(
     {
         ExportRequest request = body ?? new ExportRequest();
         CheckShape(request, kind);
-        IDisposable lease = gate.Enter(user);
+        IDisposable lease = Enter(user);
         CancellationTokenSource limit = new(options.MaxTime, time);
         CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, limit.Token);
         bool prepared = false;
         try
         {
-            ProjectDocument document = open.SnapshotIfOpen(user, project)?.Document ?? await store.ReadAsync(user, project, linked.Token);
+            ProjectDocument document = await reader.CurrentAsync(user, project, linked.Token);
             CheckTracks(document, request);
             await RequireMediaAsync(document, linked.Token);
             RenderMedia renderMedia = await media.OpenAsync(user, request.SampleRate, linked.Token);
@@ -99,8 +100,7 @@ public sealed class ExportService(
             throw new ExportRefusedException(ExportRefusal.TooLarge, exception.Message);
         }
         CheckSize(size, request.SampleRate);
-        string name = ExportFileName.Clean(document.Name, MaxNameLength);
-        string baseName = name.Length == 0 ? "Project" : DeviceNames.IsDeviceName(name) ? "_" + name : name;
+        string baseName = AttachmentResponse.FileName(document.Name, "Project", string.Empty);
         if (kind == ExportKind.Mix)
         {
             Task<WavResult> Write(Stream stream, CancellationToken token) =>
@@ -113,6 +113,18 @@ public sealed class ExportService(
             return default;
         }
         return new PreparedExport(ZipType, $"{baseName} stems.zip", size.Bytes, WriteZip, hold, logger);
+    }
+
+    private IDisposable Enter(UserId user)
+    {
+        try
+        {
+            return gate.Enter(user);
+        }
+        catch (GateBusyException exception)
+        {
+            throw new ExportRefusedException(ExportRefusal.Busy, exception.Message);
+        }
     }
 
     private void CheckSize(ExportSize size, int sampleRate)

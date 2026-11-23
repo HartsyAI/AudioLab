@@ -2,7 +2,6 @@ using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Routes;
-using Microsoft.Net.Http.Headers;
 
 namespace AudioLab.Server.Render;
 
@@ -53,16 +52,9 @@ public static class ExportRoutes
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "That is not a project id.");
         }
         using PreparedExport export = await service.PrepareAsync(http.RequireUser(), ProjectId.From(id), kind, body, cancellationToken);
-        ContentDispositionHeaderValue disposition = new("attachment") { FileNameStar = export.FileName };
-        disposition.SetHttpFileName(AsciiOf(export.FileName));
-        http.Response.ContentType = export.ContentType;
-        http.Response.ContentLength = export.Length;
-        http.Response.Headers.ContentDisposition = disposition.ToString();
-        http.Response.Headers.CacheControl = "no-store";
-        http.Response.Headers.XContentTypeOptions = "nosniff";
+        AttachmentResponse.Apply(http.Response, export.ContentType, export.FileName, export.Length);
         await export.WriteAsync(http.Response.Body);
         return Results.Empty;
     }
 
-    private static string AsciiOf(string name) => new([.. name.Select(character => character is >= ' ' and <= '~' ? character : '_')]);
 }

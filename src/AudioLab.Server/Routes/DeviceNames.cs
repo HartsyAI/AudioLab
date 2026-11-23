@@ -1,4 +1,4 @@
-namespace AudioLab.Server.Render;
+namespace AudioLab.Server.Routes;
 
 /// <summary>The names Windows reserves for devices, which a file of that name cannot be made as, with or without an extension.</summary>
 public static class DeviceNames

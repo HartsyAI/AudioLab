@@ -1,4 +1,4 @@
-using AudioLab.Server.Render;
+using AudioLab.Server.Routes;
 
 namespace AudioLab.Server.Tests;
 
@@ -24,6 +24,20 @@ public sealed class RenderConfigurationTests
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ServerHost.Build([], settings));
 
         Assert.Contains($"AudioLab:Render:{option}", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("MaxFileBytes", "100")]
+    [InlineData("MaxFileBytes", "67108865")]
+    [InlineData("MaxConcurrentPerUser", "0")]
+    [InlineData("MaxConcurrent", "0")]
+    public void AMidiLimitThatCannotWorkDoesNotStart(string option, string value)
+    {
+        Dictionary<string, string?> settings = new() { ["urls"] = "http://127.0.0.1:0", [$"AudioLab:Midi:{option}"] = value };
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ServerHost.Build([], settings));
+
+        Assert.Contains($"AudioLab:Midi:{option}", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]

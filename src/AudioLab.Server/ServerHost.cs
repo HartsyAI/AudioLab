@@ -9,6 +9,7 @@ using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;
+using AudioLab.Server.Midi;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Render;
 using AudioLab.Server.Routes;
@@ -96,7 +97,18 @@ public static class ServerHost
         services.AddMedia(options.Media);
         services.AddSingleton(options.Render);
         services.AddSingleton<RenderMediaProvider>();
-        services.AddSingleton<RenderGate>();
+        services.AddKeyedSingleton(
+            GateKeys.Export,
+            (provider, _) => new ConcurrencyGate(
+                options.Render.MaxConcurrentExportsPerUser,
+                options.Render.MaxConcurrentExports,
+                "exports"));
+        services.AddSingleton<ProjectReader>();
+        services.AddSingleton(options.Midi);
+        services.AddKeyedSingleton(
+            GateKeys.Midi,
+            (provider, _) => new ConcurrencyGate(options.Midi.MaxConcurrentPerUser, options.Midi.MaxConcurrent, "MIDI jobs"));
+        services.AddSingleton<MidiService>();
         services.AddSingleton<ExportService>();
         services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
@@ -143,6 +155,7 @@ public static class ServerHost
         ProjectRoutes.Map(api);
         McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
+        MidiRoutes.Map(api);
         ExportRoutes.Map(api);
         app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
         UiRoutes.Map(app);

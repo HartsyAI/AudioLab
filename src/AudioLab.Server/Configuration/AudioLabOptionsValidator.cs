@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
+using AudioLab.Audio.Midi;
 using AudioLab.Core.Model;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;
+using AudioLab.Server.Midi;
 using AudioLab.Server.Render;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
@@ -52,6 +54,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         McpOptionsValidator.Validate(options.Mcp, problems);
         ValidateMedia(options.Media, problems);
         ValidateRender(options.Render, problems);
+        ValidateMidi(options.Midi, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 
@@ -96,6 +99,18 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         if (media.MaxBytesPerUser < media.MaxUploadBytes)
         {
             problems.Add("AudioLab:Media:MaxBytesPerUser must be at least MaxUploadBytes.");
+        }
+    }
+
+    private static void ValidateMidi(MidiOptions midi, List<string> problems)
+    {
+        if (midi.MaxFileBytes is < 1024 or > MidiLimits.MaxFileBytes)
+        {
+            problems.Add($"AudioLab:Midi:MaxFileBytes must be 1024 to {MidiLimits.MaxFileBytes}, the most the MIDI reader looks at.");
+        }
+        if (midi.MaxConcurrentPerUser < 1 || midi.MaxConcurrent < 1)
+        {
+            problems.Add("AudioLab:Midi:MaxConcurrentPerUser and MaxConcurrent must be at least 1.");
         }
     }
 
