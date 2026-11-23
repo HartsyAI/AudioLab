@@ -11,7 +11,11 @@ internal static class RangeCommands
     public static void Register(CommandRegistryBuilder builder, ClipCommandJsonContext json)
     {
         builder
-            .Add("range_delete", "Removes a time range from the clips of some tracks; shuffle edit mode closes the gap.", json.DeleteRange, Delete)
+            .Add(
+                "range_delete",
+                "Removes a time range from the clips of some tracks and cuts the notes of MIDI clips; shuffle edit mode closes the gap.",
+                json.DeleteRange,
+                Delete)
             .Add("range_split", "Splits every clip of some tracks at both edges of a time range.", json.SplitAtRange, Split);
     }
 
@@ -22,17 +26,20 @@ internal static class RangeCommands
             return refused;
         }
         bool ripple = document.View.EditMode == EditMode.Shuffle;
+        // Every limit is checked before an id is used or anything is applied; the MIDI clips are cut once, here, and the result kept.
+        Dictionary<TrackId, ValueList<MidiClip>> cutMidi = [];
         foreach (Track track in tracks)
         {
-            if (track.MidiClips.FirstOrDefault(clip => RangeRules.Cuts(clip, command.Start, command.End)) is { } cut)
-            {
-                string what = $"The range cuts into the notes of the MIDI clip {cut.Id.Value} on {track.Name}";
-                return CommandChecks.Rejected($"{what}; deleting inside a MIDI clip is not a command yet.");
-            }
             if (RangeRules.Delete(track.Clips, command.Start, command.End, ripple, () => _counting).Count > ProjectLimits.MaxClips)
             {
                 return CommandChecks.OutOfRange($"A track has at most {ProjectLimits.MaxClips} audio clips.");
             }
+            if (!RangeRules.TryDelete(track.MidiClips, command.Start, command.End, ripple, out ValueList<MidiClip> midi, out ClipId? full))
+            {
+                string what = $"The MIDI clip {full!.Value.Value} would hold more notes or controller events than a clip may, or use every note id.";
+                return CommandChecks.OutOfRange(what);
+            }
+            cutMidi[track.Id] = midi;
         }
         List<string> created = [];
         ClipId Next()
@@ -41,16 +48,11 @@ internal static class RangeCommands
             created.Add(id.Value);
             return id;
         }
-        HashSet<TrackId> chosen = [.. tracks.Select(track => track.Id)];
         ValueList<Track> edited =
         [
-            .. document.Tracks.Select(track => !chosen.Contains(track.Id)
+            .. document.Tracks.Select(track => !cutMidi.TryGetValue(track.Id, out ValueList<MidiClip>? midi)
                 ? track
-                : track with
-                {
-                    Clips = RangeRules.Delete(track.Clips, command.Start, command.End, ripple, Next),
-                    MidiClips = RangeRules.Delete(track.MidiClips, command.Start, command.End, ripple),
-                }),
+                : track with { Clips = RangeRules.Delete(track.Clips, command.Start, command.End, ripple, Next), MidiClips = midi }),
         ];
         ProjectDocument result = document with { Tracks = [.. ClipLinks.ClearDangling(edited)] };
         return CommandResult.Ok(result, [.. created]);

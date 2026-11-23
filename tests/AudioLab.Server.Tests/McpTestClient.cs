@@ -68,6 +68,16 @@ public static class McpTestClient
         return client.CallToolAsync(tool, arguments);
     }
 
+    public static ValueTask<CallToolResult> ApplyAsync(McpClient client, string tool, string project, params (string Key, object? Value)[] members)
+    {
+        Dictionary<string, object?> arguments = new() { ["project"] = project };
+        foreach ((string key, object? value) in members)
+        {
+            arguments[key] = value;
+        }
+        return client.CallToolAsync(tool, arguments);
+    }
+
     /// <summary>Calls undo or redo as an agent has to: with the revision it read.</summary>
     public static ValueTask<CallToolResult> StepAsync(McpClient client, string tool, string project, long expectedRevision)
     {

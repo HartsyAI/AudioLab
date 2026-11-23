@@ -5,6 +5,7 @@ using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Store;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -16,14 +17,17 @@ public sealed class McpToolTests
     private static readonly string[] _builtIns = ["get_history", "get_project", "list_projects", "redo", "undo"];
 
     [Fact]
-    public async Task TheReadAndHistoryToolsAreOfferedWithADescribedSchema()
+    public async Task TheReadAndHistoryToolsAreOfferedBesideTheCommandsWithADescribedSchema()
     {
         await using RunningServer server = await McpTestClient.StartAsync();
         await using McpClient client = await McpTestClient.ConnectAsync(server);
 
         IList<McpClientTool> tools = await client.ListToolsAsync();
-        Assert.Equal(_builtIns, tools.Select(tool => tool.Name).Order(StringComparer.Ordinal).ToArray());
-        foreach (McpClientTool tool in tools)
+        string[] commands = [.. server.Services.GetRequiredService<CommandRegistry>().Commands.Select(command => command.Name)];
+        string[] offered = [.. tools.Select(tool => tool.Name).Order(StringComparer.Ordinal)];
+        string[] expected = [.. _builtIns, .. commands];
+        Assert.Equal(expected.Order(StringComparer.Ordinal).ToArray(), offered);
+        foreach (McpClientTool tool in tools.Where(candidate => _builtIns.Contains(candidate.Name)))
         {
             Assert.False(string.IsNullOrWhiteSpace(tool.Description));
             Assert.Equal("object", tool.JsonSchema.GetProperty("type").GetString());
@@ -293,6 +297,26 @@ public sealed class McpToolTests
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("not_found", body, StringComparison.Ordinal);
         Assert.Contains("undoCount", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AProjectWhoseFileIsNotValidIsRejectedWithTheProblemsNotInvalid()
+    {
+        await using RunningServer server = await McpTestClient.StartAsync();
+        string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
+        string file = server.Services.GetRequiredService<StoreRoot>().Paths.ProjectFile(UserId.Local, ProjectId.From(project));
+        string json = await File.ReadAllTextAsync(file);
+        await File.WriteAllTextAsync(file, json.Replace("\"bpm\":120", "\"bpm\":0", StringComparison.Ordinal));
+        await using McpClient agent = await McpTestClient.ConnectAsync(server);
+
+        foreach (string tool in new[] { "get_project", "get_history" })
+        {
+            CallToolResult result = await McpTestClient.CallAsync(agent, tool, project);
+            Assert.True(result.IsError);
+            HubCommandError error = Assert.Single(McpTestClient.Reply(result).Errors);
+            Assert.Equal(CommandErrorCode.Rejected, error.Code);
+            Assert.Contains("bpm", error.Message, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

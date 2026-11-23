@@ -4,15 +4,17 @@ using ModelContextProtocol.Protocol;
 
 namespace AudioLab.Server.Mcp;
 
-/// <summary>The tools the server offers, built once at start: the read and history tools, and later one tool for each command.</summary>
+/// <summary>The tools the server offers, built once at start: the read and history tools, and one tool for each command of the registry.</summary>
 public sealed class McpToolCatalog
 {
     private readonly List<Tool> _tools = [];
     private readonly HashSet<string> _names = new(StringComparer.Ordinal);
 
-    /// <summary>Builds the catalogue.</summary>
-    public McpToolCatalog()
+    /// <summary>Builds the catalogue: a command's tool has the command's wire name, description and schema, as the registry gives them.</summary>
+    /// <exception cref="InvalidOperationException">A command has the name of a tool that is not a command.</exception>
+    public McpToolCatalog(CommandRegistry registry)
     {
+        ArgumentNullException.ThrowIfNull(registry);
         Add(Describe(
             McpToolNames.ListProjects,
             "Lists your projects, newest first, with the id each other tool takes.",
@@ -36,12 +38,28 @@ public sealed class McpToolCatalog
             McpToolNames.Undo,
             UndoWarning("Goes back one undo step", "undo"),
             McpJsonContext.Default.StepArguments,
-            readOnly: false));
+            readOnly: false,
+            destructive: true));
         Add(Describe(
             McpToolNames.Redo,
             UndoWarning("Goes forward one redo step", "redo"),
             McpJsonContext.Default.StepArguments,
-            readOnly: false));
+            readOnly: false,
+            destructive: true));
+        foreach (CommandDescriptor command in registry.Commands)
+        {
+            if (_names.Contains(command.Name))
+            {
+                throw new InvalidOperationException($"The command {command.Name} has the name of an MCP tool that is not a command.");
+            }
+            Add(new Tool
+            {
+                Name = command.Name,
+                Description = McpToolHints.DescriptionOf(command),
+                InputSchema = command.Schema,
+                Annotations = McpToolHints.For(command),
+            });
+        }
     }
 
     /// <summary>Every tool, in the order a client lists them.</summary>
@@ -67,14 +85,20 @@ public sealed class McpToolCatalog
         _tools.Add(tool);
     }
 
-    private static Tool Describe(string name, string description, JsonTypeInfo arguments, bool readOnly)
+    private static Tool Describe(string name, string description, JsonTypeInfo arguments, bool readOnly, bool destructive = false)
     {
         return new Tool
         {
             Name = name,
             Description = description,
             InputSchema = CommandSchema.For(arguments),
-            Annotations = new ToolAnnotations { ReadOnlyHint = readOnly, OpenWorldHint = false },
+            Annotations = new ToolAnnotations
+            {
+                ReadOnlyHint = readOnly,
+                DestructiveHint = destructive,
+                IdempotentHint = readOnly,
+                OpenWorldHint = false,
+            },
         };
     }
 }
