@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- Hosts the engine in a web worker: a second .NET runtime that the page's worker script starts and calls through the exports compiled in below. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AudioLab.Web.Interop.Worker</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WasmFingerprintDotnetJs>false</WasmFingerprintDotnetJs>
+    <StaticWebAssetBasePath>worker</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudioLab.Audio\AudioLab.Audio.csproj" />
+  </ItemGroup>
+
+  <!-- The exports live where all interop lives (AGENTS.md); only this runtime compiles them. -->
+  <ItemGroup>
+    <Compile Include="..\AudioLab.Web\Interop\Worker\*.cs" LinkBase="Interop\Worker" />
+  </ItemGroup>
+
+</Project>

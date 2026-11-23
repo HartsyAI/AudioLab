@@ -12,28 +12,21 @@ internal static class Resampler
     /// <summary>The audio at <paramref name="rate"/>; the same instance when it already is.</summary>
     public static PcmAudio ToRate(PcmAudio source, int rate)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        if (source.SampleRate == rate)
-        {
-            return source;
-        }
-        double ratio = (double)source.SampleRate / rate;
+        ResampleJob job = new(source, rate);
+        job.Run(int.MaxValue);
+        return job.Result;
+    }
+
+    /// <summary>The filter's settings for a ratio of source rate to output rate.</summary>
+    internal static (double Cutoff, double Extent, int Reach) Shape(double ratio)
+    {
         double cutoff = Guard * Math.Min(1, 1 / ratio);
         double extent = HalfTaps / cutoff;
-        int reach = (int)Math.Ceiling(extent);
-        int taps = 2 * reach;
-        float[] table = BuildTable(cutoff, extent, reach, taps);
-        int frames = (int)Math.Round(source.Frames / ratio);
-        float[][] output = new float[source.ChannelCount][];
-        for (int channel = 0; channel < output.Length; channel++)
-        {
-            output[channel] = Convert(source.Channel(channel), frames, ratio, reach, taps, table);
-        }
-        return new PcmAudio(rate, output);
+        return (cutoff, extent, (int)Math.Ceiling(extent));
     }
 
     // Row p holds the weights for a fractional position p / Phases past a source sample; each row sums to one.
-    private static float[] BuildTable(double cutoff, double extent, int reach, int taps)
+    internal static float[] BuildTable(double cutoff, double extent, int reach, int taps)
     {
         float[] table = new float[(Phases + 1) * taps];
         double[] weights = new double[taps];
@@ -56,10 +49,11 @@ internal static class Resampler
         return table;
     }
 
-    private static float[] Convert(ReadOnlySpan<float> source, int frames, double ratio, int reach, int taps, float[] table)
+    /// <summary>Converts output frames <paramref name="from"/> up to <paramref name="to"/> of one channel into <paramref name="output"/>.</summary>
+    internal static void Convert(
+        ReadOnlySpan<float> source, float[] output, int from, int to, double ratio, int reach, int taps, float[] table)
     {
-        float[] output = new float[frames];
-        for (int n = 0; n < frames; n++)
+        for (int n = from; n < to; n++)
         {
             double position = n * ratio;
             int index = (int)position;
@@ -81,7 +75,6 @@ internal static class Resampler
             }
             output[n] = sum;
         }
-        return output;
     }
 
     private static double Sinc(double x) => Math.Abs(x) < 1e-12 ? 1 : Math.Sin(Math.PI * x) / (Math.PI * x);

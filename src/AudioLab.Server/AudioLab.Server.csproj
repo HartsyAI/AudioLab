@@ -11,6 +11,8 @@
   <ItemGroup>
     <ProjectReference Include="..\AudioLab.Core\AudioLab.Core.csproj" />
     <ProjectReference Include="..\AudioLab.Web\AudioLab.Web.csproj" />
+    <!-- The page's engine runtime: only its static files (worker/_framework) are served from here, so its assembly is not referenced. -->
+    <ProjectReference Include="..\AudioLab.Audio.Worker\AudioLab.Audio.Worker.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
