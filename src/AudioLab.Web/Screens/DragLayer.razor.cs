@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Media;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
@@ -11,14 +12,18 @@ public sealed partial class DragLayer : IDisposable
     [Parameter, EditorRequired]
     public ProjectDocument Document { get; set; } = null!;
 
+    /// <summary>How many pixels a second of the timeline takes, so the lifted clip draws the waveform its lane draws.</summary>
+    [Parameter]
+    public double PixelsPerSecond { get; set; } = TimelineGeometry.Default.PixelsPerSecond;
+
     [Inject]
     private ClipDragState State { get; set; } = default!;
 
     [Inject]
-    private TrackColorMap Colors { get; set; } = default!;
+    private MediaDragState MediaDrags { get; set; } = default!;
 
     [Inject]
-    private WavePathCache Waves { get; set; } = default!;
+    private TrackColorMap Colors { get; set; } = default!;
 
     private ClipDrag? Drag => State.Current;
 
@@ -26,17 +31,17 @@ public sealed partial class DragLayer : IDisposable
     public void Dispose()
     {
         State.Changed -= OnChanged;
+        MediaDrags.Changed -= OnChanged;
     }
 
     /// <inheritdoc />
     protected override void OnInitialized()
     {
         State.Changed += OnChanged;
+        MediaDrags.Changed += OnChanged;
     }
 
     private void OnChanged() => StateHasChanged();
-
-    private string? Waveform(AudioClip? audio, double width) => audio is null ? null : Waves.For(audio.Id.Value, width);
 
     private Lifted? Found(ClipId clip)
     {

@@ -3,7 +3,6 @@ using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Routes;
-using Microsoft.Net.Http.Headers;
 
 namespace AudioLab.Server.Render;
 
@@ -70,13 +69,7 @@ public static class ExportRoutes
         }
         ExportRequest? body = await ReadRequestAsync(http, cancellationToken);
         using PreparedExport export = await service.PrepareAsync(http.RequireUser(), ProjectId.From(id), kind, body, cancellationToken);
-        ContentDispositionHeaderValue disposition = new("attachment");
-        disposition.SetHttpFileName(export.FileName);
-        http.Response.ContentType = export.ContentType;
-        http.Response.ContentLength = export.Length;
-        http.Response.Headers.ContentDisposition = disposition.ToString();
-        http.Response.Headers.CacheControl = "no-store";
-        http.Response.Headers.XContentTypeOptions = "nosniff";
+        AttachmentResponse.Apply(http.Response, export.ContentType, export.FileName, export.Length);
         await export.WriteAsync(http.Response.Body);
         return Results.Empty;
     }

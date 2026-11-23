@@ -4,8 +4,10 @@ using AudioLab.Core.Realtime;
 using AudioLab.Web;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
+using AudioLab.Web.Media;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
@@ -26,6 +28,7 @@ if (OperatingSystem.IsBrowser())
     builder.Services.AddScoped<INativeOverlay, NativeOverlay>();
     builder.Services.AddSingleton<ITokenReader, TokenReader>();
     builder.Services.AddSingleton<IElementFocus, ElementFocus>();
+    builder.Services.AddSingleton<IElementClick, ElementClick>();
     builder.Services.AddSingleton<IKeyGuard, KeyGuard>();
     builder.Services.AddSingleton<IPointerTracker, PointerTracker>();
     builder.Services.AddSingleton<IShortcutListener, ShortcutListener>();
@@ -40,12 +43,22 @@ builder.Services.AddSingleton<CommandSender>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<SessionClient>();
 builder.Services.AddScoped<ProjectApi>();
+// A large upload takes as long as it takes: its client has no timeout, and only the user stops it.
+builder.Services.AddScoped(provider => new MediaApi(
+    provider.GetRequiredService<HttpClient>(),
+    new HttpClient { BaseAddress = site, Timeout = Timeout.InfiniteTimeSpan }));
+builder.Services.AddScoped<MediaLibrary>();
+builder.Services.AddScoped<MediaDragState>();
+builder.Services.AddScoped<MediaAdder>();
+builder.Services.AddScoped<TimelineZoom>();
+builder.Services.AddScoped<MediaDragger>();
 builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddSingleton<LiveProjectFactory>();
-builder.Services.AddSingleton<WavePathCache>();
+builder.Services.AddScoped<PeakStore>();
+builder.Services.AddScoped<WaveformService>();
 builder.Services.AddSingleton(provider => new TrackColorMap(
     [.. Enumerable.Range(1, 12).Select(number => provider.GetRequiredService<ITokenReader>().Read($"--track-{number}"))]));
 await builder.Build().RunAsync();

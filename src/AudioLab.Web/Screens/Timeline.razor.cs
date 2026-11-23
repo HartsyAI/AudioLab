@@ -38,6 +38,9 @@ public sealed partial class Timeline : IDisposable
     public SessionActions Actions { get; set; } = null!;
 
     [Inject]
+    private TimelineZoom Zoom { get; set; } = default!;
+
+    [Inject]
     private SessionSelection Selection { get; set; } = default!;
 
     [Inject]
@@ -67,7 +70,7 @@ public sealed partial class Timeline : IDisposable
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
 
-    private TimelineGeometry Geometry => TimelineGeometry.Default;
+    private TimelineGeometry Geometry => Zoom.Geometry;
 
     private TrackLayout Layout => _layout;
 
