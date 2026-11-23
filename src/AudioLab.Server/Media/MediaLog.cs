@@ -21,6 +21,9 @@ internal static partial class MediaLog
     [LoggerMessage(EventId = 206, Level = LogLevel.Warning, Message = "The peaks of {File} could not be rebuilt at start: {Reason}")]
     public static partial void PeaksNotRebuilt(ILogger logger, string file, string reason);
 
+    [LoggerMessage(EventId = 207, Level = LogLevel.Error, Message = "The media record {File} could not be read after several tries; given up.")]
+    public static partial void RecordGivenUp(ILogger logger, string file);
+
     [LoggerMessage(EventId = 203, Level = LogLevel.Error, Message = "The media folder could not be read: {Reason}; its files count as missing.")]
     public static partial void FolderUnreadable(ILogger logger, string reason);
 }

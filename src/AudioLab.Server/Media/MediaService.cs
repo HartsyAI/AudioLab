@@ -128,7 +128,8 @@ public sealed class MediaService(
 
     /// <summary>Deletes a user's file unless a project of theirs still plays it, in the project's present or in its undo history.</summary>
     /// <remarks>
-    /// The file is hidden from <see cref="MediaStore.Find"/> and from reads first, and only then are the projects searched.
+    /// The file is hidden from new references (<see cref="MediaStore.Find"/>) first, while reads still see it, and only then are the
+    /// projects searched; a project that names it cannot be opened meanwhile.
     /// There is no way to force the delete.
     /// </remarks>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>

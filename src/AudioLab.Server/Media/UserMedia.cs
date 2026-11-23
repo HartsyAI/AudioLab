@@ -24,4 +24,10 @@ internal sealed class UserMedia
     public SemaphoreSlim Admission { get; } = new(1, 1);
 
     public long UploadBytes { get; set; }
+
+    public object LoadSync { get; } = new();
+
+    public List<UnreadableRecord> Unreadable { get; } = [];
+
+    public DateTimeOffset NextLoadAttempt { get; set; }
 }

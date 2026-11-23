@@ -73,6 +73,7 @@ public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdSer
     public async Task<ProjectSummary> DuplicateAsync(UserId user, ProjectId id, string? name, CancellationToken cancellationToken)
     {
         ProjectDocument original = open.SnapshotIfOpen(user, id)?.Document ?? await store.ReadAsync(user, id, cancellationToken);
+        await open.RequireMediaAsync(original, cancellationToken);
         ProjectDocument copy = original with { Id = ids.Next<ProjectId>(), Name = name ?? CopyName(original.Name) };
         await WriteNewAsync(copy, cancellationToken);
         return new ProjectSummary(copy.Id.Value, copy.Name, time.GetUtcNow());

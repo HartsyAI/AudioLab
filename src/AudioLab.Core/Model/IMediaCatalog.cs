@@ -10,4 +10,11 @@ public interface IMediaCatalog
     /// asks the server to prepare the user first. While the folder cannot be read it finds nothing.
     /// </remarks>
     public MediaRecord? Find(UserId owner, MediaId id);
+
+    /// <summary>The record of a file that exists and is owned by <paramref name="owner"/>, even while its delete is pending.</summary>
+    /// <remarks>For a document that already names the file: a delete that a project uses is refused, so it is no reason to refuse it.</remarks>
+    public MediaRecord? FindIncludingPendingDelete(UserId owner, MediaId id);
+
+    /// <summary>Whether a delete of the file has begun and may still be refused, so a document must not take it up now.</summary>
+    public bool IsDeleting(UserId owner, MediaId id);
 }
