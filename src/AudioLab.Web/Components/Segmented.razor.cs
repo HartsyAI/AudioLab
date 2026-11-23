@@ -17,7 +17,7 @@ public sealed partial class Segmented
     [Parameter]
     public string? Wide { get; set; }
 
-    /// <summary>True for the transport: every item is a raised control.</summary>
+    /// <summary>True for the transport: every item is a raised control; the transport look wins over <see cref="Words"/> when both are set.</summary>
     [Parameter]
     public bool Transport { get; set; }
 
@@ -34,6 +34,9 @@ public sealed partial class Segmented
     public EventCallback<string> ValueChanged { get; set; }
 
     private string Variant => Transport ? "transport" : Words ? "words" : "choice";
+    // A choice of a set is pressed when it is the chosen one; in the transport only the wide item, play, is a toggle, and the rest are plain buttons.
+    private string? Pressed(SegmentItem item) =>
+        Transport && item.Id != Wide ? null : item.Id == Value ? "true" : "false";
 
     private Task ChooseAsync(SegmentItem item)
     {

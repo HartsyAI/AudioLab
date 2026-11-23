@@ -19,9 +19,8 @@ public static class RollEdits
         {
             return null;
         }
-        ValueList<NoteId> ids = [.. notes];
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new DeleteNotes { Project = project, Clip = id, Notes = ids });
+        return RollEdit.Chunked([.. notes], (project, part) => new DeleteNotes { Project = project, Clip = id, Notes = part });
     }
 
     /// <summary>Adds copies of notes, the earliest at <paramref name="at"/> seconds from the clip start; those past the clip are left out.</summary>
@@ -35,14 +34,14 @@ public static class RollEdits
             return null;
         }
         double latest = NoteRules.LatestStart(clip.Length);
-        ValueList<NewNote> placed = [.. notes.Select(note => note with { Start = note.Start + at }).Where(note => note.Start <= latest)];
-        if (placed.Count == 0)
+        NewNote[] placed = [.. notes.Select(note => note with { Start = note.Start + at }).Where(note => note.Start <= latest)];
+        if (placed.Length == 0)
         {
             refusal = NoRoom;
             return null;
         }
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new AddNotes { Project = project, Clip = id, Notes = placed }, selectCreated: true);
+        return RollEdit.Chunked(placed, (project, part) => new AddNotes { Project = project, Clip = id, Notes = part }, selectCreated: true);
     }
 
     /// <summary>Copies notes right after themselves: from the end of the last of them, in time.</summary>
@@ -65,9 +64,10 @@ public static class RollEdits
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(notes);
-        ValueList<NoteId>? ids = notes.Count == 0 ? null : [.. notes];
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new QuantizeNotes { Project = project, Clip = id, Notes = ids });
+        return notes.Count == 0
+            ? RollEdit.Of(project => new QuantizeNotes { Project = project, Clip = id })
+            : RollEdit.Chunked([.. notes], (project, part) => new QuantizeNotes { Project = project, Clip = id, Notes = part });
     }
 
     /// <summary>Transposes notes by semitones; no notes named means every note.</summary>
@@ -75,9 +75,12 @@ public static class RollEdits
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(notes);
-        ValueList<NoteId>? ids = notes.Count == 0 ? null : [.. notes];
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new TransposeNotes { Project = project, Clip = id, Notes = ids, Semitones = semitones });
+        return notes.Count == 0
+            ? RollEdit.Of(project => new TransposeNotes { Project = project, Clip = id, Semitones = semitones })
+            : RollEdit.Chunked(
+                [.. notes],
+                (project, part) => new TransposeNotes { Project = project, Clip = id, Notes = part, Semitones = semitones });
     }
 
     /// <summary>Moves notes one grid step: the earliest goes to the next line, the rest keep their places relative to it, inside the clip.</summary>
@@ -99,12 +102,12 @@ public static class RollEdits
         {
             return null;
         }
-        ValueList<NoteTarget> targets = [.. notes.Select(note => new NoteTarget(note.Id, note.Start + delta, note.Pitch))];
+        NoteTarget[] targets = [.. notes.Select(note => new NoteTarget(note.Id, note.Start + delta, note.Pitch))];
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new MoveNotes { Project = project, Clip = id, Notes = targets });
+        return RollEdit.Chunked(targets, (project, part) => new MoveNotes { Project = project, Clip = id, Notes = part });
     }
 
-    /// <summary>Lengthens or shortens notes by one grid step, the notes together, none below the least length or past the clip.</summary>
+    /// <summary>Lengthens or shortens notes by one grid step, together, none below the least length; the server's rule, so no clip end.</summary>
     public static RollEdit? Stretch(ProjectDocument document, MidiClip clip, IReadOnlyList<MidiNote> notes, int direction)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -118,36 +121,38 @@ public static class RollEdits
         MidiNote lead = notes.OrderBy(note => note.Start).First();
         double end = lead.Start + lead.Duration;
         double wanted = grid.Snap(clip.Start + end + (direction * grid.Step(clip.Start + end))) - clip.Start - end;
-        double room = Math.Max(0, clip.Length - notes.Max(note => note.Start + note.Duration));
-        double delta = Math.Max(NoteRules.MinDuration - notes.Min(note => note.Duration), Math.Min(wanted, room));
+        double delta = NoteDrag.FitStretch([.. notes], wanted);
         if (Math.Abs(delta) < TimelineRules.NoMove)
         {
             return null;
         }
-        ValueList<NoteLength> lengths = [.. notes.Select(note => new NoteLength(note.Id, note.Duration + delta))];
+        NoteLength[] lengths = [.. notes.Select(note => new NoteLength(note.Id, note.Duration + delta))];
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new ResizeNotes { Project = project, Clip = id, Notes = lengths });
+        return RollEdit.Chunked(lengths, (project, part) => new ResizeNotes { Project = project, Clip = id, Notes = part });
     }
 
-    /// <summary>Raises or lowers the velocity of notes by an amount, kept from 1 to 127; notes that land on one value are sent together.</summary>
-    public static RollEdit? Louder(MidiClip clip, IReadOnlyList<MidiNote> notes, int amount)
+    /// <summary>Raises or lowers the velocity of notes by an amount, kept from 1 to 127: one command, whatever velocities the notes have.</summary>
+    /// <param name="clip">The clip.</param>
+    /// <param name="selected">The notes to change; every note of the clip when none are named.</param>
+    /// <param name="amount">The amount to add to each velocity.</param>
+    public static RollEdit? Louder(MidiClip clip, IReadOnlyCollection<NoteId> selected, int amount)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        ArgumentNullException.ThrowIfNull(notes);
-        IGrouping<int, MidiNote>[] groups =
+        ArgumentNullException.ThrowIfNull(selected);
+        IEnumerable<MidiNote> touched = selected.Count == 0 ? clip.Notes : clip.Notes.Where(note => selected.Contains(note.Id));
+        NoteId[] ids =
         [
-            .. notes.Where(note => Math.Clamp(note.Velocity + amount, 1, 127) != note.Velocity)
-                .GroupBy(note => Math.Clamp(note.Velocity + amount, 1, 127)),
+            .. touched.Where(note => Math.Clamp(note.Velocity + amount, 1, NoteRules.HighestVelocity) != note.Velocity)
+                .Select(note => note.Id),
         ];
-        if (groups.Length == 0)
+        if (ids.Length == 0)
         {
             return null;
         }
         ClipId id = clip.Id;
-        (int Velocity, ValueList<NoteId> Notes)[] sets =
-            [.. groups.Select(group => (group.Key, new ValueList<NoteId>([.. group.Select(note => note.Id)])))];
-        return new RollEdit(project =>
-            [.. sets.Select(set => (Command)new SetNoteVelocity { Project = project, Clip = id, Notes = set.Notes, Velocity = set.Velocity })]);
+        return selected.Count == 0
+            ? RollEdit.Of(project => new AdjustNoteVelocity { Project = project, Clip = id, Amount = amount })
+            : RollEdit.Chunked(ids, (project, part) => new AdjustNoteVelocity { Project = project, Clip = id, Notes = part, Amount = amount });
     }
 
     /// <summary>Types a note at the insert point: one grid step long, at the pitch and velocity of the last one.</summary>
@@ -162,21 +167,33 @@ public static class RollEdits
     }
 
     /// <summary>Puts the sustain pedal down or up at a time: down when it is up there and up when it is down.</summary>
+    /// <remarks>An event already at that time is replaced, in the same gesture, so a time never holds two events of the pedal.</remarks>
     public static RollEdit TogglePedal(MidiClip clip, double time)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        int value = PedalDownAt(clip, time) ? 0 : 127;
-        ClipId id = clip.Id;
         double at = Math.Clamp(time, 0, clip.Length);
-        return RollEdit.Of(
-            project => new AddControlChange
+        int value = PedalDownAt(clip, at) ? 0 : 127;
+        ClipId id = clip.Id;
+        MidiControlChange? existing = null;
+        foreach (MidiControlChange change in clip.ControlChanges)
+        {
+            if (change.Controller == PianoRollState.PedalController && Math.Abs(change.Time - at) < TimelineRules.NoMove)
             {
-                Project = project,
-                Clip = id,
-                Time = at,
-                Controller = PianoRollState.PedalController,
-                Value = value,
-            });
+                existing = change;
+            }
+        }
+        return new RollEdit(project =>
+        {
+            List<Command> commands = [];
+            if (existing is { } held)
+            {
+                commands.Add(
+                    new RemoveControlChanges { Project = project, Clip = id, Time = held.Time, Controller = PianoRollState.PedalController });
+            }
+            commands.Add(
+                new AddControlChange { Project = project, Clip = id, Time = at, Controller = PianoRollState.PedalController, Value = value });
+            return commands;
+        });
     }
 
     /// <summary>Removes the pedal event at a time.</summary>

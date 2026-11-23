@@ -8,12 +8,17 @@ public sealed class ApiException : Exception
     /// <summary>Creates the exception for an answer.</summary>
     /// <param name="status">The HTTP status the server answered with.</param>
     /// <param name="message">What the server said went wrong.</param>
-    public ApiException(HttpStatusCode status, string message)
+    /// <param name="retryAfter">How long the server asked the client to wait before asking again, when it said.</param>
+    public ApiException(HttpStatusCode status, string message, TimeSpan? retryAfter = null)
         : base(message)
     {
         Status = status;
+        RetryAfter = retryAfter;
     }
 
     /// <summary>The HTTP status the server answered with.</summary>
     public HttpStatusCode Status { get; }
+
+    /// <summary>How long the server asked the client to wait before asking again (its Retry-After), or null when it did not say.</summary>
+    public TimeSpan? RetryAfter { get; }
 }

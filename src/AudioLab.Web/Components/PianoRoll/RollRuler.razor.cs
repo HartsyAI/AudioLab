@@ -85,7 +85,7 @@ public sealed partial class RollRuler : IDisposable
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
     // A press puts the insert point on the grid line nearest to it.
-    private void PressAsync(PointerEventArgs press)
+    private void Press(PointerEventArgs press)
     {
         if (press.Button != 0 || View.Bounds("roll-ruler") is not { } box)
         {

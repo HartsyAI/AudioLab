@@ -28,6 +28,7 @@ public sealed class RenderPlan
         TailFrames = tailFrames;
         BusCount = busCount;
         TailIsCut = tailIsCut;
+        TrackIds = [.. tracks.Select(track => track.Id)];
     }
 
     /// <summary>The format the plan renders: stereo at the plan's sample rate.</summary>
@@ -38,6 +39,9 @@ public sealed class RenderPlan
 
     /// <summary>How long the effects and instruments ring on after the content, in frames.</summary>
     public long TailFrames { get; }
+
+    /// <summary>The tracks in the order <see cref="MixerGraph.TakePeaks"/> reports them; a track that is never heard is left out.</summary>
+    public IReadOnlyList<TrackId> TrackIds { get; }
 
     /// <summary>Whether a tail was cut short at its limit, so that a render of it should fade out.</summary>
     public bool TailIsCut { get; }
@@ -68,7 +72,7 @@ public sealed class RenderPlan
         {
             throw new ArgumentException("The media cache is at another sample rate than the plan.", nameof(options));
         }
-        PlanMedia cache = new(shared);
+        PlanMedia cache = new(shared, options.CancellationToken);
         Track? target = options.StemOf is { } stem ? FindStemTrack(document, stem) : null;
         List<PlannedTrack> planned = [];
         // Tracks first, then buses, so a send always finds the bus it feeds after the audio has been mixed into it.
@@ -164,6 +168,7 @@ public sealed class RenderPlan
             : null;
         return new PlannedTrack
         {
+            Id = track.Id,
             BusSlot = track.Kind == TrackKind.Bus ? busSlots[track.Id] : -1,
             FaderGain = (float)MixRules.TrackLevel(track, document.Groups),
             Pan = track.Pan,

@@ -106,9 +106,9 @@ public sealed class MidiEditorTests
         Assert.Equal(2, _hub.Sent.Count);
     }
 
-    /// <summary>Commands of one edit go in one gesture, and one refused after another was applied takes the first back.</summary>
+    /// <summary>A command refused after another was applied is not rolled back: the result says how many were applied; nothing is undone.</summary>
     [Fact]
-    public async Task ACommandRefusedAfterAnotherWasAppliedTakesTheFirstBack()
+    public async Task ACommandRefusedAfterAnotherWasAppliedIsReportedAndNothingIsUndone()
     {
         await using LiveProject live = await OpenAsync();
         ClipId clip = ClipId.From("a");
@@ -121,11 +121,45 @@ public sealed class MidiEditorTests
         ]);
 
         Assert.False(result.Succeeded);
-        Assert.Equal("No such controller event.", result.Refusal);
+        Assert.StartsWith("No such controller event.", result.Refusal, StringComparison.Ordinal);
+        Assert.Contains("1 of 2 commands of this edit were applied", result.Refusal, StringComparison.Ordinal);
+        Assert.Contains("Undo takes the applied ones back as one step", result.Refusal, StringComparison.Ordinal);
         string? gesture = _hub.Sent[0].Gesture;
         Assert.NotNull(gesture);
         Assert.Equal(gesture, _hub.Sent[1].Gesture);
-        Assert.Equal([$"end song {gesture}", "undo song"], _hub.Calls.Skip(2).ToArray());
+        Assert.Equal([$"end song {gesture}"], _hub.Calls.Skip(2).ToArray());
+        Assert.DoesNotContain(_hub.Calls, call => call.StartsWith("undo", StringComparison.Ordinal));
+    }
+
+    /// <summary>A refusal of the first command says nothing about a partial edit, and a lost connection mid-gesture says what was applied.</summary>
+    [Fact]
+    public async Task ARefusalOfTheFirstCommandIsPlainAndALostConnectionSaysWhatWasApplied()
+    {
+        await using LiveProject live = await OpenAsync();
+        ClipId clip = ClipId.From("a");
+        Func<ProjectId, IReadOnlyList<Command>> two = project =>
+        [
+            new RemoveControlChanges { Project = project, Clip = clip, Controller = 64, Time = 1 },
+            new AddControlChange { Project = project, Clip = clip, Controller = 64, Time = 2, Value = 127 },
+        ];
+        _hub.ReplyForApply = count => count == 1 ? FakeProjectHub.Refused(CommandErrorCode.Rejected, "no such controller event") : null;
+
+        EditResult first = await new MidiEditor(live).SendAsync(two);
+
+        Assert.Equal("No such controller event.", first.Refusal);
+        _hub.Sent.Clear();
+        _hub.ReplyForApply = count =>
+        {
+            if (count == 1)
+            {
+                _hub.ThrowOnApply = new InvalidOperationException("The connection is not active");
+            }
+            return null;
+        };
+        EditResult lost = await new MidiEditor(live).SendAsync(two);
+
+        Assert.False(lost.Succeeded);
+        Assert.Contains("1 of 2 commands of this edit were applied", lost.Refusal, StringComparison.Ordinal);
     }
 
     /// <summary>Commands that are all applied are one gesture that is closed, and their ids come back in order.</summary>

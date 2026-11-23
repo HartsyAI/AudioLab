@@ -27,6 +27,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private const string PedalId = "roll-pedal";
 
+    private const string KeysId = "roll-keys";
+
     private const double GripPixels = 6;
 
     private const double PickPixels = 6;
@@ -35,7 +37,13 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private const string NoSelection = "Select some notes first.";
 
+    // The roll hears its keys while the focus is on the notes, a lane or the keys: the page offers them to the roll before the transport,
+    // whose Shift with an arrow is the roll's Shift with an arrow (D48).
+    private static readonly string[] _focusIds = [SurfaceId, VelocityId, PedalId, KeysId];
+
     private readonly Dictionary<string, Func<Task>> _keys;
+
+    private Func<KeyChord, bool>? _handler;
 
     private MidiClip? _built;
 
@@ -53,8 +61,6 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private bool _centred;
 
-    private int? _heldKey;
-
     private string _message = string.Empty;
 
     /// <summary>Makes the editor and the table of its keys.</summary>
@@ -67,8 +73,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             [Shortcuts.RollEraseTool.Id] = () => UseTool(RollTool.Erase),
             [Shortcuts.RollPrevious.Id] = () => Walk("ArrowLeft", extend: false),
             [Shortcuts.RollNext.Id] = () => Walk("ArrowRight", extend: false),
-            [Shortcuts.RollAbove.Id] = () => Walk("ArrowUp", extend: false),
-            [Shortcuts.RollBelow.Id] = () => Walk("ArrowDown", extend: false),
+            [Shortcuts.RollAbove.Id] = () => OnKeys ? Pitch(1) : Walk("ArrowUp", extend: false),
+            [Shortcuts.RollBelow.Id] = () => OnKeys ? Pitch(-1) : Walk("ArrowDown", extend: false),
             [Shortcuts.RollExtendPrevious.Id] = () => Walk("ArrowLeft", extend: true),
             [Shortcuts.RollExtendNext.Id] = () => Walk("ArrowRight", extend: true),
             [Shortcuts.RollExtendAbove.Id] = () => Walk("ArrowUp", extend: true),
@@ -161,6 +167,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
     }
 
+    private bool OnKeys => View.HasFocusWithin(KeysId);
+
     private string SurfaceLabel => $"Notes of {Clip.Name}. Arrow keys select notes, Alt with an arrow moves them, Enter adds a note.";
 
     private string Status
@@ -203,13 +211,17 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
     public void Dispose()
     {
         State.Changed -= OnStateChanged;
+        Pointer.Stop();
+        if (Drags.Current is { } gesture)
+        {
+            Drags.End(gesture);
+        }
+        Release();
         if (ReferenceEquals(Keys.Handler, _handler))
         {
             Keys.Handler = null;
         }
     }
-
-    private Func<KeyChord, bool>? _handler;
 
     /// <inheritdoc />
     protected override void OnInitialized()
@@ -296,11 +308,9 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private List<MidiNote> SelectedNotes()
     {
-        return [.. State.Selected.Select(id => _index.Find(id)).OfType<MidiNote>().OrderBy(note => note.Start).ThenBy(note => note.Pitch)];
+        // The index is in this order already, so a selection of every note costs one pass and no sort.
+        return [.. _index.Ordered.Where(note => State.Selected.Contains(note.Id))];
     }
-
-    // The notes a command acts on: the selection, or every note when none is selected, as the piano roll of the old DAW did.
-    private List<MidiNote> SelectedOrAll() => State.Selected.Count == 0 ? [.. _index.Ordered] : SelectedNotes();
 
     private double SnapLocal(double seconds) => new GridSnap(Document).Snap(Clip.Start + seconds) - Clip.Start;
 
@@ -314,7 +324,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
         double seconds = Geometry.Seconds(move.ClientX - box.Left);
         double grip = GripPixels / State.PixelsPerSecond;
-        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), grip, out bool edge) is not null && edge;
+        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), grip, out bool edge, State.Selected) is not null && edge;
         if (over != _overEdge)
         {
             _overEdge = over;
@@ -337,7 +347,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         double y = press.ClientY - box.Top;
         double seconds = Geometry.Seconds(x);
         _additive = press.ShiftKey || press.CtrlKey || press.MetaKey;
-        MidiNote? hit = _index.HitTest(seconds, Geometry.PitchAt(y), GripPixels / State.PixelsPerSecond, out bool edge);
+        MidiNote? hit = _index.HitTest(seconds, Geometry.PitchAt(y), GripPixels / State.PixelsPerSecond, out bool edge, State.Selected);
         if (State.Tool == RollTool.Erase)
         {
             if (Editable())
@@ -478,6 +488,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             () => Drags.End(gesture));
     }
 
+    // The pointer is up: the edit is made again from the clip as the page holds it now (what another client removed is left out and said so),
+    // and the gesture keeps its preview where it landed without holding the pointer, so the next press does not wait for the answer.
     private async Task ReleaseAsync(IRollGesture gesture)
     {
         try
@@ -490,14 +502,29 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
                 }
                 return;
             }
-            // The preview stays where it landed until the revision of the edit has been drawn.
-            Drags.Moved();
-            await SendAsync(gesture.Commit());
+            RollEdit? edit = gesture.Commit(Clip);
+            if (gesture.Lost > 0)
+            {
+                Toasts.Show(ToastKind.Warning, LostText(gesture.Lost, edit is not null));
+            }
+            if (edit is null)
+            {
+                return;
+            }
+            Drags.Land(gesture);
+            await SendAsync(edit);
         }
         finally
         {
             Drags.End(gesture);
         }
+    }
+
+    private static string LostText(int lost, bool restEdited)
+    {
+        return restEdited
+            ? string.Create(CultureInfo.InvariantCulture, $"{lost} of what you dragged was removed by someone else meanwhile; the rest was edited.")
+            : "What you dragged was removed by someone else meanwhile; nothing was changed.";
     }
 
     // ----- sending
@@ -533,23 +560,65 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private void ToggleAudition() => State.ToggleAudition();
 
-    // A press on a key plays that pitch on the instrument of the track until the pointer is let go.
+    // A press on a key plays that pitch on the instrument of the track. The note is let go when the pointer is let go anywhere on the page, when the
+    // press is cancelled, when the keys lose the focus, and when the roll goes, so none is left sounding.
     private void KeyPress(PointerEventArgs press)
     {
-        if (press.Button != 0 || !Sound.Available || View.Bounds("roll-keys") is not { } box)
+        if (press.Button != 0 || Drags.Current is not null || View.Bounds(KeysId) is not { } box)
         {
             return;
         }
-        _heldKey = Geometry.PitchAt(press.ClientY - box.Top);
-        _ = Sound.PressKeyAsync(Track.Id, _heldKey.Value, State.InsertVelocity);
+        int pitch = Geometry.PitchAt(press.ClientY - box.Top);
+        State.Remember(pitch, State.InsertVelocity);
+        if (Hold(pitch))
+        {
+            Pointer.Begin((_, _) => { }, (_, _) => Release(), Release);
+        }
     }
 
-    private void KeyRelease(PointerEventArgs release)
+    // A key of the keyboard on the keys: Enter or Space plays the pitch that has the cursor for as long as it is held.
+    private void KeysKeyDown(KeyboardEventArgs press)
     {
-        if (_heldKey is { } pitch)
+        if (!press.Repeat && press.Key is "Enter" or " ")
         {
-            _heldKey = null;
-            _ = Sound.ReleaseKeyAsync(Track.Id, pitch);
+            Hold(State.InsertPitch);
+        }
+    }
+
+    private void KeysKeyUp(KeyboardEventArgs press)
+    {
+        if (press.Key is "Enter" or " ")
+        {
+            Release();
+        }
+    }
+
+    private void KeysBlur() => Release();
+
+    // Starts the note of a key, and says why when nothing can be heard.
+    private bool Hold(int pitch)
+    {
+        if (!Sound.Available)
+        {
+            Toasts.Show(ToastKind.Warning, Sound.Unavailable ?? "Notes cannot be heard now.");
+            return false;
+        }
+        _ = SoundAsync(() => Sound.PressKeyAsync(Track.Id, pitch, State.InsertVelocity));
+        return true;
+    }
+
+    private void Release() => _ = SoundAsync(Sound.StopAsync);
+
+    // A note is heard for as long as the sink takes it; a sink that fails says so, and the note is let go.
+    private async Task SoundAsync(Func<Task> sound)
+    {
+        try
+        {
+            await sound();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or OperationCanceledException or IOException)
+        {
+            Toasts.Show(ToastKind.Warning, "The note could not be played: " + exception.Message);
         }
     }
 
@@ -558,7 +627,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
     {
         if (State.Audition && Sound.Available)
         {
-            _ = Sound.HearNoteAsync(Track.Id, note);
+            _ = SoundAsync(() => Sound.HearNoteAsync(Track.Id, note));
         }
     }
 
@@ -566,24 +635,30 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private bool Handle(KeyChord chord)
     {
-        if (!View.HasFocusWithin(SurfaceId))
+        if (!_focusIds.Any(View.HasFocusWithin))
         {
             return false;
         }
-        foreach (Shortcut shortcut in Shortcuts.Roll)
+        if (OnKeys && chord is { Key: "Enter" or " ", Ctrl: false, Shift: false, Alt: false })
         {
-            if (shortcut.Matches(chord) && _keys.TryGetValue(shortcut.Id, out Func<Task>? run))
-            {
-                _ = InvokeAsync(async () =>
-                {
-                    _message = string.Empty;
-                    await run();
-                    StateHasChanged();
-                });
-                return true;
-            }
+            // On the keys, Enter and Space play the pitch (the keys' own handlers do it): they neither type a note nor play the transport.
+            return true;
         }
-        return false;
+        if (RollKeyPolicy.Find(chord) is not { } shortcut || !_keys.TryGetValue(shortcut.Id, out Func<Task>? run))
+        {
+            return false;
+        }
+        if (RollKeyPolicy.Runs(shortcut, chord, Drags.Current is not null))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                _message = string.Empty;
+                await run();
+                StateHasChanged();
+            });
+        }
+        // The key is the roll's and is taken either way.
+        return true;
     }
 
     private Task ToggleAuditionKey()
@@ -636,11 +711,27 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         return Task.CompletedTask;
     }
 
-    private Task Nudge(int direction) => SendAsync(RollEdits.Nudge(Document, Clip, SelectedNotes(), direction));
+    private Task Nudge(int direction)
+    {
+        List<MidiNote> notes = SelectedNotes();
+        return notes.Count == 0 ? Message(NoSelection) : SendAsync(RollEdits.Nudge(Document, Clip, notes, direction));
+    }
 
-    private Task Stretch(int direction) => SendAsync(RollEdits.Stretch(Document, Clip, SelectedNotes(), direction));
+    private Task Stretch(int direction)
+    {
+        List<MidiNote> notes = SelectedNotes();
+        return notes.Count == 0 ? Message(NoSelection) : SendAsync(RollEdits.Stretch(Document, Clip, notes, direction));
+    }
 
-    private Task Louder(int amount) => SendAsync(RollEdits.Louder(Clip, SelectedOrAll(), amount));
+    private Task Louder(int amount) => SendAsync(RollEdits.Louder(Clip, State.Selected, amount));
+
+    // On the keys, the arrows choose the pitch of the next note typed, and the status line says which.
+    private Task Pitch(int direction)
+    {
+        State.Remember(State.InsertPitch + direction, State.InsertVelocity);
+        Reveal(Geometry.X(State.InsertTime), Geometry.RowTop(State.InsertPitch), Geometry.X(0));
+        return Message($"Next note {NoteRules.Name(State.InsertPitch)}.");
+    }
 
     private Task Transpose(int semitones)
     {

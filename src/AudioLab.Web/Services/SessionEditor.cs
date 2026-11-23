@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using AudioLab.Web.Media;
 
 namespace AudioLab.Web.Services;
 
@@ -31,6 +32,12 @@ public sealed class SessionEditor(LiveProject live)
         return RunAsync(project => live.SendAsync(new SetTrackSoloed { Project = project, Track = track, Soloed = soloed }));
     }
 
+    /// <summary>Turns the project's metronome on or off, for everyone in it.</summary>
+    public Task<EditResult> SetMetronomeAsync(bool on)
+    {
+        return RunAsync(project => live.SendAsync(new SetMetronome { Project = project, Enabled = on }));
+    }
+
     /// <summary>Moves a clip to an absolute start, and to another track when one is given: one gesture, one command, one undo step.</summary>
     public Task<EditResult> MoveClipAsync(ClipId clip, double start, TrackId? track)
     {
@@ -40,6 +47,34 @@ public sealed class SessionEditor(LiveProject live)
             try
             {
                 return await live.SendAsync(new MoveClip { Project = project, Clip = clip, Start = start, Track = track }, gesture);
+            }
+            finally
+            {
+                await live.EndGestureAsync(gesture);
+            }
+        });
+    }
+
+    /// <summary>Adds a media file as a clip: one gesture of one command, one undo step, with the duration the server measured.</summary>
+    public Task<EditResult> AddClipAsync(MediaPlacement placement)
+    {
+        string name = Path.GetFileNameWithoutExtension(placement.File.Name);
+        return RunAsync(async project =>
+        {
+            string gesture = live.NewGesture();
+            try
+            {
+                return await live.SendAsync(
+                    new AddClip
+                    {
+                        Project = project,
+                        Track = placement.Track,
+                        Media = MediaId.From(placement.File.Id),
+                        Duration = placement.File.Duration,
+                        Start = placement.Start,
+                        Name = string.IsNullOrWhiteSpace(name) ? null : name,
+                    },
+                    gesture);
             }
             finally
             {

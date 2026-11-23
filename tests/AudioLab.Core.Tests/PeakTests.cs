@@ -160,6 +160,39 @@ public sealed class PeakTests
     }
 
     [Fact]
+    public void EachLevelCanBeReadFromItsOwnRangeOfTheFile()
+    {
+        PeakData peaks = Build(Signal(50_000, 2, 5), 2);
+        byte[] bytes = PeakFile.Write(peaks);
+        PeakHeader header = PeakFile.ReadHeader(bytes.AsSpan(0, PeakFile.HeaderBytes + (PeakFile.LevelEntryBytes * 5)));
+
+        long next = header.TableEnd;
+        for (int level = 0; level < peaks.Levels.Count; level++)
+        {
+            (long offset, long length) = PeakFile.LevelRange(header, level);
+            Assert.Equal(next, offset);
+            next = offset + length;
+            PeakLevel read = PeakFile.ReadLevel(header, level, bytes.AsSpan((int)offset, (int)length));
+            Assert.Equal(peaks.Levels[level].FramesPerPeak, read.FramesPerPeak);
+            Assert.True(peaks.Levels[level].Values.SequenceEqual(read.Values));
+        }
+        Assert.Equal(bytes.Length, next);
+    }
+
+    [Fact]
+    public void ALevelReadFromTheWrongNumberOfBytesOrAMissingLevelIsRefused()
+    {
+        byte[] bytes = PeakFile.Write(Build(Signal(3000, 2, 3), 2));
+        PeakHeader header = PeakFile.ReadHeader(bytes);
+        (long offset, long length) = PeakFile.LevelRange(header, 1);
+
+        Assert.Throws<InvalidDataException>(() => PeakFile.ReadLevel(header, 1, bytes.AsSpan((int)offset, (int)length - 2)));
+        Assert.Throws<InvalidDataException>(() => PeakFile.ReadLevel(header, 1, bytes.AsSpan((int)offset, (int)length + 2)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PeakFile.LevelRange(header, 5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PeakFile.LevelRange(header, -1));
+    }
+
+    [Fact]
     public void AFileThatIsNotExactlyWhatItsHeaderSaysIsRefused()
     {
         byte[] good = PeakFile.Write(Build(Signal(3000, 2, 3), 2));

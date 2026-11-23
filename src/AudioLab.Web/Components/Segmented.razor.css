@@ -65,3 +65,8 @@
     width: auto;
     padding: 0 var(--space-8);
 }
+
+.segmented[data-variant="transport"] ::deep .segment[data-chosen="true"] {
+    background: var(--go);
+    color: var(--ink);
+}

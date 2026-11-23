@@ -6,7 +6,13 @@ public static class ScriptAllowlist
     private const string Pack = "Microsoft.AspNetCore.App.Internal.Assets";
 
     /// <summary>Approved script files in the repository. Adding one needs the owner's approval in the pull request that adds the file.</summary>
-    public static readonly ScriptAllowance[] Entries = [];
+    public static readonly ScriptAllowance[] Entries =
+    [
+        new("src/AudioLab.Web/wwwroot/audio-shim.js",
+            "Two roles, no engine logic (D24). First, the AudioWorkletProcessor: a processor can only be a script, and it keeps the ring of "
+            + "rendered chunks, the credits and the dropout counter on the audio thread. Second, the bootstrap of the engine's web worker: a "
+            + "worker can only start from a script, and it must start the .NET runtime, call its exports and pass each chunk to the worklet's port."),
+    ];
 
     /// <summary>Approved scripts inside NuGet packages, one entry per script. Adding one needs the owner's approval in its pull request.</summary>
     /// <remarks>An entry covers one script path of one package id at one exact version. A new script, or a new version, needs a new entry.</remarks>

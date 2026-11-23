@@ -38,11 +38,11 @@ public sealed class LaneDragTests
 
         drag.Update(0, 14);
 
-        SetNoteVelocity sent = Assert.IsType<SetNoteVelocity>(Assert.Single(Assert.IsType<RollEdit>(drag.Commit()).Build(_project)));
+        SetNoteVelocity sent = Assert.IsType<SetNoteVelocity>(Assert.Single(Assert.IsType<RollEdit>(drag.Commit(_clip)).Build(_project)));
         Assert.Equal(95, sent.Velocity);
         Assert.Equal(2, sent.Notes!.Count);
         VelocityDrag same = new(_clip.Id, [_clip.Notes[0]], 56, 56 * (1 - (90 / 127.0)));
-        Assert.Null(same.Commit());
+        Assert.Null(same.Commit(_clip));
     }
 
     /// <summary>A pedal event moves on the grid with its value kept, as a removal and an add, and never onto another event.</summary>
@@ -54,12 +54,12 @@ public sealed class LaneDragTests
 
         drag.Update(80 + 21, 0);
 
-        IReadOnlyList<Command> sent = Assert.IsType<RollEdit>(drag.Commit()).Build(_project);
+        IReadOnlyList<Command> sent = Assert.IsType<RollEdit>(drag.Commit(_clip)).Build(_project);
         Assert.Equal(2, sent.Count);
         Assert.Equal(1, Assert.IsType<RemoveControlChanges>(sent[0]).Time);
         AddControlChange added = Assert.IsType<AddControlChange>(sent[1]);
         Assert.Equal((1.25, 64, 127), (added.Time, added.Controller, added.Value));
         drag.Update(80 + 80, 0);
-        Assert.Null(drag.Commit());
+        Assert.Null(drag.Commit(_clip));
     }
 }

@@ -74,18 +74,44 @@ public static class PeakFile
             throw new InvalidDataException($"The peak file is {bytes.Length} bytes but its header says {header.TotalBytes}.");
         }
         List<PeakLevel> levels = [];
-        int offset = header.TableEnd;
-        foreach ((int framesPerPeak, long peaks) in header.Levels)
+        for (int index = 0; index < header.Levels.Count; index++)
         {
-            short[] values = new short[peaks * header.Channels * 2];
-            for (int index = 0; index < values.Length; index++)
-            {
-                values[index] = BinaryPrimitives.ReadInt16LittleEndian(bytes[offset..]);
-                offset += sizeof(short);
-            }
-            levels.Add(new PeakLevel(framesPerPeak, values));
+            (long offset, long length) = LevelRange(header, index);
+            levels.Add(ReadLevel(header, index, bytes.Slice((int)offset, (int)length)));
         }
         return new PeakData(header.Channels, header.SampleRate, header.Frames, levels);
+    }
+
+    /// <summary>Where the values of one level are in the file and how many bytes they take, so a client can ask for that range alone.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The file has no such level.</exception>
+    public static (long Offset, long Length) LevelRange(PeakHeader header, int level)
+    {
+        ArgumentNullException.ThrowIfNull(header);
+        ArgumentOutOfRangeException.ThrowIfNegative(level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(level, header.Levels.Count);
+        long offset = header.TableEnd;
+        for (int index = 0; index < level; index++)
+        {
+            offset += header.Levels[index].Peaks * header.Channels * 2 * sizeof(short);
+        }
+        return (offset, header.Levels[level].Peaks * header.Channels * 2 * sizeof(short));
+    }
+
+    /// <summary>Reads one level from exactly the bytes <see cref="LevelRange"/> names.</summary>
+    /// <exception cref="InvalidDataException">The bytes are not the length of that level's values.</exception>
+    public static PeakLevel ReadLevel(PeakHeader header, int level, ReadOnlySpan<byte> values)
+    {
+        (_, long length) = LevelRange(header, level);
+        if (values.Length != length)
+        {
+            throw new InvalidDataException($"The values of the level are {values.Length} bytes but its header says {length}.");
+        }
+        short[] decoded = new short[length / sizeof(short)];
+        for (int index = 0; index < decoded.Length; index++)
+        {
+            decoded[index] = BinaryPrimitives.ReadInt16LittleEndian(values[(index * sizeof(short))..]);
+        }
+        return new PeakLevel(header.Levels[level].FramesPerPeak, decoded);
     }
 
     /// <summary>Reads and checks the header and level table, which is enough to know how long the whole file must be.</summary>

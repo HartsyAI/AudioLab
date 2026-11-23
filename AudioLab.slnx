@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/AudioLab.Audio.Worker/AudioLab.Audio.Worker.csproj" />
     <Project Path="src/AudioLab.Audio/AudioLab.Audio.csproj" />
     <Project Path="src/AudioLab.Core/AudioLab.Core.csproj" />
     <Project Path="src/AudioLab.Server/AudioLab.Server.csproj" />

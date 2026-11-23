@@ -2,11 +2,13 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>Where the notes the user touches in the piano roll are heard: the seam to the sound engine in the page, which is not there yet.</summary>
+/// <summary>Where the notes the user touches in the piano roll are heard: the seam to the engine host, which cannot play a live note yet.</summary>
 /// <remarks>
-/// The piano roll never makes a sound itself and has no audio path of its own (D5). When the engine host runs in the page, it implements this
-/// interface and is registered in place of <see cref="UnavailableAudition"/>; a note is then played by the instrument of the track it is on, so a
-/// sampler track plays its sample and a synth track its sound. Until then <see cref="Unavailable"/> says why, and the roll shows it.
+/// The piano roll never makes a sound itself and has no audio path of its own (D5). <c>LiveHost</c>, the engine host (D60), implements this
+/// interface and is registered in place of <see cref="UnavailableAudition"/> when it can start and stop a note outside a clip: the engine runs
+/// in the page and the transport plays the clips of the project (D61), but the synth and the sampler take notes from a clip only. A note is then
+/// played by the instrument of the track it is on, so a sampler track plays its sample and a synth track its sound. Until then
+/// <see cref="Unavailable"/> says why, and the roll shows it.
 /// </remarks>
 public interface IAuditionSink
 {

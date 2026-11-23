@@ -46,16 +46,47 @@ public sealed class RollEditsTests
         Assert.Equal(0.02, shorter.Notes[0].Duration, 9);
     }
 
-    /// <summary>A change of velocity sends one command for each value the notes land on, in one edit.</summary>
+    /// <summary>A stretch uses the server's rule: no clip end, so a note that rings past the end can be lengthened.</summary>
     [Fact]
-    public void AChangeOfVelocitySendsOneCommandForEachValueTheNotesLandOn()
+    public void AStretchHasNoClipEnd()
     {
-        IReadOnlyList<Command> sent = Commands(RollEdits.Louder(_clip, [_clip.Notes[0], _clip.Notes[1], _clip.Notes[2]], 8));
+        MidiClip clip = Song.Midi("t", 0, 4, Note(1, 60, 3.9, 1));
 
-        SetNoteVelocity[] sets = [.. sent.Cast<SetNoteVelocity>().OrderBy(set => set.Velocity)];
-        Assert.Equal([98, 127], sets.Select(set => set.Velocity).ToArray());
-        Assert.Equal(2, sets[0].Notes!.Count);
-        Assert.Null(RollEdits.Louder(Song.Midi("m", 0, 4, Note(1, 60, 1, 0.5, 127)), [Note(1, 60, 1, 0.5, 127)], 8));
+        ResizeNotes grown = Assert.IsType<ResizeNotes>(Assert.Single(Commands(RollEdits.Stretch(Document, clip, [clip.Notes[0]], 1))));
+
+        Assert.True(grown.Notes[0].Duration > 1);
+    }
+
+    /// <summary>A change of velocity is one command, whatever velocities the notes have, and none when every note is at the end.</summary>
+    [Fact]
+    public void AChangeOfVelocityIsOneCommandWhateverVelocitiesTheNotesHave()
+    {
+        RollEdit? louder = RollEdits.Louder(_clip, new HashSet<NoteId> { new(1), new(2) }, 8);
+        AdjustNoteVelocity some = Assert.IsType<AdjustNoteVelocity>(Assert.Single(Commands(louder)));
+        Assert.Equal([new NoteId(1), new NoteId(2)], some.Notes!);
+        Assert.Equal(8, some.Amount);
+        AdjustNoteVelocity all = Assert.IsType<AdjustNoteVelocity>(Assert.Single(Commands(RollEdits.Louder(_clip, new HashSet<NoteId>(), -8))));
+        Assert.Null(all.Notes);
+        Assert.Null(RollEdits.Louder(Song.Midi("m", 0, 4, Note(1, 60, 1, 0.5, 127)), new HashSet<NoteId> { new(1) }, 8));
+    }
+
+    /// <summary>A paste, a duplicate, a delete and a transpose of more notes than one command carries are several commands, in one edit.</summary>
+    [Fact]
+    public void EditsOfMoreNotesThanOneCommandCarriesAreSeveralCommands()
+    {
+        int count = RollEdit.ChunkSize + 3;
+        NewNote[] copied = [.. Enumerable.Range(0, count).Select(index => new NewNote(60, index * 0.0001, 0.01, 90))];
+        MidiClip big = Song.Midi("m", 0, 8, Enumerable.Range(1, count).Select(id => Note(id, 60, id * 0.0001, 0.01)).ToArray());
+        HashSet<NoteId> everyone = [.. big.Notes.Select(note => note.Id)];
+
+        AddNotes[] pasted = [.. Commands(RollEdits.Place(big, copied, 1, out _)).Cast<AddNotes>()];
+        DeleteNotes[] deleted = [.. Commands(RollEdits.Delete(big, everyone)).Cast<DeleteNotes>()];
+        TransposeNotes[] moved = [.. Commands(RollEdits.Transpose(big, everyone, 1)).Cast<TransposeNotes>()];
+
+        Assert.Equal([RollEdit.ChunkSize, 3], pasted.Select(add => add.Notes.Count).ToArray());
+        Assert.Equal([RollEdit.ChunkSize, 3], deleted.Select(delete => delete.Notes.Count).ToArray());
+        Assert.Equal([RollEdit.ChunkSize, 3], moved.Select(transpose => transpose.Notes!.Count).ToArray());
+        Assert.True(RollEdits.Place(big, copied, 1, out _)!.SelectCreated);
     }
 
     /// <summary>A duplicate goes right after the notes, a paste at the insert point, and notes past the clip are left out with a reason.</summary>
@@ -109,5 +140,19 @@ public sealed class RollEditsTests
         Assert.Equal(127, Assert.IsType<AddControlChange>(Assert.Single(Commands(RollEdits.TogglePedal(pedal, 0.5)))).Value);
         Assert.Equal(0, Assert.IsType<AddControlChange>(Assert.Single(Commands(RollEdits.TogglePedal(pedal, 1.5)))).Value);
         Assert.IsType<RemoveControlChanges>(Assert.Single(Commands(RollEdits.RemovePedal(pedal, 1))));
+    }
+
+    /// <summary>The pedal at a time that already holds an event replaces it, in one gesture, so a time never holds two events.</summary>
+    [Fact]
+    public void ThePedalAtATimeThatHoldsAnEventReplacesIt()
+    {
+        MidiClip pedal = _clip with { ControlChanges = [new MidiControlChange(1, 64, 127)] };
+
+        IReadOnlyList<Command> sent = Commands(RollEdits.TogglePedal(pedal, 1));
+
+        Assert.Equal(1, Assert.IsType<RemoveControlChanges>(sent[0]).Time);
+        AddControlChange added = Assert.IsType<AddControlChange>(sent[1]);
+        Assert.Equal((1d, 0), (added.Time, added.Value));
+        Assert.Single(Commands(RollEdits.TogglePedal(pedal, 2)));
     }
 }
