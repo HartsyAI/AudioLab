@@ -146,6 +146,29 @@ public sealed class MediaLimitsTests
         Assert.Equal((6, 0L), (limits.FilesRemaining, limits.BytesRemaining));
     }
 
+    [Fact]
+    public async Task AQuotaThatOnlyRefusesStillAnswersWithNoFixedLimit()
+    {
+        await using RunningServer server = await RunningServer.StartAsync(
+            null,
+            services => services.AddSingleton<IMediaQuota>(new RefusingQuota()));
+        await UploadAsync(server);
+
+        MediaLimits limits = await LimitsAsync(server);
+
+        Assert.Equal((int.MaxValue, long.MaxValue), (limits.MaxFiles, limits.MaxBytes));
+        Assert.Equal((int.MaxValue - 1, 1), (limits.FilesRemaining, limits.Files));
+    }
+
+    // A quota written before the limits existed: it implements only the refusal.
+    private sealed class RefusingQuota : IMediaQuota
+    {
+        public ValueTask<string?> RefusalAsync(UserId user, MediaUsage usage, long incomingBytes, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult<string?>(null);
+        }
+    }
+
     private sealed class FixedQuota(int files, long bytes) : IMediaQuota
     {
         public ValueTask<string?> RefusalAsync(UserId user, MediaUsage usage, long incomingBytes, CancellationToken cancellationToken)

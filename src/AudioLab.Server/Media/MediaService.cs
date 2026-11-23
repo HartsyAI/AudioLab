@@ -87,6 +87,8 @@ public sealed class MediaService(
     /// <exception cref="IOException">The user's media folder cannot be read.</exception>
     public async Task<MediaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken)
     {
+        // Off the request's thread, as every route does, so that the first question of a user does not read their folder here.
+        await store.PrepareAsync(user, cancellationToken);
         MediaQuotaLimits limits = await quota.LimitsAsync(user, cancellationToken);
         (MediaUsage usage, int running) = store.CurrentOf(user);
         return new MediaLimits(

@@ -16,5 +16,13 @@ public interface IMediaQuota
     /// <summary>What <paramref name="user"/> may keep, to tell a client before it uploads; the limits <see cref="RefusalAsync"/> enforces.</summary>
     /// <param name="user">The user the door resolved.</param>
     /// <param name="cancellationToken">Cancels the question.</param>
-    public ValueTask<MediaQuotaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken);
+    /// <remarks>
+    /// The default says there is no fixed limit, for a quota whose rule is not two numbers (a plan, a share of a pool): the remaining
+    /// numbers are then as large as they can be and <see cref="RefusalAsync"/> is still what refuses an upload. Such a quota overrides this
+    /// with the numbers that fit it best.
+    /// </remarks>
+    public ValueTask<MediaQuotaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new MediaQuotaLimits(int.MaxValue, long.MaxValue));
+    }
 }
