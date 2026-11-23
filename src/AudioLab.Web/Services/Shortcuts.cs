@@ -12,6 +12,9 @@ public static class Shortcuts
     /// <summary>The scope of the piano roll: keys heard while the focus is inside it, so they never meet the keys of the arrangement.</summary>
     public const string PianoRoll = "pianoroll";
 
+    /// <summary>The scope of the media library panel.</summary>
+    public const string Media = "media";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
@@ -53,6 +56,31 @@ public static class Shortcuts
 
     /// <summary>Shorten the selected MIDI clip by one bar.</summary>
     public static readonly Shortcut MidiClipShorter = new("midi.clip.shorter", "Shorten MIDI clip by a bar", "[", Session);
+
+    /// <summary>Delete the media file that has the focus in the library.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut DeleteMedia = new("media.delete", "Delete media file", "Delete", Media);
+
+    /// <summary>Add the media file that has the focus in the library to the arrangement.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut AddMedia = new("media.add", "Add to the arrangement", "Enter", Media);
+
+    /// <summary>Move the focus to the next file of the library.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut MediaNext = new("media.next", "Next file", "ArrowDown", Media);
+
+    /// <summary>Move the focus to the previous file of the library.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut MediaPrevious = new("media.previous", "Previous file", "ArrowUp", Media);
+
+    /// <summary>Move the focus to the first file of the library.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut MediaFirst = new("media.first", "First file", "Home", Media);
+
+    /// <summary>Move the focus to the last file of the library.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut MediaLast = new("media.last", "Last file", "End", Media);
+
     /// <summary>Play from the playhead, or pause while playing.</summary>
     public static readonly Shortcut PlayPause = new("transport.play", "Play or pause", " ", Session);
 
@@ -203,6 +231,7 @@ public static class Shortcuts
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter,
-        PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick, .. Roll,
+        PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll,
     ];
 }
