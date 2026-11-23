@@ -219,7 +219,7 @@ public sealed class MediaStore : IMediaCatalog
     /// <summary>Opens a user's file for reading; a delete in progress does not wait for the reader, and the reader keeps its bytes.</summary>
     /// <param name="user">The owner.</param>
     /// <param name="id">The file.</param>
-    /// <param name="asynchronous">Whether the stream is for asynchronous reads, as a response is; a caller that reads synchronously passes false.</param>
+    /// <param name="asynchronous">Whether the stream is for asynchronous reads, as a response's is; a synchronous reader passes false.</param>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
     public FileStream OpenContent(UserId user, MediaId id, bool asynchronous = true)
     {
