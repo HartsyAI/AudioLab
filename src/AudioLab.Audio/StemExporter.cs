@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
@@ -88,16 +86,40 @@ public static class StemExporter
         await zip.FinishAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The size of the ZIP file that <see cref="WriteZipAsync"/> would write, with the same plans and so the same lengths.</summary>
+    /// <remarks>Only the lengths are planned, so no effect is built; the media is asked for, and a missing file fails as a write would.</remarks>
+    /// <exception cref="ExportTooLargeException">There are more stems than a ZIP file holds, or the archive would be more than 4 GiB.</exception>
+    public static ExportSize Measure(
+        ProjectDocument document,
+        IMediaSource media,
+        WavOptions wav,
+        OfflineOptions? options = null,
+        IReadOnlyList<TrackId>? tracks = null)
+    {
+        ArgumentNullException.ThrowIfNull(wav);
+        Prepared prepared = Prepare(document, media, options, tracks);
+        try
+        {
+            long frames = 0;
+            long bytes = Preflight(prepared, wav);
+            for (int i = 0; i < prepared.Stems.Count; i++)
+            {
+                frames = Math.Max(frames, OfflineRenderer.RangeOf(prepared.Stems[i].Sizing, prepared.Settings).Frames);
+            }
+            return new ExportSize(bytes, frames, prepared.Stems.Count);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new ExportTooLargeException(exception.Message);
+        }
+    }
+
     /// <summary>The name of a stem's file: its place in the export and the track's name, without what a file name cannot hold.</summary>
-    /// <remarks>
-    /// Control and format characters (the ones that reorder text among them) and the characters of a path become underscores, and a long
-    /// name is cut at a whole character of text, never inside a surrogate pair or a combining sequence.
-    /// </remarks>
+    /// <remarks>The rules are those of <see cref="ExportFileName"/>.</remarks>
     public static string FileName(int number, string trackName)
     {
         ArgumentNullException.ThrowIfNull(trackName);
-        string cleaned = new(trackName.Select(CleanCharacter).ToArray());
-        string safe = Cut(cleaned.Trim(), MaxFileNameLength).TrimEnd();
+        string safe = ExportFileName.Clean(trackName, MaxFileNameLength);
         return $"{number:00} {(safe.Length == 0 ? $"Track {number}" : safe)}.wav";
     }
 
@@ -117,32 +139,6 @@ public static class StemExporter
             stems.Add(new Stem(track.Id, track.Name, OfflineRenderer.Render(plan, prepared.Settings)));
         }
         return stems;
-    }
-
-    private static char CleanCharacter(char character) =>
-        character is '\\' or '/' or ':' or '*' or '?' or '"' or '<' or '>' or '|'
-        || char.GetUnicodeCategory(character) is UnicodeCategory.Control or UnicodeCategory.Format
-            ? '_'
-            : character;
-
-    private static string Cut(string text, int length)
-    {
-        if (text.Length <= length)
-        {
-            return text;
-        }
-        StringBuilder cut = new();
-        TextElementEnumerator elements = StringInfo.GetTextElementEnumerator(text);
-        while (elements.MoveNext())
-        {
-            string element = elements.GetTextElement();
-            if (cut.Length + element.Length > length)
-            {
-                break;
-            }
-            cut.Append(element);
-        }
-        return cut.ToString();
     }
 
     private static WavOptions SeededFor(WavOptions wav, int index) => wav with { Seed = wav.Seed + (uint)index };
@@ -172,8 +168,8 @@ public static class StemExporter
     private static RenderPlan PlanOf(ProjectDocument document, IMediaSource media, Prepared prepared, TrackId id) =>
         RenderPlan.Create(document, media, OfflineRenderer.PlanOptionsOf(prepared.Settings with { StemOf = id }));
 
-    // Checks the sizes of the whole archive, so that nothing is written for an export that cannot be finished.
-    private static void Preflight(Prepared prepared, WavOptions wav)
+    // Checks the sizes of the whole archive, so that nothing is written for an export that cannot be finished; returns its size.
+    private static long Preflight(Prepared prepared, WavOptions wav)
     {
         if (prepared.Stems.Count > ZipWriter.MaxEntries)
         {
@@ -190,6 +186,7 @@ public static class StemExporter
         {
             throw new ArgumentOutOfRangeException(nameof(prepared), "The stems would make a ZIP file of more than 4 GiB.");
         }
+        return total;
     }
 
     private sealed record Prepared(OfflineOptions Settings, List<(Track Track, RenderPlan Sizing)> Stems, string[] Names);

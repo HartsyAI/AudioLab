@@ -96,6 +96,8 @@ public static class ServerHost
         services.AddMedia(options.Media);
         services.AddSingleton(options.Render);
         services.AddSingleton<RenderMediaProvider>();
+        services.AddSingleton<RenderGate>();
+        services.AddSingleton<ExportService>();
         services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
         services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
@@ -141,6 +143,7 @@ public static class ServerHost
         ProjectRoutes.Map(api);
         McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
+        ExportRoutes.Map(api);
         app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
         UiRoutes.Map(app);
     }

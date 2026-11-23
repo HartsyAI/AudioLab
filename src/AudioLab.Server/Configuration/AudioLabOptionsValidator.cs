@@ -109,6 +109,26 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:Render:MediaCacheBytes must be at least 1 MiB.");
         }
+        if (render.MaxConcurrentExportsPerUser < 1 || render.MaxConcurrentExports < 1)
+        {
+            problems.Add("AudioLab:Render:MaxConcurrentExportsPerUser and MaxConcurrentExports must be at least 1.");
+        }
+        if (!double.IsFinite(render.MaxSeconds) || render.MaxSeconds <= 0 || render.MaxSeconds > ProjectLimits.MaxSeconds)
+        {
+            problems.Add($"AudioLab:Render:MaxSeconds must be above 0 and at most {ProjectLimits.MaxSeconds} seconds.");
+        }
+        if (render.MaxBytes is < 1024 * 1024 or > uint.MaxValue)
+        {
+            problems.Add("AudioLab:Render:MaxBytes must be from 1 MiB to 4 GiB less one byte, the most a WAV or ZIP file holds.");
+        }
+        if (render.MaxTime <= TimeSpan.Zero || render.MaxTime > TimeSpan.FromHours(24))
+        {
+            problems.Add("AudioLab:Render:MaxTime must be above zero and at most 24 hours.");
+        }
+        if (!double.IsFinite(render.MaxTailSeconds) || render.MaxTailSeconds < 0 || render.MaxTailSeconds > 600)
+        {
+            problems.Add("AudioLab:Render:MaxTailSeconds must be from 0 to 600 seconds.");
+        }
     }
 
     private static bool IsHeaderName(string? name) => name is not null && HeaderNamePattern().IsMatch(name);

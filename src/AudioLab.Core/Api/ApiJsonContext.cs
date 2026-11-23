@@ -16,6 +16,7 @@ namespace AudioLab.Core.Api;
 [JsonSerializable(typeof(SaveResult))]
 [JsonSerializable(typeof(CreateProjectRequest))]
 [JsonSerializable(typeof(DuplicateProjectRequest))]
+[JsonSerializable(typeof(ExportRequest))]
 public sealed partial class ApiJsonContext : JsonSerializerContext
 {
 }
