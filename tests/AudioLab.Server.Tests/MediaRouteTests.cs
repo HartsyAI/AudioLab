@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;

@@ -221,11 +221,15 @@ public sealed class NoteDrag : IRollGesture
         }
     }
 
+    // A pointer that has not travelled across in time leaves the notes where they are, so a drag of an off-grid note in pitch only, or one that
+    // comes back to where it began, does not shift it to the grid.
+    private bool HasMovedInTime(double x) => Math.Abs(x - _startX) >= Threshold;
+
     // The grabbed note goes to the grid line nearest to where the pointer put it, and every selected note keeps its place relative to it.
     private void Shift(double x, double y)
     {
         double wanted = _grabbed.Start + (_geometry.Seconds(x) - _startTime);
-        double delta = SnapLocal(wanted) - _grabbed.Start;
+        double delta = HasMovedInTime(x) ? SnapLocal(wanted) - _grabbed.Start : 0;
         double latest = NoteRules.LatestStart(_clip.Length);
         double lowest = _notes.Min(note => note.Start);
         double highest = _notes.Max(note => note.Start);
@@ -239,7 +243,7 @@ public sealed class NoteDrag : IRollGesture
     private void Stretch(double x)
     {
         double end = _grabbed.Start + _grabbed.Duration;
-        double delta = SnapLocal(end + (_geometry.Seconds(x) - _startTime)) - end;
+        double delta = HasMovedInTime(x) ? SnapLocal(end + (_geometry.Seconds(x) - _startTime)) - end : 0;
         double shortest = _notes.Min(note => note.Duration);
         double room = Math.Max(0, _clip.Length - _notes.Max(note => note.Start + note.Duration));
         _delta = Math.Max(NoteRules.MinDuration - shortest, Math.Min(delta, room));

@@ -14,6 +14,9 @@ internal sealed class FakeProjectHub : IProjectHub
     /// <summary>Reply.</summary>
     public CommandReply Reply { get; set; } = new(true, true, 2, [], []);
 
+    /// <summary>A reply for the nth command applied (counted from 1), or null to use <see cref="Reply"/>.</summary>
+    public Func<int, CommandReply?>? ReplyForApply { get; set; }
+
     /// <summary>Disposed.</summary>
     public bool Disposed { get; private set; }
 
@@ -110,7 +113,7 @@ internal sealed class FakeProjectHub : IProjectHub
         }
         Sent.Add((command, json, gesture));
         Calls.Add($"apply {project} {command} {json} {gesture}".TrimEnd());
-        return Task.FromResult(Reply);
+        return Task.FromResult(ReplyForApply?.Invoke(Sent.Count) ?? Reply);
     }
 
     /// <summary>Undo async.</summary>

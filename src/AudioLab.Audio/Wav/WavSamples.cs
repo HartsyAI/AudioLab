@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using AudioLab.Core.Model;
 
-namespace AudioLab.Server.Media;
+namespace AudioLab.Audio.Wav;
 
 /// <summary>Turns the samples of a checked WAV file into floats from -1 up to, but not including, 1; a float file keeps its own values.</summary>
 public static class WavSamples

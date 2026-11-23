@@ -81,4 +81,46 @@ public sealed class MidiEditorTests
 
         Assert.Equal("A note starts at or after the new end.", result.Refusal);
     }
+
+    /// <summary>Commands of one edit go in one gesture, and one refused after another was applied takes the first back.</summary>
+    [Fact]
+    public async Task ACommandRefusedAfterAnotherWasAppliedTakesTheFirstBack()
+    {
+        await using LiveProject live = await OpenAsync();
+        ClipId clip = ClipId.From("a");
+        _hub.ReplyForApply = count => count == 2 ? FakeProjectHub.Refused(CommandErrorCode.Rejected, "no such controller event") : null;
+
+        EditResult result = await new MidiEditor(live).SendAsync(project =>
+        [
+            new RemoveControlChanges { Project = project, Clip = clip, Controller = 64, Time = 1 },
+            new AddControlChange { Project = project, Clip = clip, Controller = 64, Time = 2, Value = 127 },
+        ]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("No such controller event.", result.Refusal);
+        string? gesture = _hub.Sent[0].Gesture;
+        Assert.NotNull(gesture);
+        Assert.Equal(gesture, _hub.Sent[1].Gesture);
+        Assert.Equal([$"end song {gesture}", "undo song"], _hub.Calls.Skip(2).ToArray());
+    }
+
+    /// <summary>Commands that are all applied are one gesture that is closed, and their ids come back in order.</summary>
+    [Fact]
+    public async Task CommandsThatAreAllAppliedAreOneClosedGestureWithTheirIdsInOrder()
+    {
+        await using LiveProject live = await OpenAsync();
+        ClipId clip = ClipId.From("a");
+        _hub.ReplyForApply = count => new CommandReply(true, true, 2, [], [$"n{count}"]);
+
+        EditResult result = await new MidiEditor(live).SendAsync(project =>
+        [
+            new AddNotes { Project = project, Clip = clip, Notes = [new NewNote(60, 0)] },
+            new AddNotes { Project = project, Clip = clip, Notes = [new NewNote(62, 1)] },
+        ]);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(["n1", "n2"], result.Created);
+        Assert.Equal(_hub.Sent[0].Gesture, _hub.Sent[1].Gesture);
+        Assert.StartsWith("end song", _hub.Calls[^1], StringComparison.Ordinal);
+    }
 }
