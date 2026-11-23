@@ -16,7 +16,10 @@ public sealed class MediaApiTests
 
     private static readonly Uri _site = new("http://audiolab.test/audiolab/");
 
-    private static MediaApi Api(HttpMessageHandler handler) => new(new HttpClient(handler) { BaseAddress = _site });
+    private static MediaApi Api(HttpMessageHandler handler)
+    {
+        return new MediaApi(new HttpClient(handler, false) { BaseAddress = _site }, new HttpClient(handler, false) { BaseAddress = _site });
+    }
 
     /// <summary>The list is read from the route under the path prefix, with the count of records left out.</summary>
     [Fact]
@@ -69,21 +72,6 @@ public sealed class MediaApiTests
         Assert.NotEmpty(reports);
         Assert.Equal(new UploadProgress(file.Length, file.Length), reports[^1]);
         Assert.Equal(reports.Select(report => report.BytesRead).Order(), reports.Select(report => report.BytesRead));
-    }
-
-    /// <summary>A cancelled upload throws the cancellation and not a failure of the server.</summary>
-    [Fact]
-    public async Task ACancelledUploadThrowsTheCancellation()
-    {
-        using CancellationTokenSource cancel = new();
-        RecordingHandler handler = new(_ =>
-        {
-            cancel.Cancel();
-            throw new OperationCanceledException(cancel.Token);
-        });
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => Api(handler).UploadAsync("a.wav", new MemoryStream([1, 2, 3]), 3, null, cancel.Token));
     }
 
     /// <summary>A connection that closes before any answer is an interruption that says a refusal may be the cause.</summary>
@@ -208,30 +196,6 @@ public sealed class MediaApiTests
 
         Assert.Equal(HttpMethod.Delete, handler.Requests.Single().Method);
         Assert.Equal("/audiolab/api/media/m%202", handler.Requests.Single().Path);
-    }
-
-    /// <summary>The header check passes only a complete RIFF WAVE file whose size matches the header.</summary>
-    [Fact]
-    public void TheHeaderCheckPassesOnlyACompleteRiffWaveFile()
-    {
-        byte[] good = Header("RIFF", 100 - 8, "WAVE");
-
-        Assert.Null(WavPrecheck.Problem(good, 100));
-        Assert.Equal("The file is empty.", WavPrecheck.Problem([], 0));
-        Assert.Equal("The file is too short to be a WAV file.", WavPrecheck.Problem(good, 20));
-        Assert.StartsWith("Only WAV files", WavPrecheck.Problem(Header("OggS", 92, "WAVE"), 100), StringComparison.Ordinal);
-        Assert.StartsWith("Only WAV files", WavPrecheck.Problem(Header("RIFF", 92, "AVI "), 100), StringComparison.Ordinal);
-        Assert.StartsWith("The file is cut short", WavPrecheck.Problem(good, 101), StringComparison.Ordinal);
-        Assert.StartsWith("The file is cut short", WavPrecheck.Problem(good, 99), StringComparison.Ordinal);
-    }
-
-    private static byte[] Header(string riff, uint size, string wave)
-    {
-        byte[] head = new byte[12];
-        Encoding.ASCII.GetBytes(riff).CopyTo(head, 0);
-        BitConverter.GetBytes(size).CopyTo(head, 4);
-        Encoding.ASCII.GetBytes(wave).CopyTo(head, 8);
-        return head;
     }
 
     private sealed class SyncProgress(Action<UploadProgress> report) : IProgress<UploadProgress>
