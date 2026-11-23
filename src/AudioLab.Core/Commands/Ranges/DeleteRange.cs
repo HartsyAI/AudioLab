@@ -5,7 +5,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Removes a time range from the clips of some tracks; in shuffle edit mode the later clips close the gap.</summary>
+/// <summary>Removes a time range from the clips of some tracks, and cuts the notes of their MIDI clips; the ids of new notes are not in Created.</summary>
 public sealed record DeleteRange : Command
 {
     /// <summary>Where the range starts, in seconds.</summary>
