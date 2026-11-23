@@ -19,7 +19,10 @@ public sealed class FailureTextTests
         { new TaskCanceledException("The request was canceled due to the configured timeout"), "The server took too long to answer. Try again." },
         { new TimeoutException(), "The server took too long to answer. Try again." },
         { new JsonException("bad json"), "The server sent an answer this page cannot read." },
-        { new InvalidOperationException("The 'InvokeCoreAsync' method cannot be called if the connection is not active"), "The connection to the server is not ready. Try again in a moment." },
+        {
+            new InvalidOperationException("The 'InvokeCoreAsync' method cannot be called if the connection is not active"),
+            "The connection to the server is not ready. Try again in a moment."
+        },
         { new NullReferenceException(), "Something went wrong. Try again." },
     };
 
