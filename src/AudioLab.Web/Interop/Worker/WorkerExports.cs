@@ -54,7 +54,8 @@ public static partial class WorkerExports
 
     // The worker project says in its own metadata whether it was published with ahead-of-time compilation (AudioLabWorkerAot).
     private static bool CompiledAhead() =>
-        typeof(WorkerExports).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any(item => item.Key == "AudioLabAot" && item.Value == "true");
+        typeof(WorkerExports).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Any(item => item.Key == "AudioLabAot" && item.Value == "true");
 
     private static LiveHost Host => _host ?? throw new InvalidOperationException("The engine host has not been started.");
 }
