@@ -60,6 +60,7 @@ does, and the 79 rows of its `DAW_AUDIT.md` are the regression list: each row th
 | D28 | The range commands, the media replacement and the section naming command keep the old DAW's selection rules in `AudioLab.Core.Rules.RangeRules`. `range_delete` takes a time range and the tracks it applies to and removes it from their audio clips: a clip across an edge is cut back to the part outside, a clip across the whole range is cut into two, a clip inside is gone, and a piece under a millisecond is dropped (the one minimum-piece rule of the range commands and `clip_split`: a millisecond, within a billionth of a second for the rounding of a subtraction, so exactly 4 to 4.001 counts; a clip that overlaps the range by less than a millionth of a second is not cut). Pieces may be shorter than the 0.05 s a trim leaves; a later `clip_trim` of one makes it at least that long where its file allows. A clip that keeps one piece keeps its id and all its metadata; one that keeps two gives the left piece its id and metadata and the right piece a new id and only the lyrics, as a split does (D22), and the new ids are reported in `Created`. Ripple is not a parameter: as `clip_delete` does, the command reads the project's edit mode, and in shuffle every clip that starts at or after the range's end moves earlier by the range's length. Markers, sections, automation and the drum pattern do not move, as in the old DAW. A MIDI clip wholly inside the range is removed and, in shuffle, later ones move; one the range cuts into is `rejected` until the note range rules, which cut notes and keep the sustain pedal, are commands too, so nothing is half done. `range_split` splits every audio clip of the tracks at both edges, each cut a split, with the same minimum piece. A range that holds no clip still closes its gap in shuffle (the later clips of the chosen tracks move earlier), as in the old DAW, and changes nothing in slip. A range is at least a millisecond long (`invalid` otherwise, as is a time outside the project's), the tracks are looked up before the times, a track named twice is cut once, and a range that changes nothing succeeds, adds no undo step and no id. A track that would pass its clip limit is refused before an id is used. Links other clips had to a removed clip are cleared. `section_name_clips` renames the audio and MIDI clips that start inside a section (one section, or all) to the section's name, a dash and the track's name, cut to the name limit; a clip that starts outside every section keeps its name. The old DAW also renamed a track called "Vocals: clip name" to follow, which D26 drops: a stem is found by its link. `clip_replace_media` makes an audio clip play another media file where it is: the start, name, colour, gain and mute stay, the visible length stays unless the new file is shorter (then it is cut to it, and fades to what is left), and the offset stays unless it would leave less than 0.05 s of the new file, then it goes back to 0 (a file under 0.05 s plays whole, and `clip_trim` leaves such a clip as it is). The lyrics go because their times are seconds of the old file, and the lyrics of the vocal stems that follow them go too (D26, through the same rule as `lyrics_set_text` with an empty text), but only when the clip had lyrics; the recorded cut (`sourceOffset`) of each stem linked to the clip is held to the new file's length. The score and stem records of the clip stay and are set again by the caller when that changed; the same file and length change nothing. The old DAW never replaced a clip's audio (a clip editor's result was a new clip), so this has no old rule behind it, and these are its decisions. The media is a `MediaId` under D22's statement: the server MUST verify its existence, ownership and duration before it applies the command. Not here: the clipboard, whose paste in shuffle mode opens a gap that no command makes yet. | Proposed | The selection operations are what a user does with a range in shuffle, slip or grid mode, and sharing the geometry between the engine, the UI preview and the commands keeps the preview and the result equal. |
 | D34 | `beat_lane_move` reorders the drum pattern's lanes by one place, the way `effect_move` and `track_move` do: it takes a lane and a direction (`up` is towards the first lane, `down` towards the last) and swaps the lane with its neighbour. The lane keeps its id, steps, gain and sample. A drag over several places is one command per place, so it is that many undo steps unless the client sends them inside one gesture (D18); the command is meant to be sent inside a gesture for a drag, and alone for a single step. A lane already at that end, or the only lane, stays put: the command succeeds, adds no undo step and no id; a lane that is not in the pattern is `not_found`. The order of the lanes is the order of the pads top to bottom, and nothing else in the document refers to it. | Proposed | It follows the precedent of `effect_move` and `track_move` (D21, D23), so a client treats every ordered list alike. A relative step depends on the current order as much as an index would: if another client adds or removes a lane between two `up` commands, the second one moves the lane past a different neighbour, and the history keeps whole documents (D16), so nothing is merged. |
 | D29 | Device I/O sits behind two small interfaces in `AudioLab.Devices`, and no other project references a device library. `IAudioDevice` lists devices and opens one full-duplex stream (an input device, an output device, shared or exclusive mode, a rate and a buffer in frames) that calls a process callback once per buffer with that buffer's input and output as spans, and counts callbacks and dropouts; the callback type is defined in `AudioLab.Audio`, which references nothing native (section 4). `IMidiInput` lists inputs and raises short messages with a timestamp. The proposed implementations are: miniaudio (WASAPI shared and exclusive, CoreAudio, ALSA, PulseAudio, JACK) through the `Hexa.NET.MiniAudio` binding pinned to 1.0.1 or a thin binding of our own, as the general `IAudioDevice`; NAudio.Asio 3.3.0 as a second `IAudioDevice` for ASIO drivers on Windows, because miniaudio has no ASIO; and NAudio.Midi 3.3.0, its WinRT backend, as `IMidiInput` on Windows. Not adopted: PortAudioSharp2, Xt.Audio, SoundFlow, OwnAudioSharp, SoLoudSharp, SDL3 and BASS, and Windows MIDI Services while it is a preview; the reasons are in [the O3 evidence](#d29-evidence-the-o3-spike). **Not shown:** the pass line (a round trip of 12 ms or less on the owner's audio interface) was not measured, because this machine has no dedicated audio interface and a loop needs a cable or the owner's hands; exclusive mode, MIDI timestamps and trimmed or AOT builds also did not run. Phase 7 measures the round trip with the spike's command before D29 is decided, and a new NuGet dependency needs the owner's agreement. D10 is unchanged: the evidence does not touch it. | Proposed | The engine needs one callback that sees input and output of the same buffer, so the frame index is shared and a recording offset follows from it; miniaudio gives that natively, with no managed allocation on the callback thread (0 bytes over 180 s) and no missed callback under heavy garbage-collection load in shared mode, in 0.57 to 0.88 MB of native code per platform. NAudio is the only candidate with ASIO and ships no native binary, but its ASIO duplex path allocated 32 bytes per callback, and its WASAPI classes are a separate player and recorder with no shared callback. Two implementations behind one seam is the cost of no single library covering ASIO, cross-platform exclusive duplex and MIDI, and the seam is what keeps either one replaceable (miniaudio's binding has one active author and has not been updated since March 2026). |
+| D38 | `AudioLab.Audio` keeps referencing only Core and owns its resampler, FFT and WAV codec; it does not reference `HartsyInference.Audio`. The 14 HartsyInference packages restore from nuget.org with no credentials on net10 and pin to one exact version of the 2.0.0-alpha line in a central `Directory.Packages.props` (the spike's does; AudioLab's does not yet, and D7 stands as written); `AudioLab.Engine` and the server, which run the models, are where they are used. Should the page ever need an audio primitive from HartsyInference, it needs the primitives in a package of their own, which the owner's repository does not have. See [the O9 evidence](#d38-evidence-the-o9-spike). | Proposed | Any reference to the package puts 10.4 MiB of brotli in the page (13.5 MiB of data embedded in the assembly, which trimming keeps), the same for every API, so no single API can be taken for less. Run live on the server and in Chromium, in the default, trimmed and AOT builds, the resampler, FFT and WAV read and write gave the output of a scalar port of the same algorithms (so the check is not independent), mostly in 1.0 to 1.4 times its time on a loaded machine; the ratios that are not "the same" are `StreamingResampler` 0.17 server and 0.37 AOT (against a whole-buffer pass of ours: the spike built no streaming version, so a streaming resampler as cheap is the unmeasured cost of owning one), `PeakNormalize` 0.46, `TryReadDurationSeconds` 54 times (not equivalent to our fixed-header read) and `HannWindow.Get` 7.6 to 74 times a held array. The FFT and the Hann window take a lock on every call, the real FFT allocates 16 KiB a call above 1024 points, the WAV writer writes mono 16-bit only, and an integer decimation (48000 to 16000) comes out half an input sample early in the package and in our port alike, so the engine needs its own writer, real-time paths and golden tests against the true ideal. Section 4 and D7 need no edit. Not measured: a model run, the GPU backends, `AudioLab.Engine`. The line has had 457 versions of the Audio package (nuget.org, 2026-11-22), so a pin goes stale quickly. |
 
 #### D17 evidence: the O2 spike
 
@@ -159,6 +160,170 @@ The stress thread caused 524 to 532 generation-0, 10 generation-1 and 9 generati
 The pass line was not measured. The detector reads back known delays exactly (self test: 2.67, 3.44, 12.67 and 24.00 ms for software delays of 0, 37, 480 and 1,024 frames plus the fake loop's one callback of 128 frames at 48 kHz). The Realtek ASIO driver runs one 528-frame buffer each way (11 ms) and reports 528 samples of latency in and out, so its round trip is at least 22 ms and that driver cannot meet the line. Every WASAPI endpoint here reports a minimum device period of 3.00 ms (default 10.00 ms); whether two 3 ms exclusive buffers plus USB come to 12 ms or less on the owner's interface is the number still open. It needs a loop: for a USB microphone with a headphone jack, headphones on its jack with an earcup against the microphone; for an interface with line outputs and inputs, a patch cable. Then `O3.Spike run --lib ma --mode exclusive --in <input> --out <output> --buffer 128 --seconds 30 --emit` (and `--lib asio --driver <name>` for an ASIO driver). If exclusive WASAPI misses on that interface the library is not the likely cause, and the fallback is that interface's own ASIO driver through NAudio.Asio, which D29 already includes; if that misses as well, the line is wrong for that interface and goes back to the owner.
 
 The seam is small: each of the four adapters in the spike reduces its library's callback to one call with two spans and a frame count, and none needs more from the engine than that.
+#### D38 evidence: the O9 spike
+
+Code: [branch `spike/o9-hartsyinference`](https://github.com/HartsyAI/AudioLab/tree/spike/o9-hartsyinference), folder
+`spike/o9` (its own restore and pins, not in `AudioLab.slnx`; raw output in `results/`).
+
+Machine: OFFICE-DESKTOP, Intel Core i7-9700K (8 logical cores), 40 GB, NVIDIA GeForce RTX 3060, Windows 11 Pro 26200,
+.NET SDK 10.0.403 and runtime 10.0.14 with the `wasm-tools` workload. The page ran in the built-in browser pane of the
+Claude desktop app, Chromium 156.0.8078.75, not cross-origin isolated, served by a Kestrel host that sends the `.br`
+files with `Content-Encoding: br`. The page reported `visibilityState` "visible", but the tool that shows the pane said
+the session was not open in a window and the pane reported itself hidden; whether the browser throttled the page was not
+measured. **Other sessions kept the CPU at 100% in the samples taken before the publishes and the page runs, and at 62 to
+91% around the server and AOT runs** (`results/environment.md`), so absolute times are not quiet-machine figures. The two
+implementations alternate inside each round and the median of the rounds is reported, but the ratios are noisy: the
+default and trimmed builds run the same interpreted code, and the real FFT at 2048 points gave 1.88 in one and 0.81 in
+the other, so read a ratio between about 0.8 and 1.4 as "the same". Chromium rounds its timer to 0.1 ms. No model
+weights were downloaded or loaded.
+
+Packages. All 14 ids that `publish-nuget.yml` insists on publishing together are on nuget.org, which needs no
+credentials. The newest is `2.0.0-alpha.445`, a prerelease. The flat-container index lists 457 versions of the Audio
+package, the first `1.0.0-alpha.3` (read from nuget.org on 2026-11-22, `results/versions-and-transitive.md`); the
+workflow publishes the version in the owner's `Directory.Build.props` when main changes (read in the owner's clone). In
+the spike all 14 restored together on net10 from an isolated `nuget.config`, pinned to one exact version in the spike's
+`Directory.Packages.props`; `main` pins nothing yet, so a pin in AudioLab is something D7 asks for and this task did not
+add. `[2.0.0-alpha.445]` restored as well, and `2.0.0-alpha.*` resolved to the same version, which D7 forbids. 13
+assemblies loaded on net10.0.14 (the 14th id has none). Every package is MIT and targets net8.0 and net10.0
+(`results/packages.md`). Two transitive packages come in that the central pins do not cover unless transitive pinning is
+turned on: Microsoft.ML.Tokenizers 2.0.0 (MIT) and Google.Protobuf 3.30.2 (BSD-3-Clause), versions and licences read from
+their nuspec files (`results/versions-and-transitive.md`).
+
+| Package | nupkg MiB | Assembly, net10.0 | Depends on | Other content |
+|---------|-----------|-------------------|------------|---------------|
+| HartsyInference | 0.02 | none: a meta-package | Audio, Core, Cuda, Diffusion, Engine, LLM, ModelAssets, ThreeD, Video, Vision, Vulkan, World | none |
+| .Core | 0.84 | 1.1 MiB | none | none |
+| .Cuda | 4.74 | 0.7 MiB | Core | 213 PTX files (22.4 MiB), `build` targets |
+| .Vulkan | 0.75 | 0.3 MiB | Core | 185 SPIR-V files (1.4 MiB), `build` targets |
+| .ModelAssets | 23.81 | 44.7 MiB, 43.6 MiB of it embedded resources | Core, Tokenizers | none |
+| .Diffusion | 2.28 | 3.3 MiB | Core, ModelAssets, Tokenizers | none |
+| .Audio | 23.65 | 16.9 MiB, 13.5 MiB of it embedded resources | Core, LLM, ModelAssets, Tokenizers | none |
+| .Vision, .Video, .World, .ThreeD, .LLM | 0.16 to 1.59 | 0.2 to 1.8 MiB | the packages above, as `results/packages.md` lists them | none |
+| .Engine | 2.20 | 3.1 MiB | all of the above except Voice | none |
+| .Voice | 0.13 | 0.1 MiB | Audio, Engine, Tokenizers | none |
+
+No package holds a native library (no `runtimes` folder) or a script file, so section 8 has nothing to list for them.
+The GPU backends load the PTX and SPIR-V at run time; that was not run.
+
+APIs. Each was run on a known signal with an assertion, on the server (30 s of audio, 7 rounds) and in the page (5 s,
+5 rounds), in the default build (the runtime's interpreter, with the package's assemblies copied whole), the trimmed
+build (the same interpreter) and the ahead-of-time (AOT) build. The AOT column is from a 30 s run (5 rounds) because 5 s
+gave times of a few 0.1 ms ticks; the 5 s run is in `results/` too, and the default build's figures are only in
+`results/wasm-All-Default-chromium.txt`, where the real FFT at 2048 points is 1.88 times ours. In AOT the package's
+resampler took 1.2 to 1.4 times ours in both runs. All 44 assertions passed in all four runs: the resampler against an
+ideal sine (below), the resampler against the straightforward version (identical output), PCM 16, 24 and float 32
+decoding, header duration, written bytes equal, FFT against a double-precision DFT (1.3e-7 relative for 256 points,
+1.9e-7 for 400 and 1.98e-7 for 1000) and a tone landing in its bin.
+
+The straightforward version is not an independent check. Ours (`Own*.cs`, 93, 106 and 115 lines) is a scalar port of the
+same algorithms, so its output equals the package's exactly (difference 0 for the resampler and the FFT); a match shows
+that the package does what the algorithm says, not that either is right, and the ratios compare two implementations of
+one design. The tone check compares with the true sine at the output rate. After the review of this pull request the
+check for an integer decimation was changed (the first version compared with a sine moved half an input sample early,
+which a filter that is half a sample early cannot fail) and the server run was repeated
+(`results/console-server-recheck.txt`: 44 assertions, none failed, the same timings within the noise); the page runs used
+the first version of that one check. The error of 48000 to 16000 against the true sine is 3.27e-2 on a tone of amplitude
+0.5, for ours and for the package alike: a fitted delay of exactly 0.5 input sample early and nothing else. The other
+three cases are within 2.3e-4 of the true sine.
+
+Times are the median milliseconds of one call per second of audio, own version, then HartsyInference (ratio); the page
+column is the trimmed build, interpreted. A count that does not need a second is per call.
+
+| API, input | Server | Page, trimmed (interpreted) | Page, AOT | Allocation and real-time fit |
+|------------|--------|-----------------------------|-----------|------------------------------|
+| `Resampler.Resample`, 48000 to 44100, 64 taps | 2.91 / 3.31 (1.14) | 22.1 / 22.3 (1.01) | 3.38 / 4.78 (1.42) | none per call into the caller's buffer; `Create` 118 KB, 0.6 ms |
+| the same, 44100 to 48000 | 3.23 / 3.67 (1.14) | 22.6 / 23.4 (1.03) | 3.81 / 5.40 (1.42) | as above |
+| the same, 48000 to 44100, 256 taps | 12.2 / 12.2 (1.00) | 95.6 / 76.5 (0.80) | 12.6 / 17.7 (1.41) | as above |
+| the same, 48000 to 16000 | 1.03 / 1.19 (1.15) | 7.12 / 7.66 (1.08) | 1.26 / 1.80 (1.43) | as above |
+| linear interpolation (not the same operation) | 0.12 | 0.82 | 0.18 | none |
+| `StreamingResampler.Process`, 480-sample frames, 48000 to 44100 | 0.56 (a whole-buffer pass of ours: 3.30) | 14.7 (18.3) | 1.29 (3.48) | none; equals the whole-buffer output one frame late (4e-7); the only audio API here with no allocation and no lock |
+| `WavFile.Read`, PCM 16 stereo 44.1 kHz | 0.224 / 0.261 (1.17) | 1.78 / 2.20 (1.24) | 0.243 / 0.240 (0.99) | 2 times the file's size; reads from a stream |
+| `WavFile.WriteMono16`, 1 s | 0.171 / 0.113 (0.66) | 3.4 / 1.9 (0.56) | 0.50 / 0.80 (1.60) | 262 KB; mono, 16-bit only |
+| `WavFile.TryReadDurationSeconds`, ns per call | 2.3 / 123 | 110 / 316 | 15 / 36 | none; walks the chunks, where ours read a fixed 44-byte header |
+| `Fft.Transform`, 2048 points, hop 512 (93.6 frames a second) | 4.40 / 4.78 (1.09) | 26.3 / 30.6 (1.16) | 5.28 / 5.86 (1.11) | none, but a `lock` on each call |
+| the same, 512 points, hop 128 (374.9 frames) | 3.28 / 3.93 (1.20) | 23.6 / 34.4 (1.46) | 4.38 / 4.58 (1.05) | as above |
+| `Fft.RealTransform`, 2048 points | 3.84 / 4.55 (1.19) | 43.3 / 35.1 (0.81) | 6.20 / 6.41 (1.03) | 16 KiB a call (46 MB in 30 s); none at 512 |
+| `Fft.Transform`, 400 and 1000 points (not powers of two), µs per frame | 46 and 101 (HartsyInference only) | 310 and 868 | 71 and 128 | 8.2 and 16.4 KB a call |
+| `HannWindow.Get`, ns per call | 2.0 / 14.8 (7.6) | 4.1 / 176 (43) | 0.9 / 49.8 (55) | a `lock` and a dictionary on each call; ours is an array the caller holds |
+| `LoudnessNormalizer.PeakNormalize`, 30 s | 0.186 / 0.085 (0.46) | 1.12 / 0.54 (0.48) | 0.130 / 0.073 (0.56) | none, in place |
+| `WaveCrossFade.Join`, 3 x 1 s | 0.059 | 0.067 | 0.067 | 0.9 MB a join |
+
+`RmsNormalize` and `WaveCrossFade.Join` were run for correctness (target RMS reached, length the sum less two
+overlaps). Read, not run: `AudioRingBuffer` (every member takes a lock), `SincResampler`, `FftPlan`, the mel and STFT
+extractors, which are model front ends. The source of the three named APIs was read in the owner's clone at its
+`origin/main`, whose version is alpha.445; the numbers are from the restored assemblies. The allocation counter was
+checked first in the page against a 1 MiB array and saw it.
+
+The ratios that are not "the same" (server, page trimmed, AOT). Where the package is faster: `StreamingResampler.Process`
+0.17, 0.80 and 0.37, against a whole-buffer pass of ours, because the spike built no streaming version of ours; the
+package's own whole-buffer pass is 1.06 to 1.10 times ours on the server and 1.14 to 1.42 in the page (default 1.42,
+trimmed 1.14, AOT 1.39), so the gap is between the package's streaming pass and its whole-buffer pass, and what makes it
+was not tested (a vectorised dot product is a guess). `PeakNormalize` 0.46, 0.48 and 0.56, and `WavFile.WriteMono16`
+0.66, 0.56 and 1.60 (a few hundred microseconds, in the noise). Where it is slower: `TryReadDurationSeconds` 54 times on
+the server (123 ns against 2.3 ns; 2.4 in the 30 s AOT run) and `HannWindow.Get` 7.6 to 74 times a held array (7.6 on
+the server, 43 in the page, 55 and 74 in the AOT runs). Those two are not like for like: ours reads a fixed 44-byte
+header and so is not equivalent to a call that walks the chunks, and ours holds the array. The rest are 1.0 to 1.4 and
+within the noise. The range across the APIs is therefore 0.17 to 74.
+
+Where the page's cost shows. The brotli size of the published `wwwroot`, in MiB, with the empty Blazor page at 1.47 (raw
+sizes in `results/sizes.md`):
+
+| Build | The page and our own code | plus any one of the API groups (resampler, WAV, FFT, the rest) | plus all four | Added by the package |
+|-------|---------------------------|--------------------------------------------------------------|---------------|----------------------|
+| Trimmed (`TrimMode=full`) | 1.48 | 11.88 each | 11.89 | 10.4 |
+| The SDK default (the package's assemblies copied whole) | 1.49 | 22.48 each | 22.49 | 21.0 |
+| AOT | 3.22 | not built | 13.66 | 10.4 |
+
+The AOT per-group sizes were not built, so the per-group rows are for the trimmed and default builds only. All four
+groups cost the same because the weight is not the code: the Audio assembly embeds 13.5 MiB in 14 resources (what they
+hold was not inspected) and the trimmer keeps embedded resources, so a trimmed assembly is still 13.5 MiB and 10.4 MiB of
+brotli. The default build also ships ModelAssets (8.1 MiB), LLM (0.6), Core (0.3), Tokenizers and Protobuf. In bandwidth
+that is about 1 s at 100 Mbit/s and 9 s at 10 Mbit/s for the first visit (arithmetic, not run), and the page then caches
+it. The trimmed and AOT publishes gave 6 trim warnings (IL2065, IL2072 and IL2111) and no AOT error; the same 6 appear
+with no HartsyInference reference, all inside `Microsoft.AspNetCore.Components` and `JSInterop`, so none comes from a
+HartsyInference assembly. The AOT compiler built the package without a crash. The runs that produced the times add 0.07
+to 0.16 MiB for the HTTP call that posts the result.
+
+What the spike found about the APIs themselves. Measured:
+
+- `Fft.RealTransform` throws if the input is longer than the transform (the check is "shorter than", the copy is not);
+  its comment says "at least n".
+- With an integer decimation (48000 to 16000) the output of the package and of our port comes half an input sample
+  early: 3.27e-2 of error on a 0.5 tone against the true ideal, with a fitted delay of -0.5000 input sample and nothing
+  else. With any other ratio the error stays under 2.3e-4.
+- `WavFile` writes at 32767 and reads at 32768, so a write then a read is off by up to 1.18 least significant bits.
+- `HannWindow.Get` is 7.6 to 74 times a held array, and `Fft.RealTransform` at 2048 points allocates 16 KiB a call.
+
+Read in the source (and, for the lock, inside the timed call):
+
+- Section 6 forbids locks and allocation in the audio path. Of the APIs run, only `Resampler.Resample` with a buffer,
+  `ResampleRange` after its first call (which builds a table), `StreamingResampler.Process` and `PeakNormalize` meet it.
+  The `Fft` power-of-two path and `HannWindow.Get` take a lock on each call.
+- The writer is mono 16-bit, so export (stereo, 24-bit, float) needs an engine writer, and `Resampler` is mono, one call
+  per channel.
+
+What each option costs.
+
+- Default, chosen: `AudioLab.Audio` owns a resampler, an FFT and a WAV codec. The spike's versions pass the same
+  assertions, but they are scalar and whole-buffer. What the real-time path needs is a streaming resampler as cheap as
+  the package's (0.55 ms per audio second on the server, against 3.3 for a whole-buffer pass): the spike did not build
+  one, so that cost is unmeasured. The default also needs golden tests (AGENTS.md) written against the true ideal,
+  because the straightforward port has the half-sample offset above: owning the code does not remove that defect, it
+  makes it ours to find and fix. `AudioLab.Audio.Tests` already holds the rule that the engine references only Core and
+  the framework.
+- Middle: `AudioLab.Engine` and the server use `HartsyInference.Audio` for what models need (16 kHz input, mel features)
+  and nothing in the page does. It costs the page nothing, because the UI references Core and Audio only, and section 4
+  already makes the Engine the HartsyInference-backed project.
+- Shared: `AudioLab.Audio` references the package. It costs 10.4 MiB of brotli on the first load of the hosted door, a
+  change to the dependency test and to section 4, a pin that moves with every alpha, and the lock, allocation and write
+  limits above. It becomes cheap only if the owner's repository splits its DSP primitives into a package without the
+  embedded data and the ModelAssets and LLM dependencies, which is that repository's decision.
+- A fit for phase 6 (D22): `WavFile.TryReadDurationSeconds` is a header-only duration the media route must check. It
+  would be the server's first HartsyInference reference for about 40 lines of code, and the spike does not recommend it.
+
+Not run: a model, the GPU backends, `AudioLab.Engine`, Firefox or WebKit, a browser window that was shown (the pane was
+hidden), a quiet machine, a streaming resampler of ours, the SDK default build in AOT, per-group sizes in AOT,
+`[2.0.0-alpha.445]` with transitive pinning, the packages on the net8.0 target, and any codec other than WAV.
 
 ## 3. Architecture
 
@@ -863,7 +1028,6 @@ server, as commands.
 | O5 | Score notation. The extension uses the abcjs library for rendering, playback and timing. Options: a C# renderer, or that library on the allowlist. | Owner. |
 | O6 | Where a hosted instance runs: on the GPU machine with the engine in-process, or on a web host with a remote engine. | Owner. |
 | O7 | How a child AudioLab process shares VRAM with SwarmUI's own HartsyInference backend. | Design work before the extension cutover. |
-| O9 | Whether the HartsyInference packages restore, pin to exact versions and run on net10, and what using `HartsyInference.Audio` (`Resampler`, `WavFile`, `Fft`) in WebAssembly would cost. Default stays that `AudioLab.Audio` references only Core (section 4). | A spike that restores and runs each API on the server and in a Blazor WebAssembly page, and lists package ids and exact versions. |
 | O11 | Whether text in `--record` (destructive menu items in 7.5, and the danger button if its label is `--record`) may sit on raised surfaces. 7.6 says text meets 4.5:1, but `--record` is 4.01:1 on `--surface-raised`, 3.53:1 on `--surface-raised-active` and 4.29:1 on `--surface-selected` (axe-core measured 4.0 on the menu). Options: a lighter text-only red token, or a non-text cue (an icon or the position) with the label in `--text`. `TextTokensMeetTheContrastFloor` checks only the `--text` tokens and `--ink` on fills, and adding `--record` as text on the raised surfaces would fail today, so it is not extended until this is decided. | Owner. |
 
 A spike ends by editing this file: the question moves to the decisions table with its evidence. The pass line is
@@ -878,6 +1042,7 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 |-------|---------|
 | 0 | This repository: design, agent rules, style gates, CI. **Done.** |
 | 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14, D17 (O2), D24 (O1) and D29 (O3) stay Proposed until the owner decides; Proposed is not closed. D29 also waits on the round-trip measurement on the owner's audio interface. D17 also waits on a Firefox drag rerun on an idle machine. |
+| 1 | Spikes O1, O2, O3 and O9 each closed in this file, and the O10 evaluation recorded as D14. D14, D17 (O2), D24 (O1) and D38 (O9) stay Proposed until the owner decides; Proposed is not closed. D17 also waits on a Firefox drag rerun on an idle machine. |
 | 2 | Core and server: model, commands, history, store, hub, routes, and a minimal UI that opens a project. |
 | 3 | MCP on the command registry (D11). |
 | 4 | The audio engine: offline render and export, then real-time playback. |
@@ -919,3 +1084,4 @@ Each phase ships on its own. SwarmUI users stay on the extension's DAW until the
 | 2026-11-22 | Range delete and split, clip media replacement and the section naming command added to `AudioLab.Core` with the range rules (section 5); D28 proposed. |
 | 2026-11-22 | `beat_lane_move` added to `AudioLab.Core` with the beat rule that moves a lane (section 5); D34 proposed. |
 | 2026-11-22 | O3 recorded as D29 (Proposed): device I/O behind `IAudioDevice` and `IMidiInput` in `AudioLab.Devices`, with miniaudio as the general implementation, NAudio.Asio for ASIO and NAudio.Midi for MIDI input; the 12 ms round trip on the owner's audio interface was not measured (no dedicated interface on the machine, no loop), so the pass line is open inside D29; evidence under D29; D10 is unchanged. |
+| 2026-11-22 | O9 recorded as D38 (Proposed): `AudioLab.Audio` keeps referencing only Core; the 14 HartsyInference packages restore and pin on net10, and `HartsyInference.Audio` adds 10.4 MiB of brotli to the page whichever API is used, while its resampler, FFT and WAV code match a scalar port of the same algorithms at mostly 1.0 to 1.4 times its time (0.17 to 74 across the APIs) and break section 6 in places; evidence under D38. D7 and section 4 unchanged. |
