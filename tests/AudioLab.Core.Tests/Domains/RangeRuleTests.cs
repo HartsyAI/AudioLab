@@ -132,22 +132,21 @@ public sealed class RangeRuleTests
     }
 
     [Fact]
-    public void AMidiClipWhollyInsideTheRangeIsGoneAndOneThatItCutsIntoIsReportedAndLeftAlone()
+    public void AMidiClipWhollyInsideTheRangeIsGoneTheOthersStayAndShuffleMovesTheLaterOnes()
     {
         MidiClip inside = Midi("in", 4, 2);
         MidiClip across = Midi("across", 3, 4);
         MidiClip after = Midi("after", 8, 1);
         MidiClip before = Midi("before", 0, 4);
 
-        ValueList<MidiClip> result = RangeRules.Delete([before, inside, across, after], 4, 6, true);
+        ValueList<MidiClip> shuffled = RangeRules.Delete([before, inside, across, after], 4, 6, true);
+        ValueList<MidiClip> slipped = RangeRules.Delete([before, inside, across, after], 4, 6, false);
 
-        Assert.Equal(["before", "across", "after"], result.Select(clip => clip.Id.Value));
-        Assert.Equal([0.0, 3.0, 6.0], result.Select(clip => clip.Start));
-        Assert.True(RangeRules.Cuts(across, 4, 6));
-        Assert.False(RangeRules.Cuts(inside, 4, 6));
-        Assert.False(RangeRules.Cuts(before, 4, 6));
-        Assert.False(RangeRules.Cuts(after, 4, 6));
-        Assert.True(RangeRules.Cuts(Midi("edge", 5, 5), 4, 6));
+        Assert.Equal(["before", "across", "after"], shuffled.Select(clip => clip.Id.Value));
+        Assert.Equal([0.0, 3.0, 6.0], shuffled.Select(clip => clip.Start));
+        Assert.Equal([4.0, 2.0, 1.0], shuffled.Select(clip => clip.Length));
+        Assert.Equal([0.0, 3.0, 8.0], slipped.Select(clip => clip.Start));
+        Assert.Equal([4.0, 4.0, 1.0], slipped.Select(clip => clip.Length));
     }
 
     // ----- split

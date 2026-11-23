@@ -25,14 +25,6 @@ public static class RangeRules
         return !(ClipRules.EndOf(clip) <= start + Tolerance || clip.Start >= end - Tolerance);
     }
 
-    /// <summary>Whether a MIDI clip lies partly inside the range and partly outside it, so that deleting the range cuts into its notes.</summary>
-    public static bool Cuts(MidiClip clip, double start, double end)
-    {
-        ArgumentNullException.ThrowIfNull(clip);
-        bool overlaps = clip.Start < end - Tolerance && ClipRules.EndOf(clip) > start + Tolerance;
-        return overlaps && !Inside(clip, start, end);
-    }
-
     /// <summary>The clips of a track with the range removed.</summary>
     /// <remarks>
     /// A clip across an edge is cut back to the part outside, a clip across the whole range is cut into two, and a clip inside is gone.
@@ -70,18 +62,11 @@ public static class RangeRules
         return [.. ripple ? kept.Select(Close) : kept];
     }
 
-    /// <summary>The MIDI clips of a track with those wholly inside the range gone and, with ripple, the later ones moved earlier.</summary>
-    /// <remarks>A clip that the range cuts into is left as it is; <see cref="Cuts"/> tells which those are.</remarks>
+    /// <summary>The MIDI clips of a track with the range removed from each, as <see cref="MidiRangeRules.Delete"/> does for one.</summary>
     public static ValueList<MidiClip> Delete(IReadOnlyList<MidiClip> clips, double start, double end, bool ripple)
     {
         ArgumentNullException.ThrowIfNull(clips);
-        double length = end - start;
-        return
-        [
-            .. clips
-                .Where(clip => !Inside(clip, start, end))
-                .Select(clip => ripple && clip.Start >= end - Tolerance ? clip with { Start = Math.Max(0, clip.Start - length) } : clip),
-        ];
+        return [.. clips.Select(clip => MidiRangeRules.Delete(clip, start, end, ripple)).OfType<MidiClip>()];
     }
 
     /// <summary>The clips of a track cut at both edges of the range, each cut a split: the left piece keeps the id, the right one is new.</summary>
@@ -150,7 +135,7 @@ public static class RangeRules
         return text[..(char.IsHighSurrogate(text[room - 1]) ? room - 1 : room)].TrimEnd();
     }
 
-    private static bool Inside(MidiClip clip, double start, double end)
+    internal static bool Inside(MidiClip clip, double start, double end)
     {
         return clip.Start >= start - Tolerance && ClipRules.EndOf(clip) <= end + Tolerance;
     }

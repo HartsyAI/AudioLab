@@ -24,14 +24,13 @@ internal static class RangeCommands
         bool ripple = document.View.EditMode == EditMode.Shuffle;
         foreach (Track track in tracks)
         {
-            if (track.MidiClips.FirstOrDefault(clip => RangeRules.Cuts(clip, command.Start, command.End)) is { } cut)
-            {
-                string what = $"The range cuts into the notes of the MIDI clip {cut.Id.Value} on {track.Name}";
-                return CommandChecks.Rejected($"{what}; deleting inside a MIDI clip is not a command yet.");
-            }
             if (RangeRules.Delete(track.Clips, command.Start, command.End, ripple, () => _counting).Count > ProjectLimits.MaxClips)
             {
                 return CommandChecks.OutOfRange($"A track has at most {ProjectLimits.MaxClips} audio clips.");
+            }
+            if (MidiLimit(track, command.Start, command.End, ripple) is { } full)
+            {
+                return full;
             }
         }
         List<string> created = [];
@@ -54,6 +53,20 @@ internal static class RangeCommands
         ];
         ProjectDocument result = document with { Tracks = [.. ClipLinks.ClearDangling(edited)] };
         return CommandResult.Ok(result, [.. created]);
+    }
+
+    // A refusal when a MIDI clip of the track would pass its note limit or use up its note ids, else null.
+    private static CommandResult? MidiLimit(Track track, double start, double end, bool ripple)
+    {
+        foreach (MidiClip clip in track.MidiClips)
+        {
+            if (clip.NextNoteId.Value + MidiRangeRules.NewNotes(clip, start, end) > NoteId.Max
+                || (MidiRangeRules.Delete(clip, start, end, ripple)?.Notes.Count ?? 0) > ProjectLimits.MaxListItems)
+            {
+                return CommandChecks.OutOfRange($"The MIDI clip {clip.Id.Value} would hold more notes than a clip may, or use every note id.");
+            }
+        }
+        return null;
     }
 
     private static CommandResult Split(ProjectDocument document, SplitAtRange command, IIdService ids)
