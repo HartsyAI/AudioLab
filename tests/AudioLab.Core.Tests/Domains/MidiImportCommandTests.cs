@@ -151,7 +151,7 @@ public sealed class MidiImportCommandTests
     }
 
     [Fact]
-    public void TheCommandIsOnTheWireWithADescribedSchemaAndRoundTripsThroughJson()
+    public void TheCommandRoundTripsThroughItsJsonAndRefusesAMemberItDoesNotHaveOrOneItLacks()
     {
         CommandRegistry registry = CoreCommands.CreateRegistry();
         string json = $"{{\"project\":\"{_rig.Id.Value}\",\"track\":\"trk_keys\",\"start\":1,\"length\":2,"
