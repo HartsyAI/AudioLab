@@ -364,6 +364,30 @@ public sealed class MidiRouteTests
     }
 
     [Fact]
+    public async Task AFileOfAMillionNotesIsOneImportWithinAGenerousBoundAndExportsBack()
+    {
+        Dictionary<string, string?> settings = new() { ["AudioLab:Storage:MaxFileBytes"] = "536870912" };
+        await using RunningServer server = await RunningServer.StartAsync(settings);
+        (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
+        MidiNote[] many = [.. Enumerable.Range(0, 1_000_000).Select(index => Note(index + 1, index % 128, index * 0.003, 0.02, 1 + (index % 127)))];
+        byte[] file = MidiFile.Write(Source(many) with { Length = 3001 }, 120, [], new TimeSignature(4, 4));
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+
+        using HttpResponseMessage response = await ImportAsync(server, project, track, file);
+
+        // A bound that a slow machine meets by a wide margin, so that only a path that is quadratic in the notes would miss it.
+        Assert.True(watch.Elapsed < TimeSpan.FromMinutes(3), $"the import took {watch.Elapsed}");
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        MidiImportResult result = (await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.MidiImportResult))!;
+        Assert.Equal(1_000_000, result.Notes);
+        HistoryState history = await HistoryAsync(server, _local, project);
+        Assert.Equal("midi_clip_import", history.UndoLabel);
+        using HttpResponseMessage exported = await GetAsync(server, $"/api/projects/{project.Value}/clips/{result.Clip}/midi");
+        Assert.Equal(HttpStatusCode.OK, exported.StatusCode);
+        Assert.Equal(1_000_000, MidiFile.Read(await exported.Content.ReadAsByteArrayAsync()).Notes.Count);
+    }
+
+    [Fact]
     public async Task AUserOverTheirLimitIsToldToWaitAndTheFirstImportStillFinishes()
     {
         await using RunningServer server = await RunningServer.StartAsync(

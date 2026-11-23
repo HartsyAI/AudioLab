@@ -78,7 +78,7 @@ public sealed class ExportService(
         Hold hold)
     {
         WavOptions wav = new() { Format = FormatOf(request.Format), Dither = DitherOf(request.Dither), Seed = request.Seed };
-        OfflineOptions offline = OfflineOf(request, renderMedia);
+        OfflineOptions offline = OfflineOf(request, renderMedia, hold.Linked.Token);
         IReadOnlyList<TrackId>? tracks = request.Tracks;
         ExportSize size;
         try
@@ -218,7 +218,7 @@ public sealed class ExportService(
 
     private static void Bad(string message) => throw new ExportRefusedException(ExportRefusal.BadOptions, message);
 
-    private static OfflineOptions OfflineOf(ExportRequest request, RenderMedia renderMedia)
+    private static OfflineOptions OfflineOf(ExportRequest request, RenderMedia renderMedia, CancellationToken cancellationToken)
     {
         return new OfflineOptions
         {
@@ -229,6 +229,7 @@ public sealed class ExportService(
             TailFrames = request.TailSeconds is { } tail ? (long)Math.Round(tail * request.SampleRate) : null,
             Sources = new InstrumentSourceFactory(),
             Cache = renderMedia.Cache,
+            CancellationToken = cancellationToken,
         };
     }
 

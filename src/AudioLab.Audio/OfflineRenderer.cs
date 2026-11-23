@@ -21,6 +21,7 @@ public static class OfflineRenderer
             Sources = settings.Sources,
             StemOf = settings.StemOf,
             Cache = settings.Cache,
+            CancellationToken = settings.CancellationToken,
         };
 
     /// <summary>The options, or the defaults when there are none; throws when the range or the tail is not one a render can have.</summary>

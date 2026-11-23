@@ -118,7 +118,8 @@ public sealed class MidiService(
             string more = found.MidiClips.Count > MaxNamedClips ? ", ..." : string.Empty;
             throw new MidiRefusedException(
                 CommandErrorCode.Rejected,
-                $"The track has {found.MidiClips.Count} MIDI clips and a .mid file holds one; export a clip by its id: {ids}{more}.");
+                $"The track has {found.MidiClips.Count} MIDI clips and a .mid file holds one; "
+                + $"export a clip by its id, at /clips/{{id}}/midi: {ids}{more}.");
         }
         return await WriteAsync(document, found.MidiClips[0], found.Name, cancellationToken);
     }
