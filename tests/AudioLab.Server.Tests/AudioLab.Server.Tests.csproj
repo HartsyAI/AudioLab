@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\AudioLab.Audio.Tests\Support\TestWav.cs" Link="TestWav.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AudioLab.Server\AudioLab.Server.csproj" />
   </ItemGroup>
 
