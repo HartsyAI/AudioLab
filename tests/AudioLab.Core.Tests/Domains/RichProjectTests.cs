@@ -164,6 +164,7 @@ public sealed class RichProjectTests
         Command[] commands =
         [
             new AddBeatLane { Project = id, Name = "Clap", Media = MediaId.From("med_clap") },
+            new MoveBeatLane { Project = id, Lane = sample.BeatPattern.Lanes[0].Id, Direction = MoveDirection.Down },
             new RemoveBeatLane { Project = id, Lane = kick.Id },
             new RenameBeatLane { Project = id, Lane = kick.Id, Name = "Thump" },
             new SetBeatLaneGain { Project = id, Lane = kick.Id, Gain = 0.4 },
@@ -294,6 +295,32 @@ public sealed class RichProjectTests
             new SetSamplerRootNote { Project = id, Track = sampler.Id, Note = keySampler.RootNote + 1 },
             new SetSamplerOneShot { Project = id, Track = sampler.Id, OneShot = !keySampler.OneShot },
             new SetSamplerSample { Project = id, Track = sampler.Id, Sample = MediaId.From("med_other"), SampleName = "Other" },
+        ];
+
+        foreach (Command command in commands)
+        {
+            CommandRig rig = new(sample);
+            CommandResult result = rig.Run(command);
+            Assert.True(result.Succeeded, $"{command.GetType().Name}: {string.Join("; ", result.Errors.Select(error => error.Message))}");
+            Assert.Empty(ProjectValidator.Validate(result.Document!));
+            Assert.True(sample != result.Document, $"{command.GetType().Name} changed nothing");
+        }
+    }
+
+    [Fact]
+    public void EveryRangeAndSectionNamingCommandRunsAgainstTheSampleProject()
+    {
+        ProjectDocument sample = Sample();
+        Track track = sample.Tracks.First(candidate => candidate.Clips.Count >= 2);
+        AudioClip clip = track.Clips[0];
+        double middle = clip.Start + (ClipRules.VisibleLength(clip) / 2);
+        ProjectId id = sample.Id;
+        Command[] commands =
+        [
+            new DeleteRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
+            new SplitAtRange { Project = id, Start = middle, End = middle + 1, Tracks = [track.Id] },
+            new ReplaceClipMedia { Project = id, Clip = clip.Id, Media = MediaId.From("med_replacement"), Duration = clip.Duration + 5 },
+            new NameClipsAfterSections { Project = id },
         ];
 
         foreach (Command command in commands)

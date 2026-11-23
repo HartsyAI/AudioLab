@@ -52,17 +52,11 @@ internal static class EffectCommands
 
     private static CommandResult Move(ProjectDocument document, MoveEffect command, IIdService ids)
     {
-        return Edit(document, command.Track, command.Effect, effects =>
-        {
-            List<Effect> list = [.. effects];
-            int from = list.FindIndex(effect => effect.Id == command.Effect);
-            int to = from + (command.Direction == MoveDirection.Down ? 1 : -1);
-            if (to >= 0 && to < list.Count)
-            {
-                (list[from], list[to]) = (list[to], list[from]);
-            }
-            return new ValueList<Effect>(list);
-        });
+        return Edit(
+            document,
+            command.Track,
+            command.Effect,
+            effects => StepMove.Swap(effects, effects.ToList().FindIndex(effect => effect.Id == command.Effect), command.Direction));
     }
 
     private static CommandResult SetEnabled(ProjectDocument document, SetEffectEnabled command, IIdService ids)

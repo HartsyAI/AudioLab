@@ -234,6 +234,73 @@ public sealed class BeatCommandTests
         _rig.RefusedWith(new SetBeatSteps { Project = _rig.Id, Steps = -16 }, CommandErrorCode.Invalid);
     }
 
+    [Fact]
+    public void ALaneMovesOnePlaceUpOrDownKeepingItsIdStepsAndGainAndOneUndoStepBringsTheOrderBack()
+    {
+        BeatLaneId kick = Add("Kick");
+        BeatLaneId snare = Add("Snare");
+        BeatLaneId hat = Add("Hat");
+        _rig.Ok(new SetBeatLaneSteps { Project = _rig.Id, Lane = snare, Steps = [4, 12], On = true });
+        _rig.Ok(new SetBeatLaneGain { Project = _rig.Id, Lane = snare, Gain = 0.5 });
+        BeatLane before = Lane(snare);
+        ProjectDocument start = _rig.Project;
+
+        _rig.Ok(new MoveBeatLane { Project = _rig.Id, Lane = snare, Direction = MoveDirection.Up });
+
+        Assert.Equal([snare, kick, hat], Pattern.Lanes.Select(lane => lane.Id));
+        Assert.Equal(before, Lane(snare));
+        _rig.Ok(new MoveBeatLane { Project = _rig.Id, Lane = snare, Direction = MoveDirection.Down });
+        _rig.Ok(new MoveBeatLane { Project = _rig.Id, Lane = snare, Direction = MoveDirection.Down });
+        Assert.Equal([kick, hat, snare], Pattern.Lanes.Select(lane => lane.Id));
+        _rig.History.Undo();
+        Assert.Equal([kick, snare, hat], Pattern.Lanes.Select(lane => lane.Id));
+        _rig.History.Undo();
+        _rig.History.Undo();
+        Assert.Equal(start, _rig.Project);
+    }
+
+    [Fact]
+    public void ALaneAtTheTopOrBottomOrTheOnlyLaneStaysPutAndAddsNoUndoStep()
+    {
+        BeatLaneId first = Add("Kick");
+        int steps = _rig.History.UndoCount;
+        ProjectDocument alone = _rig.Project;
+
+        foreach (MoveDirection direction in new[] { MoveDirection.Up, MoveDirection.Down })
+        {
+            CommandResult result = _rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = first, Direction = direction });
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.Created);
+            Assert.Equal(alone, _rig.Project);
+            Assert.Equal(steps, _rig.History.UndoCount);
+        }
+        BeatLaneId last = Add("Hat");
+        ProjectDocument two = _rig.Project;
+        int twoSteps = _rig.History.UndoCount;
+        foreach ((BeatLaneId lane, MoveDirection direction) in new[] { (first, MoveDirection.Up), (last, MoveDirection.Down) })
+        {
+            CommandResult result = _rig.Run(new MoveBeatLane { Project = _rig.Id, Lane = lane, Direction = direction });
+            Assert.True(result.Succeeded);
+            Assert.Empty(result.Created);
+        }
+
+        Assert.Equal(two, _rig.Project);
+        Assert.Equal(twoSteps, _rig.History.UndoCount);
+    }
+
+    [Fact]
+    public void AMoveOfALaneThatIsNotThereIsNotFoundAndChangesNothing()
+    {
+        Add("Kick");
+        ProjectDocument before = _rig.Project;
+
+        MoveBeatLane missing = new() { Project = _rig.Id, Lane = BeatLaneId.From("bln_none"), Direction = MoveDirection.Down };
+
+        _rig.RefusedWith(missing, CommandErrorCode.NotFound);
+
+        Assert.Equal(before, _rig.Project);
+    }
+
     // ----- swing
 
     [Fact]
