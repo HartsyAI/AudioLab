@@ -1,3 +1,4 @@
+using System.Globalization;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Rules;
@@ -17,7 +18,7 @@ public static class NoteRules
     /// <summary>The lowest pitch.</summary>
     public const int LowestPitch = 0;
 
-    /// <summary>The most notes one command adds; a bigger paste is several commands, and several undo steps.</summary>
+    /// <summary>The most notes one command adds; a bigger paste is several commands, which one gesture keeps as one undo step.</summary>
     public const int MaxAddedNotes = 10_000;
 
     /// <summary>The highest velocity.</summary>
@@ -84,6 +85,6 @@ public static class NoteRules
     public static string Name(int pitch)
     {
         string[] names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-        return $"{names[pitch % 12]}{(pitch / 12) - 1}";
+        return string.Create(CultureInfo.InvariantCulture, $"{names[pitch % 12]}{(pitch / 12) - 1}");
     }
 }
