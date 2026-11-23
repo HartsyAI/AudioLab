@@ -14,6 +14,9 @@ public sealed class MediaCache
     /// <summary>The default bound on the cached audio: 512 MiB of float samples.</summary>
     public const long DefaultMaxBytes = 512L * 1024 * 1024;
 
+    // Output frames converted between two pauses of AddAsync: a few milliseconds of work in an ahead-of-time WebAssembly build.
+    private const int SliceFrames = 8192;
+
     private readonly IMediaSource _source;
     private readonly long _maxBytes;
     private readonly Lock _lock = new();
@@ -56,7 +59,35 @@ public sealed class MediaCache
             return null;
         }
         cancellationToken.ThrowIfCancellationRequested();
-        PcmAudio audio = Resampler.ToRate(Sanitise(found), SampleRate, cancellationToken);
+        return Store(id, Resampler.ToRate(Sanitise(found), SampleRate, cancellationToken));
+    }
+
+    /// <summary>Keeps decoded audio that the caller already holds, cleaned and converted in slices with a pause between them.</summary>
+    /// <remarks>For a thread that must stay responsive while it prepares media: a slice is a few milliseconds, and the source is not asked.</remarks>
+    /// <param name="id">The media file the audio is.</param>
+    /// <param name="decoded">The audio at its own rate.</param>
+    /// <param name="pause">Awaited between slices.</param>
+    /// <param name="cancellationToken">Stops the work; nothing is kept then.</param>
+    public async Task<PcmAudio> AddAsync(MediaId id, PcmAudio decoded, Func<CancellationToken, Task> pause, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(decoded);
+        ArgumentNullException.ThrowIfNull(pause);
+        if (Get(id) is { } known)
+        {
+            return known;
+        }
+        PcmAudio clean = await SanitiseAsync(decoded, pause, cancellationToken);
+        ResampleJob job = new(clean, SampleRate);
+        while (!job.IsDone)
+        {
+            job.Run(SliceFrames);
+            await pause(cancellationToken);
+        }
+        return Store(id, job.Result);
+    }
+
+    private PcmAudio Store(MediaId id, PcmAudio audio)
+    {
         lock (_lock)
         {
             if (_entries.TryGetValue(id, out LinkedListNode<Entry>? raced))
@@ -68,6 +99,36 @@ public sealed class MediaCache
             Evict();
         }
         return audio;
+    }
+
+    // The audio itself when it is clean, found a slice at a time; the copy is made whole, which only happens for a damaged file.
+    private static async Task<PcmAudio> SanitiseAsync(PcmAudio audio, Func<CancellationToken, Task> pause, CancellationToken cancellationToken)
+    {
+        for (int channel = 0; channel < audio.ChannelCount; channel++)
+        {
+            for (int at = 0; at < audio.Frames; at += SliceFrames * 8)
+            {
+                ReadOnlySpan<float> slice = audio.Channel(channel).Slice(at, Math.Min(SliceFrames * 8, audio.Frames - at));
+                if (!AllFinite(slice))
+                {
+                    return Sanitise(audio);
+                }
+                await pause(cancellationToken);
+            }
+        }
+        return audio;
+    }
+
+    private static bool AllFinite(ReadOnlySpan<float> samples)
+    {
+        foreach (float sample in samples)
+        {
+            if (!float.IsFinite(sample))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>Forgets a file, so that the next plan asks the source for it again.</summary>

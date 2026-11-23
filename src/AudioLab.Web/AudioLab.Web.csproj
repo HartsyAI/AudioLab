@@ -29,4 +29,9 @@
     <ProjectReference Include="..\AudioLab.Core\AudioLab.Core.csproj" />
   </ItemGroup>
 
+  <!-- The worker's runtime compiles this folder, so the page does not. -->
+  <ItemGroup>
+    <Compile Remove="Interop\Worker\**" />
+  </ItemGroup>
+
 </Project>

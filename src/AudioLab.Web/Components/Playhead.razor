@@ -1,0 +1,10 @@
+@if (Part == PlayheadPart.Cap)
+{
+    <svg class="cap" width="11" height="8" viewBox="0 0 11 8" aria-hidden="true" style="left: @Css.Px(_left - 5)">
+        <polygon points="0,0 11,0 5.5,8"></polygon>
+    </svg>
+}
+else
+{
+    <div class="line" aria-hidden="true" style="left: @Css.Px(_left)"></div>
+}
