@@ -19,11 +19,7 @@ public sealed class ClipDrag
 
     private readonly TrackLayout _layout;
 
-    private readonly TempoMap _tempo;
-
-    private readonly TimeSignature _signature;
-
-    private readonly string _grid;
+    private readonly GridSnap _grid;
 
     private readonly double _grabX;
 
@@ -57,9 +53,7 @@ public sealed class ClipDrag
         Clip = clip;
         _geometry = geometry;
         _layout = layout;
-        _tempo = TempoMap.From(document);
-        _signature = document.TimeSignature;
-        _grid = document.View.Grid;
+        _grid = new GridSnap(document);
         _kinds = [.. document.Tracks.Select(candidate => candidate.Kind)];
         _tracks = [.. document.Tracks.Select(candidate => candidate.Id)];
         OriginRow = row;
@@ -129,8 +123,8 @@ public sealed class ClipDrag
         Active = true;
         Left = Math.Max(0, laneX - _grabX);
         Top = Math.Clamp(laneY - _grabY, 0, Math.Max(0, _layout.Total - Height));
-        TargetStart = Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
-        int hovered = _layout.RowAt(laneY);
+        TargetStart = _grid.Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
+        int hovered = RowAt(laneY);
         if (KindFits(_kinds[hovered]))
         {
             TargetRow = hovered;
@@ -163,8 +157,18 @@ public sealed class ClipDrag
         return new ClipMove(Clip, TargetStart, sameTrack ? null : _tracks[TargetRow]);
     }
 
-    private double Snap(double seconds) => GridSnap.Seconds(_tempo, _signature, _grid, seconds);
-
     // An audio clip goes on an audio track and a MIDI clip on an instrument track (D22).
     private bool KindFits(TrackKind kind) => kind == (_midi ? TrackKind.Instrument : TrackKind.Audio);
+
+    private int RowAt(double laneY)
+    {
+        for (int row = 0; row < _layout.Tops.Count; row++)
+        {
+            if (laneY < _layout.Tops[row] + _layout.Heights[row])
+            {
+                return row;
+            }
+        }
+        return _layout.Tops.Count - 1;
+    }
 }

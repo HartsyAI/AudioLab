@@ -1,5 +1,4 @@
 using AudioLab.Core.Model;
-using AudioLab.Core.Rules;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Media;
@@ -19,7 +18,7 @@ public sealed class MediaDrag
 
     private readonly TrackLayout _layout;
 
-    private readonly TempoMap _tempo;
+    private readonly GridSnap _grid;
 
     private readonly double _startX;
 
@@ -35,7 +34,7 @@ public sealed class MediaDrag
         _document = document;
         _geometry = geometry;
         _layout = layout;
-        _tempo = TempoMap.From(document);
+        _grid = new GridSnap(document);
         _startX = clientX;
         _startY = clientY;
         PointerX = clientX;
@@ -92,7 +91,7 @@ public sealed class MediaDrag
             Refusal = $"\"{File.Name}\" is audio and goes on an audio track; \"{track.Name}\" is {TrackKindText.Phrase(track.Kind)}.";
             return;
         }
-        double start = GridSnap.Seconds(_tempo, _document.TimeSignature, _document.View.Grid, _geometry.Seconds(laneX));
+        double start = _grid.Snap(_geometry.Seconds(laneX));
         Target = new MediaTarget(
             row,
             start,
