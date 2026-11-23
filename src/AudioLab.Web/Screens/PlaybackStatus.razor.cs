@@ -47,7 +47,8 @@ public sealed partial class PlaybackStatus : IDisposable
     private string? Engine() => Playback.Phase == PlaybackPhase.Ready
         ? string.Create(
             CultureInfo.InvariantCulture,
-            $"Engine {Playback.SampleRate / 1000.0:0.#} kHz, {Playback.BufferMilliseconds:0} ms buffer, {Playback.Dropouts} dropouts, "
+            $"Engine {(Playback.CompiledAhead ? "ahead-of-time" : "interpreted")}, {Playback.SampleRate / 1000.0:0.#} kHz, "
+            + $"{Playback.BufferMilliseconds:0} ms buffer, {Playback.Dropouts} dropouts, "
             + $"render {Playback.LongestRenderMilliseconds:0.#} ms, gap {Playback.LongestGapMilliseconds:0} ms")
         : null;
 
