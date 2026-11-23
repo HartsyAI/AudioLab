@@ -3,6 +3,7 @@ using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;
+using AudioLab.Server.Render;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
@@ -51,6 +52,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         ValidateStorage(options.Storage, problems);
         McpOptionsValidator.Validate(options.Mcp, problems);
         ValidateMedia(options.Media, problems);
+        ValidateRender(options.Render, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 
@@ -95,6 +97,18 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         if (media.MaxBytesPerUser < media.MaxUploadBytes)
         {
             problems.Add("AudioLab:Media:MaxBytesPerUser must be at least MaxUploadBytes.");
+        }
+    }
+
+    private static void ValidateRender(RenderOptions render, List<string> problems)
+    {
+        if (render.MaxDecodedBytesPerFile < 1024 * 1024)
+        {
+            problems.Add("AudioLab:Render:MaxDecodedBytesPerFile must be at least 1 MiB.");
+        }
+        if (render.MaxDecodedBytesPerRender < render.MaxDecodedBytesPerFile)
+        {
+            problems.Add("AudioLab:Render:MaxDecodedBytesPerRender must be at least MaxDecodedBytesPerFile.");
         }
     }
 

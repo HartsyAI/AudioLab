@@ -72,7 +72,7 @@ public sealed class RenderPlan
         {
             throw new ArgumentException("The media cache is at another sample rate than the plan.", nameof(options));
         }
-        PlanMedia cache = new(shared);
+        PlanMedia cache = new(shared, options.CancellationToken);
         Track? target = options.StemOf is { } stem ? FindStemTrack(document, stem) : null;
         List<PlannedTrack> planned = [];
         // Tracks first, then buses, so a send always finds the bus it feeds after the audio has been mixed into it.

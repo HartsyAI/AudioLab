@@ -87,4 +87,49 @@ public sealed class ResamplerTests
 
         Assert.Equal(0.5f, audio.Left[to / 2], 4);
     }
+
+    [Theory]
+    [InlineData(48000, 48000)]
+    [InlineData(8000, 48000)]
+    [InlineData(48000, 8000)]
+    [InlineData(44100, 48000)]
+    public void OneSecondOfFramesIsOneSecondOfFramesAtTheOtherRate(int from, int to)
+    {
+        Assert.Equal(to, Resampler.OutputFrames(from, from, to));
+    }
+
+    [Theory]
+    [InlineData(100_000_000L, 8000, 192000)]
+    [InlineData(2_000_000_000L, 8000, 48000)]
+    [InlineData(1_000_000_000L, 44100, 384000)]
+    public void AnOutputLongerThanABufferIsRefusedNotWrappedAround(long frames, int from, int to)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Resampler.OutputFrames(frames, from, to));
+    }
+
+    [Fact]
+    public void ACancelledTokenStopsTheConversionAndTheMediaCache()
+    {
+        using CancellationTokenSource cancel = new();
+        cancel.Cancel();
+        PcmAudio audio = Signals.Sine(1000, 3, 8000);
+        MediaCache cache = new(new MemoryMedia().Add("m", audio), 48000);
+
+        Assert.Throws<OperationCanceledException>(() => Resampler.ToRate(audio, 48000, cancel.Token));
+        Assert.Throws<OperationCanceledException>(() => cache.Get(MediaId.From("m"), cancel.Token));
+        Assert.Equal(0, cache.Bytes);
+        Assert.NotNull(cache.Get(MediaId.From("m")));
+    }
+
+    [Fact]
+    public void ThePlanStopsPreparingMediaWhenItsTokenIsCancelled()
+    {
+        using CancellationTokenSource cancel = new();
+        cancel.Cancel();
+        ProjectDocument document = TestProject.Create(TestProject.Track("t", TrackKind.Audio, TestProject.Clip("c", "m", 0, 1)));
+        MemoryMedia media = new MemoryMedia().Add("m", Signals.Sine(1000, 1, 8000));
+
+        Assert.Throws<OperationCanceledException>(
+            () => RenderPlan.Create(document, media, new PlanOptions { SampleRate = 48000, CancellationToken = cancel.Token }));
+    }
 }

@@ -28,7 +28,7 @@ internal sealed class ResampleJob
         _reach = reach;
         _taps = 2 * reach;
         _table = Resampler.BuildTable(cutoff, extent, reach, _taps);
-        _frames = (int)Math.Round(source.Frames / _ratio);
+        _frames = Resampler.OutputFrames(source.Frames, source.SampleRate, rate);
         _output = new float[source.ChannelCount][];
         for (int channel = 0; channel < _output.Length; channel++)
         {
