@@ -14,8 +14,8 @@ public readonly record struct ImportedControlChange(
     [property: Range(0, ProjectLimits.MaxSeconds)]
     double Time,
     [property: Description("The controller number, 0 to 127; 64 is the sustain pedal.")]
-    [property: Range(0, NoteRules.HighestPitch)]
+    [property: Range(0, NoteRules.HighestController)]
     int Controller,
     [property: Description("The controller value, 0 to 127; 64 and up presses a pedal.")]
-    [property: Range(0, NoteRules.HighestPitch)]
+    [property: Range(0, NoteRules.HighestControllerValue)]
     int Value);

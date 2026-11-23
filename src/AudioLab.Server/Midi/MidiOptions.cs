@@ -7,6 +7,10 @@ public sealed record MidiOptions
     /// <remarks>Whatever the file holds, the project it goes into is limited too: a project file is 32 MiB by default.</remarks>
     public long MaxFileBytes { get; init; } = 16L * 1024 * 1024;
 
+    /// <summary>The longest an import may take to receive the whole file, from the first byte it reads; the default is two minutes.</summary>
+    /// <remarks>The file is read before an import takes a place in the gate, so a slow upload costs memory and a connection, never a place.</remarks>
+    public TimeSpan MaxReadTime { get; init; } = TimeSpan.FromMinutes(2);
+
     /// <summary>The most imports and exports one user may have running at once; one more is refused with 429.</summary>
     public int MaxConcurrentPerUser { get; init; } = 2;
 

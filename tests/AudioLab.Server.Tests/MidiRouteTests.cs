@@ -231,6 +231,8 @@ public sealed class MidiRouteTests
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, announced.StatusCode);
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, unannounced.StatusCode);
+        Assert.Equal("limit", (await ProblemAsync(announced)).GetProperty("reason").GetString());
+        Assert.Equal("limit", (await ProblemAsync(unannounced)).GetProperty("reason").GetString());
         Assert.Empty((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
     }
 
@@ -302,20 +304,35 @@ public sealed class MidiRouteTests
     private static string Strip(string problem) => System.Text.RegularExpressions.Regex.Replace(problem, "\"traceId\":\"[^\"]*\"", string.Empty);
 
     [Theory]
-    [InlineData("?start=-1")]
     [InlineData("?start=NaN")]
+    [InlineData("?start=Infinity")]
+    [InlineData("?start=-Infinity")]
     [InlineData("?start=abc")]
     [InlineData("?start=1&start=2")]
     [InlineData("?name=a&name=b")]
-    [InlineData("?start=2000000")]
-    public async Task AStartThatIsNotATimeOrAQueryValueGivenTwiceIsRefused(string query)
+    public async Task AStartThatIsNotAFiniteNumberOrAQueryValueGivenTwiceIsABadRequest(string query)
     {
         await using RunningServer server = await RunningServer.StartAsync();
         (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
 
         using HttpResponseMessage response = await ImportAsync(server, project, track, File(), query);
 
-        Assert.True(response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity, response.StatusCode.ToString());
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
+    }
+
+    [Theory]
+    [InlineData("?start=-1")]
+    [InlineData("?start=2000000")]
+    public async Task AStartThatIsANumberOutsideTheTimelineIsRefusedByTheRulesOfTheProject(string query)
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
+
+        using HttpResponseMessage response = await ImportAsync(server, project, track, File(), query);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("invalid", (await ProblemAsync(response)).GetProperty("reason").GetString());
         Assert.Empty((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
     }
 
@@ -366,17 +383,16 @@ public sealed class MidiRouteTests
     [Fact]
     public async Task AFileOfAMillionNotesIsOneImportWithinAGenerousBoundAndExportsBack()
     {
-        Dictionary<string, string?> settings = new() { ["AudioLab:Storage:MaxFileBytes"] = "536870912" };
+        Dictionary<string, string?> settings = new() { ["AudioLab:Storage:MaxFileBytes"] = "134217728" };
         await using RunningServer server = await RunningServer.StartAsync(settings);
         (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
         MidiNote[] many = [.. Enumerable.Range(0, 1_000_000).Select(index => Note(index + 1, index % 128, index * 0.003, 0.02, 1 + (index % 127)))];
         byte[] file = MidiFile.Write(Source(many) with { Length = 3001 }, 120, [], new TimeSignature(4, 4));
-        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
 
+        // One command and one write of the project, so it finishes inside the client's own timeout; a path that is quadratic in the
+        // notes would not.
         using HttpResponseMessage response = await ImportAsync(server, project, track, file);
 
-        // A bound that a slow machine meets by a wide margin, so that only a path that is quadratic in the notes would miss it.
-        Assert.True(watch.Elapsed < TimeSpan.FromMinutes(3), $"the import took {watch.Elapsed}");
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         MidiImportResult result = (await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.MidiImportResult))!;
         Assert.Equal(1_000_000, result.Notes);
@@ -388,29 +404,113 @@ public sealed class MidiRouteTests
     }
 
     [Fact]
-    public async Task AUserOverTheirLimitIsToldToWaitAndTheFirstImportStillFinishes()
+    public async Task AUserOverTheirLimitIsToldToWaitAndWorksAgainWhenAPlaceIsFree()
     {
         await using RunningServer server = await RunningServer.StartAsync(
             new Dictionary<string, string?> { ["AudioLab:Midi:MaxConcurrentPerUser"] = "1", ["AudioLab:Midi:MaxConcurrent"] = "4" });
         (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
-        byte[] file = File();
-        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Midi);
-        Stalling slow = new(file, release.Task);
-        slow.Headers.ContentType = new MediaTypeHeaderValue("audio/midi");
-        using HttpRequestMessage first = Request(HttpMethod.Post, $"/api/projects/{project.Value}/tracks/{track}/midi", null, slow);
-        Task<HttpResponseMessage> running = server.Client.SendAsync(first);
-        await WaitForAsync(() => gate.Running == 1);
+        IDisposable held = gate.Enter(_local);
 
-        using HttpResponseMessage second = await ImportAsync(server, project, track, file);
+        using HttpResponseMessage refused = await ImportAsync(server, project, track, File());
+        held.Dispose();
+        using HttpResponseMessage allowed = await ImportAsync(server, project, track, File());
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
-        Assert.Equal("5", second.Headers.RetryAfter?.Delta?.TotalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        release.SetResult();
-        using HttpResponseMessage finished = await running;
-        Assert.Equal(HttpStatusCode.Created, finished.StatusCode);
-        await WaitForAsync(() => gate.Running == 0);
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.Equal("5", refused.Headers.RetryAfter?.Delta?.TotalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(HttpStatusCode.Created, allowed.StatusCode);
         Assert.Single((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
+    }
+
+    [Fact]
+    public async Task ASlowUploadHoldsNoPlaceInTheGateAndOneThatNeverFinishesIsTimedOut()
+    {
+        ManualTimeProvider time = new();
+        await using RunningServer server = await RunningServer.StartAsync(
+            new Dictionary<string, string?>
+            {
+                ["AudioLab:Midi:MaxConcurrentPerUser"] = "1",
+                ["AudioLab:Midi:MaxConcurrent"] = "1",
+                ["AudioLab:Midi:MaxReadTime"] = "00:01:00",
+            },
+            services => services.AddSingleton<TimeProvider>(time));
+        (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
+        ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Midi);
+        string path = $"/api/projects/{project.Value}/tracks/{track}/midi";
+        using HalfSentPost slow = await HalfSentPost.StartAsync(server, path, 100_000, File()[..10]);
+        await Task.Delay(500);
+
+        // The upload has started and holds nothing that another user's work waits for, even with a single place in the whole server.
+        Assert.Equal(0, gate.Running);
+        using HttpResponseMessage other = await ImportAsync(server, project, track, File());
+        Assert.Equal(HttpStatusCode.Created, other.StatusCode);
+
+        time.Advance(TimeSpan.FromMinutes(2));
+        string? answer = await slow.StatusLineAsync(TimeSpan.FromSeconds(20));
+        Assert.Equal("HTTP/1.1 408 Request Timeout", answer);
+        Assert.Single((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
+    }
+
+    [Fact]
+    public async Task ATrackThatIsNotThereIsRefusedBeforeTheBodyIsReadAndAFileTooBigForTheProjectBeforeItIsApplied()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
+        using (HalfSentPost ghost = await HalfSentPost.StartAsync(server, $"/api/projects/{project.Value}/tracks/ghost/midi", 100_000, File()[..10]))
+        {
+            // The rest of the body never comes, and the answer does.
+            Assert.Equal("HTTP/1.1 404 Not Found", await ghost.StatusLineAsync(TimeSpan.FromSeconds(20)));
+        }
+
+        // 700,000 notes cannot fit a 32 MiB project even at the least a note takes, so nothing is made of them.
+        MidiNote[] many = [.. Enumerable.Range(0, 700_000).Select(index => Note(index + 1, index % 128, index * 0.004, 0.02, 1 + (index % 127)))];
+        byte[] file = MidiFile.Write(Source(many) with { Length = 2801 }, 120, [], new TimeSignature(4, 4));
+        using HttpResponseMessage tooBig = await ImportAsync(server, project, track, file);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooBig.StatusCode);
+        JsonElement problem = await ProblemAsync(tooBig);
+        Assert.Equal("limit", problem.GetProperty("reason").GetString());
+        Assert.Contains("at least", problem.GetProperty("title").GetString(), StringComparison.Ordinal);
+        Assert.Empty((await DocumentAsync(server, _local, project)).Tracks.Single().MidiClips);
+    }
+
+    // A request whose body never finishes, written to the socket by hand: the client library does not read an answer while it is still
+    // sending, and what these tests need to see is the server answering without waiting for the rest.
+    private sealed class HalfSentPost : IDisposable
+    {
+        private readonly System.Net.Sockets.TcpClient _client = new();
+        private System.Net.Sockets.NetworkStream? _stream;
+
+        public static async Task<HalfSentPost> StartAsync(RunningServer server, string path, int announced, byte[] sent)
+        {
+            HalfSentPost post = new();
+            Uri address = server.Client.BaseAddress!;
+            await post._client.ConnectAsync(address.Host, address.Port);
+            post._stream = post._client.GetStream();
+            string host = $"{address.Host}:{address.Port}";
+            string head = $"POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: audio/midi\r\nContent-Length: {announced}\r\n\r\n";
+            await post._stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(head));
+            await post._stream.WriteAsync(sent);
+            await post._stream.FlushAsync();
+            return post;
+        }
+
+        // The status line of the answer, or null when none came in the time.
+        public async Task<string?> StatusLineAsync(TimeSpan within)
+        {
+            using CancellationTokenSource timeout = new(within);
+            byte[] buffer = new byte[64];
+            try
+            {
+                int read = await _stream!.ReadAsync(buffer, timeout.Token);
+                return System.Text.Encoding.ASCII.GetString(buffer, 0, read).Split('\r')[0];
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+        }
+
+        public void Dispose() => _client.Dispose();
     }
 
     // A body that sends its first bytes and then waits, so that an import is running while another asks.

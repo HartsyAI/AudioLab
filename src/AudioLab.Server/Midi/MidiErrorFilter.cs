@@ -21,6 +21,10 @@ public sealed class MidiErrorFilter : IEndpointFilter
         {
             return Results.Problem(statusCode: StatusOf(exception.Code), title: exception.Message, extensions: ReasonOf(exception.Code));
         }
+        catch (TimeoutException exception)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status408RequestTimeout, title: exception.Message);
+        }
         catch (GateBusyException exception)
         {
             context.HttpContext.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
@@ -32,7 +36,9 @@ public sealed class MidiErrorFilter : IEndpointFilter
             string title = exception.StatusCode == StatusCodes.Status413PayloadTooLarge
                 ? "The file is larger than the server accepts."
                 : "The request could not be read as sent.";
-            return Results.Problem(statusCode: exception.StatusCode, title: title);
+            bool tooLarge = exception.StatusCode == StatusCodes.Status413PayloadTooLarge;
+            Dictionary<string, object?>? extensions = tooLarge ? ReasonOf(CommandErrorCode.Limit) : null;
+            return Results.Problem(statusCode: exception.StatusCode, title: title, extensions: extensions);
         }
         catch (ConnectionResetException)
         {

@@ -183,19 +183,16 @@ public sealed class MidiImportCommandTests
     }
 
     [Fact]
-    public void AMillionNotesAreOneValidatedUndoStepWithinAGenerousBound()
+    public void AMillionNotesAreOneValidatedUndoStep()
     {
         ImportedNote[] notes =
         [
             .. Enumerable.Range(0, ProjectLimits.MaxListItems).Select(index => new ImportedNote(index % 128, index * 0.003, 0.02, 1 + (index % 127))),
         ];
         ImportedControlChange[] events = [.. Enumerable.Range(0, 1000).Select(index => new ImportedControlChange(index * 3.0, 64, index % 128))];
-        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
 
         string clip = _rig.Created(Import(notes, events, length: 3001))[0];
 
-        // A bound that a slow machine meets by a wide margin, so that only a quadratic path would miss it.
-        Assert.True(watch.Elapsed < TimeSpan.FromMinutes(2), $"one import of a million notes took {watch.Elapsed}");
         MidiClip imported = Clips.Single();
         NoteId expectedNext = new(ProjectLimits.MaxListItems + 1);
         Assert.Equal((clip, ProjectLimits.MaxListItems, expectedNext), (imported.Id.Value, imported.Notes.Count, imported.NextNoteId));

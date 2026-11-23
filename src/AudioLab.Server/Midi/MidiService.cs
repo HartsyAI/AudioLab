@@ -19,13 +19,19 @@ namespace AudioLab.Server.Midi;
 /// </remarks>
 public sealed class MidiService(
     ProjectEditService edits,
-    OpenProjects open,
     ProjectReader reader,
     [FromKeyedServices(GateKeys.Midi)] ConcurrencyGate gate,
     MidiOptions options,
+    StoreOptions storeOptions,
+    TimeProvider time,
     ILogger<MidiService> logger)
 {
     private const int ReadBlockBytes = 64 * 1024;
+
+    // The least a note takes in the project file as JSON (an id, a pitch, a start, a duration and a velocity), so that a file that cannot
+    // fit even at this is refused before the work of making it a clip, which is the whole of the project's document twice.
+    private const int LeastJsonBytesPerNote = 50;
+    private const int LeastJsonBytesPerControl = 30;
     private const int MaxNamedClips = 8;
 
     /// <summary>Reads the file from <paramref name="body"/> and puts its notes on <paramref name="track"/> as a new clip.</summary>
@@ -53,11 +59,13 @@ public sealed class MidiService(
         {
             throw new MidiRefusedException(CommandErrorCode.Invalid, "start must be a time from 0 seconds.");
         }
-        using IDisposable lease = gate.Enter(user);
-        // Before the body is read, so that a project that is not the user's costs nothing.
-        _ = await open.OpenAsync(user, project, cancellationToken);
+        // Before the body is read, so that a project or a track that is not the user's, or not an instrument, costs nothing.
+        await RequireInstrumentTrackAsync(user, project, track, cancellationToken);
+        // The body is read before a place in the gate is taken: a slow upload must not hold a place that other users' work waits for.
         byte[] bytes = await ReadAsync(body, cancellationToken);
+        using IDisposable lease = gate.Enter(user);
         MidiImport import = await ParseAsync(bytes, cancellationToken);
+        RequireItCouldFit(import);
         ImportMidiClip command = new()
         {
             Project = project,
@@ -85,6 +93,29 @@ public sealed class MidiService(
             import.TempoChanges.Count,
             import.IgnoredNoteOffs,
             import.UnclosedNotes);
+    }
+
+    private async Task RequireInstrumentTrackAsync(UserId user, ProjectId project, TrackId track, CancellationToken cancellationToken)
+    {
+        ProjectDocument document = await reader.CurrentAsync(user, project, cancellationToken);
+        Track found = document.Tracks.FirstOrDefault(candidate => candidate.Id == track)
+            ?? throw new MidiRefusedException(CommandErrorCode.NotFound, "There is no such track.");
+        if (found.Kind != TrackKind.Instrument)
+        {
+            throw new MidiRefusedException(CommandErrorCode.Rejected, "A MIDI clip goes on an instrument track.");
+        }
+    }
+
+    private void RequireItCouldFit(MidiImport import)
+    {
+        long least = (import.Notes.Count * (long)LeastJsonBytesPerNote) + (import.ControlChanges.Count * (long)LeastJsonBytesPerControl);
+        if (least > storeOptions.MaxFileBytes)
+        {
+            throw new MidiRefusedException(
+                CommandErrorCode.Limit,
+                $"The file holds {import.Notes.Count} notes, which would take at least {least} bytes of the project, "
+                + $"more than the {storeOptions.MaxFileBytes} it may be.");
+        }
     }
 
     /// <summary>Writes a MIDI clip of the project as a format 0 file.</summary>
@@ -151,8 +182,23 @@ public sealed class MidiService(
         }
     }
 
-    // The limit is counted on the bytes that arrive, whatever length the client announced.
-    private async Task<byte[]> ReadAsync(Stream body, CancellationToken cancellationToken)
+    // The limit is counted on the bytes that arrive, whatever length the client announced, and the whole body must arrive in time.
+    private async Task<byte[]> ReadAsync(Stream body, CancellationToken requestAborted)
+    {
+        using CancellationTokenSource limit = new(options.MaxReadTime, time);
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, limit.Token);
+        CancellationToken cancellationToken = linked.Token;
+        try
+        {
+            return await ReadWithinAsync(body, cancellationToken);
+        }
+        catch (OperationCanceledException) when (limit.IsCancellationRequested && !requestAborted.IsCancellationRequested)
+        {
+            throw new TimeoutException($"The file did not arrive within {options.MaxReadTime.TotalSeconds:0} seconds.");
+        }
+    }
+
+    private async Task<byte[]> ReadWithinAsync(Stream body, CancellationToken cancellationToken)
     {
         using MemoryStream file = new();
         byte[] block = ArrayPool<byte>.Shared.Rent(ReadBlockBytes);

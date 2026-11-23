@@ -64,7 +64,8 @@ public static class MidiRoutes
             return repeated;
         }
         double start = 0;
-        if (startText is not null && !double.TryParse(startText, NumberStyles.Float, CultureInfo.InvariantCulture, out start))
+        if (startText is not null
+            && (!double.TryParse(startText, NumberStyles.Float, CultureInfo.InvariantCulture, out start) || !double.IsFinite(start)))
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "start is a number of seconds.");
         }

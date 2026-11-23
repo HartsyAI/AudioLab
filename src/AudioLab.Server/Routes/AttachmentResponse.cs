@@ -23,8 +23,8 @@ public static class AttachmentResponse
     public static void Apply(HttpResponse response, string contentType, string fileName, long length)
     {
         ArgumentNullException.ThrowIfNull(response);
-        ContentDispositionHeaderValue disposition = new("attachment") { FileNameStar = fileName };
-        disposition.SetHttpFileName(new string([.. fileName.Select(character => character is >= ' ' and <= '~' ? character : '_')]));
+        ContentDispositionHeaderValue disposition = new("attachment");
+        disposition.SetHttpFileName(fileName);
         response.ContentType = contentType;
         response.ContentLength = length;
         response.Headers.ContentDisposition = disposition.ToString();
