@@ -51,6 +51,8 @@ public sealed partial class PlaybackStatus : IDisposable
             + $"render {Playback.LongestRenderMilliseconds:0.#} ms, gap {Playback.LongestGapMilliseconds:0} ms")
         : null;
 
+    private string Interpreted() => Playback.CompiledAhead ? string.Empty : " (the engine is interpreted: docs/engine-aot.md)";
+
     // A miss is a caution, never red: red means recording or destroying.
     private (string? Text, StatusDot Dot) Describe()
     {
@@ -60,11 +62,15 @@ public sealed partial class PlaybackStatus : IDisposable
         }
         if (Playback.Health == PlaybackHealth.Dropping)
         {
-            return ("Playback is dropping out: this computer cannot keep up", StatusDot.Caution);
+            return ($"Playback is dropping out: the audio engine could not keep up{Interpreted()}", StatusDot.Caution);
         }
         if (Playback.Health == PlaybackHealth.Strained)
         {
-            return ("Playback is close to dropping out", StatusDot.Caution);
+            return ($"Playback is close to dropping out{Interpreted()}", StatusDot.Caution);
+        }
+        if (Playback.LoadWarning is { } warning)
+        {
+            return (warning, StatusDot.Caution);
         }
         if (Playback.Phase == PlaybackPhase.Starting)
         {

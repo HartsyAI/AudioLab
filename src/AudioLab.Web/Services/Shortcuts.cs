@@ -48,6 +48,15 @@ public static class Shortcuts
     /// <summary>Move the playhead to the start.</summary>
     public static readonly Shortcut ToStart = new("transport.start", "Go to start", "Home", Session);
 
+    /// <summary>Move the playhead to the end of what is heard.</summary>
+    public static readonly Shortcut ToEnd = new("transport.end", "Go to end", "End", Session);
+
+    /// <summary>Move the playhead one bar earlier.</summary>
+    public static readonly Shortcut SeekBack = new("transport.back", "Back one bar", "ArrowLeft", Session, Shift: true);
+
+    /// <summary>Move the playhead one bar later.</summary>
+    public static readonly Shortcut SeekForward = new("transport.forward", "Forward one bar", "ArrowRight", Session, Shift: true);
+
     /// <summary>Turn the loop on or off.</summary>
     public static readonly Shortcut ToggleLoop = new("transport.loop", "Loop", "l", Session);
 
@@ -58,6 +67,6 @@ public static class Shortcuts
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
-        PlayPause, Stop, ToStart, ToggleLoop, ToggleClick,
+        PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
     ];
 }

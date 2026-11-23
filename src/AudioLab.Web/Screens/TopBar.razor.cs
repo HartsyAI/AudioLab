@@ -29,17 +29,12 @@ public sealed partial class TopBar : IDisposable
 
     private string? PlaybackReason => Playback.Available ? null : NoEngine;
 
-    private string LoopName => Playback.Looping ? "Loop on" : "Loop";
-
-    private string ClickName => Document.Metronome ? "Click on" : "Click";
-
     private IReadOnlyList<SegmentItem> TransportItems =>
     [
         new("start", "Go to start", IconName.ToStart, Reason: PlaybackReason, Shortcut: Shortcuts.ToStart.Display),
         new("stop", "Stop", IconName.Stop, Reason: PlaybackReason, Shortcut: Shortcuts.Stop.Display),
-        Playing
-            ? new SegmentItem("play", "Pause", IconName.Pause, Reason: PlaybackReason, Shortcut: Shortcuts.PlayPause.Display)
-            : new SegmentItem("play", "Play", IconName.Play, Reason: PlaybackReason, Shortcut: Shortcuts.PlayPause.Display),
+        // One name, Play, whatever it is doing: the item is a toggle, so a screen reader says Play, pressed, and not a name that changes under it.
+        new("play", "Play", Playing ? IconName.Pause : IconName.Play, Reason: PlaybackReason, Shortcut: Shortcuts.PlayPause.Display),
         new("record", "Record", IconName.Record, Reason: "Recording arrives with the audio devices."),
     ];
 

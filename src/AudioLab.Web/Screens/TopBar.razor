@@ -16,9 +16,9 @@
                ValueChanged="ChooseAsync" />
     <TransportCounter Document="Document" />
     <div class="toggles">
-        <Toggle Label="Loop" Name="@LoopName" On="Playback.Looping" Disabled="@(!Playback.Available)" Reason="@PlaybackReason"
+        <Toggle Label="Loop" Name="Loop" On="Playback.Looping" Disabled="@(!Playback.Available)" Reason="@PlaybackReason"
                 OnClick="ToggleLoop" />
-        <Toggle Label="Click" Name="@ClickName" On="Document.Metronome" Disabled="@(!Actions.CanEdit)" Reason="@Actions.Reason"
+        <Toggle Label="Click" Name="Click" On="Document.Metronome" Disabled="@(!Actions.CanEdit)" Reason="@Actions.Reason"
                 OnClick="ToggleClickAsync" />
         <Toggle Label="Punch" Name="Punch" Disabled="true" Reason="Punching in arrives with recording, which needs the audio devices." />
         <Toggle Label="Follow" Name="Follow" Disabled="true" Reason="Following the playhead arrives with scrolling the timeline." />

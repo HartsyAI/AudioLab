@@ -303,6 +303,11 @@ public sealed partial class SessionPage
     // Playing does not edit the project, so the transport keys work while the project is read-only too.
     private bool TransportPress(KeyChord chord)
     {
+        if (chord.Repeat && IsTransportKey(chord))
+        {
+            // A key held down is one press: the repeats are taken and do nothing.
+            return true;
+        }
         if (Shortcuts.PlayPause.Matches(chord))
         {
             _ = InvokeAsync(Playback.TogglePlayAsync);
@@ -314,6 +319,18 @@ public sealed partial class SessionPage
         else if (Shortcuts.ToStart.Matches(chord))
         {
             Playback.Seek(0);
+        }
+        else if (Shortcuts.ToEnd.Matches(chord))
+        {
+            Playback.Seek(Playback.ContentEnd);
+        }
+        else if (Shortcuts.SeekBack.Matches(chord))
+        {
+            Playback.Seek(Playback.Position - Playback.BarSeconds);
+        }
+        else if (Shortcuts.SeekForward.Matches(chord))
+        {
+            Playback.Seek(Playback.Position + Playback.BarSeconds);
         }
         else if (Shortcuts.ToggleLoop.Matches(chord))
         {
@@ -329,6 +346,11 @@ public sealed partial class SessionPage
         }
         return true;
     }
+
+    private static bool IsTransportKey(KeyChord chord) =>
+        Shortcuts.PlayPause.Matches(chord) || Shortcuts.Stop.Matches(chord) || Shortcuts.ToStart.Matches(chord)
+        || Shortcuts.ToEnd.Matches(chord) || Shortcuts.SeekBack.Matches(chord) || Shortcuts.SeekForward.Matches(chord)
+        || Shortcuts.ToggleLoop.Matches(chord) || Shortcuts.ToggleClick.Matches(chord);
 
     private bool Press(KeyChord chord)
     {

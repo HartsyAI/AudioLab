@@ -72,6 +72,12 @@ public sealed class PlaybackService : IDisposable
     public (double Start, double End)? LoopRange =>
         _loopOn && _project?.Document is { } document && ProjectContent.End(document, audibleOnly: true) is > 0 and var end ? (0, end) : null;
 
+    /// <summary>The end of what is heard in the open project, in seconds, or 0.</summary>
+    public double ContentEnd => _project?.Document is { } document ? ProjectContent.End(document, audibleOnly: true) : 0;
+
+    /// <summary>How long a bar is at the playhead, in seconds, for seeking by bars.</summary>
+    public double BarSeconds => _project?.Document is { } document ? BarLength(document) : 2;
+
     /// <summary>The master's level now, falling after a peak.</summary>
     public LevelPair Master => _master;
 
@@ -248,6 +254,13 @@ public sealed class PlaybackService : IDisposable
         _sentRevision = _project.Revision;
         _ = SendAsync(document, ++_sequence);
         SyncLoop();
+    }
+
+    private double BarLength(ProjectDocument document)
+    {
+        TempoMap tempo = TempoMap.From(document);
+        double beats = MeterRules.BeatsPerBar(document.TimeSignature);
+        return tempo.TimeAtBeat(tempo.BeatsAt(Position) + beats) - Position;
     }
 
     // A chunk is tagged with its first frame, so the frames after a loop wrap inside it read past the loop's end: they fold back to its start.

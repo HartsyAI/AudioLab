@@ -37,7 +37,7 @@ public sealed partial class TransportCounter : IDisposable
         _cells = Cells();
     }
 
-    // The position changes forty times a second and the text far less often than that, so only a new text is drawn.
+    // The position changes 25 times a second and the text far less often than that, so only a new text is drawn.
     private void OnChanged()
     {
         IReadOnlyList<CounterCell> now = Cells();
