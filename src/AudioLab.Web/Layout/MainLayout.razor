@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 
-<div class="shell">
+<div class="shell" @ondragenter="DragEnter" @ondragover:preventDefault="@(!_dropping)" @ondrop:preventDefault="@(!_dropping)"
+     @onkeydown="CloseOnKey" @onpointerdown="CloseOnPress">
     <ErrorBoundary @ref="_boundary">
         <ChildContent>@Body</ChildContent>
         <ErrorContent>
@@ -10,5 +11,6 @@
             </EmptyState>
         </ErrorContent>
     </ErrorBoundary>
+    <MediaDropOverlay @bind-Active="_dropping" />
     <ToastHost />
 </div>

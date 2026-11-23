@@ -12,7 +12,7 @@
             {
                 <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@AudioWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" Waveform="@Waves.For(clip.Id.Value, AudioWidth(clip))"
+                      TabStop="@(clip.Id == TabStop)" PixelsPerSecond="Geometry.PixelsPerSecond"
                       OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
             }
             @foreach (MidiClip clip in track.MidiClips)
@@ -23,6 +23,6 @@
             }
         </div>
     }
-    <DragLayer Document="Document" />
+    <DragLayer Document="Document" PixelsPerSecond="Geometry.PixelsPerSecond" />
     <div class="playhead" style="left: 0"></div>
 </div>

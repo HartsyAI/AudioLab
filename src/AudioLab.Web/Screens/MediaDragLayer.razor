@@ -1,0 +1,7 @@
+@implements IDisposable
+
+@if (State.Current is { Active: true } drag)
+{
+    <DragLabel Name="@drag.File.Name" Detail="@MediaText.Length(drag.File.Duration)" Reason="@drag.Refusal" Left="@(drag.PointerX + 12)"
+               Top="@(drag.PointerY + 12)" />
+}

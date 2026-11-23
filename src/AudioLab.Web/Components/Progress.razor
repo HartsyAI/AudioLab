@@ -1,0 +1,16 @@
+<div class="progress" role="progressbar" aria-label="@Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@ValueNow"
+     aria-valuetext="@Text">
+    @if (Fraction is double fraction)
+    {
+        <span class="progress-well"><span class="progress-bar" style="width: @Css.Percent(Math.Clamp(fraction, 0, 1) * 100)"></span></span>
+    }
+    else
+    {
+        <span class="progress-spinner" aria-hidden="true"></span>
+    }
+    <span class="progress-text">@Text</span>
+    @if (OnCancel.HasDelegate)
+    {
+        <Button Variant="ButtonVariant.Icon" Name="@CancelName" OnClick="OnCancel"><Icon Name="IconName.Close" Size="10" /></Button>
+    }
+</div>

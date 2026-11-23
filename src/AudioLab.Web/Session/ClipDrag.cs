@@ -19,11 +19,7 @@ public sealed class ClipDrag
 
     private readonly TrackLayout _layout;
 
-    private readonly TempoMap _tempo;
-
-    private readonly TimeSignature _signature;
-
-    private readonly string _grid;
+    private readonly GridSnap _grid;
 
     private readonly double _grabX;
 
@@ -57,9 +53,7 @@ public sealed class ClipDrag
         Clip = clip;
         _geometry = geometry;
         _layout = layout;
-        _tempo = TempoMap.From(document);
-        _signature = document.TimeSignature;
-        _grid = document.View.Grid;
+        _grid = new GridSnap(document);
         _kinds = [.. document.Tracks.Select(candidate => candidate.Kind)];
         _tracks = [.. document.Tracks.Select(candidate => candidate.Id)];
         OriginRow = row;
@@ -129,7 +123,7 @@ public sealed class ClipDrag
         Active = true;
         Left = Math.Max(0, laneX - _grabX);
         Top = Math.Clamp(laneY - _grabY, 0, Math.Max(0, _layout.Total - Height));
-        TargetStart = Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
+        TargetStart = _grid.Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
         int hovered = RowAt(laneY);
         if (KindFits(_kinds[hovered]))
         {
@@ -161,19 +155,6 @@ public sealed class ClipDrag
             return null;
         }
         return new ClipMove(Clip, TargetStart, sameTrack ? null : _tracks[TargetRow]);
-    }
-
-    // The grid as the lanes draw it: a musical grid is counted in beats from the start, so every line sits on a subdivision of its bar
-    // whatever the tempo map does before it (the drawn bars come from the same map); a grid in seconds is counted in seconds.
-    private double Snap(double seconds)
-    {
-        if (GridRules.Beats(_grid, _signature) is { } step && step > 0)
-        {
-            double beats = Math.Round(_tempo.BeatsAt(seconds) / step) * step;
-            return Math.Max(0, _tempo.TimeAtBeat(beats));
-        }
-        double length = GridRules.StepSeconds(_grid, _tempo, _signature, seconds);
-        return length > 0 ? Math.Round(seconds / length) * length : seconds;
     }
 
     // An audio clip goes on an audio track and a MIDI clip on an instrument track (D22).

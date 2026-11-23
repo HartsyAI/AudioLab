@@ -1,6 +1,7 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
+using AudioLab.Web.Media;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
@@ -198,6 +199,7 @@ public sealed partial class SessionPage
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
+                AddClip = AddClipAsync,
                 MoveClip = move => ShowAsync(_editor!.MoveClipAsync(move.Clip, move.Start, move.Track)),
                 SetMetronome = on => ShowAsync(_editor!.SetMetronomeAsync(on)),
                 Undo = () => HistoryAsync(_editor!.UndoAsync(), "undo"),
@@ -224,6 +226,16 @@ public sealed partial class SessionPage
         finally
         {
             _adding = false;
+        }
+    }
+
+    // A file added to the lanes is the selection afterwards, so the keyboard can carry on from it.
+    private async Task AddClipAsync(MediaPlacement placement)
+    {
+        EditResult result = await ShowAsync(_editor!.AddClipAsync(placement));
+        if (result.Succeeded && result.Created.Count > 0)
+        {
+            Selection.SelectClip(placement.Track, ClipId.From(result.Created[0]));
         }
     }
 
