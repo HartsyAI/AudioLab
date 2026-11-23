@@ -1,0 +1,12 @@
+<div class="drag-label" data-refused="@(Reason is null ? "false" : "true")" aria-hidden="true"
+     style="left: @Css.Px(Left); top: @Css.Px(Top)">
+    <span class="label-name">@Name</span>
+    @if (Reason is not null)
+    {
+        <span class="label-reason">@Reason</span>
+    }
+    else
+    {
+        <span class="label-detail">@Detail</span>
+    }
+</div>

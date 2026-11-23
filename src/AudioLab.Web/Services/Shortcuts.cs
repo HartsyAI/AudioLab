@@ -46,6 +46,10 @@ public static class Shortcuts
     /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
     public static readonly Shortcut DeleteMedia = new("media.delete", "Delete media file", "Delete", Media);
 
+    /// <summary>Add the media file that has the focus in the library to the arrangement.</summary>
+    /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
+    public static readonly Shortcut AddMedia = new("media.add", "Add to the arrangement", "Enter", Media);
+
     /// <summary>Move the focus to the next file of the library.</summary>
     /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
     public static readonly Shortcut MediaNext = new("media.next", "Next file", "ArrowDown", Media);
@@ -91,6 +95,6 @@ public static class Shortcuts
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast,
     ];
 }

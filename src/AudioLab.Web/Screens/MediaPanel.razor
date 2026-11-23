@@ -38,7 +38,8 @@
             @foreach (MediaSummary file in view.Visible)
             {
                 <MediaItem @key="file.Id" File="file" Selected="file.Id == _selected" TabStop="file.Id == view.TabStopId" OnSelect="Select"
-                           OnKey="KeyAsync" OnDelete="BeginDelete" />
+                           OnKey="KeyAsync" OnDelete="BeginDelete" OnPointerDown="PressAsync" OnAdd="AddAsync"
+                           Blocked="Blocked" />
             }
             @if (view.Hidden > 0)
             {

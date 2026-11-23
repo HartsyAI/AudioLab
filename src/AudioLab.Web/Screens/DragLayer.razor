@@ -1,3 +1,8 @@
+@if (MediaDrags.Current is { Active: true, Target: { } target })
+{
+    <div class="landing" aria-hidden="true"
+         style="left: @Css.Px(target.Left); top: @Css.Px(target.Top); width: @Css.Px(target.Width); height: @Css.Px(target.Height)"></div>
+}
 @if (Drag is { Active: true } drag && Found(drag.Clip) is { } found)
 {
     <div class="landing" aria-hidden="true"

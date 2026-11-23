@@ -3,6 +3,7 @@ using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Media;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -50,8 +51,28 @@ public sealed partial class MediaPanel : IDisposable
 
     private CancellationTokenSource? _request;
 
+    /// <summary>The document, which the lanes a file is dragged onto are laid out from.</summary>
+    [Parameter, EditorRequired]
+    public ProjectDocument Document { get; set; } = null!;
+
+    /// <summary>What the screen can do to the project, and why not when it cannot.</summary>
+    [Parameter, EditorRequired]
+    public SessionActions Actions { get; set; } = null!;
+
     [Inject]
     private MediaLibrary Library { get; set; } = default!;
+
+    [Inject]
+    private MediaDragger Dragger { get; set; } = default!;
+
+    [Inject]
+    private MediaAdder Adder { get; set; } = default!;
+
+    [Inject]
+    private SessionSelection Selection { get; set; } = default!;
+
+    [Inject]
+    private PlaybackService Playback { get; set; } = default!;
 
     [Inject]
     private IElementClick Click { get; set; } = default!;
@@ -64,6 +85,8 @@ public sealed partial class MediaPanel : IDisposable
 
     [Inject]
     private TimeProvider Time { get; set; } = default!;
+
+    private string? Blocked => Actions.CanEdit ? null : Actions.Reason;
 
     private DateTimeOffset Now => Time.GetUtcNow();
 
@@ -109,6 +132,7 @@ public sealed partial class MediaPanel : IDisposable
     public void Dispose()
     {
         Library.Changed -= OnChanged;
+        Dragger.Cancel();
         _tick?.Dispose();
         _request?.Cancel();
         _panel.Cancel();
@@ -188,7 +212,32 @@ public sealed partial class MediaPanel : IDisposable
         }
     }
 
-    private void KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)
+    // A press on a file selects it and may become a drag onto the lanes; nothing is sent until the release. Where the project cannot be
+    // edited the drag still follows the pointer and says why, so a press that does nothing is not a silent one.
+    private void PressAsync((MediaSummary File, PointerEventArgs Press) down)
+    {
+        Select(down.File);
+        Dragger.Begin(down.File, () => Document, Actions.AddClip, down.Press.ClientX, down.Press.ClientY, Blocked);
+    }
+
+    // The keyboard path to the same edit, and the button: the selected audio track, at the playhead or after the selected clip.
+    private Task AddAsync(MediaSummary file)
+    {
+        return Adder.AddAsync(file, Document, Selection.Track, Selection.Clip, Playback.Position, Actions.CanEdit, Actions.Reason, Actions.AddClip);
+    }
+
+    private Task KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)
+    {
+        if (Shortcuts.AddMedia.Matches(press.Key))
+        {
+            // A key held down repeats, and one add is enough.
+            return press.Key.Repeat ? Task.CompletedTask : AddAsync(press.File);
+        }
+        KeyStep(press);
+        return Task.CompletedTask;
+    }
+
+    private void KeyStep((MediaSummary File, KeyboardEventArgs Key) press)
     {
         if (Shortcuts.DeleteMedia.Matches(press.Key))
         {

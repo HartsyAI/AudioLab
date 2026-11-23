@@ -1,5 +1,6 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Media;
+using AudioLab.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -36,6 +37,18 @@ public sealed partial class MediaItem
     [Parameter]
     public EventCallback<(MediaSummary File, KeyboardEventArgs Key)> OnKey { get; set; }
 
+    /// <summary>Raised with the file and the press when the primary button goes down on it, which may begin a drag onto the lanes.</summary>
+    [Parameter]
+    public EventCallback<(MediaSummary File, PointerEventArgs Press)> OnPointerDown { get; set; }
+
+    /// <summary>Raised with the file when its add control is pressed.</summary>
+    [Parameter]
+    public EventCallback<MediaSummary> OnAdd { get; set; }
+
+    /// <summary>Why the file cannot be added now, for the hint of its row; null when it can.</summary>
+    [Parameter]
+    public string? Blocked { get; set; }
+
     /// <summary>Raised with the file when its delete control is pressed.</summary>
     [Parameter]
     public EventCallback<MediaSummary> OnDelete { get; set; }
@@ -52,7 +65,7 @@ public sealed partial class MediaItem
     public static string IdOf(string file) => $"media-{file}";
 
     // A row is drawn again only when something it shows changed: a clock tick or a progress report for another row costs it nothing.
-    private (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) _shown;
+    private Shown _shown;
 
     private bool _drawn;
 
@@ -63,7 +76,7 @@ public sealed partial class MediaItem
     /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) now = (
+        Shown now = new(
             File,
             Job,
             Selected,
@@ -71,12 +84,17 @@ public sealed partial class MediaItem
             Job?.State,
             Job is null ? 0 : (int)(Job.Fraction * 100),
             Job?.Failure,
-            Job is { State: UploadState.Sending } ? (long)(Now - (Job.SendingSince ?? Now)).TotalSeconds : 0);
-        bool same = _drawn && Equals(_shown.Item1, now.Item1) && ReferenceEquals(_shown.Item2, now.Item2) && _shown == now;
+            Job is { State: UploadState.Sending } ? (long)(Now - (Job.SendingSince ?? Now)).TotalSeconds : 0,
+            Blocked);
+        bool same = _drawn && _shown == now;
         _shown = now;
         _drawn = true;
         return !same;
     }
+
+    private string Hint => Blocked is not null
+        ? $"{File!.Name}. It cannot be added now: {Blocked}"
+        : $"{File!.Name}. Drag it onto an audio track, or press {Shortcuts.AddMedia.Display} to add it at the playhead.";
 
     private string StateName => Job!.State.ToString().ToLowerInvariant();
 
@@ -91,6 +109,14 @@ public sealed partial class MediaItem
 
     private Task SelectAsync() => OnSelect.InvokeAsync(File!);
 
+    // A press of a finger scrolls the list, so only a mouse or a pen lifts a file; a finger adds it with the add button.
+    private Task PressAsync(PointerEventArgs press)
+    {
+        return press.Button == 0 && press.PointerType is "mouse" or "pen" ? OnPointerDown.InvokeAsync((File!, press)) : Task.CompletedTask;
+    }
+
+    private Task AddAsync() => OnAdd.InvokeAsync(File!);
+
     private Task KeyAsync(KeyboardEventArgs key) => OnKey.InvokeAsync((File!, key));
 
     private Task DeleteAsync() => OnDelete.InvokeAsync(File!);
@@ -98,4 +124,16 @@ public sealed partial class MediaItem
     private Task CancelAsync() => OnCancel.InvokeAsync(Job!);
 
     private Task RetryAsync() => OnRetry.InvokeAsync(Job!);
+
+    // What a row shows, so that it is drawn again exactly when one of these changed (the hint is one of them).
+    private readonly record struct Shown(
+        MediaSummary? File,
+        UploadJob? Job,
+        bool Selected,
+        bool TabStop,
+        UploadState? State,
+        int Percent,
+        string? Failure,
+        long Waited,
+        string? Blocked);
 }
