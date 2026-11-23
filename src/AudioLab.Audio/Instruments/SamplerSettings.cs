@@ -69,6 +69,17 @@ internal sealed class SamplerSettings
     /// <summary>How many times faster than its own pitch the sample plays for a note.</summary>
     public double Ratio(int pitch) => Math.Pow(2, (pitch - RootNote) / 12.0);
 
+    /// <summary>The frame a note stops sounding: its release, or for a one-shot where its sample ends or its limit comes.</summary>
+    public long SoundingEnd(NoteEvent note)
+    {
+        if (!OneShot)
+        {
+            return note.OffFrame;
+        }
+        long sampleEnd = note.OnFrame + (long)Math.Ceiling(Sample.Frames / Ratio(note.Pitch));
+        return Math.Min(sampleEnd, Math.Max(note.OffFrame, note.OnFrame) + LimitFrames);
+    }
+
     /// <summary>How long the source sounds past <paramref name="trackEnd"/>, where the track's last clip ends, in seconds.</summary>
     /// <remarks>It is the latest end of any note: where its sample ends, or its release has died away, or for a one-shot the limit.</remarks>
     public double TailSeconds(NoteEvent[] notes, double trackEnd)

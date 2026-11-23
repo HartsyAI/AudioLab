@@ -204,6 +204,28 @@ public sealed class SamplerTests
     }
 
     [Fact]
+    public void ASeekAfterTheEndOfAOneShotsNoteStillHearsItsSampleAndAHeldNoteIsOver()
+    {
+        PcmAudio constant = Signals.Constant(1, 2, Rate, 2);
+        float[] left = new float[Rate / 5];
+        float[] right = new float[Rate / 5];
+
+        MixerGraph oneShot = new(PlanFor(Notes(Sampler() with { OneShot = true }, Note(1, 69, 0, 0.3)), constant));
+        oneShot.Seek(Rate);
+        oneShot.Render(left, right);
+        Assert.Equal(1.0, left[Rate / 10], 1e-3);
+
+        MixerGraph held = new(PlanFor(Notes(Sampler(), Note(1, 69, 0, 0.3)), constant));
+        held.Seek(Rate);
+        held.Render(left, right);
+        Assert.All(left, sample => Assert.Equal(0, sample));
+
+        oneShot.Seek((int)(2.5 * Rate));
+        oneShot.Render(left, right);
+        Assert.All(left, sample => Assert.Equal(0, sample));
+    }
+
+    [Fact]
     public void BlockSizeNeverChangesTheSoundAndTwoRendersAreEqual()
     {
         MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 40 + ((i * 7) % 50), i * 0.07, 0.3 + (i % 5 * 0.2), 30 + (i * 2)))];

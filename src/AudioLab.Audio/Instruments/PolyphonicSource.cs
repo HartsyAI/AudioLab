@@ -33,6 +33,7 @@ internal sealed class PolyphonicSource : ITrackSource
     private readonly float[] _left = new float[ScratchFrames];
     private readonly float[] _right = new float[ScratchFrames];
     private readonly bool _mono;
+    private readonly Func<NoteEvent, long> _soundingEnd;
     private readonly double _tailSeconds;
     private readonly long _longestNote;
     private int _next;
@@ -40,11 +41,21 @@ internal sealed class PolyphonicSource : ITrackSource
     private bool _primed;
 
     /// <summary>Makes a source that plays the notes, which must be in the order <see cref="NoteSchedule"/> gives.</summary>
-    /// <remarks>It builds <see cref="PoolSize"/> voices with <paramref name="makeVoice"/>; <paramref name="mono"/>: both channels match.</remarks>
-    public PolyphonicSource(Func<InstrumentVoice> makeVoice, NoteEvent[] notes, bool mono, double tailSeconds)
+    /// <remarks>
+    /// It builds <see cref="PoolSize"/> voices with <paramref name="makeVoice"/>; <paramref name="mono"/>: both channels match.
+    /// <paramref name="soundingEnd"/> is the frame a note stops sounding, which a seek asks to see what is still playing; it is the note's
+    /// release frame when null.
+    /// </remarks>
+    public PolyphonicSource(
+        Func<InstrumentVoice> makeVoice,
+        NoteEvent[] notes,
+        bool mono,
+        double tailSeconds,
+        Func<NoteEvent, long>? soundingEnd = null)
     {
         _notes = notes;
         _mono = mono;
+        _soundingEnd = soundingEnd ?? (note => note.OffFrame);
         _tailSeconds = tailSeconds;
         _voices = new InstrumentVoice[PoolSize];
         for (int i = 0; i < _voices.Length; i++)
@@ -53,7 +64,7 @@ internal sealed class PolyphonicSource : ITrackSource
         }
         foreach (NoteEvent note in notes)
         {
-            _longestNote = Math.Max(_longestNote, note.OffFrame - note.OnFrame);
+            _longestNote = Math.Max(_longestNote, _soundingEnd(note) - note.OnFrame);
         }
     }
 
@@ -159,7 +170,7 @@ internal sealed class PolyphonicSource : ITrackSource
         _next = FirstStartingAt(frame);
         for (int i = first; i < _next; i++)
         {
-            if (_notes[i].OffFrame > frame)
+            if (_soundingEnd(_notes[i]) > frame)
             {
                 Start(_notes[i], frame, frame - _notes[i].OnFrame);
             }

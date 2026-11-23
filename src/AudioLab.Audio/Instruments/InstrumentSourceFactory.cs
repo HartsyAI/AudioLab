@@ -53,6 +53,11 @@ public sealed class InstrumentSourceFactory : ITrackSourceFactory
         }
         SamplerSettings settings = new(sampler, sample);
         double trackEnd = track.MidiClips.Where(clip => !clip.Muted).Select(clip => clip.Start + clip.Length).DefaultIfEmpty(0).Max();
-        return new PolyphonicSource(() => new SamplerVoice(settings), notes, sample.ChannelCount == 1, settings.TailSeconds(notes, trackEnd));
+        return new PolyphonicSource(
+            () => new SamplerVoice(settings),
+            notes,
+            sample.ChannelCount == 1,
+            settings.TailSeconds(notes, trackEnd),
+            settings.SoundingEnd);
     }
 }

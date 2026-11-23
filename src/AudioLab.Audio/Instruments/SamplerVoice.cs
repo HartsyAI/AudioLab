@@ -37,7 +37,7 @@ internal sealed class SamplerVoice : InstrumentVoice
         _attacking = true;
         StartFrame = startFrame;
         _offFrame = offFrame;
-        _limitFrame = Math.Max(offFrame, startFrame) + _settings.LimitFrames;
+        _limitFrame = Math.Max(offFrame, startFrame - elapsed) + _settings.LimitFrames;
         State = VoiceState.Held;
     }
 
