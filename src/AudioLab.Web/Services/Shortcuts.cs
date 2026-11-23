@@ -39,9 +39,34 @@ public static class Shortcuts
     /// <summary>Move the focused clip to the track below.</summary>
     public static readonly Shortcut NudgeDown = new("clip.nudge.down", "Move clip to the track below", "ArrowDown", Session, Alt: true);
 
+    /// <summary>Play from the playhead, or pause while playing.</summary>
+    public static readonly Shortcut PlayPause = new("transport.play", "Play or pause", " ", Session);
+
+    /// <summary>Stop and return to where playing began.</summary>
+    public static readonly Shortcut Stop = new("transport.stop", "Stop", " ", Session, Shift: true);
+
+    /// <summary>Move the playhead to the start.</summary>
+    public static readonly Shortcut ToStart = new("transport.start", "Go to start", "Home", Session);
+
+    /// <summary>Move the playhead to the end of what is heard.</summary>
+    public static readonly Shortcut ToEnd = new("transport.end", "Go to end", "End", Session);
+
+    /// <summary>Move the playhead one bar earlier.</summary>
+    public static readonly Shortcut SeekBack = new("transport.back", "Back one bar", "ArrowLeft", Session, Shift: true);
+
+    /// <summary>Move the playhead one bar later.</summary>
+    public static readonly Shortcut SeekForward = new("transport.forward", "Forward one bar", "ArrowRight", Session, Shift: true);
+
+    /// <summary>Turn the loop on or off.</summary>
+    public static readonly Shortcut ToggleLoop = new("transport.loop", "Loop", "l", Session);
+
+    /// <summary>Turn the metronome on or off.</summary>
+    public static readonly Shortcut ToggleClick = new("transport.click", "Click", "k", Session);
+
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
+        PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
     ];
 }

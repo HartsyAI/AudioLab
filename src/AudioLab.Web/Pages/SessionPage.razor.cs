@@ -199,6 +199,7 @@ public sealed partial class SessionPage
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
                 MoveClip = move => ShowAsync(_editor!.MoveClipAsync(move.Clip, move.Start, move.Track)),
+                SetMetronome = on => ShowAsync(_editor!.SetMetronomeAsync(on)),
                 Undo = () => HistoryAsync(_editor!.UndoAsync(), "undo"),
                 Redo = () => HistoryAsync(_editor!.RedoAsync(), "redo"),
             };
@@ -299,8 +300,64 @@ public sealed partial class SessionPage
     }
 
     // A key press from anywhere on the page but a text field or a dialog; true means it was a shortcut and is handled.
+    // Playing does not edit the project, so the transport keys work while the project is read-only too.
+    private bool TransportPress(KeyChord chord)
+    {
+        if (chord.Repeat && IsTransportKey(chord))
+        {
+            // A key held down is one press: the repeats are taken and do nothing.
+            return true;
+        }
+        if (Shortcuts.PlayPause.Matches(chord))
+        {
+            _ = InvokeAsync(Playback.TogglePlayAsync);
+        }
+        else if (Shortcuts.Stop.Matches(chord))
+        {
+            Playback.Stop();
+        }
+        else if (Shortcuts.ToStart.Matches(chord))
+        {
+            Playback.Seek(0);
+        }
+        else if (Shortcuts.ToEnd.Matches(chord))
+        {
+            Playback.Seek(Playback.ContentEnd);
+        }
+        else if (Shortcuts.SeekBack.Matches(chord))
+        {
+            Playback.Seek(Playback.Position - Playback.BarSeconds);
+        }
+        else if (Shortcuts.SeekForward.Matches(chord))
+        {
+            Playback.Seek(Playback.Position + Playback.BarSeconds);
+        }
+        else if (Shortcuts.ToggleLoop.Matches(chord))
+        {
+            Playback.SetLoop(!Playback.Looping);
+        }
+        else if (Shortcuts.ToggleClick.Matches(chord) && _live?.Document is { } document && _actions.CanEdit)
+        {
+            _ = InvokeAsync(() => _actions.SetMetronome(!document.Metronome));
+        }
+        else
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static bool IsTransportKey(KeyChord chord) =>
+        Shortcuts.PlayPause.Matches(chord) || Shortcuts.Stop.Matches(chord) || Shortcuts.ToStart.Matches(chord)
+        || Shortcuts.ToEnd.Matches(chord) || Shortcuts.SeekBack.Matches(chord) || Shortcuts.SeekForward.Matches(chord)
+        || Shortcuts.ToggleLoop.Matches(chord) || Shortcuts.ToggleClick.Matches(chord);
+
     private bool Press(KeyChord chord)
     {
+        if (TransportPress(chord))
+        {
+            return true;
+        }
         if (!_actions.CanEdit)
         {
             return false;
