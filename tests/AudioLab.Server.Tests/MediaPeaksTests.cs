@@ -15,6 +15,20 @@ public sealed class MediaPeaksTests
 
     private static readonly CancellationToken _none = CancellationToken.None;
 
+    // How long a request waits for a rebuild. It is counted on the test's clock, which moves only when a test advances it, so a request
+    // is answered 503 when the test says the wait is over and never because the machine was slow.
+    private static readonly TimeSpan _wait = TimeSpan.FromSeconds(3);
+
+    // Returns when that many waits have started on the clock, which is when every request has reached its rebuild.
+    private static async Task WaitForTimersAsync(ManualTimeProvider time, int count)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        while (time.PendingTimers < count)
+        {
+            await Task.Delay(1, timeout.Token);
+        }
+    }
+
     // Left is a sawtooth, right holds -3000 with one spike and one dip, so every level has something to find.
     private static short[] KnownSignal()
     {
@@ -178,13 +192,16 @@ public sealed class MediaPeaksTests
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         await using TestStore store = TestStore.On(
             folder.Path,
-            media: new MediaOptions { PeaksRebuildWait = TimeSpan.FromMilliseconds(200) },
+            media: new MediaOptions { PeaksRebuildWait = _wait },
             beforeRebuild: () => gate.Task);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
         byte[] original = await File.ReadAllBytesAsync(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
         File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
 
+        int armed = store.Time.PendingTimers;
         Task<byte[]>[] waiting = [.. Enumerable.Range(0, 6).Select(_ => Task.Run(() => PeaksOfAsync(store, Users.Alice, record)))];
+        await WaitForTimersAsync(store.Time, armed + 6);
+        store.Time.Advance(_wait);
         foreach (Task<byte[]> request in waiting)
         {
             MediaPeaksPendingException pending = await Assert.ThrowsAsync<MediaPeaksPendingException>(() => request);
@@ -206,14 +223,15 @@ public sealed class MediaPeaksTests
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         await using TestStore store = TestStore.On(
             folder.Path,
-            media: new MediaOptions { PeaksRebuildWait = TimeSpan.FromSeconds(20) },
+            media: new MediaOptions { PeaksRebuildWait = _wait },
             beforeRebuild: () => gate.Task);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
         byte[] original = await File.ReadAllBytesAsync(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
         File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
 
+        int armed = store.Time.PendingTimers;
         Task<byte[]>[] requests = [.. Enumerable.Range(0, 6).Select(_ => Task.Run(() => PeaksOfAsync(store, Users.Alice, record)))];
-        await Task.Delay(200);
+        await WaitForTimersAsync(store.Time, armed + 6);
         gate.SetResult();
 
         Assert.All(await Task.WhenAll(requests), bytes => Assert.Equal(original, bytes));
@@ -253,12 +271,13 @@ public sealed class MediaPeaksTests
     {
         using TempFolder folder = new();
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        MediaOptions options = new() { PeaksRebuildWait = TimeSpan.FromSeconds(20) };
+        MediaOptions options = new() { PeaksRebuildWait = _wait };
         await using TestStore store = TestStore.On(folder.Path, media: options, beforeRebuild: () => gate.Task);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav());
         File.Delete(store.Paths.MediaPeaksFile(Users.Alice, record.Id));
+        int armed = store.Time.PendingTimers;
         Task<byte[]> request = Task.Run(() => PeaksOfAsync(store, Users.Alice, record));
-        await Task.Delay(100);
+        await WaitForTimersAsync(store.Time, armed + 1);
 
         await store.MediaFiles.DeleteAsync(Users.Alice, record.Id, _none);
         gate.SetResult();
@@ -367,19 +386,29 @@ public sealed class MediaPeaksTests
     public async Task ThePeakRouteIsAnswered503WithRetryAfterOnlyWhileARebuildRunsAndThen200()
     {
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ManualTimeProvider time = new();
         await using RunningServer server = await RunningServer.StartAsync(
-            new Dictionary<string, string?> { ["AudioLab:Media:PeaksRebuildWait"] = "0:0:0.2" },
-            services => services.AddSingleton(new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, () => gate.Task)));
+            new Dictionary<string, string?> { ["AudioLab:Media:PeaksRebuildWait"] = "0:0:3" },
+            services =>
+            {
+                services.AddSingleton<TimeProvider>(time);
+                services.AddSingleton(new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, () => gate.Task));
+            });
         using HttpResponseMessage created = await server.Client.PostAsync("/api/media?name=a.wav", WavContent(Wav()));
         MediaSummary summary = (await created.Content.ReadFromJsonAsync(MediaJsonContext.Default.MediaSummary))!;
         byte[] original = await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks");
         string file = Directory.GetFiles(server.StoreFolder, "m*.peaks", SearchOption.AllDirectories).Single();
         File.Delete(file);
 
-        using HttpResponseMessage waiting = await server.Client.GetAsync($"/api/media/{summary.Id}/peaks");
+        int armed = time.PendingTimers;
+        Task<HttpResponseMessage> request = server.Client.GetAsync($"/api/media/{summary.Id}/peaks");
+        await WaitForTimersAsync(time, armed + 1);
+        time.Advance(TimeSpan.FromSeconds(3));
+        using HttpResponseMessage waiting = await request;
         Assert.Equal(HttpStatusCode.ServiceUnavailable, waiting.StatusCode);
-        Assert.Equal("1", waiting.Headers.GetValues("Retry-After").Single());
+        Assert.Equal("3", waiting.Headers.GetValues("Retry-After").Single());
 
+        // The rebuild is held open for as long as the test says, and the clock does not move, so the request cannot give up on it.
         gate.SetResult();
         Assert.Equal(original, await server.Client.GetByteArrayAsync($"/api/media/{summary.Id}/peaks"));
         Assert.True(File.Exists(file));
