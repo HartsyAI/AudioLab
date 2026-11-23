@@ -1,4 +1,4 @@
-<div class="row" data-kind="@Kind.ToString().ToLowerInvariant()" style="width: @Css.Px(Width)">
+<div class="row" data-kind="@Kind.ToString().ToLowerInvariant()" style="width: @Css.Px(Width)" @onclick="SeekAsync">
     @switch (Kind)
     {
         case RulerRowKind.Sections:
@@ -12,7 +12,8 @@
             {
                 <span class="tick" data-strong="@(bar.Strong ? "true" : "false")" style="left: @Css.Px(Left(bar.Time))">@bar.Number</span>
             }
-            <svg class="cap" width="11" height="8" viewBox="0 0 11 8" aria-hidden="true"><polygon points="0,0 11,0 5.5,8"></polygon></svg>
+            <LoopRange Part="LoopRangePart.Ruler" Geometry="Geometry" />
+            <Playhead Part="PlayheadPart.Cap" Geometry="Geometry" />
             break;
         case RulerRowKind.Time:
             @foreach (double time in Times)

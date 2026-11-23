@@ -23,6 +23,7 @@ public sealed class MixerGraph
     private readonly float[] _trackRight;
     private readonly float[][] _busLeft;
     private readonly float[][] _busRight;
+    private readonly float[] _peaks;
 
     /// <summary>Creates a graph that renders <paramref name="plan"/> from the start of the project.</summary>
     public MixerGraph(RenderPlan plan, int blockFrames = DefaultBlockFrames)
@@ -36,12 +37,16 @@ public sealed class MixerGraph
         _trackRight = new float[blockFrames];
         _busLeft = new float[plan.BusCount][];
         _busRight = new float[plan.BusCount][];
+        _peaks = new float[(plan.Tracks.Length + 1) * 2];
         for (int bus = 0; bus < plan.BusCount; bus++)
         {
             _busLeft[bus] = new float[blockFrames];
             _busRight[bus] = new float[blockFrames];
         }
     }
+
+    /// <summary>How many values <see cref="TakePeaks"/> writes: a left and a right for each track of the plan, then the master's.</summary>
+    public int PeakCount => _peaks.Length;
 
     /// <summary>The timeline frame the next block starts on.</summary>
     public long Position { get; private set; }
@@ -63,6 +68,15 @@ public sealed class MixerGraph
             }
             track.Source?.Reset();
         }
+    }
+
+    /// <summary>Writes the largest absolute sample each track put out after fader and pan, then the master's, and clears them.</summary>
+    /// <remarks>The order is <see cref="RenderPlan.TrackIds"/>, a left then a right for each, then the master's pair.</remarks>
+    public void TakePeaks(Span<float> destination)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(destination.Length, _peaks.Length);
+        _peaks.CopyTo(destination);
+        Array.Clear(_peaks);
     }
 
     /// <summary>Renders the next frames of the mix into two equally long buffers, replacing what they hold, and moves the position on.</summary>
@@ -91,9 +105,9 @@ public sealed class MixerGraph
             _busLeft[bus].AsSpan(0, count).Clear();
             _busRight[bus].AsSpan(0, count).Clear();
         }
-        foreach (PlannedTrack track in _plan.Tracks)
+        for (int index = 0; index < _plan.Tracks.Length; index++)
         {
-            RenderTrack(track, left, right);
+            RenderTrack(_plan.Tracks[index], index, left, right);
         }
         float master = _plan.MasterGain;
         for (int i = 0; i < count; i++)
@@ -105,10 +119,11 @@ public sealed class MixerGraph
         {
             _limiter.Process(left, right);
         }
+        NotePeak(_peaks.Length - 2, left, right);
         Position += count;
     }
 
-    private void RenderTrack(PlannedTrack track, Span<float> outLeft, Span<float> outRight)
+    private void RenderTrack(PlannedTrack track, int index, Span<float> outLeft, Span<float> outRight)
     {
         int count = outLeft.Length;
         Span<float> left;
@@ -147,7 +162,21 @@ public sealed class MixerGraph
                 outLeft[i] += left[i];
                 outRight[i] += right[i];
             }
+            NotePeak(index * 2, left, right);
         }
+    }
+
+    private void NotePeak(int slot, ReadOnlySpan<float> left, ReadOnlySpan<float> right)
+    {
+        float peakLeft = _peaks[slot];
+        float peakRight = _peaks[slot + 1];
+        for (int i = 0; i < left.Length; i++)
+        {
+            peakLeft = Math.Max(peakLeft, Math.Abs(left[i]));
+            peakRight = Math.Max(peakRight, Math.Abs(right[i]));
+        }
+        _peaks[slot] = peakLeft;
+        _peaks[slot + 1] = peakRight;
     }
 
     private static void ReplaceNonFinite(Span<float> samples)
