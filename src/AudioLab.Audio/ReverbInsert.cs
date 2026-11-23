@@ -35,10 +35,14 @@ internal sealed class ReverbInsert : IInsert
         _wetRight = new float[PartitionedConvolver.Block];
         _dry = (float)(1 - effect.Mix);
         _wet = (float)effect.Mix;
-        TailSeconds = effect.Predelay + ((double)left.Length / sampleRate);
+        TailSeconds = TailFor(effect, sampleRate);
     }
 
     public double TailSeconds { get; }
+
+    /// <summary>How long a reverb rings after its input stops: its predelay and the length of its room.</summary>
+    public static double TailFor(ReverbEffect effect, int sampleRate) =>
+        effect.Predelay + ((double)ReverbImpulse.LengthFor(effect.Size, sampleRate) / sampleRate);
 
     public void Reset()
     {
