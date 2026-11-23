@@ -3,14 +3,14 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>The preview of a MIDI clip costs a bounded path and a bounded number of steps whatever the clip holds, as a file of a million notes would.</summary>
+/// <summary>The preview of a MIDI clip costs a bounded path and a bounded number of steps whatever the clip holds, as a million notes would.</summary>
 public sealed class MidiPreviewBoundTests
 {
     private const int MillionNotes = 1_000_000;
 
     private const int GridCells = MidiPreview.Width + 1;
 
-    /// <summary>A clip of a million notes gives a path under a megabyte, in a number of steps that grows with the notes and not with their width.</summary>
+    /// <summary>A clip of a million notes gives a path under a megabyte, in steps that grow with the notes and not with their width.</summary>
     [Fact]
     public void AClipOfAMillionNotesGivesABoundedPathInABoundedNumberOfSteps()
     {
@@ -18,7 +18,8 @@ public sealed class MidiPreviewBoundTests
         MidiNote[] notes =
         [
             .. Enumerable.Range(0, MillionNotes)
-                .Select(index => new MidiNote(new NoteId(index + 1), random.Next(24, 100), random.NextDouble() * 99, 0.5 + random.NextDouble() * 20, 90)),
+                .Select(index => new MidiNote(
+                    new NoteId(index + 1), random.Next(24, 100), random.NextDouble() * 99, 0.5 + random.NextDouble() * 20, 90)),
         ];
         MidiClip clip = Song.Midi("big", 0, 100, notes);
 
