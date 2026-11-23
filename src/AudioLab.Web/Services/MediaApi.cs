@@ -22,6 +22,8 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
 
     private const string TookTooLong = "The server took too long to answer. Try again.";
 
+    private const string UnreadablePeaks = "The server sent peaks this page cannot read.";
+
     /// <summary>The most bytes a file may have to be sent; a larger one is refused unread, since the browser holds all of it first.</summary>
     public long MaxUploadBytes { get; set; } = DefaultMaxUploadBytes;
 
@@ -108,24 +110,55 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
             cancellationToken);
     }
 
-    /// <summary>The peak file of a media file, read with the Core reader. A 503 carries <see cref="ApiException.RetryAfter"/>.</summary>
-    public Task<PeakData> GetPeaksAsync(string id, CancellationToken cancellationToken = default)
+    /// <summary>The header and level table of a media file's peak file, which say how long each level is and where it lies.</summary>
+    /// <remarks>A 503 is an exception whose <see cref="ApiException.RetryAfter"/> says when to ask again.</remarks>
+    public async Task<PeakHeader> GetPeakHeaderAsync(string id, CancellationToken cancellationToken = default)
+    {
+        const int TableBytes = PeakFile.HeaderBytes + (PeakFile.LevelEntryBytes * PeakFile.MaxLevels);
+        (byte[] bytes, HttpStatusCode status) = await RangeAsync(id, 0, TableBytes - 1, cancellationToken);
+        try
+        {
+            return PeakFile.ReadHeader(bytes);
+        }
+        catch (InvalidDataException)
+        {
+            throw new ApiException(status, UnreadablePeaks);
+        }
+    }
+
+    /// <summary>One level of a media file's peaks, as its own byte range, so a zoom that needs a coarse level never loads a fine one.</summary>
+    public async Task<PeakLevel> GetPeakLevelAsync(string id, PeakHeader header, int level, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(header);
+        (long offset, long length) = PeakFile.LevelRange(header, level);
+        (byte[] bytes, HttpStatusCode status) = await RangeAsync(id, offset, offset + length - 1, cancellationToken);
+        try
+        {
+            return PeakFile.ReadLevel(header, level, bytes);
+        }
+        catch (InvalidDataException)
+        {
+            throw new ApiException(status, UnreadablePeaks);
+        }
+    }
+
+    // A server that ignores the range answers 200 with the whole file; the wanted bytes are then cut out of it.
+    private Task<(byte[] Bytes, HttpStatusCode Status)> RangeAsync(string id, long from, long to, CancellationToken cancellationToken)
     {
         string address = $"{Address(id)}/peaks";
         return RunAsync(
             async () =>
             {
-                using HttpResponseMessage response = await http.GetAsync(address, cancellationToken);
+                using HttpRequestMessage request = new(HttpMethod.Get, address);
+                request.Headers.Range = new RangeHeaderValue(from, to);
+                using HttpResponseMessage response = await http.SendAsync(request, cancellationToken);
                 await ApiAnswers.EnsureAsync(response, cancellationToken);
-                byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                try
+                byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                if (response.StatusCode == HttpStatusCode.PartialContent)
                 {
-                    return PeakFile.Read(bytes);
+                    return (body, response.StatusCode);
                 }
-                catch (InvalidDataException)
-                {
-                    throw new ApiException(response.StatusCode, "The server sent peaks this page cannot read.");
-                }
+                return (from >= body.Length ? [] : body[(int)from..(int)Math.Min(to + 1, body.Length)], response.StatusCode);
             },
             cancellationToken);
     }

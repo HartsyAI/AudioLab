@@ -7,6 +7,7 @@ using AudioLab.Web.Interop;
 using AudioLab.Web.Media;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
@@ -51,7 +52,8 @@ builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddSingleton<LiveProjectFactory>();
-builder.Services.AddSingleton<WavePathCache>();
+builder.Services.AddScoped<PeakStore>();
+builder.Services.AddScoped<WaveformService>();
 builder.Services.AddSingleton(provider => new TrackColorMap(
     [.. Enumerable.Range(1, 12).Select(number => provider.GetRequiredService<ITokenReader>().Read($"--track-{number}"))]));
 await builder.Build().RunAsync();

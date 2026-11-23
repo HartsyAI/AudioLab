@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Tests;
@@ -134,7 +135,7 @@ public sealed class MediaApiTests
             "application/problem+json",
             ("Retry-After", header));
 
-        ApiException failure = await Assert.ThrowsAsync<ApiException>(() => Api(handler).GetPeaksAsync("m1"));
+        ApiException failure = await Assert.ThrowsAsync<ApiException>(() => Api(handler).GetPeakHeaderAsync("m1"));
 
         Assert.Equal(TimeSpan.FromSeconds(seconds), failure.RetryAfter);
         Assert.Equal($"The peaks are being rebuilt; ask again in a moment. {sentence}", failure.Message);
@@ -154,22 +155,47 @@ public sealed class MediaApiTests
         Assert.Equal(TimeSpan.FromSeconds(7), seven.RetryAfter);
     }
 
-    /// <summary>The peaks are read with Core's reader, and bytes that are not a peak file are an api exception.</summary>
+    /// <summary>The header and one level are each asked for as a range of the peak file and read with the Core reader.</summary>
     [Fact]
-    public async Task ThePeaksAreReadWithCoresReaderAndDamagedBytesAreAnApiException()
+    public async Task TheHeaderAndOneLevelAreEachAskedForAsARangeAndReadWithCoresReader()
     {
-        short[] values = [-100, 200, -300, 400];
-        PeakData data = new(1, 44100, 128, [new PeakLevel(64, values)]);
-        RecordingHandler good = RecordingHandler.Always(HttpStatusCode.OK, PeakFile.Write(data), PeakFile.MediaType);
-        RecordingHandler bad = RecordingHandler.Always(HttpStatusCode.OK, [1, 2, 3], PeakFile.MediaType);
+        PeakBuilder builder = new(1, 44100);
+        builder.AddFrames(Enumerable.Range(0, 5000).Select(frame => (frame % 50) / 100f).ToArray());
+        byte[] file = PeakFile.Write(builder.Build());
+        RecordingHandler handler = new(request =>
+        {
+            System.Net.Http.Headers.RangeItemHeaderValue range = request.Headers.Range!.Ranges.Single();
+            int from = (int)range.From!.Value;
+            int to = (int)Math.Min(range.To!.Value, file.Length - 1);
+            return new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = new ByteArrayContent(file[from..(to + 1)]) };
+        });
 
-        PeakData read = await Api(good).GetPeaksAsync("m1");
-        ApiException failure = await Assert.ThrowsAsync<ApiException>(() => Api(bad).GetPeaksAsync("m1"));
+        PeakHeader header = await Api(handler).GetPeakHeaderAsync("m1");
+        PeakLevel level = await Api(handler).GetPeakLevelAsync("m1", header, 1);
 
-        Assert.Equal("/audiolab/api/media/m1/peaks", good.Requests.Single().Path);
-        Assert.Equal((1, 44100, 128L), (read.Channels, read.SampleRate, read.Frames));
-        Assert.Equal(values, read.Levels.Single().Values.ToArray());
-        Assert.Equal("The server sent peaks this page cannot read.", failure.Message);
+        Assert.Equal("/audiolab/api/media/m1/peaks", handler.Requests[0].Path);
+        Assert.Equal("bytes=0-151", handler.Requests[0].Range);
+        (long offset, long length) = PeakFile.LevelRange(header, 1);
+        Assert.Equal($"bytes={offset}-{offset + length - 1}", handler.Requests[1].Range);
+        Assert.Equal((1, 44100, 5000L), (header.Channels, header.SampleRate, header.Frames));
+        Assert.Equal(256, level.FramesPerPeak);
+        Assert.True(PeakFile.Read(file).Levels[1].Values.SequenceEqual(level.Values));
+    }
+
+    /// <summary>Bytes that are not a peak file, or a level of the wrong length, are an api exception.</summary>
+    [Fact]
+    public async Task BytesThatAreNotAPeakFileAreAnApiException()
+    {
+        RecordingHandler bad = RecordingHandler.Always(HttpStatusCode.PartialContent, [1, 2, 3], PeakFile.MediaType);
+        PeakBuilder builder = new(1, 44100);
+        builder.AddFrames(new float[5000]);
+        PeakHeader header = PeakFile.ReadHeader(PeakFile.Write(builder.Build()));
+
+        ApiException head = await Assert.ThrowsAsync<ApiException>(() => Api(bad).GetPeakHeaderAsync("m1"));
+        ApiException level = await Assert.ThrowsAsync<ApiException>(() => Api(bad).GetPeakLevelAsync("m1", header, 1));
+
+        Assert.Equal("The server sent peaks this page cannot read.", head.Message);
+        Assert.Equal("The server sent peaks this page cannot read.", level.Message);
     }
 
     /// <summary>An answer that is not a listing is an api exception and not a parser error.</summary>
