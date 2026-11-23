@@ -62,6 +62,9 @@ public sealed partial class Timeline : IDisposable
     private ClipDragState Drags { get; set; } = default!;
 
     [Inject]
+    private BottomPanelState Panel { get; set; } = default!;
+
+    [Inject]
     private ToastService Toasts { get; set; } = default!;
 
     [Inject]
@@ -148,6 +151,7 @@ public sealed partial class Timeline : IDisposable
 
     private Task AddTrack() => Actions.AddTrack();
 
+    private Task AddInstrument() => Actions.AddInstrumentTrack();
     // The lanes start where the ruler does, so a press in the bars row is a time in the lanes' own pixels once their left edge is taken off.
     private void RulerSeek(MouseEventArgs press)
     {
@@ -158,6 +162,29 @@ public sealed partial class Timeline : IDisposable
     }
 
     private void SelectTrack(TrackId track) => Selection.SelectTrack(track);
+
+    // A MIDI clip is opened in the piano roll: it becomes the selection and the panel shows its editor.
+    private void OpenClip(ClipId clip)
+    {
+        SelectClip(clip);
+        Panel.Show(BottomPanelState.PianoRoll);
+    }
+
+    // A double-click on an empty part of an instrument lane makes a clip of one bar there, on the line the grid draws nearest to it.
+    private async Task LaneDoubleClickAsync((TrackId Track, double X) click)
+    {
+        Track? track = Document.Tracks.FirstOrDefault(candidate => candidate.Id == click.Track);
+        if (track is not { Kind: TrackKind.Instrument } || !Actions.CanEdit)
+        {
+            return;
+        }
+        double start = new GridSnap(Document).Snap(Geometry.Seconds(click.X));
+        EditResult result = await Actions.Midi.AddClip(track.Id, start);
+        if (result.Succeeded && result.Created.Count > 0)
+        {
+            Selection.SelectClip(track.Id, ClipId.From(result.Created[0]));
+        }
+    }
 
     private void SelectClip(ClipId clip)
     {

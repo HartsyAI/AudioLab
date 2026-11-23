@@ -2,10 +2,15 @@
     <div class="grid" style="grid-template-columns: var(--header-column) @Css.Px(LaneWidth); --rows: @Kinds.Count">
         <div class="corner">
             <span class="caption">TRACKS</span>
-            <Button Name="Add track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddTrack">
-                <Icon Name="IconName.Plus" Size="10" />
-                <span>Add track</span>
-            </Button>
+            <span class="corner-actions">
+                <Button Name="Add track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddTrack">
+                    <Icon Name="IconName.Plus" Size="10" />
+                    <span>Add track</span>
+                </Button>
+                <Button Name="Add instrument track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddInstrument">
+                    <span>Instrument</span>
+                </Button>
+            </span>
         </div>
         <div class="ruler">
             @foreach (RulerRowKind kind in Kinds)
@@ -36,7 +41,8 @@
             {
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
-                             OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" />
+                             OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" OnOpenClip="OpenClip"
+                             OnLaneDoubleClick="LaneDoubleClickAsync" />
                 <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
                 <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />
             }

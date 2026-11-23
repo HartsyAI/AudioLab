@@ -88,7 +88,41 @@ public sealed class ClipMarkupTests
         Assert.Contains("m1", arrived);
     }
 
-    /// <summary>A MIDI clip draws its real notes, so it says nothing about a waveform.</summary>
+    // A MIDI clip is drawn with a waveform service that has no file, since a clip injects one whatever it holds.
+    private static Task<RenderedMarkup> RenderMidi(MidiClip clip)
+    {
+        return RenderedMarkup.OfAsync<Clip>(
+            new Dictionary<string, object?> { ["Midi"] = clip, ["ColorToken"] = "var(--track-1)" },
+            services => services.AddSingleton(new WaveformService(Store(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK))))));
+    }
+
+    /// <summary>A MIDI clip draws its real notes, so it claims no placeholder, and says how to open the piano roll.</summary>
+    [Fact]
+    public async Task AMidiClipClaimsNoPlaceholderAndSaysHowToOpenIt()
+    {
+        RenderedMarkup clip = await RenderMidi(Song.Midi("m1", 0, 4));
+
+        Assert.DoesNotContain(clip.Values("aria-label"), label => label.Contains("placeholder", StringComparison.Ordinal));
+        Assert.DoesNotContain(clip.Values("title"), title => title.Contains("placeholder", StringComparison.Ordinal));
+        Assert.Contains(clip.Values("title"), title => title.Contains("piano roll", StringComparison.Ordinal));
+    }
+
+    /// <summary>However many notes a MIDI clip holds, they are one path in one svg and no element of their own.</summary>
+    [Fact]
+    public async Task TheNotesOfAMidiClipAreOnePathAndNoElementEach()
+    {
+        MidiNote[] notes =
+            [.. Enumerable.Range(0, 500).Select(index => new MidiNote(new NoteId(index + 1), 48 + (index % 24), index * 0.01, 0.01, 90))];
+
+        RenderedMarkup clip = await RenderMidi(Song.Midi("m1", 0, 8, notes));
+
+        Assert.Single(clip.Values("d"));
+        Assert.Equal(["500"], clip.Values("data-notes"));
+        Assert.Equal(500, clip.Values("d")[0].Count(letter => letter == 'M'));
+        Assert.DoesNotContain("note", clip.Values("class"));
+    }
+
+    /// <summary>A MIDI clip says nothing about a waveform.</summary>
     [Fact]
     public async Task AMidiClipSaysNothingAboutAWaveform()
     {
@@ -97,6 +131,6 @@ public sealed class ClipMarkupTests
             services => services.AddSingleton(new WaveformService(Store(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK))))));
 
         Assert.DoesNotContain(clip.Values("aria-label"), label => label.Contains("waveform", StringComparison.OrdinalIgnoreCase));
-        Assert.Empty(clip.Values("title"));
+        Assert.DoesNotContain(clip.Values("title"), title => title.Contains("waveform", StringComparison.OrdinalIgnoreCase));
     }
 }

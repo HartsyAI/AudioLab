@@ -25,6 +25,12 @@ public sealed class SessionActions
     /// <summary>Adds a track.</summary>
     public Func<Task> AddTrack { get; init; } = () => Task.CompletedTask;
 
+    /// <summary>Adds an instrument track, which holds MIDI clips.</summary>
+    public Func<Task> AddInstrumentTrack { get; init; } = () => Task.CompletedTask;
+
+    /// <summary>What can be done to MIDI clips.</summary>
+    public MidiActions Midi { get; init; } = new();
+
     /// <summary>Asks for the new name of a track.</summary>
     public Func<TrackId, Task> RenameTrack { get; init; } = _ => Task.CompletedTask;
 
