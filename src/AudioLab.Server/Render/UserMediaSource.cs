@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using AudioLab.Audio;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Media;
 using AudioLab.Server.Store;
@@ -66,7 +67,7 @@ public sealed class UserMediaSource(
         try
         {
             using FileStream stream = store.OpenContent(user, id, asynchronous: false);
-            Media.WavFormat format = WavReader.Read(stream);
+            WavHeader format = WavReader.Read(stream);
             if (stream.Length != record.Bytes || !Matches(record, format))
             {
                 return Refuse(id, "its bytes no longer match its record");
@@ -80,7 +81,7 @@ public sealed class UserMediaSource(
             // Bytes that are not there while the record is, and no delete under way, are a damaged file; a delete is not.
             return store.IsDeleting(user, id) ? null : Refuse(id, "its bytes are missing");
         }
-        catch (Exception exception) when (exception is MediaRejectedException or EndOfStreamException)
+        catch (Exception exception) when (exception is WavFormatException or EndOfStreamException)
         {
             return Refuse(id, "its bytes are not the WAV file that was uploaded");
         }
@@ -97,12 +98,12 @@ public sealed class UserMediaSource(
         return null;
     }
 
-    private static bool Matches(MediaRecord record, Media.WavFormat format)
+    private static bool Matches(MediaRecord record, WavHeader format)
     {
         return format.Encoding == record.Encoding && format.Channels == record.Channels && format.SampleRate == record.SampleRate;
     }
 
-    private PcmAudio Convert(FileStream stream, Media.WavFormat format)
+    private PcmAudio Convert(FileStream stream, WavHeader format)
     {
         int kept = Math.Min(format.Channels, KeptChannels);
         long frames = format.Frames;
@@ -137,7 +138,7 @@ public sealed class UserMediaSource(
         }
     }
 
-    private PcmAudio Decode(FileStream stream, Media.WavFormat format, int kept)
+    private PcmAudio Decode(FileStream stream, WavHeader format, int kept)
     {
         long frames = format.Frames;
         float[][] channels = new float[kept][];
