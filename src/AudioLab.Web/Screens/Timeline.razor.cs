@@ -192,14 +192,6 @@ public sealed partial class Timeline : IDisposable
             }
             return;
         }
-        if (Shortcuts.MidiClipLonger.Matches(press.Key) || Shortcuts.MidiClipShorter.Matches(press.Key))
-        {
-            if (Actions.CanEdit && MidiClipPlan.Find(Document, press.Clip) is not null)
-            {
-                await Actions.Midi.StepLength(press.Clip, Shortcuts.MidiClipLonger.Matches(press.Key) ? 1 : -1);
-            }
-            return;
-        }
         if (press.Key.AltKey || press.Key.CtrlKey || press.Key.MetaKey)
         {
             // A chord that is not the arrangement's keeps its own meaning; Alt or Ctrl with an arrow is not a step to another clip.
