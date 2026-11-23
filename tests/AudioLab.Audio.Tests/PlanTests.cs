@@ -33,14 +33,6 @@ public sealed class PlanTests
     }
 
     [Fact]
-    public void AnEnabledEffectIsRefusedUntilItsDspExists()
-    {
-        Track track = TestProject.Track("a") with { Effects = [EffectRules.Create(EffectKind.Reverb, EffectId.From("e1"))] };
-
-        Assert.Throws<NotSupportedException>(() => RenderPlan.Create(TestProject.Create(track), new MemoryMedia(), Options()));
-    }
-
-    [Fact]
     public void ABypassedEffectIsLeftOut()
     {
         Effect off = EffectRules.Create(EffectKind.Reverb, EffectId.From("e1")) with { Enabled = false };

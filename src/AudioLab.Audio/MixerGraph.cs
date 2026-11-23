@@ -125,7 +125,13 @@ public sealed class MixerGraph
             left.Clear();
             right.Clear();
             MixClips(track, Position, left, right);
-            track.Source?.Render(Position, left, right);
+            if (track.Source is { } source)
+            {
+                source.Render(Position, left, right);
+                // A source that makes a sample that is not a number must not poison the effects after it, which would carry it forever.
+                ReplaceNonFinite(left);
+                ReplaceNonFinite(right);
+            }
         }
         foreach (IInsert insert in track.Inserts)
         {
@@ -140,6 +146,17 @@ public sealed class MixerGraph
             {
                 outLeft[i] += left[i];
                 outRight[i] += right[i];
+            }
+        }
+    }
+
+    private static void ReplaceNonFinite(Span<float> samples)
+    {
+        for (int i = 0; i < samples.Length; i++)
+        {
+            if (!float.IsFinite(samples[i]))
+            {
+                samples[i] = 0;
             }
         }
     }

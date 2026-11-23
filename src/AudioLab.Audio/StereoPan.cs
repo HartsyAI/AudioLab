@@ -1,6 +1,6 @@
 namespace AudioLab.Audio;
 
-/// <summary>The pan of the Web Audio stereo panner, which the old DAW used, in its mono and its stereo form.</summary>
+/// <summary>The pan of the Web Audio stereo panner, in its mono and its stereo form.</summary>
 /// <remarks>A mono signal is shared out by a constant-power law, 3 dB down at the centre; a stereo one keeps unity at the centre.</remarks>
 internal readonly struct StereoPan
 {

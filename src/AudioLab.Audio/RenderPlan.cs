@@ -10,7 +10,15 @@ namespace AudioLab.Audio;
 /// </remarks>
 public sealed class RenderPlan
 {
-    private RenderPlan(AudioFormat format, PlannedTrack[] tracks, double masterGain, bool limiter, long contentFrames, long tailFrames, int busCount)
+    private RenderPlan(
+        AudioFormat format,
+        PlannedTrack[] tracks,
+        double masterGain,
+        bool limiter,
+        long contentFrames,
+        long tailFrames,
+        int busCount,
+        bool tailIsCut)
     {
         Format = format;
         Tracks = tracks;
@@ -19,6 +27,7 @@ public sealed class RenderPlan
         ContentFrames = contentFrames;
         TailFrames = tailFrames;
         BusCount = busCount;
+        TailIsCut = tailIsCut;
     }
 
     /// <summary>The format the plan renders: stereo at the plan's sample rate.</summary>
@@ -29,6 +38,9 @@ public sealed class RenderPlan
 
     /// <summary>How long the effects and instruments ring on after the content, in frames.</summary>
     public long TailFrames { get; }
+
+    /// <summary>Whether a tail was cut short at its limit, so that a render of it should fade out.</summary>
+    public bool TailIsCut { get; }
 
     internal PlannedTrack[] Tracks { get; }
 
@@ -45,7 +57,7 @@ public sealed class RenderPlan
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(options);
         AudioFormat format = new(options.SampleRate, 2);
-        InsertContext context = new(format.SampleRate, TempoMap.From(document));
+        InsertContext context = new(format.SampleRate, TempoSteps(document, format.SampleRate));
         Dictionary<TrackId, int> busSlots = [];
         foreach (Track track in document.Tracks.Where(track => track.Kind == TrackKind.Bus))
         {
@@ -77,7 +89,23 @@ public sealed class RenderPlan
             document.MasterLimiter,
             Frames(contentEnd, format.SampleRate),
             Frames(TailSeconds(planned, busSlots.Count), format.SampleRate),
-            busSlots.Count);
+            busSlots.Count,
+            planned.Any(track => track.Inserts.Any(insert => insert.TailIsCut)));
+    }
+
+    // The tempo in force from each frame a tempo change falls on, so an effect can follow it without a search of the map.
+    private static TempoStep[] TempoSteps(ProjectDocument document, int sampleRate)
+    {
+        TempoMap tempo = TempoMap.From(document);
+        List<TempoStep> steps = [new TempoStep(0, tempo.BpmAt(0))];
+        IEnumerable<TempoChange> changes = document.TempoMap
+            .Where(change => double.IsFinite(change.Time) && double.IsFinite(change.Bpm) && change.Time > 1e-6 && change.Bpm > 0)
+            .OrderBy(change => change.Time);
+        foreach (TempoChange change in changes)
+        {
+            steps.Add(new TempoStep(Frames(change.Time, sampleRate), tempo.BpmAt(change.Time)));
+        }
+        return [.. steps];
     }
 
     // Plain rounding, so a clip lands on the same frame whichever way it is reached.
@@ -132,10 +160,10 @@ public sealed class RenderPlan
         };
     }
 
-    // A track that is the same on both channels is panned by the mono law, as a mono source was in the old DAW.
+    // A track that is the same on both channels is panned by the mono law; a reverb gives each channel its own room.
     private static bool IsMono(Track track, PlannedClip[] clips, ITrackSource? source)
     {
-        if (track.Kind == TrackKind.Bus)
+        if (track.Kind == TrackKind.Bus || track.Effects.Any(effect => effect.Enabled && effect is ReverbEffect))
         {
             return false;
         }
