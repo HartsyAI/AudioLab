@@ -73,6 +73,11 @@ A project's whole document is also a resource: `audiolab://projects/{id}`, up to
 There is no tool to upload media or to list it: an agent cannot add a sound, only use media a project already names or
 that the user has uploaded elsewhere (the UI or the media routes), by the id it is given.
 
+There is no tool to export either. A WAV file, a ZIP of stems or a .mid file is bytes, and a result is text of at most
+80,000 characters, so an export is the HTTP routes of [export.md](export.md) and [midi.md](midi.md), which a person or a
+script calls as the same user. The command that puts a MIDI clip in a project, `midi_clip_import`, is a tool like any other:
+it takes the notes and controller events as JSON, so it suits a small clip, and a request is at most 1 MiB.
+
 ### Reading a project
 
 `get_project` with only the project returns a summary: counts, and each track's id, name, kind and number of clips. Read

@@ -92,6 +92,39 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         return await FinishAsync(user, outcome, name, outcome.Result?.Created.ToArray() ?? []);
     }
 
+    /// <summary>Applies a command the server built itself, for a client, as one undo step; a refusal is a reply, not an exception.</summary>
+    /// <remarks>
+    /// For a command whose data does not travel as JSON, such as a MIDI import. It runs the same pipeline as <c>ApplyAsync</c>: the handler
+    /// validates it, the project's size limit and the media checks apply, and every client of the project hears the change. Only
+    /// the registry's parse and the hub's command length are skipped, since there is no text.
+    /// </remarks>
+    /// <param name="user">The user the door resolved.</param>
+    /// <param name="project">The project the command names.</param>
+    /// <param name="client">An id the server issued for this call, never one a client named.</param>
+    /// <param name="command">The command, built by the server from what it read and checked.</param>
+    /// <param name="reason">What the change is called in the announcement, such as the command's wire name.</param>
+    /// <param name="cancellationToken">Cancels the call before the change is made.</param>
+    /// <exception cref="ProjectNotFoundException">The user has no such project.</exception>
+    /// <exception cref="SessionClosedException">The project was closed while the call was made.</exception>
+    public async Task<CommandReply> ApplyCommandAsync(
+        UserId user,
+        ProjectId project,
+        ClientId client,
+        Command command,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        await media.PrepareAsync(user, cancellationToken);
+        media.RequireReadable(user);
+        using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
+        ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
+        // On a worker: a command that carries a million notes is the handler, the validator and the document written as JSON, and the
+        // request's thread must not be held by it, though the project's lock is.
+        EditOutcome outcome = await Task.Run(() => session.Apply(command, client, null), cancellationToken);
+        return await FinishAsync(user, outcome, reason, outcome.Result?.Created.ToArray() ?? []);
+    }
+
     /// <summary>Goes back one undo step for everyone in the project; the reply says whether there was one.</summary>
     /// <param name="user">The user the door resolved.</param>
     /// <param name="project">The project to step back in.</param>

@@ -31,4 +31,7 @@ public sealed record OfflineOptions
 
     /// <summary>Keeps decoded and resampled media between renders; its rate must be <see cref="SampleRate"/>.</summary>
     public MediaCache? Cache { get; init; }
+
+    /// <summary>Stops the preparation of the plan, which decodes and converts media, when it is cancelled.</summary>
+    public CancellationToken CancellationToken { get; init; }
 }
