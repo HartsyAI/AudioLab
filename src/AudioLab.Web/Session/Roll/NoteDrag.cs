@@ -41,6 +41,10 @@ public sealed class NoteDrag : IRollGesture
 
     private readonly List<MidiNote> _erasedNotes = [];
 
+    private readonly (double Lowest, double Highest, int LowPitch, int HighPitch) _extent;
+
+    private readonly (double Shortest, double Longest) _lengths;
+
     private MidiNote[] _ghosts = [];
 
     private (double X, double Y, double Width, double Height)? _marquee;
@@ -79,6 +83,8 @@ public sealed class NoteDrag : IRollGesture
         _startTime = geometry.Seconds(x);
         _startPitch = geometry.PitchAt(y);
         _velocity = velocity;
+        _extent = Extent(notes);
+        _lengths = notes.Length == 0 ? default : (notes.Min(note => note.Duration), notes.Max(note => note.Duration));
     }
 
     /// <summary>What the drag does.</summary>
@@ -236,7 +242,7 @@ public sealed class NoteDrag : IRollGesture
                 {
                     return null;
                 }
-                (double shift, int pitch) = FitMove(moved, _wantedDelta, _wantedPitch);
+                (double shift, int pitch) = FitMove(Extent(moved), _wantedDelta, _wantedPitch);
                 if (Math.Abs(shift) < TimelineRules.NoMove && pitch == 0)
                 {
                     return null;
@@ -299,18 +305,37 @@ public sealed class NoteDrag : IRollGesture
         double wanted = _grabbed.Start + (_geometry.Seconds(x) - _startTime);
         _wantedDelta = HasMovedInTime(x) ? SnapLocal(wanted) - _grabbed.Start : 0;
         _wantedPitch = _geometry.PitchAt(y) - _startPitch;
-        (_delta, _pitchDelta) = FitMove(_notes, _wantedDelta, _wantedPitch);
+        (_delta, _pitchDelta) = FitMove(_extent, _wantedDelta, _wantedPitch);
+    }
+
+    // The ends of the notes, found once, so a move of many notes costs the same on every pointer move.
+    private static (double Lowest, double Highest, int LowPitch, int HighPitch) Extent(MidiNote[] notes)
+    {
+        if (notes.Length == 0)
+        {
+            return default;
+        }
+        double lowest = double.MaxValue;
+        double highest = double.MinValue;
+        int lowPitch = int.MaxValue;
+        int highPitch = int.MinValue;
+        foreach (MidiNote note in notes)
+        {
+            lowest = Math.Min(lowest, note.Start);
+            highest = Math.Max(highest, note.Start);
+            lowPitch = Math.Min(lowPitch, note.Pitch);
+            highPitch = Math.Max(highPitch, note.Pitch);
+        }
+        return (lowest, highest, lowPitch, highPitch);
     }
 
     // Clamped as a whole: the earliest note stops at the clip start, the latest at the last start a note may have, the notes keep their shape.
-    private (double Delta, int Pitch) FitMove(MidiNote[] notes, double delta, int pitch)
+    private (double Delta, int Pitch) FitMove((double Lowest, double Highest, int LowPitch, int HighPitch) extent, double delta, int pitch)
     {
         double latest = NoteRules.LatestStart(_clip.Length);
-        double lowest = notes.Min(note => note.Start);
-        double highest = notes.Max(note => note.Start);
-        int lowPitch = notes.Min(note => note.Pitch);
-        int highPitch = notes.Max(note => note.Pitch);
-        return (Math.Max(-lowest, Math.Min(delta, latest - highest)), Math.Clamp(pitch, -lowPitch, RollGeometry.Pitches - 1 - highPitch));
+        int lowest = -extent.LowPitch;
+        int highest = RollGeometry.Pitches - 1 - extent.HighPitch;
+        return (Math.Max(-extent.Lowest, Math.Min(delta, latest - extent.Highest)), Math.Clamp(pitch, lowest, highest));
     }
 
     // The right edge of the grabbed note goes to the nearest line, and every selected note grows or shrinks by the same amount.
@@ -318,15 +343,18 @@ public sealed class NoteDrag : IRollGesture
     {
         double end = _grabbed.Start + _grabbed.Duration;
         _wantedDelta = HasMovedInTime(x) ? SnapLocal(end + (_geometry.Seconds(x) - _startTime)) - end : 0;
-        _delta = FitStretch(_notes, _wantedDelta);
+        _delta = FitStretch(_lengths.Shortest, _lengths.Longest, _wantedDelta);
     }
 
     // The server's rule for a length (NoteRules.ResizeTo): at least the least length and at most the longest a note may be. A note may be made
     // to ring past the end of the clip, and one that already does can be lengthened.
     internal static double FitStretch(MidiNote[] notes, double delta)
     {
-        double shortest = notes.Min(note => note.Duration);
-        double longest = notes.Max(note => note.Duration);
+        return FitStretch(notes.Min(note => note.Duration), notes.Max(note => note.Duration), delta);
+    }
+
+    private static double FitStretch(double shortest, double longest, double delta)
+    {
         return Math.Max(NoteRules.MinDuration - shortest, Math.Min(delta, ProjectLimits.MaxSeconds - longest));
     }
 

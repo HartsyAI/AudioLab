@@ -33,6 +33,9 @@ public sealed class NoteIndex
     /// <summary>The notes by start, then pitch, then id.</summary>
     public IReadOnlyList<MidiNote> Ordered { get; }
 
+    /// <summary>The notes by pitch, then start, then id: the order the roll draws runs in, so it needs no sort.</summary>
+    public IEnumerable<MidiNote> ByPitch => _rows.SelectMany(row => row);
+
     /// <summary>Indexes a clip.</summary>
     public static NoteIndex Of(MidiClip clip)
     {

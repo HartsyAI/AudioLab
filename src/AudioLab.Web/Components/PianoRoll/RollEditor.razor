@@ -36,8 +36,8 @@
                  style="width: @Css.Px(Geometry.Width); height: @Css.Px(Geometry.Height)" data-hover="@(_overEdge ? "edge" : "none")"
                  @onpointerdown="NotesPress" @onpointermove="NotesHover" @onpointerleave="NotesLeave">
                 <RollGridLayer Geometry="Geometry" Lines="_lines" />
-                <RollNotes Clip="Clip" Geometry="Geometry" ColorToken="@ColorToken" />
-                <RollSelection Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" />
+                <RollNotes Clip="Clip" Index="_index" Geometry="Geometry" ColorToken="@ColorToken" />
+                <RollSelection Clip="Clip" Index="_index" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" />
                 <RollOverlay Geometry="Geometry" Clip="Clip" ColorToken="@ColorToken" />
             </div>
             <div class="lane-cell velocity-cell">

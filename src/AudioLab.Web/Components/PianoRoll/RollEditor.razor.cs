@@ -298,7 +298,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private List<MidiNote> SelectedNotes()
     {
-        return [.. State.Selected.Select(id => _index.Find(id)).OfType<MidiNote>().OrderBy(note => note.Start).ThenBy(note => note.Pitch)];
+        // The index is in this order already, so a selection of every note costs one pass and no sort.
+        return [.. _index.Ordered.Where(note => State.Selected.Contains(note.Id))];
     }
 
     private double SnapLocal(double seconds) => new GridSnap(Document).Snap(Clip.Start + seconds) - Clip.Start;

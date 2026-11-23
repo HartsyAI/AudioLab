@@ -25,6 +25,10 @@ public sealed partial class RollSelection
     [Parameter]
     public RollGeometry Geometry { get; set; }
 
+    /// <summary>The clip's notes laid out by pitch and start.</summary>
+    [Parameter, EditorRequired]
+    public NoteIndex Index { get; set; } = null!;
+
     /// <summary>The selected notes.</summary>
     [Parameter]
     public IReadOnlySet<NoteId> Selected { get; set; } = new HashSet<NoteId>();
@@ -51,7 +55,7 @@ public sealed partial class RollSelection
         _scale = Geometry.PixelsPerSecond;
         _path = Selected.Count == 0
             ? string.Empty
-            : RollNotes.Rectangles(Clip.Notes.Where(note => Selected.Contains(note.Id)), Clip.Length, Geometry.PixelsPerSecond);
+            : RollNotes.Rectangles(Index.ByPitch.Where(note => Selected.Contains(note.Id)), Geometry, sorted: true);
     }
 
     /// <inheritdoc />

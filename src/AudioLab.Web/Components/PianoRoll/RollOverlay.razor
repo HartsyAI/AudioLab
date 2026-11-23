@@ -2,7 +2,7 @@
     <div class="insert" style="left: @Css.Px(Geometry.X(State.InsertTime))"></div>
     @foreach (NoteDrag drag in Shown)
     {
-        <svg class="ghosts" @key="drag" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none"
+        <svg class="ghosts" @key="drag" viewBox="0 0 @Css.Number(Geometry.Width) @Css.Number(Geometry.Height)"
              width="@Css.Number(Geometry.Width)"
              height="@Css.Number(Geometry.Height)" style="@Carried(drag)">
             <path class="ghost" d="@Ghosts(drag)"></path>

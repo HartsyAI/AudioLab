@@ -56,7 +56,7 @@ public sealed partial class RollOverlay : IDisposable
         State.Changed += OnChanged;
     }
 
-    private string Rectangles(IEnumerable<MidiNote> notes) => RollNotes.Rectangles(notes, Clip.Length, Geometry.PixelsPerSecond);
+    private string Rectangles(IEnumerable<MidiNote> notes) => RollNotes.Rectangles(notes, Geometry);
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
