@@ -135,4 +135,28 @@ public sealed class NoteDragTests
         Assert.Equal([new NoteId(1), new NoteId(2)], drag.Picked().OrderBy(note => note.Value));
         Assert.Null(drag.Commit());
     }
+
+    /// <summary>A note off the grid dragged in pitch keeps its time, and one dragged back to where it began sends nothing.</summary>
+    [Fact]
+    public void ANoteOffTheGridDraggedInPitchKeepsItsTimeAndOneDraggedBackSendsNothing()
+    {
+        MidiNote off = Note(4, 62, 1.037, 0.3);
+        MidiClip clip = Song.Midi("m", 0, 4, off);
+        ProjectDocument document = Song.Empty().With(Song.WithMidi("keys", clip));
+        NoteDrag drag = NoteDrag.ForMove(document, clip, Geometry, NoteIndex.Of(clip), [off], off, X(1.037) + 2, Y(62));
+
+        drag.Update(X(1.037) + 2 + 1, Y(62) - 24);
+        MoveNotes sent = Only<MoveNotes>(drag.Commit());
+        Assert.Equal(1.037, sent.Notes[0].Start, 9);
+        Assert.Equal(64, sent.Notes[0].Pitch);
+
+        drag.Update(X(1.037) + 2 + 90, Y(62));
+        drag.Update(X(1.037) + 2, Y(62));
+        Assert.Null(drag.Commit());
+
+        NoteDrag resize = NoteDrag.ForResize(document, clip, Geometry, NoteIndex.Of(clip), [off], off, X(1.337) - 2, Y(62));
+        resize.Update(X(1.337) - 2 + 60, Y(62));
+        resize.Update(X(1.337) - 2, Y(62));
+        Assert.Null(resize.Commit());
+    }
 }

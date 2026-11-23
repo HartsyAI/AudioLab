@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Server.Media;
@@ -41,9 +42,16 @@ public sealed class PeakRebuilder
         PeakData peaks;
         await using (FileStream data = MediaStore.OpenForReading(dataPath))
         {
-            WavFormat format = WavReader.Read(data);
-            await WavReader.RequireFiniteAsync(data, format, CancellationToken.None);
-            peaks = await PeakComputer.ComputeAsync(data, format, CancellationToken.None);
+            try
+            {
+                WavHeader format = WavReader.Read(data);
+                await WavReader.RequireFiniteAsync(data, format, CancellationToken.None);
+                peaks = await PeakComputer.ComputeAsync(data, format, CancellationToken.None);
+            }
+            catch (WavFormatException exception)
+            {
+                throw new MediaRejectedException(exception.Message);
+            }
         }
         string temp = $"{peaksPath}.{Guid.NewGuid():N}.tmp";
         try

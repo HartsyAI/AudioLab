@@ -576,6 +576,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             {
                 _ = InvokeAsync(async () =>
                 {
+                    _message = string.Empty;
                     await run();
                     StateHasChanged();
                 });
