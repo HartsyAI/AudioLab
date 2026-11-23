@@ -1,0 +1,29 @@
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
+.text[data-soft="true"] {
+    color: var(--text-dim);
+}
+
+.dot {
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: var(--radius-sm);
+}
+
+.dot[data-dot="go"] {
+    background: var(--go);
+}
+
+.dot[data-dot="caution"] {
+    background: var(--caution);
+}
+
+.dot[data-dot="agent"] {
+    background: var(--track-10);
+}

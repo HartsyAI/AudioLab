@@ -1,0 +1,18 @@
+<div id="@ElementId" class="clip" role="button" tabindex="@(TabStop ? 0 : -1)" aria-pressed="@(Selected ? "true" : "false")"
+     aria-label="@Description" title="@Hint" data-kind="@(Midi is null ? "audio" : "midi")" data-selected="@(Selected ? "true" : "false")"
+     data-dimmed="@(Dimmed ? "true" : "false")" style="@PlaceStyle" @onclick="SelectAsync" @onclick:stopPropagation="true" @onkeydown="KeyAsync">
+    <div class="head">@Name</div>
+    <div class="body">
+        @if (Midi is not null)
+        {
+            @foreach (NoteBox note in Notes)
+            {
+                <div class="note" style="@NoteStyle(note)"></div>
+            }
+        }
+        else
+        {
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true" data-peaks="placeholder"><path d="@Waveform"></path></svg>
+        }
+    </div>
+</div>

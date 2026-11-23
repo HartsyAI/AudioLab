@@ -1,4 +1,5 @@
 using System.Globalization;
+using AudioLab.Core;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
@@ -11,7 +12,7 @@ namespace AudioLab.Server.Routes;
 public static class ProjectRoutes
 {
     /// <summary>The response header that carries the revision of the document in the body.</summary>
-    public const string RevisionHeader = "X-AudioLab-Revision";
+    public const string RevisionHeader = AudioLabApi.RevisionHeader;
 
     /// <summary>Maps /projects into <paramref name="routes"/>, a group behind the door filter.</summary>
     public static void Map(IEndpointRouteBuilder routes)

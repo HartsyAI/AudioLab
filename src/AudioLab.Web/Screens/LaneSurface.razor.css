@@ -1,0 +1,48 @@
+.surface {
+    position: relative;
+    flex: 1;
+    min-height: 100%;
+    overflow: hidden;
+    background-color: var(--surface-lane);
+}
+
+.grid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    pointer-events: none;
+}
+
+.weak {
+    stroke: var(--grid-line);
+    stroke-width: 1;
+    fill: none;
+}
+
+.strong {
+    stroke: var(--grid-line-strong);
+    stroke-width: 1;
+    fill: none;
+}
+
+.lane {
+    position: absolute;
+    left: 0;
+    right: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--lane-line);
+}
+
+.lane[data-selected="true"] {
+    background: color-mix(in srgb, var(--playhead) 3%, transparent);
+}
+
+.playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--playhead);
+    pointer-events: none;
+}

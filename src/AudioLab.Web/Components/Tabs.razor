@@ -1,0 +1,20 @@
+<div class="tabs-root">
+    <div class="tabs">
+        <div class="tab-list" role="tablist" aria-label="@Label">
+            @foreach (string tab in Names)
+            {
+                <button @key="tab" type="button" role="tab" id="@TabId(tab)" class="tab" aria-selected="@AriaSelected(tab)"
+                        aria-controls="@PanelId(tab)" tabindex="@(tab == _active ? 0 : -1)" @onclick="() => Activate(tab)"
+                        @onkeydown="press => KeyDown(tab, press)">@tab</button>
+            }
+        </div>
+        <div class="tab-panels">
+            @if (_active.Length > 0)
+            {
+                <div class="tab-panel" role="tabpanel" id="@PanelId(_active)" aria-labelledby="@TabId(_active)" tabindex="0">
+                    @TabContent?.Invoke(_active)
+                </div>
+            }
+        </div>
+    </div>
+</div>

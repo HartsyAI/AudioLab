@@ -7,6 +7,7 @@ internal sealed class ManualClock : TimeProvider
 
     private TimeSpan _now = TimeSpan.Zero;
 
+    /// <summary>Advance.</summary>
     public void Advance(TimeSpan by)
     {
         _now += by;
@@ -17,6 +18,7 @@ internal sealed class ManualClock : TimeProvider
         }
     }
 
+    /// <summary>Create timer.</summary>
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         ManualTimer timer = new(callback, state, _now + dueTime);
@@ -26,18 +28,25 @@ internal sealed class ManualClock : TimeProvider
 
     private sealed class ManualTimer(TimerCallback callback, object? state, TimeSpan due) : ITimer
     {
+        /// <summary>Callback.</summary>
         public TimerCallback Callback { get; } = callback;
 
+        /// <summary>State.</summary>
         public object? State { get; } = state;
 
+        /// <summary>Due.</summary>
         public TimeSpan Due { get; } = due;
 
+        /// <summary>Live.</summary>
         public bool Live { get; set; } = true;
 
+        /// <summary>Change.</summary>
         public bool Change(TimeSpan dueTime, TimeSpan period) => false;
 
+        /// <summary>Dispose.</summary>
         public void Dispose() => Live = false;
 
+        /// <summary>Dispose async.</summary>
         public ValueTask DisposeAsync()
         {
             Dispose();

@@ -1,0 +1,53 @@
+.fader {
+    display: grid;
+    flex: 1;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    gap: var(--space-6);
+    min-height: 0;
+}
+
+.scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: var(--text-faint);
+    font-size: var(--font-size-micro);
+    text-align: right;
+}
+
+.track {
+    position: relative;
+}
+
+.slot {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 0.25rem;
+    margin-left: -0.125rem;
+    border-radius: var(--radius-xs);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+}
+
+.cap {
+    position: absolute;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 0.8125rem;
+    margin-bottom: -0.375rem;
+    margin-left: -0.875rem;
+    border-radius: var(--radius-sm);
+    background: var(--control-cap);
+    box-shadow: var(--shadow-cap);
+}
+
+.notch {
+    width: 1.125rem;
+    height: 0.09375rem;
+    background: var(--surface-raised);
+}

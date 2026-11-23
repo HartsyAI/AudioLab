@@ -4,7 +4,11 @@ using System.Text;
 namespace AudioLab.Web.Tests;
 
 /// <summary>Answers every request with one prepared response and keeps what it was asked.</summary>
-internal sealed class StubHandler(HttpStatusCode status, string body, string contentType = "application/json") : HttpMessageHandler
+internal sealed class StubHandler(
+    HttpStatusCode status,
+    string body,
+    string contentType = "application/json",
+    params (string Name, string Value)[] headers) : HttpMessageHandler
 {
     public List<(HttpMethod Method, string Path, string Body)> Requests { get; } = [];
 
@@ -12,6 +16,11 @@ internal sealed class StubHandler(HttpStatusCode status, string body, string con
     {
         string sent = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
         Requests.Add((request.Method, request.RequestUri!.PathAndQuery, sent));
-        return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, contentType) };
+        HttpResponseMessage response = new(status) { Content = new StringContent(body, Encoding.UTF8, contentType) };
+        foreach ((string name, string value) in headers)
+        {
+            response.Headers.Add(name, value);
+        }
+        return response;
     }
 }

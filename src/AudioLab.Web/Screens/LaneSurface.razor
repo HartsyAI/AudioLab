@@ -1,0 +1,27 @@
+<div class="surface" style="width: @Css.Px(Width); height: @Css.Px(Layout.Total)">
+    <svg class="grid" width="@Css.Number(Width)" height="@Css.Number(Layout.Total)" aria-hidden="true">
+        <path class="weak" d="@WeakPath"></path>
+        <path class="strong" d="@StrongPath"></path>
+    </svg>
+    @for (int index = 0; index < Document.Tracks.Count; index++)
+    {
+        Track track = Document.Tracks[index];
+        <div @key="track.Id" class="lane" data-selected="@(track.Id == SelectedTrack ? "true" : "false")"
+             style="top: @Css.Px(Layout.Tops[index]); height: @Css.Px(Layout.Heights[index])" @onclick="() => OnSelectTrack.InvokeAsync(track.Id)">
+            @foreach (AudioClip clip in track.Clips)
+            {
+                <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
+                      Width="@AudioWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
+                      TabStop="@(clip.Id == TabStop)" Waveform="@Waves.For(clip.Id.Value, AudioWidth(clip))"
+                      OnSelect="OnSelectClip" OnKey="OnClipKey" />
+            }
+            @foreach (MidiClip clip in track.MidiClips)
+            {
+                <Clip @key="clip.Id" Midi="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
+                      Width="@MidiWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
+                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnKey="OnClipKey" />
+            }
+        </div>
+    }
+    <div class="playhead" style="left: 0"></div>
+</div>

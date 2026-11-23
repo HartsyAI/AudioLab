@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AudioLab.Core;
 using AudioLab.Core.Api;
+using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
@@ -16,6 +19,28 @@ public sealed class ProjectApi(HttpClient http)
         using HttpResponseMessage response = await http.GetAsync(Projects, cancellationToken);
         await EnsureAsync(response, cancellationToken);
         return await ReadAsync(response, ApiJsonContext.Default.ProjectListing, cancellationToken);
+    }
+
+    /// <summary>Opens the project and returns its whole document and revision.</summary>
+    public async Task<OpenedProject> OpenAsync(string project, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(project);
+        using HttpResponseMessage response = await http.GetAsync($"{Projects}/{Uri.EscapeDataString(project)}", cancellationToken);
+        await EnsureAsync(response, cancellationToken);
+        string text = await response.Content.ReadAsStringAsync(cancellationToken);
+        bool hasRevision = response.Headers.TryGetValues(AudioLabApi.RevisionHeader, out IEnumerable<string>? values);
+        if (!hasRevision || !long.TryParse(values!.Single(), NumberStyles.None, CultureInfo.InvariantCulture, out long revision))
+        {
+            throw new ApiException(response.StatusCode, "The server did not say which revision of the project this is.");
+        }
+        try
+        {
+            return new OpenedProject(ProjectJson.Read(text), revision);
+        }
+        catch (ProjectFormatException exception)
+        {
+            throw new ApiException(response.StatusCode, $"This version of AudioLab cannot read the project the server sent. {exception.Message}");
+        }
     }
 
     /// <summary>Creates an empty project with the given name.</summary>

@@ -1,0 +1,69 @@
+.row {
+    position: relative;
+    box-sizing: border-box;
+    height: var(--ruler-row);
+}
+
+.row[data-kind="sections"],
+.row[data-kind="markers"],
+.row[data-kind="time"] {
+    border-bottom: 1px solid var(--line);
+}
+
+.section {
+    position: absolute;
+    top: 3px;
+    height: 15px;
+    box-sizing: border-box;
+    padding: 0 var(--space-6);
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--block) 22%, transparent);
+    color: var(--text);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-strong);
+    line-height: 15px;
+    white-space: nowrap;
+}
+
+.tick {
+    position: absolute;
+    top: 0;
+    height: var(--ruler-row);
+    box-sizing: border-box;
+    padding-left: var(--space-6);
+    border-left: 1px solid var(--grid-line-strong);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--ruler-row);
+}
+
+.tick[data-strong="true"] {
+    border-left-color: var(--tick);
+    color: var(--text-soft);
+}
+
+.cap {
+    position: absolute;
+    left: -5px;
+    bottom: 0;
+    display: block;
+}
+
+.cap polygon {
+    fill: var(--playhead);
+}
+
+.marker {
+    position: absolute;
+    top: 3px;
+    height: 15px;
+    padding: 0 var(--space-6);
+    border-left: 2px solid var(--marker);
+    color: var(--text-soft);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    line-height: 15px;
+    white-space: nowrap;
+}

@@ -1,0 +1,17 @@
+.status-bar {
+    box-sizing: content-box;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 1.125rem;
+    height: var(--status-height);
+    padding: 0 var(--space-12);
+    border-top: 1px solid var(--line);
+    background: var(--surface-lane);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
+.spacer {
+    flex: 1;
+}

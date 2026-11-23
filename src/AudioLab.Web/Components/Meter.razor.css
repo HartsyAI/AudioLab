@@ -1,0 +1,22 @@
+.meter {
+    display: flex;
+    flex: 1;
+    align-self: stretch;
+    gap: var(--space-2);
+}
+
+.bar {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    border-radius: var(--radius-xs);
+    background: linear-gradient(to top, var(--go) 0%, var(--go) 68%, var(--caution) 68%, var(--caution) 90%, var(--record) 90%);
+}
+
+.cover {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    background: var(--surface-well);
+}

@@ -1,0 +1,43 @@
+.counter {
+    display: flex;
+    align-items: stretch;
+    height: var(--control-lg);
+    border-radius: var(--radius-lg);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+}
+
+.cell {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: 0 var(--space-12);
+    border-right: 1px solid var(--surface-panel);
+}
+
+.cell:last-child {
+    border-right: 0;
+}
+
+.cell[data-large="true"] {
+    padding: 0 var(--space-14);
+}
+
+.caption {
+    color: var(--text-faint);
+    font-size: var(--font-size-micro);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: 0.08em;
+}
+
+.value {
+    color: var(--text-soft);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-strong);
+}
+
+.cell[data-large="true"] .value {
+    color: var(--text);
+    font-size: var(--font-size-readout);
+}

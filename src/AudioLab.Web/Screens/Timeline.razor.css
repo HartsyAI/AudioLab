@@ -1,0 +1,70 @@
+.timeline {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--surface-lane);
+    scrollbar-color: var(--control-fill) var(--surface-lane);
+    scrollbar-width: thin;
+}
+
+.grid {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+.corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    justify-content: space-between;
+    height: calc(var(--ruler-row) * var(--rows) + 1px);
+    padding: 0 var(--space-10) 0 var(--space-12);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.caption {
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: 0.06em;
+}
+
+.ruler {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    grid-column: 2;
+    grid-row: 1;
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.headers {
+    position: sticky;
+    left: 0;
+    z-index: var(--z-sticky);
+    grid-column: 1;
+    grid-row: 2;
+    border-right: 1px solid var(--line);
+    background: var(--surface-panel);
+}
+
+.lanes {
+    position: relative;
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    background: var(--surface-lane);
+}

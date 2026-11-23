@@ -1,5 +1,7 @@
 using System.Net;
+using AudioLab.Core;
 using AudioLab.Core.Api;
+using AudioLab.Core.Model;
 using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Tests;
@@ -54,6 +56,32 @@ public sealed class ProjectApiTests
         Assert.Equal("/audiolab/api/projects", path);
         Assert.Equal("{\"name\":\"New\"}", body);
         Assert.Equal("p2", created.Id);
+    }
+
+    /// <summary>A delete names the project in the address.</summary>
+    [Fact]
+    public async Task AnOpenedProjectIsTheStrictlyReadDocumentWithTheRevisionTheHeaderSays()
+    {
+        StubHandler handler = new(HttpStatusCode.OK, ProjectJson.Write(Song.Empty()), "application/json", (AudioLabApi.RevisionHeader, "7"));
+
+        OpenedProject opened = await Api(handler).OpenAsync("song");
+
+        Assert.Equal("/audiolab/api/projects/song", handler.Requests.Single().Path);
+        Assert.Equal(7, opened.Revision);
+        Assert.Equal("Song", opened.Document.Name);
+    }
+
+    /// <summary>An opened project without a revision or with an unreadable document is refused.</summary>
+    [Fact]
+    public async Task AnOpenedProjectWithoutARevisionOrWithAnUnreadableDocumentIsRefused()
+    {
+        StubHandler noRevision = new(HttpStatusCode.OK, ProjectJson.Write(Song.Empty()));
+        StubHandler unreadable = new(HttpStatusCode.OK, "{\"version\":4,\"surprise\":1}", "application/json", (AudioLabApi.RevisionHeader, "1"));
+
+        await Assert.ThrowsAsync<ApiException>(() => Api(noRevision).OpenAsync("song"));
+        ApiException error = await Assert.ThrowsAsync<ApiException>(() => Api(unreadable).OpenAsync("song"));
+
+        Assert.StartsWith("This version of AudioLab cannot read the project", error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>A delete names the project in the address.</summary>

@@ -13,5 +13,7 @@ public sealed partial class Icon
     [Parameter]
     public int Size { get; set; } = 14;
 
+    private bool Filled => IconPaths.IsFilled(Name);
+
     private string Path => IconPaths.Of(Name);
 }

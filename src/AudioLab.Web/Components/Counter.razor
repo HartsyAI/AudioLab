@@ -1,0 +1,9 @@
+<div class="counter" role="group" aria-label="@Label">
+    @foreach (CounterCell cell in Cells)
+    {
+        <div class="cell" data-large="@(cell.Large ? "true" : "false")">
+            <span class="caption">@cell.Caption</span>
+            <span class="value">@cell.Value</span>
+        </div>
+    }
+</div>

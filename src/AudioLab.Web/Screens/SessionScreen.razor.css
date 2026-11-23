@@ -1,0 +1,13 @@
+.session {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 51.25rem;
+    overflow: hidden;
+    background: var(--surface-lane);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}

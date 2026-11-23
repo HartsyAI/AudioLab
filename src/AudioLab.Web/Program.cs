@@ -1,12 +1,20 @@
+using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Realtime;
 using AudioLab.Web;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
+// The browser hands the runtime the user's language, and a number written in German reads 6,5, which a style attribute drops. Everything
+// the page writes for a machine (a length, a path) is written with the invariant culture, and so, here, is everything else the app formats.
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
@@ -15,6 +23,9 @@ builder.Services.AddSingleton(new HttpClient { BaseAddress = site });
 if (OperatingSystem.IsBrowser())
 {
     builder.Services.AddScoped<INativeOverlay, NativeOverlay>();
+    builder.Services.AddSingleton<ITokenReader, TokenReader>();
+    builder.Services.AddSingleton<IElementFocus, ElementFocus>();
+    builder.Services.AddSingleton<IKeyGuard, KeyGuard>();
 }
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(CoreCommands.CreateRegistry());
@@ -24,4 +35,8 @@ builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<SessionClient>();
 builder.Services.AddScoped<ProjectApi>();
 builder.Services.AddScoped<ProjectRenamer>();
+builder.Services.AddScoped<SessionSelection>();
+builder.Services.AddSingleton<WavePathCache>();
+builder.Services.AddSingleton(provider => new TrackColorMap(
+    [.. Enumerable.Range(1, 12).Select(number => provider.GetRequiredService<ITokenReader>().Read($"--track-{number}"))]));
 await builder.Build().RunAsync();

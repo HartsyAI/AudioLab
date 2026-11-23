@@ -1,0 +1,62 @@
+.segmented {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-radius: var(--radius-lg);
+    background: var(--surface-well);
+    box-shadow: var(--shadow-well);
+}
+
+.segmented ::deep .segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: var(--control-sm);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-faint);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-control);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+}
+
+.segmented ::deep .segment[data-chosen="true"] {
+    background: var(--surface-raised-active);
+    box-shadow: var(--shadow-raised);
+    color: var(--text);
+    font-weight: var(--font-weight-strong);
+}
+
+.segmented ::deep .segment:hover {
+    color: var(--text-soft);
+}
+
+.segmented ::deep .segment:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.segmented ::deep .segment[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.segmented[data-variant="transport"] ::deep .segment {
+    width: 2.125rem;
+    height: var(--control-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-raised);
+    color: var(--text-soft);
+}
+
+.segmented[data-variant="transport"] ::deep .segment[data-wide="true"] {
+    width: 2.5rem;
+}
+
+.segmented[data-variant="transport"] ::deep .segment:hover {
+    background: var(--surface-raised-active);
+}

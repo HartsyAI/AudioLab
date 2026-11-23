@@ -1,0 +1,65 @@
+.top-bar {
+    box-sizing: content-box;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-14);
+    height: var(--bar-height);
+    padding: 0 var(--space-14);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-panel);
+    box-shadow: var(--shadow-raised);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-10);
+}
+
+.mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: var(--ink);
+}
+
+.mark:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.titles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.name {
+    margin: 0;
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-strong);
+    letter-spacing: -0.01em;
+}
+
+.sub {
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
+.toggles {
+    display: flex;
+    gap: var(--space-4);
+}
+
+.spacer {
+    flex: 1;
+}
+
+.grid-label {
+    color: var(--text-dim);
+}

@@ -1,0 +1,6 @@
+<div class="presence" role="list" aria-label="In this session">
+    @foreach (PresenceMember member in Members)
+    {
+        <div class="avatar" role="listitem" aria-label="@member.Name" style="@Style(member)">@member.Label</div>
+    }
+</div>

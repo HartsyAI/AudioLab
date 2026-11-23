@@ -1,0 +1,10 @@
+.bottom-panel {
+    box-sizing: content-box;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    height: 18.25rem;
+    border-top: 1px solid var(--line);
+    background: var(--surface-panel);
+    box-shadow: var(--shadow-raised);
+}
