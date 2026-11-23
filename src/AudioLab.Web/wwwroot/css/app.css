@@ -1,0 +1,44 @@
+html,
+body,
+#app {
+    height: 100%;
+    margin: 0;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--surface-lane);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+}
+
+#app.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+    }
+}

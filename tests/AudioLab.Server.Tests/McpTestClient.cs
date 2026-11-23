@@ -1,8 +1,8 @@
 using System.Text.Json;
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
-using AudioLab.Server.Realtime;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Services;
-using AudioLab.Server.Store;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;

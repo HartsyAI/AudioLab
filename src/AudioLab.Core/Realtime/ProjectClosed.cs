@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>A project's group has ended.</summary>
 /// <param name="Project">The project's id.</param>

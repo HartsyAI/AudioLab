@@ -2,10 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
-using AudioLab.Server.Json;
 using AudioLab.Server.Routes;
-using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,9 +20,9 @@ public sealed class ProjectRouteTests
         await using RunningServer server = await RunningServer.StartAsync();
         HttpClient client = server.Client;
 
-        using HttpResponseMessage created = await client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Over HTTP"), ServerJsonContext.Default.CreateProjectRequest);
+        using HttpResponseMessage created = await client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Over HTTP"), ApiJsonContext.Default.CreateProjectRequest);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        ProjectSummary summary = (await created.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary summary = (await created.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         Assert.Equal($"/api/projects/{summary.Id}", created.Headers.Location?.ToString());
 
         using HttpResponseMessage opened = await client.GetAsync($"/api/projects/{summary.Id}");
@@ -33,25 +32,25 @@ public sealed class ProjectRouteTests
         Assert.Equal(UserId.Local, document.Owner);
         Assert.Equal("Over HTTP", document.Name);
 
-        SaveResult? saved = await (await client.PostAsync($"/api/projects/{summary.Id}/save", null)).Content.ReadFromJsonAsync(ServerJsonContext.Default.SaveResult);
+        SaveResult? saved = await (await client.PostAsync($"/api/projects/{summary.Id}/save", null)).Content.ReadFromJsonAsync(ApiJsonContext.Default.SaveResult);
         Assert.Equal(new SaveResult(summary.Id, 1), saved);
 
         using HttpResponseMessage copied = await client.PostAsync($"/api/projects/{summary.Id}/duplicate", null);
         Assert.Equal(HttpStatusCode.Created, copied.StatusCode);
-        ProjectSummary copy = (await copied.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary copy = (await copied.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         Assert.Equal("Copy of Over HTTP", copy.Name);
         Assert.NotEqual(summary.Id, copy.Id);
-        using HttpResponseMessage named = await client.PostAsJsonAsync($"/api/projects/{summary.Id}/duplicate", new DuplicateProjectRequest("Second copy"), ServerJsonContext.Default.DuplicateProjectRequest);
-        Assert.Equal("Second copy", (await named.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Name);
+        using HttpResponseMessage named = await client.PostAsJsonAsync($"/api/projects/{summary.Id}/duplicate", new DuplicateProjectRequest("Second copy"), ApiJsonContext.Default.DuplicateProjectRequest);
+        Assert.Equal("Second copy", (await named.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!.Name);
 
-        ProjectListing listing = (await client.GetFromJsonAsync("/api/projects", ServerJsonContext.Default.ProjectListing))!;
+        ProjectListing listing = (await client.GetFromJsonAsync("/api/projects", ApiJsonContext.Default.ProjectListing))!;
         Assert.Equal(3, listing.Projects.Count);
         Assert.Equal(0, listing.Refused);
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/projects/{summary.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/projects/{summary.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/projects/{summary.Id}")).StatusCode);
-        Assert.Equal(2, (await client.GetFromJsonAsync("/api/projects", ServerJsonContext.Default.ProjectListing))!.Projects.Count);
+        Assert.Equal(2, (await client.GetFromJsonAsync("/api/projects", ApiJsonContext.Default.ProjectListing))!.Projects.Count);
     }
 
     [Fact]
@@ -68,7 +67,7 @@ public sealed class ProjectRouteTests
     public async Task AnInvalidNameIsAnswered422WithTheProblemList()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        using HttpResponseMessage response = await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest(""), ServerJsonContext.Default.CreateProjectRequest);
+        using HttpResponseMessage response = await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest(""), ApiJsonContext.Default.CreateProjectRequest);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         string[] problems = await ProblemsAsync(response);
         Assert.Contains(problems, problem => problem.StartsWith("name", StringComparison.Ordinal));
@@ -78,8 +77,8 @@ public sealed class ProjectRouteTests
     public async Task ACorruptFileIsAnswered422WithItsErrorListAndStaysOnDisk()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        ProjectSummary created = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
-            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary created = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ApiJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         string file = Directory.GetFiles(server.StoreFolder, "p*.json", SearchOption.AllDirectories).Single();
         string json = await File.ReadAllTextAsync(file);
         await File.WriteAllTextAsync(file, json.Replace("\"bpm\":120", "\"bpm\":-5", StringComparison.Ordinal));
@@ -87,7 +86,7 @@ public sealed class ProjectRouteTests
         using HttpResponseMessage response = await server.Client.GetAsync($"/api/projects/{created.Id}");
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Contains(await ProblemsAsync(response), problem => problem.StartsWith("bpm", StringComparison.Ordinal));
-        ProjectListing listing = (await server.Client.GetFromJsonAsync("/api/projects", ServerJsonContext.Default.ProjectListing))!;
+        ProjectListing listing = (await server.Client.GetFromJsonAsync("/api/projects", ApiJsonContext.Default.ProjectListing))!;
         Assert.Single(listing.Projects);
         Assert.Equal(0, listing.Refused);
     }
@@ -135,8 +134,8 @@ public sealed class ProjectRouteTests
             ["AudioLab:Door:Kind"] = "Swarm",
             ["AudioLab:Door:ProxySecret"] = Secret,
         });
-        using HttpResponseMessage made = await Send(server, HttpMethod.Post, "/api/projects", "alice", JsonContent.Create(new CreateProjectRequest("Alice's"), ServerJsonContext.Default.CreateProjectRequest));
-        ProjectSummary mine = (await made.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        using HttpResponseMessage made = await Send(server, HttpMethod.Post, "/api/projects", "alice", JsonContent.Create(new CreateProjectRequest("Alice's"), ApiJsonContext.Default.CreateProjectRequest));
+        ProjectSummary mine = (await made.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
 
         Assert.Equal(HttpStatusCode.OK, (await Send(server, HttpMethod.Get, $"/api/projects/{mine.Id}", "alice")).StatusCode);
         foreach ((HttpMethod method, string path) in new[]
@@ -150,7 +149,7 @@ public sealed class ProjectRouteTests
             Assert.Equal(HttpStatusCode.NotFound, (await Send(server, method, path, "bob")).StatusCode);
         }
         using HttpResponseMessage bobsList = await Send(server, HttpMethod.Get, "/api/projects", "bob");
-        Assert.Empty((await bobsList.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectListing))!.Projects);
+        Assert.Empty((await bobsList.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectListing))!.Projects);
         Assert.Equal(HttpStatusCode.OK, (await Send(server, HttpMethod.Get, $"/api/projects/{mine.Id}", "alice")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await server.Client.GetAsync("/api/projects")).StatusCode);
     }
@@ -165,8 +164,8 @@ public sealed class ProjectRouteTests
             string id;
             await using (RunningServer server = await RunningServer.StartAsync(settings))
             {
-                ProjectSummary created = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
-                    .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+                ProjectSummary created = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ApiJsonContext.Default.CreateProjectRequest))
+                    .Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
                 id = created.Id;
                 (await server.Services.GetRequiredService<OpenProjects>().OpenAsync(UserId.Local, ProjectId.From(id), CancellationToken.None))
                     .Update(document => document with { Name = "Edited before stop" });
@@ -214,8 +213,8 @@ public sealed class ProjectRouteTests
     public async Task ABodyThatIsNotAProjectRequestIsAnswered4xxNeverAnError(string json)
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
-            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ApiJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         foreach (string path in new[] { "/api/projects", $"/api/projects/{made.Id}/duplicate" })
         {
             using StringContent body = new(json, Encoding.UTF8, "application/json");
@@ -230,12 +229,12 @@ public sealed class ProjectRouteTests
     public async Task ADuplicateWithANullNameUsesTheDefaultName()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
-            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ApiJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         using StringContent body = new("""{"name":null}""", Encoding.UTF8, "application/json");
         using HttpResponseMessage response = await server.Client.PostAsync($"/api/projects/{made.Id}/duplicate", body);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal("Copy of Song", (await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Name);
+        Assert.Equal("Copy of Song", (await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!.Name);
     }
 
     [Fact]
@@ -252,8 +251,8 @@ public sealed class ProjectRouteTests
     public async Task AFileTheServerCannotUseIsAnswered503WithNoPathInTheBody()
     {
         await using RunningServer server = await RunningServer.StartAsync();
-        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ServerJsonContext.Default.CreateProjectRequest))
-            .Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!;
+        ProjectSummary made = (await (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Song"), ApiJsonContext.Default.CreateProjectRequest))
+            .Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!;
         string file = Directory.GetFiles(server.StoreFolder, "p*.json", SearchOption.AllDirectories).Single();
         using FileStream hold = new(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         using HttpResponseMessage response = await server.Client.GetAsync($"/api/projects/{made.Id}");
@@ -267,7 +266,7 @@ public sealed class ProjectRouteTests
     public async Task AFullQuotaIsAnswered409()
     {
         await using RunningServer server = await RunningServer.StartAsync(new Dictionary<string, string?> { ["AudioLab:Storage:MaxProjectsPerUser"] = "1" });
-        Assert.Equal(HttpStatusCode.Created, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("One"), ServerJsonContext.Default.CreateProjectRequest)).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Two"), ServerJsonContext.Default.CreateProjectRequest)).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("One"), ApiJsonContext.Default.CreateProjectRequest)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await server.Client.PostAsJsonAsync("/api/projects", new CreateProjectRequest("Two"), ApiJsonContext.Default.CreateProjectRequest)).StatusCode);
     }
 }

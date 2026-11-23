@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>The answer to joining a project: its state at the moment the client became a member.</summary>
 /// <param name="Project">The project's id.</param>

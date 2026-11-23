@@ -1,0 +1,12 @@
+@page "/"
+
+<div class="home">
+    <header class="home-bar">
+        <span class="home-mark"><Icon Name="IconName.Logo" Size="16" /></span>
+        <span class="home-name">AudioLab</span>
+        <span class="home-who">@Who</span>
+    </header>
+    <EmptyState Heading="Your projects" Message="The project list arrives in the next change; the server and this page are talking.">
+        <Button Variant="ButtonVariant.Primary" OnClick="CheckAsync">Check the server</Button>
+    </EmptyState>
+</div>

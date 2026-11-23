@@ -1,4 +1,6 @@
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Tests;
@@ -186,7 +188,7 @@ public sealed class PublishOrderTests
         while (true)
         {
             string json = "{\"project\":\"" + id.Value + "\",\"time\":" + accepted + ",\"name\":\"" + name + "\"}";
-            Realtime.CommandReply reply = await store.Edits.ApplyAsync(Users.Alice, id, client, "add_marker", json, null, _none);
+            CommandReply reply = await store.Edits.ApplyAsync(Users.Alice, id, client, "add_marker", json, null, _none);
             if (!reply.Succeeded)
             {
                 Assert.Equal(AudioLab.Core.Commands.CommandErrorCode.Limit, reply.Errors.Single().Code);

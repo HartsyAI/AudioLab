@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
@@ -27,7 +30,10 @@ public static class ServerHost
     public static WebApplication Build(string[] args, IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null)
     {
         ArgumentNullException.ThrowIfNull(args);
-        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+        // The static web assets manifests are named after the application; a test host or an in-process shell has another entry assembly.
+        WebApplicationOptions hostOptions = new() { Args = args, ApplicationName = typeof(ServerHost).Assembly.GetName().Name };
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(hostOptions);
+        builder.WebHost.UseStaticWebAssets();
         if (settings is not null)
         {
             builder.Configuration.AddInMemoryCollection(settings);
@@ -107,6 +113,13 @@ public static class ServerHost
         {
             json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(1, MediaJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(2, ApiJsonContext.Default);
+            // A resolver chain does not carry a context's own options, so a request body is read as strictly as the context reads it.
+            json.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+            json.SerializerOptions.RespectNullableAnnotations = true;
+            json.SerializerOptions.RespectRequiredConstructorParameters = true;
+            json.SerializerOptions.AllowDuplicateProperties = false;
+            json.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
         });
     }
 
@@ -125,6 +138,7 @@ public static class ServerHost
         ProjectRoutes.Map(api);
         McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
-        app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
+        app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
+        UiRoutes.Map(app);
     }
 }

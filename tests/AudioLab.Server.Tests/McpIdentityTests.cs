@@ -25,7 +25,8 @@ public sealed class McpIdentityTests
         Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText!.TrimEnd('/') == "/api/mcp");
         string[] outside =
         [
-            .. endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<DoorRequired>() is null).Select(endpoint => endpoint.RoutePattern.RawText!),
+            .. endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<DoorRequired>() is null
+                && endpoint.Metadata.GetMetadata<AudioLab.Server.Routes.UiEndpoint>() is null).Select(endpoint => endpoint.RoutePattern.RawText!),
         ];
         Assert.Equal(["/health"], outside);
     }

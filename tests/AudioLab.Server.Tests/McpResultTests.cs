@@ -1,6 +1,6 @@
 using AudioLab.Core.Commands;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Mcp;
-using AudioLab.Server.Realtime;
 using ModelContextProtocol.Protocol;
 
 namespace AudioLab.Server.Tests;

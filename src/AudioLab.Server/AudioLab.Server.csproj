@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AudioLab.Core\AudioLab.Core.csproj" />
+    <ProjectReference Include="..\AudioLab.Web\AudioLab.Web.csproj" />
   </ItemGroup>
 
 </Project>

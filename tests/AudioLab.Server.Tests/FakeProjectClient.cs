@@ -1,3 +1,4 @@
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Realtime;
 
 namespace AudioLab.Server.Tests;

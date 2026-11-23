@@ -1,18 +1,12 @@
 using System.Text.Json.Serialization;
 using AudioLab.Server.Services;
-using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Json;
 
-/// <summary>Source-generated JSON for the server's own records. Project documents go through <c>ProjectJson</c> in Core instead.</summary>
+/// <summary>Source-generated JSON for the server's own records.</summary>
+/// <remarks>Project documents go through <c>ProjectJson</c> in Core and the route records through <c>ApiJsonContext</c>.</remarks>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(HealthReport))]
-[JsonSerializable(typeof(SessionInfo))]
-[JsonSerializable(typeof(ProjectSummary))]
-[JsonSerializable(typeof(ProjectListing))]
-[JsonSerializable(typeof(SaveResult))]
-[JsonSerializable(typeof(CreateProjectRequest))]
-[JsonSerializable(typeof(DuplicateProjectRequest))]
 [JsonSerializable(typeof(string[]))]
 public sealed partial class ServerJsonContext : JsonSerializerContext
 {

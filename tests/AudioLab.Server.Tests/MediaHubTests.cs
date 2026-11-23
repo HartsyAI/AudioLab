@@ -2,11 +2,10 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using AudioLab.Core.Api;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
-using AudioLab.Server.Json;
-using AudioLab.Server.Realtime;
-using AudioLab.Server.Services;
+using AudioLab.Core.Realtime;
 using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Server.Tests;
@@ -30,11 +29,11 @@ public sealed class MediaHubTests
     private static async Task<string> CreateProjectAsync(RunningServer server, string user)
     {
         using HttpRequestMessage request = new(HttpMethod.Post, "/api/projects");
-        request.Content = JsonContent.Create(new CreateProjectRequest("Over the wire"), ServerJsonContext.Default.CreateProjectRequest);
+        request.Content = JsonContent.Create(new CreateProjectRequest("Over the wire"), ApiJsonContext.Default.CreateProjectRequest);
         request.Headers.Add("X-AudioLab-Secret", Secret);
         request.Headers.Add("X-AudioLab-User", user);
         using HttpResponseMessage response = await server.Client.SendAsync(request);
-        return (await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Id;
+        return (await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!.Id;
     }
 
     [Fact]
@@ -90,8 +89,8 @@ public sealed class MediaHubTests
             using HttpResponseMessage made = await first.Client.PostAsJsonAsync(
                 "/api/projects",
                 new CreateProjectRequest("Lost"),
-                ServerJsonContext.Default.CreateProjectRequest);
-            project = (await made.Content.ReadFromJsonAsync(ServerJsonContext.Default.ProjectSummary))!.Id;
+                ApiJsonContext.Default.CreateProjectRequest);
+            project = (await made.Content.ReadFromJsonAsync(ApiJsonContext.Default.ProjectSummary))!.Id;
             using ByteArrayContent wav = new(MediaTestSupport.Wav());
             wav.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
             using HttpResponseMessage uploaded = await first.Client.PostAsync("/api/media?name=m.wav", wav);

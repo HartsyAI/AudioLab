@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using AudioLab.Server.Json;
-using AudioLab.Server.Services;
+using AudioLab.Core.Api;
 
 namespace AudioLab.Server.Tests;
 
@@ -28,7 +27,7 @@ public sealed class DesktopDoorRouteTests
         using HttpRequestMessage request = new(HttpMethod.Get, "/api/session");
         request.Headers.Host = "rebind.evil.example";
         Assert.Equal(HttpStatusCode.Forbidden, (await server.Client.SendAsync(request)).StatusCode);
-        SessionInfo? session = await server.Client.GetFromJsonAsync("/api/session", ServerJsonContext.Default.SessionInfo);
+        SessionInfo? session = await server.Client.GetFromJsonAsync("/api/session", ApiJsonContext.Default.SessionInfo);
         Assert.Equal("desktop-local", session?.User);
     }
 

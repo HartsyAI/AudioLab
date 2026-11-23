@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using AudioLab.Core.Commands;
 
-namespace AudioLab.Server.Realtime;
+namespace AudioLab.Core.Realtime;
 
 /// <summary>One reason a command was refused.</summary>
 /// <param name="Code">The kind of refusal, for a client to branch on.</param>

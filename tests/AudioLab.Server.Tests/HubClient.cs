@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using AudioLab.Server.Realtime;
+using AudioLab.Core.Realtime;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Http.Connections.Client;
 using Microsoft.AspNetCore.SignalR.Client;

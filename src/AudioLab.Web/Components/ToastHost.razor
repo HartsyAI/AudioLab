@@ -1,0 +1,20 @@
+@implements IDisposable
+
+<div class="toast-root">
+    <div id="@HostId" popover="manual" class="toasts" role="region" aria-label="Notifications">
+        @foreach (ToastItem toast in Toasts.Items)
+        {
+            <div @key="toast.Id" class="toast" data-variant="@VariantOf(toast)" role="@RoleOf(toast)">
+                <span class="toast-title">@toast.Message</span>
+                @if (toast.Undo is not null)
+                {
+                    <button type="button" class="toast-action" @onclick="() => Toasts.UndoAsync(toast.Id)">Undo</button>
+                }
+                <button type="button" class="toast-close" aria-label="Dismiss notification" title="Dismiss notification"
+                        @onclick="() => Toasts.Dismiss(toast.Id)">
+                    <Icon Name="IconName.Close" Size="10" />
+                </button>
+            </div>
+        }
+    </div>
+</div>

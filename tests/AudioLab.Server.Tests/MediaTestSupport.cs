@@ -1,7 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
-using AudioLab.Server.Realtime;
+using AudioLab.Core.Realtime;
 
 namespace AudioLab.Server.Tests;
 

@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using AudioLab.Core.Commands;
-using AudioLab.Server.Realtime;
+using AudioLab.Core.Realtime;
 using ModelContextProtocol.Protocol;
 
 namespace AudioLab.Server.Mcp;

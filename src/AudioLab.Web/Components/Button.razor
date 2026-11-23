@@ -1,0 +1,11 @@
+<span class="button-root">
+    @if (Href is not null)
+    {
+        <a class="button" href="@Href" data-variant="@VariantName" title="@Hint" @attributes="Attributes">@ChildContent</a>
+    }
+    else
+    {
+        <button type="@ButtonType" class="button" data-variant="@VariantName" disabled="@NativelyDisabled" aria-disabled="@AriaDisabled"
+                aria-label="@Name" title="@Hint" @onclick="ClickAsync" @attributes="Attributes">@ChildContent</button>
+    }
+</span>

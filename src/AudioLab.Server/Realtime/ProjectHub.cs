@@ -1,5 +1,6 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Realtime;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Media;
 using AudioLab.Server.Services;
@@ -43,7 +44,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
 
     /// <summary>Joins a project the user owns and returns its state; every later change is sent, or a later one in its place, so the last is never missed.</summary>
     /// <remarks>A change may reach the client before this call returns; the client keeps it and applies it if its revision is above the reply's.</remarks>
-    [HubMethodName("Join")]
+    [HubMethodName(HubProtocol.Join)]
     public async Task<JoinReply> JoinAsync(string? project)
     {
         ProjectId id = Parse(project);
@@ -72,7 +73,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
     }
 
     /// <summary>Leaves a project: no more changes are sent, and an open gesture is closed.</summary>
-    [HubMethodName("Leave")]
+    [HubMethodName(HubProtocol.Leave)]
     public Task LeaveAsync(string? project)
     {
         ProjectId id = Parse(project);
@@ -86,7 +87,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
     }
 
     /// <summary>Applies a command to a joined project. A refusal is in the reply; nothing is thrown for it.</summary>
-    [HubMethodName("Apply")]
+    [HubMethodName(HubProtocol.Apply)]
     public Task<CommandReply> ApplyAsync(string? project, string? command, string? json, string? gesture)
     {
         ProjectId id = RequireJoined(project);
@@ -95,7 +96,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
     }
 
     /// <summary>Goes back one undo step in a joined project, for everyone in it.</summary>
-    [HubMethodName("Undo")]
+    [HubMethodName(HubProtocol.Undo)]
     public Task<CommandReply> UndoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
@@ -103,7 +104,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
     }
 
     /// <summary>Goes forward one redo step in a joined project, for everyone in it.</summary>
-    [HubMethodName("Redo")]
+    [HubMethodName(HubProtocol.Redo)]
     public Task<CommandReply> RedoAsync(string? project)
     {
         ProjectId id = RequireJoined(project);
@@ -111,7 +112,7 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
     }
 
     /// <summary>Closes this client's open gesture, as the release of a drag does.</summary>
-    [HubMethodName("EndGesture")]
+    [HubMethodName(HubProtocol.EndGesture)]
     public Task EndGestureAsync(string? project, string? gesture)
     {
         ProjectId id = RequireJoined(project);
