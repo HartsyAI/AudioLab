@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The bottom panel: tabs for the selection's tools. Only the mixer has content yet; every other tab says so.</summary>
+/// <summary>The bottom panel: tabs for the selection's tools. The mixer and the media library have content yet; the others say so.</summary>
 public sealed partial class BottomPanel
 {
     /// <summary>The document.</summary>
@@ -19,5 +19,5 @@ public sealed partial class BottomPanel
     public TrackId? Selected { get; set; }
 
     private static IReadOnlyList<string> Names { get; } =
-        ["Mixer", "Clip editor", "Piano roll", "Effects", "Instruments", "Stems", "Score", "Lyrics", "Voice agent"];
+        ["Mixer", "Media", "Clip editor", "Piano roll", "Effects", "Instruments", "Stems", "Score", "Lyrics", "Voice agent"];
 }

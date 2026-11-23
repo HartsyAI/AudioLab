@@ -11,7 +11,8 @@ public static class UploadChecks
         return $"The file is too large: it is {Size(length)} and the server accepts at most {Size(limit)}.";
     }
 
-    private static string Size(long bytes)
+    /// <summary>A size with a binary unit, such as 258 KiB or 12.4 MiB.</summary>
+    public static string Size(long bytes)
     {
         string[] units = ["B", "KiB", "MiB", "GiB"];
         double value = Math.Max(0, bytes);
