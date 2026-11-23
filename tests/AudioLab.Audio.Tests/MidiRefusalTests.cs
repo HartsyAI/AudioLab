@@ -93,12 +93,14 @@ public sealed class MidiRefusalTests
     public void AnEndOfTrackWithABodyIsRefused() => Refused(OneTrack(t => t.Raw(0, 0xFF, 0x2F, 0x01, 0x00)), "End of Track event has 1 bytes");
 
     [Fact]
-    public void AVariableLengthNumberOfFiveBytesIsRefused() => Refused(OneTrack(t => t.Raw(0x81, 0x80, 0x80, 0x80, 0x00).End()), "more than four bytes");
+    public void AVariableLengthNumberOfFiveBytesIsRefused() =>
+        Refused(OneTrack(t => t.Raw(0x81, 0x80, 0x80, 0x80, 0x00).End()), "more than four bytes");
 
     [Fact]
     public void ADeltaOfFourFullBytesIsAcceptedAndATimeOverAMillionSecondsIsRefused()
     {
-        MidiImport import = MidiFile.Read(OneTrack(t => t.NoteOn(0, 60, 100).NoteOff(1000, 60).Delta(MidiLimits.MaxVariableLength).Raw(0xFF, 0x2F, 0x00)));
+        MidiImport import = MidiFile.Read(
+            OneTrack(t => t.NoteOn(0, 60, 100).NoteOff(1000, 60).Delta(MidiLimits.MaxVariableLength).Raw(0xFF, 0x2F, 0x00)));
 
         Assert.True(import.Length > 279_000);
         Refused(

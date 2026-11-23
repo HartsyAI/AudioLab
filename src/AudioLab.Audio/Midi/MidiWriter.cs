@@ -12,7 +12,7 @@ internal static class MidiWriter
     private const int PedalDownFrom = 64;
     private const double TempoEpsilon = 1e-6;
 
-    /// <summary>Writes the clip, whose times are seconds from its start; the tempo map is the project's, in seconds from the project's start.</summary>
+    /// <summary>Writes the clip, whose times are seconds from its start; the tempo map is the project's, from the project's start.</summary>
     public static byte[] Write(MidiClip clip, double bpm, IReadOnlyList<TempoChange> changes, TimeSignature signature)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -38,14 +38,17 @@ internal static class MidiWriter
     }
 
     private static List<TempoChange> ShiftedChanges(IReadOnlyList<TempoChange> changes, double start) =>
-        [.. changes.Where(change => change.Time - start > TempoEpsilon).Select(change => new TempoChange(change.Id, change.Time - start, change.Bpm))];
+        [.. changes.Where(change => change.Time - start > TempoEpsilon)
+            .Select(change => new TempoChange(change.Id, change.Time - start, change.Bpm))];
 
     private static int DenominatorPower(TimeSignature signature)
     {
         int power = signature.Denominator is >= 1 and <= 32 ? System.Numerics.BitOperations.Log2((uint)signature.Denominator) : -1;
         if (signature.Numerator is < 1 or > 64 || power < 0 || (1 << power) != signature.Denominator)
         {
-            throw new ArgumentException($"The time signature {signature.Numerator}/{signature.Denominator} is not one a project holds.", nameof(signature));
+            throw new ArgumentException(
+                $"The time signature {signature.Numerator}/{signature.Denominator} is not one a project holds.",
+                nameof(signature));
         }
         return power;
     }

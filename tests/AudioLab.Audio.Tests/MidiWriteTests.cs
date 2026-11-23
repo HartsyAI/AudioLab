@@ -91,7 +91,13 @@ public sealed class MidiWriteTests
     [Fact]
     public void APedalThatWasLetUpIsNotLetUpAgainAndAnotherControllerIsNeverReleased()
     {
-        MidiClip clip = Clip(0, 2, [Note(1, 60, 0.5, 0.5)], new MidiControlChange(0.5, 64, 127), new MidiControlChange(1, 64, 0), new MidiControlChange(1.2, 1, 99));
+        MidiClip clip = Clip(
+            0,
+            2,
+            [Note(1, 60, 0.5, 0.5)],
+            new MidiControlChange(0.5, 64, 127),
+            new MidiControlChange(1, 64, 0),
+            new MidiControlChange(1.2, 1, 99));
 
         MidiImport import = MidiFile.Read(Write(clip));
 
