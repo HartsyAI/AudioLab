@@ -162,6 +162,9 @@ public static class Shortcuts
     /// <summary>Put the sustain pedal down or up at the insert point.</summary>
     public static readonly Shortcut RollPedal = new("roll.pedal", "Toggle sustain pedal at insert point", "p", PianoRoll);
 
+    /// <summary>Hear a note when it is selected, or stop doing so.</summary>
+    public static readonly Shortcut RollAudition = new("roll.audition", "Hear notes as they are selected", "h", PianoRoll);
+
     /// <summary>Zoom the time axis in.</summary>
     public static readonly Shortcut RollZoomIn = new("roll.zoom.in", "Zoom in", "=", PianoRoll);
 
@@ -174,7 +177,7 @@ public static class Shortcuts
         RollSelectTool, RollDrawTool, RollEraseTool, RollPrevious, RollNext, RollAbove, RollBelow, RollExtendPrevious, RollExtendNext,
         RollExtendAbove, RollExtendBelow, RollSelectAll, RollClear, RollMoveEarlier, RollMoveLater, RollTransposeUp, RollTransposeDown,
         RollOctaveUp, RollOctaveDown, RollLonger, RollShorter, RollLouder, RollSofter, RollInsertEarlier, RollInsertLater, RollAddNote,
-        RollDelete, RollDeleteAlternate, RollCopy, RollCut, RollPaste, RollDuplicate, RollQuantize, RollPedal, RollZoomIn, RollZoomOut,
+        RollDelete, RollDeleteAlternate, RollCopy, RollCut, RollPaste, RollDuplicate, RollQuantize, RollPedal, RollAudition, RollZoomIn, RollZoomOut,
     ];
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =

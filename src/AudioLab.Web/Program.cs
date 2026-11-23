@@ -47,6 +47,8 @@ builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddScoped<PianoRollState>();
 builder.Services.AddScoped<RollDragState>();
 builder.Services.AddScoped<PianoRollKeys>();
+builder.Services.AddSingleton<IAuditionSink, UnavailableAudition>();
+builder.Services.AddScoped<NoteAudition>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddSingleton<WavePathCache>();
 builder.Services.AddSingleton(provider => new TrackColorMap(

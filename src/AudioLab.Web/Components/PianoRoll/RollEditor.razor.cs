@@ -53,6 +53,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private bool _centred;
 
+    private int? _heldKey;
+
     private string _message = string.Empty;
 
     /// <summary>Makes the editor and the table of its keys.</summary>
@@ -94,6 +96,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             [Shortcuts.RollDuplicate.Id] = Duplicate,
             [Shortcuts.RollQuantize.Id] = Quantize,
             [Shortcuts.RollPedal.Id] = TogglePedalAsync,
+            [Shortcuts.RollAudition.Id] = ToggleAuditionKey,
             [Shortcuts.RollZoomIn.Id] = () => Zoom(zoomIn: true),
             [Shortcuts.RollZoomOut.Id] = () => Zoom(zoomIn: false),
         };
@@ -123,6 +126,9 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     [Inject]
     private PianoRollKeys Keys { get; set; } = default!;
+
+    [Inject]
+    private NoteAudition Sound { get; set; } = default!;
 
     [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
@@ -368,6 +374,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             State.Select([note.Id]);
         }
         State.Remember(note.Pitch, note.Velocity);
+        Hear(note);
         if (!Editable())
         {
             return;
@@ -522,6 +529,39 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
     }
 
+    // ----- hearing notes
+
+    private void ToggleAudition() => State.ToggleAudition();
+
+    // A press on a key plays that pitch on the instrument of the track until the pointer is let go.
+    private void KeyPress(PointerEventArgs press)
+    {
+        if (press.Button != 0 || !Sound.Available || View.Bounds("roll-keys") is not { } box)
+        {
+            return;
+        }
+        _heldKey = Geometry.PitchAt(press.ClientY - box.Top);
+        _ = Sound.PressKeyAsync(Track.Id, _heldKey.Value, State.InsertVelocity);
+    }
+
+    private void KeyRelease(PointerEventArgs release)
+    {
+        if (_heldKey is { } pitch)
+        {
+            _heldKey = null;
+            _ = Sound.ReleaseKeyAsync(Track.Id, pitch);
+        }
+    }
+
+    // A note that is selected is heard for its own length when the user asked to hear notes.
+    private void Hear(MidiNote note)
+    {
+        if (State.Audition && Sound.Available)
+        {
+            _ = Sound.HearNoteAsync(Track.Id, note);
+        }
+    }
+
     // ----- keyboard
 
     private bool Handle(KeyChord chord)
@@ -543,6 +583,19 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             }
         }
         return false;
+    }
+
+    private Task ToggleAuditionKey()
+    {
+        if (Sound.Available)
+        {
+            State.ToggleAudition();
+        }
+        else
+        {
+            Toasts.Show(ToastKind.Warning, Sound.Unavailable ?? "Notes cannot be heard now.");
+        }
+        return Task.CompletedTask;
     }
 
     private Task UseTool(RollTool tool)
@@ -575,6 +628,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         {
             State.Select([next], additive: extend);
             State.Remember(note.Pitch, note.Velocity);
+            Hear(note);
             State.MoveInsert(note.Start);
             Reveal(Geometry.X(note.Start), Geometry.RowTop(note.Pitch), Geometry.X(note.Duration));
         }

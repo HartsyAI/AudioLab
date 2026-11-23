@@ -1,4 +1,6 @@
-<div class="keys" id="roll-keys" aria-hidden="true" style="height: @Css.Px(Geometry.Height)">
+<div class="keys" id="roll-keys" role="presentation" style="height: @Css.Px(Geometry.Height)" title="@Reason"
+     data-hearable="@(Reason is null ? "true" : "false")"
+     @onpointerdown="OnPress" @onpointerup="OnRelease" @onpointerleave="OnRelease">
     @for (int pitch = RollGeometry.Pitches - 1; pitch >= 0; pitch--)
     {
         <div class="key" data-black="@(RollGrid.IsBlack(pitch) ? "true" : "false")" style="height: @Css.Px(Geometry.RowHeight)">@Label(pitch)</div>

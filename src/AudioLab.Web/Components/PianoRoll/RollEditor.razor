@@ -14,6 +14,8 @@
             <Button Name="@TransposeName(12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
                     OnClick="() => Transpose(12)">+12</Button>
         </span>
+        <Toggle Name="Audition" Label="Audition" On="State.Audition" Disabled="@(!Sound.Available)" Reason="@Sound.Unavailable"
+                OnClick="ToggleAudition" />
         <Segmented Words="true" Label="Grid" Items="GridItems" Value="@Document.View.Grid" ValueChanged="ChooseGrid" />
         <span class="group">
             <Button Name="Zoom out" Shortcut="@Shortcuts.RollZoomOut.Display" OnClick="() => Zoom(false)">-</Button>
@@ -31,7 +33,9 @@
     <div class="scroll" id="roll-scroll">
         <div class="board" style="grid-template-columns: var(--roll-keys) @Css.Px(Geometry.Width)">
             <div class="top"><RollRuler Document="Document" Clip="Clip" Geometry="Geometry" /></div>
-            <div class="side"><PianoKeys Geometry="Geometry" /></div>
+            <div class="side">
+                <PianoKeys Geometry="Geometry" Reason="@Sound.Unavailable" OnPress="KeyPress" OnRelease="KeyRelease" />
+            </div>
             <div class="surface" id="roll-surface" tabindex="0" role="application" aria-label="@SurfaceLabel" aria-describedby="roll-status"
                  style="width: @Css.Px(Geometry.Width); height: @Css.Px(Geometry.Height)" data-hover="@(_overEdge ? "edge" : "none")"
                  @onpointerdown="NotesPress" @onpointermove="NotesHover" @onpointerleave="NotesLeave">

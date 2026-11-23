@@ -23,6 +23,9 @@ public sealed class PianoRollState
     /// <summary>The tool the pointer uses.</summary>
     public RollTool Tool { get; private set; } = RollTool.Select;
 
+    /// <summary>Whether a note is heard when it is selected or walked to; only when the sound engine can play it.</summary>
+    public bool Audition { get; private set; }
+
     /// <summary>How many pixels a second takes.</summary>
     public double PixelsPerSecond { get; private set; } = RollGeometry.DefaultPixelsPerSecond;
 
@@ -107,6 +110,14 @@ public sealed class PianoRollState
             Version++;
             Changed?.Invoke();
         }
+    }
+
+    /// <summary>Turns hearing a note when it is selected on or off.</summary>
+    public void ToggleAudition()
+    {
+        Audition = !Audition;
+        Version++;
+        Changed?.Invoke();
     }
 
     /// <summary>Zooms in or out by one step.</summary>
