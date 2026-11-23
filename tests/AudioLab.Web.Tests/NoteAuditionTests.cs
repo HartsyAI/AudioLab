@@ -13,6 +13,15 @@ public sealed class NoteAuditionTests
 
     private readonly ManualClock _clock = new();
 
+    // A timer of the clock fires its continuation on the pool, so a test waits for the call it expects and does not count on a yield.
+    private async Task SettledAsync(int calls)
+    {
+        for (int tries = 0; tries < 400 && _sink.Calls.Count < calls; tries++)
+        {
+            await Task.Delay(5);
+        }
+    }
+
     private static MidiNote Note(int pitch, double duration, int velocity = 90) => new(new NoteId(pitch), pitch, 0, duration, velocity);
 
     /// <summary>With a sink that cannot play, the roll sends it nothing at all and reports the sink's reason.</summary>
@@ -83,7 +92,7 @@ public sealed class NoteAuditionTests
         _clock.Advance(TimeSpan.FromMilliseconds(499));
         Assert.Equal(["on keys 64 90"], _sink.Calls);
         _clock.Advance(TimeSpan.FromMilliseconds(2));
-        await Task.Yield();
+        await SettledAsync(2);
         Assert.Equal(["on keys 64 90", "off keys 64"], _sink.Calls);
 
         _sink.Calls.Clear();
@@ -91,7 +100,7 @@ public sealed class NoteAuditionTests
         _clock.Advance(TimeSpan.FromMilliseconds(NoteAudition.MaxHoldMilliseconds - 1));
         Assert.Equal(["on keys 67 90"], _sink.Calls);
         _clock.Advance(TimeSpan.FromMilliseconds(2));
-        await Task.Yield();
+        await SettledAsync(2);
         Assert.Equal(["on keys 67 90", "off keys 67"], _sink.Calls);
 
         _sink.Calls.Clear();
@@ -110,11 +119,11 @@ public sealed class NoteAuditionTests
         _clock.Advance(TimeSpan.FromMilliseconds(300));
         await audition.HearNoteAsync(_track, Note(64, 0.5));
         _clock.Advance(TimeSpan.FromMilliseconds(300));
-        await Task.Yield();
+        await Task.Delay(50);
 
         Assert.Equal(["on keys 64 90", "off keys 64", "on keys 64 90"], _sink.Calls);
         _clock.Advance(TimeSpan.FromMilliseconds(250));
-        await Task.Yield();
+        await SettledAsync(4);
         Assert.Equal(["on keys 64 90", "off keys 64", "on keys 64 90", "off keys 64"], _sink.Calls);
     }
 
@@ -129,7 +138,7 @@ public sealed class NoteAuditionTests
         await audition.HearNoteAsync(_track, Note(62, 0.5));
         await audition.StopAsync();
         _clock.Advance(TimeSpan.FromSeconds(2));
-        await Task.Yield();
+        await Task.Delay(50);
 
         Assert.Equal(["on keys 60 100", "off keys 60", "on keys 62 90", "off keys 62"], _sink.Calls);
     }
