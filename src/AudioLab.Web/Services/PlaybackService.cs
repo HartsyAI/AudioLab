@@ -57,7 +57,8 @@ public sealed class PlaybackService : IDisposable
     public TransportState Transport => _status?.State ?? TransportState.Stopped;
 
     /// <summary>The playhead in seconds: what the audio thread is about to play, or where the playhead was last put.</summary>
-    public double Position => _worklet is { Primed: true } worklet && _status is { } status ? worklet.Position / status.SampleRate : _requested;
+    public double Position =>
+        _worklet is { Primed: true } worklet && _status is { } status ? Folded(worklet.Position / status.SampleRate) : _requested;
 
     /// <summary>Whether the loop is on.</summary>
     public bool Looping => _loopOn;
@@ -241,6 +242,12 @@ public sealed class PlaybackService : IDisposable
         _ = SendAsync(document, ++_sequence);
         SyncLoop();
     }
+
+    // A chunk is tagged with its first frame, so the frames after a loop wrap inside it read past the loop's end: they fold back to its start.
+    private double Folded(double seconds) =>
+        LoopRange is { } range && seconds >= range.End && range.End > range.Start
+            ? range.Start + ((seconds - range.End) % (range.End - range.Start))
+            : seconds;
 
     // The loop's range follows what the project holds, so an edit that lengthens it moves the loop's end.
     private void SyncLoop()

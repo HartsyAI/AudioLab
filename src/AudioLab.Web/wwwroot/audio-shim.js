@@ -7,7 +7,7 @@ if (typeof AudioWorkletProcessor === 'function') {
       const { capacity, chunk } = options.processorOptions;
       this.cap = capacity; this.chunk = chunk; this.slots = capacity / chunk;
       this.l = new Float32Array(capacity); this.r = new Float32Array(capacity);
-      this.starts = new Float64Array(this.slots);
+      this.starts = new Float64Array(this.slots); this.live = new Uint8Array(this.slots); this.wasLive = false;
       this.wr = 0; this.rd = 0; this.fill = 0; this.consumed = 0;
       this.primed = false; this.inRun = false; this.events = 0; this.missed = 0; this.minFill = capacity; this.next = 0;
       this.tx = null;
@@ -19,10 +19,12 @@ if (typeof AudioWorkletProcessor === 'function') {
     }
     push(bytes) {
       const at = (this.wr % this.slots) * this.chunk;
-      const samples = new Float32Array(bytes.buffer, bytes.byteOffset + 8, this.chunk * 2);
+      const samples = new Float32Array(bytes.buffer, bytes.byteOffset + 16, this.chunk * 2);
       this.l.set(samples.subarray(0, this.chunk), at);
       this.r.set(samples.subarray(this.chunk), at);
-      this.starts[this.wr % this.slots] = new DataView(bytes.buffer, bytes.byteOffset, 8).getFloat64(0, true);
+      const head = new DataView(bytes.buffer, bytes.byteOffset, 16);
+      this.starts[this.wr % this.slots] = head.getFloat64(0, true);
+      this.live[this.wr % this.slots] = head.getInt32(8, true) & 1;
       this.wr++; this.fill += this.chunk;
       if (!this.primed && this.fill >= this.cap) this.primed = true;
     }
@@ -31,9 +33,11 @@ if (typeof AudioWorkletProcessor === 'function') {
       if (this.primed) {
         if (this.fill < this.minFill) this.minFill = this.fill;
         const got = Math.min(this.fill, n);
+        // Silence the engine chose to play (stopped, paused, no plan yet) is not a dropout; only audio that was due is.
+        if (got > 0) this.wasLive = this.live[Math.floor(this.rd / this.chunk)] === 1;
         for (let i = 0; i < got; i++) { const p = (this.rd + i) % this.cap; L[i] = this.l[p]; R[i] = this.r[p]; }
         this.rd = (this.rd + got) % this.cap; this.fill -= got; this.consumed += got;
-        if (got < n) { this.missed += n - got; if (!this.inRun) { this.events++; this.inRun = true; } } else this.inRun = false;
+        if (got < n && this.wasLive) { this.missed += n - got; if (!this.inRun) { this.events++; this.inRun = true; } } else this.inRun = false;
         while (this.consumed >= this.chunk) { this.consumed -= this.chunk; this.tx.postMessage(1); }
       }
       if (currentFrame >= this.next) {

@@ -47,6 +47,9 @@ public sealed class LiveEngine
         _swapRight = new float[maxChunkFrames];
     }
 
+    /// <summary>Whether the last chunk rendered was audio the listener is due (playing with a plan), not the silence of a stop, a pause or no plan yet.</summary>
+    public bool Audible { get; private set; }
+
     /// <summary>Whether the engine is playing.</summary>
     public TransportState State { get; private set; }
 
@@ -175,6 +178,7 @@ public sealed class LiveEngine
             throw new ArgumentException("The buffers must be of one length, no longer than the engine's largest chunk.", nameof(right));
         }
         long started = Stopwatch.GetTimestamp();
+        Audible = State == TransportState.Playing && _graph is not null;
         left.Clear();
         right.Clear();
         if (State == TransportState.Playing && _graph is not null)

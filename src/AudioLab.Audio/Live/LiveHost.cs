@@ -17,8 +17,11 @@ namespace AudioLab.Audio.Live;
 /// </remarks>
 public sealed class LiveHost
 {
-    /// <summary>Bytes before the samples of a chunk: the timeline frame of its first sample as a little-endian double.</summary>
-    public const int HeaderBytes = 8;
+    /// <summary>Bytes before the samples of a chunk: the timeline frame of its first sample as a little-endian double, then 32 bits of flags and 32 spare.</summary>
+    public const int HeaderBytes = 16;
+
+    /// <summary>The flag in a chunk header that says the chunk is audio the listener is due, so that missing it is a dropout.</summary>
+    public const int AudibleFlag = 1;
 
     private const int LoadAttempts = 3;
 
@@ -123,8 +126,10 @@ public sealed class LiveHost
         }
         _lastRender = now;
         BinaryPrimitives.WriteDoubleLittleEndian(_chunk, _engine.Position);
+        BinaryPrimitives.WriteInt32LittleEndian(_chunk.AsSpan(8), 0);
         Span<float> samples = MemoryMarshal.Cast<byte, float>(_chunk.AsSpan(HeaderBytes));
         _engine.Render(samples[.._chunkFrames], samples[_chunkFrames..]);
+        BinaryPrimitives.WriteInt32LittleEndian(_chunk.AsSpan(8), _engine.Audible ? AudibleFlag : 0);
         return _chunk;
     }
 
