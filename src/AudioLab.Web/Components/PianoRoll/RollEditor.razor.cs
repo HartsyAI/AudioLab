@@ -7,6 +7,7 @@ using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
@@ -36,6 +37,9 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
     private const int VelocityStep = 8;
 
     private const string NoSelection = "Select some notes first.";
+
+    // The server's default limit for a .mid file (AudioLab:Midi:MaxFileBytes), so a larger file is refused before it is read.
+    private const long MaxMidiFileBytes = 16L * 1024 * 1024;
 
     // The roll hears its keys while the focus is on the notes, a lane or the keys: the page offers them to the roll before the transport,
     // whose Shift with an arrow is the roll's Shift with an arrow (D48).
@@ -562,27 +566,34 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
     }
 
-    // ----- .mid files: the seam of IMidiTransfer, which has no implementation yet
+    // ----- .mid files: the file the user chose goes to the seam of IMidiTransfer as a stream
 
-    private async Task ImportFileAsync()
+    private async Task ImportChosenAsync(InputFileChangeEventArgs chosen)
     {
-        EditResult result = await Transfer.ImportAsync(Track.Id, MidiClipPlan.NextStart(Document, Track));
-        if (!result.Succeeded && result.Refusal is { } reason)
+        IBrowserFile file = chosen.File;
+        string name = Path.GetFileNameWithoutExtension(file.Name).Trim();
+        name = name.Length == 0 ? "MIDI" : name;
+        try
         {
-            Toasts.Show(ToastKind.Warning, reason);
+            await using Stream stream = file.OpenReadStream(MaxMidiFileBytes);
+            double start = MidiClipPlan.NextStart(Document, Track);
+            MidiImportOutcome outcome = await Actions.Midi.Import(Transfer, Track.Id, name, start, stream);
+            if (!outcome.Edit.Succeeded)
+            {
+                Toasts.Show(ToastKind.Warning, outcome.Edit.Refusal ?? "The file could not be imported.");
+                return;
+            }
+            if (outcome.Edit.Created.Count > 0)
+            {
+                // The clip is in the document the page holds now: the import waited for the revision that has it.
+                Selection.SelectClip(Track.Id, ClipId.From(outcome.Edit.Created[0]));
+            }
+            string said = "Imported " + name + ".";
+            Toasts.Show(outcome.Notice is null ? ToastKind.Success : ToastKind.Warning, outcome.Notice is null ? said : said + " " + outcome.Notice);
         }
-        else if (result.Created.Count > 0)
+        catch (IOException)
         {
-            Selection.SelectClip(Track.Id, ClipId.From(result.Created[0]));
-        }
-    }
-
-    private async Task ExportFileAsync()
-    {
-        EditResult result = await Transfer.ExportAsync(Clip.Id);
-        if (!result.Succeeded && result.Refusal is { } reason)
-        {
-            Toasts.Show(ToastKind.Warning, reason);
+            Toasts.Show(ToastKind.Warning, "That file is larger than the 16 MiB the server takes, or could not be read.");
         }
     }
 

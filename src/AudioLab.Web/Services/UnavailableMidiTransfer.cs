@@ -1,24 +1,29 @@
+using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>The transfer the page has until the server MIDI routes and a file picker are in: every call is refused with the reason.</summary>
+/// <summary>The transfer the page has until the typed client of the server's MIDI routes is written: it says why, and sends nothing.</summary>
 public sealed class UnavailableMidiTransfer : IMidiTransfer
 {
-    private const string Reason = "Importing and exporting .mid files needs the server MIDI routes, which are not in this build yet.";
+    private const string Reason = "Importing and exporting .mid files waits for the page's client of the server's MIDI routes, not written yet.";
 
     /// <inheritdoc />
     public string? Unavailable => Reason;
 
     /// <inheritdoc />
-    public Task<EditResult> ImportAsync(TrackId track, double start, CancellationToken cancellationToken = default)
+    /// <exception cref="InvalidOperationException">Always: nothing is sent, and a success is never made up.</exception>
+    public Task<MidiImportResult> ImportAsync(
+        ProjectId project,
+        TrackId track,
+        string name,
+        double start,
+        Stream file,
+        CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(EditResult.Refused(Reason));
+        throw new InvalidOperationException(Reason);
     }
 
     /// <inheritdoc />
-    public Task<EditResult> ExportAsync(ClipId clip, CancellationToken cancellationToken = default)
-    {
-        return Task.FromResult(EditResult.Refused(Reason));
-    }
+    public Uri? ExportAddress(ProjectId project, ClipId clip) => null;
 }
