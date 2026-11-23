@@ -16,6 +16,7 @@ internal static class MidiCommands
             .Add("midi_notes_move", "Puts notes at new starts and pitches.", json.MoveNotes, MoveNotes)
             .Add("midi_notes_resize", "Gives notes new lengths.", json.ResizeNotes, ResizeNotes)
             .Add("midi_notes_set_velocity", "Sets the velocity of notes.", json.SetNoteVelocity, SetVelocity)
+            .Add("midi_notes_adjust_velocity", "Raises or lowers the velocity of notes by an amount.", json.AdjustNoteVelocity, AdjustVelocity)
             .Add("midi_notes_transpose", "Transposes notes by semitones.", json.TransposeNotes, Transpose)
             .Add("midi_notes_quantize", "Snaps notes to the project grid.", json.QuantizeNotes, Quantize)
             .Add("midi_notes_delete", "Removes notes from a MIDI clip.", json.DeleteNotes, DeleteNotes)
@@ -257,6 +258,17 @@ internal static class MidiCommands
             command.Notes,
             () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestVelocity),
             (_, note) => note with { Velocity = command.Velocity });
+    }
+
+    private static CommandResult AdjustVelocity(ProjectDocument document, AdjustNoteVelocity command, IIdService ids)
+    {
+        int most = NoteRules.HighestVelocity - 1;
+        return EditNotes(
+            document,
+            command.Clip,
+            command.Notes,
+            () => CommandChecks.Range(nameof(command.Amount), command.Amount, -most, most),
+            (_, note) => note with { Velocity = Math.Clamp(note.Velocity + command.Amount, 1, NoteRules.HighestVelocity) });
     }
 
     private static CommandResult Transpose(ProjectDocument document, TransposeNotes command, IIdService ids)

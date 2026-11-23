@@ -25,6 +25,7 @@ namespace AudioLab.Core.Commands;
 [JsonSerializable(typeof(MoveNotes))]
 [JsonSerializable(typeof(ResizeNotes))]
 [JsonSerializable(typeof(SetNoteVelocity))]
+[JsonSerializable(typeof(AdjustNoteVelocity))]
 [JsonSerializable(typeof(TransposeNotes))]
 [JsonSerializable(typeof(QuantizeNotes))]
 [JsonSerializable(typeof(DeleteNotes))]

@@ -346,6 +346,23 @@ public sealed class MidiCommandTests
     }
 
     [Fact]
+    public void VelocityIsAdjustedByAnAmountAndStopsAtTheEnds()
+    {
+        NoteId soft = Add(60, 0, velocity: 5);
+        NoteId middle = Add(62, 1, velocity: 100);
+        NoteId loud = Add(64, 2, velocity: 125);
+
+        _rig.Ok(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = 8 });
+        Assert.Equal([13, 108, 127], new[] { Note(soft).Velocity, Note(middle).Velocity, Note(loud).Velocity });
+        _rig.Ok(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [soft, loud], Amount = -126 });
+
+        Assert.Equal([1, 108, 1], new[] { Note(soft).Velocity, Note(middle).Velocity, Note(loud).Velocity });
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = 127 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = -127 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [new NoteId(99)], Amount = 1 }, CommandErrorCode.NotFound);
+    }
+
+    [Fact]
     public void NotesTransposeByOctavesAndSemitonesAndStopAtTheEndsOfThePitchRange()
     {
         NoteId low = Add(5, 0);
