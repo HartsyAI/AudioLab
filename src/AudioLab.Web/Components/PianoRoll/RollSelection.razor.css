@@ -1,0 +1,14 @@
+.selection {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    pointer-events: none;
+}
+
+.picked {
+    fill: var(--clip);
+    stroke: var(--playhead);
+    stroke-width: 1.5px;
+    vector-effect: non-scaling-stroke;
+}

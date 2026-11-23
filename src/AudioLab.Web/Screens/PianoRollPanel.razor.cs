@@ -1,4 +1,3 @@
-using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
@@ -45,17 +44,7 @@ public sealed partial class PianoRollPanel : IDisposable
         Selection.Changed += OnSelectionChanged;
     }
 
-    private static string NotesText(MidiClip clip) => clip.Notes.Count == 1 ? "1 note" : $"{clip.Notes.Count.ToString(CultureInfo.InvariantCulture)} notes";
-
-    private string LengthText(MidiClip clip)
-    {
-        double bars = Math.Round(MidiClipPlan.Bars(Document, clip), 2);
-        return bars == 1 ? "1 bar" : $"{bars.ToString("0.##", CultureInfo.InvariantCulture)} bars";
-    }
-
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
-
-    private Task StepAsync(MidiClip clip, int bars) => Actions.Midi.StepLength(clip.Id, bars);
 
     private async Task AddAsync(Track track)
     {

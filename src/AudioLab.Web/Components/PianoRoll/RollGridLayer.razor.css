@@ -1,0 +1,36 @@
+.grid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    pointer-events: none;
+}
+
+path {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+.rows {
+    fill: color-mix(in srgb, var(--surface-well) 55%, transparent);
+}
+
+.octaves {
+    stroke: var(--grid-line-strong);
+    stroke-width: 1px;
+}
+
+.steps {
+    stroke: var(--grid-line);
+    stroke-width: 1px;
+}
+
+.beats {
+    stroke: var(--grid-line-strong);
+    stroke-width: 1px;
+}
+
+.bars {
+    stroke: var(--tick);
+    stroke-width: 1px;
+}

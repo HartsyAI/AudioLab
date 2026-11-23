@@ -37,6 +37,53 @@ public sealed class GridSnap
         return length > 0 ? Math.Round(seconds / length) * length : seconds;
     }
 
+    /// <summary>The line at or before <paramref name="seconds"/>, never before the start: the cell a point falls in.</summary>
+    public double Floor(double seconds)
+    {
+        const double Tolerance = 1e-9;
+        if (GridRules.Beats(_grid, _signature) is { } step && step > 0)
+        {
+            double beats = Math.Floor((_tempo.BeatsAt(seconds) / step) + Tolerance) * step;
+            return Math.Max(0, _tempo.TimeAtBeat(beats));
+        }
+        double length = Step(seconds);
+        return length > 0 ? Math.Floor((seconds / length) + Tolerance) * length : seconds;
+    }
+
     /// <summary>The length of one step, in seconds, at the tempo in force at <paramref name="at"/>.</summary>
     public double Step(double at) => GridRules.StepSeconds(_grid, _tempo, _signature, at);
+
+    /// <summary>The lines from <paramref name="from"/> to <paramref name="to"/>, in seconds, as the lanes and the roll draw them; none past <paramref name="limit"/>.</summary>
+    public IEnumerable<double> Lines(double from, double to, int limit)
+    {
+        const double Tolerance = 1e-9;
+        int count = 0;
+        if (GridRules.Beats(_grid, _signature) is { } step && step > 0)
+        {
+            for (double index = Math.Ceiling((_tempo.BeatsAt(from) / step) - Tolerance); count < limit; index++, count++)
+            {
+                double time = _tempo.TimeAtBeat(index * step);
+                if (time > to + Tolerance)
+                {
+                    yield break;
+                }
+                yield return time;
+            }
+            yield break;
+        }
+        double length = Step(from);
+        if (!(length > 0))
+        {
+            yield break;
+        }
+        for (double index = Math.Ceiling((from / length) - Tolerance); count < limit; index++, count++)
+        {
+            double time = index * length;
+            if (time > to + Tolerance)
+            {
+                yield break;
+            }
+            yield return time;
+        }
+    }
 }

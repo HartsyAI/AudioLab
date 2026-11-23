@@ -60,3 +60,8 @@
 .segmented[data-variant="transport"] ::deep .segment:hover {
     background: var(--surface-raised-active);
 }
+
+.segmented[data-variant="words"] ::deep .segment {
+    width: auto;
+    padding: 0 var(--space-8);
+}

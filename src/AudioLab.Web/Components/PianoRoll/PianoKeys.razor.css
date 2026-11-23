@@ -1,0 +1,26 @@
+.keys {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-panel);
+    box-shadow: inset -1px 0 0 var(--line);
+    user-select: none;
+}
+
+.key {
+    box-sizing: border-box;
+    flex: none;
+    padding-right: var(--space-4);
+    background: var(--text-dim);
+    box-shadow: inset 0 -1px 0 var(--line);
+    color: var(--ink);
+    font-size: var(--font-size-micro);
+    font-weight: var(--font-weight-strong);
+    line-height: 1;
+    text-align: right;
+}
+
+.key[data-black="true"] {
+    margin-right: 35%;
+    background: var(--surface-raised);
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+}

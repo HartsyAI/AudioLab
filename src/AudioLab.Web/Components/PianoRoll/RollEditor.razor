@@ -1,0 +1,50 @@
+<div class="roll" id="roll" role="group" aria-label="Piano roll" data-tool="@ToolId">
+    <div class="toolbar">
+        <span class="title">@Clip.Name</span>
+        <span class="meta">@NotesText · @LengthText</span>
+        <Segmented Words="true" Label="Tool" Items="Tools" Value="@ToolId" ValueChanged="ChooseTool" />
+        <span class="group">
+            <Button Name="@QuantizeName" Shortcut="@Shortcuts.RollQuantize.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="Quantize">Quantize</Button>
+            <Button Name="@TransposeName(-12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(-12)">-12</Button>
+            <Button Name="@TransposeName(-1)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(-1)">-1</Button>
+            <Button Name="@TransposeName(1)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(1)">+1</Button>
+            <Button Name="@TransposeName(12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(12)">+12</Button>
+        </span>
+        <Segmented Words="true" Label="Grid" Items="GridItems" Value="@Document.View.Grid" ValueChanged="ChooseGrid" />
+        <span class="group">
+            <Button Name="Zoom out" Shortcut="@Shortcuts.RollZoomOut.Display" OnClick="() => Zoom(false)">-</Button>
+            <Button Name="Zoom in" Shortcut="@Shortcuts.RollZoomIn.Display" OnClick="() => Zoom(true)">+</Button>
+        </span>
+        <span class="group">
+            <Button Name="Shorten clip by a bar" Shortcut="@Shortcuts.MidiClipShorter.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="() => StepLength(-1)">Shorter</Button>
+            <Button Name="Lengthen clip by a bar" Shortcut="@Shortcuts.MidiClipLonger.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="() => StepLength(1)">Longer</Button>
+        </span>
+    </div>
+    <div class="scroll" id="roll-scroll">
+        <div class="board" style="grid-template-columns: var(--roll-keys) @Css.Px(Geometry.Width)">
+            <div class="top"><RollRuler Document="Document" Clip="Clip" Geometry="Geometry" /></div>
+            <div class="side"><PianoKeys Geometry="Geometry" /></div>
+            <div class="surface" id="roll-surface" tabindex="0" role="application" aria-label="@SurfaceLabel" aria-describedby="roll-status"
+                 style="width: @Css.Px(Geometry.Width); height: @Css.Px(Geometry.Height)" data-hover="@(_overEdge ? "edge" : "none")"
+                 @onpointerdown="NotesPress" @onpointermove="NotesHover" @onpointerleave="NotesLeave">
+                <RollGridLayer Geometry="Geometry" Lines="_lines" />
+                <RollNotes Clip="Clip" Geometry="Geometry" ColorToken="@ColorToken" />
+                <RollSelection Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" />
+                <RollOverlay Geometry="Geometry" Clip="Clip" ColorToken="@ColorToken" />
+            </div>
+            <div class="lane-cell velocity-cell">
+                <VelocityLane Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" OnPress="VelocityPress" />
+            </div>
+            <div class="label velocity-label"><span>Velocity</span></div>
+            <div class="lane-cell pedal-cell">
+                <PedalLane Clip="Clip" Geometry="Geometry" SelectedTime="State.SelectedPedal" OnPress="PedalPressAsync" />
+            </div>
+            <div class="label pedal-label"><span>Sustain</span></div>
+            <div class="corner"></div>
+        </div>
+    </div>
+    <div class="status" id="roll-status" role="status" aria-live="polite">@Status</div>
+</div>

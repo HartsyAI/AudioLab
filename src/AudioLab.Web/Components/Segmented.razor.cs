@@ -21,6 +21,10 @@ public sealed partial class Segmented
     [Parameter]
     public bool Transport { get; set; }
 
+    /// <summary>True when the items are words, not glyphs: each is as wide as its word and the group looks as a well of choices.</summary>
+    [Parameter]
+    public bool Words { get; set; }
+
     /// <summary>What the group is for, as a screen reader says it.</summary>
     [Parameter, EditorRequired]
     public string Label { get; set; } = string.Empty;
@@ -28,6 +32,8 @@ public sealed partial class Segmented
     /// <summary>Raised with the id of the item chosen.</summary>
     [Parameter]
     public EventCallback<string> ValueChanged { get; set; }
+
+    private string Variant => Transport ? "transport" : Words ? "words" : "choice";
 
     private Task ChooseAsync(SegmentItem item)
     {

@@ -4,6 +4,7 @@ using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Pages;
@@ -56,6 +57,12 @@ public sealed partial class SessionPage
 
     [Inject]
     private ClipDragState Drags { get; set; } = default!;
+
+    [Inject]
+    private RollDragState RollDrags { get; set; } = default!;
+
+    [Inject]
+    private PianoRollKeys RollKeys { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
     private StatusDot Dot => _live is { Ready: true } ? StatusDot.Go : StatusDot.Caution;
@@ -311,12 +318,16 @@ public sealed partial class SessionPage
     // A key press from anywhere on the page but a text field or a dialog; true means it was a shortcut and is handled.
     private bool Press(KeyChord chord)
     {
+        if (RollKeys.Handle(chord))
+        {
+            return true;
+        }
         if (!_actions.CanEdit)
         {
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && Drags.Current is not null)
+        if (history && (Drags.Current is not null || RollDrags.Current is not null))
         {
             // A press is down on a clip: undoing now would take back a step under the lifted clip, so history waits for the drop.
             return true;

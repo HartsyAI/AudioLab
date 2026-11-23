@@ -1,3 +1,4 @@
+using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Web.Services;
 
@@ -14,6 +15,12 @@ public sealed class MidiActions
     /// <summary>Moves a clip's end by whole bars, negative to shorten.</summary>
     public Func<ClipId, int, Task<EditResult>> StepLength { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Sends commands built for the open project as one undo step; the ids they allocate come back in order.</summary>
+    public Func<Func<ProjectId, IReadOnlyList<Command>>, Task<EditResult>> Send { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
+
+    /// <summary>Sets the grid the project snaps to, such as 1/16.</summary>
+    public Func<string, Task<EditResult>> SetGrid { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
     public static MidiActions For(MidiEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
     {
@@ -23,6 +30,8 @@ public sealed class MidiActions
         {
             AddClip = (track, start) => show(editor.AddClipAsync(track, start)),
             StepLength = (clip, bars) => show(editor.StepLengthAsync(clip, bars)),
+            Send = build => show(editor.SendAsync(build)),
+            SetGrid = grid => show(editor.SetGridAsync(grid)),
         };
     }
 }

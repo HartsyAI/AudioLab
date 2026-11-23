@@ -1,0 +1,10 @@
+<svg class="notes" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none" width="@Css.Number(Geometry.Width)"
+     height="@Css.Number(Geometry.Height)" aria-hidden="true" data-notes="@Clip.Notes.Count" style="--clip: @ColorToken">
+    @for (int level = 0; level < _levels.Length; level++)
+    {
+        @if (_levels[level].Length > 0)
+        {
+            <path class="note" data-level="@level" d="@_levels[level]"></path>
+        }
+    }
+</svg>

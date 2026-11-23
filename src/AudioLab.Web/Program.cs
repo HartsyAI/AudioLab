@@ -6,6 +6,7 @@ using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
@@ -30,6 +31,7 @@ if (OperatingSystem.IsBrowser())
     builder.Services.AddSingleton<IPointerTracker, PointerTracker>();
     builder.Services.AddSingleton<IShortcutListener, ShortcutListener>();
     builder.Services.AddSingleton<IElementMetrics, ElementMetrics>();
+    builder.Services.AddSingleton<IElementView, ElementView>();
 }
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(CoreCommands.CreateRegistry());
@@ -42,6 +44,9 @@ builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddScoped<BottomPanelState>();
+builder.Services.AddScoped<PianoRollState>();
+builder.Services.AddScoped<RollDragState>();
+builder.Services.AddScoped<PianoRollKeys>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddSingleton<WavePathCache>();
 builder.Services.AddSingleton(provider => new TrackColorMap(

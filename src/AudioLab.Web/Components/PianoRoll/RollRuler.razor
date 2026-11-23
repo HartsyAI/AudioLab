@@ -1,0 +1,7 @@
+<div class="ruler" id="roll-ruler" aria-hidden="true" style="width: @Css.Px(Geometry.Width)" @onpointerdown="PressAsync">
+    @foreach ((double x, string text, bool strong) in Labels)
+    {
+        <span class="tick" data-strong="@(strong ? "true" : "false")" style="left: @Css.Px(x)">@text</span>
+    }
+    <div class="insert" style="left: @Css.Px(Geometry.X(State.InsertTime))"></div>
+</div>
