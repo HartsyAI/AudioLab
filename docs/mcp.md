@@ -70,7 +70,8 @@ project of another user is reported as not found, exactly as a project that does
 
 A project's whole document is also a resource: `audiolab://projects/{id}`, up to the document limit (below).
 
-There is no tool to upload media or to list it: an agent cannot add a sound, only edit what a project already holds.
+There is no tool to upload media or to list it: an agent cannot add a sound, only use media a project already names or
+that the user has uploaded elsewhere (the UI or the media routes), by the id it is given.
 
 ### Reading a project
 
@@ -146,7 +147,7 @@ A command that is refused is an ordinary result with `isError: true`, not a prot
 |--------|---------|------------|
 | `malformed` | The arguments are not valid for the tool: a member missing, unknown or of the wrong type. | Fix the call from the tool's schema. |
 | `invalid` | A value is out of range, or the edit would leave a project that breaks the rules. | Use a value inside the range the schema states. |
-| `rejected` | A rule forbids it: nothing to undo, the project moved on since `expectedRevision`, or it will not open. | Read again, then choose. |
+| `rejected` | A rule forbids it: nothing to undo, the project moved on, it will not open, or a media delete is running. | Read again, then choose. |
 | `not_found` | The project, track, clip or other target does not exist (or is not yours). | List or read again; ids come from results. |
 | `limit` | A limit of the server was reached: a result or a project too large. | Do less in one call, or read the message. |
 
@@ -167,5 +168,7 @@ result, a resource that cannot be returned: `InvalidParams` for a uri that is no
   read with `get_project` in parts.
 - There is no limit on the rate of calls, as there is none on the UI's.
 - Reading a project opens it and it stays open until the server shuts down, as with the hub.
-- Until the media store exists, a command that names a media file (`clip_add`, `beat_lane_add`, `instrument_set_sample`
-  and the like) accepts any well-formed media id, as it does from the UI ([DESIGN.md D22](../DESIGN.md#2-decisions)).
+- A command that names a media file (`clip_add`, `clip_replace_media`, `beat_lane_add`, `instrument_set_sample` and the
+  like) is checked by the server exactly as from the UI ([DESIGN.md D37](../DESIGN.md#2-decisions)): a file the user does
+  not have is `not_found`, and a clip duration that is not the file's is `rejected`. So an agent cannot play media it
+  does not own.

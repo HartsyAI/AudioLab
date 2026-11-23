@@ -2,6 +2,7 @@ using System.Text.Json;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Configuration;
+using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
@@ -73,16 +74,27 @@ public sealed class McpToolService(
         {
             return McpResults.Refused(CommandErrorCode.Rejected, "The project was closed or deleted while the call ran; call it again.");
         }
+        catch (MediaDeleteInProgressException exception)
+        {
+            return McpResults.Refused(CommandErrorCode.Rejected, exception.Message);
+        }
         catch (ProjectFormatException exception)
         {
             McpLog.ProjectNotValid(logger, exception);
-            return McpResults.Refused(CommandErrorCode.Rejected, "The project file is not valid, so the project cannot be opened.");
+            return McpResults.Refused(CommandErrorCode.Rejected, NotValid(exception));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             McpLog.StoreUnavailable(logger, exception);
             return McpResults.Refused(CommandErrorCode.Rejected, "The project store is not available right now; call it again.");
         }
+    }
+
+    // As the hub says it: the reason is about the user's own project, so it is safe to show, cut so one message stays short.
+    private static string NotValid(ProjectFormatException exception)
+    {
+        string text = $"{exception.Message} {string.Join(' ', exception.Problems.Take(5))}".Trim();
+        return text.Length <= 600 ? text : text[..600] + "...";
     }
 
     private string TooLong(string name)

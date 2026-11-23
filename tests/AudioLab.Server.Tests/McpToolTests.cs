@@ -299,6 +299,26 @@ public sealed class McpToolTests
     }
 
     [Fact]
+    public async Task AProjectWhoseFileIsNotValidIsRejectedWithTheProblemsNotInvalid()
+    {
+        await using RunningServer server = await McpTestClient.StartAsync();
+        string project = await McpTestClient.CreateProjectAsync(server, UserId.Local);
+        string file = server.Services.GetRequiredService<StoreRoot>().Paths.ProjectFile(UserId.Local, ProjectId.From(project));
+        string json = await File.ReadAllTextAsync(file);
+        await File.WriteAllTextAsync(file, json.Replace("\"bpm\":120", "\"bpm\":0", StringComparison.Ordinal));
+        await using McpClient agent = await McpTestClient.ConnectAsync(server);
+
+        foreach (string tool in new[] { "get_project", "get_history" })
+        {
+            CallToolResult result = await McpTestClient.CallAsync(agent, tool, project);
+            Assert.True(result.IsError);
+            HubCommandError error = Assert.Single(McpTestClient.Reply(result).Errors);
+            Assert.Equal(CommandErrorCode.Rejected, error.Code);
+            Assert.Contains("bpm", error.Message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task AToolTheServerDoesNotHaveIsAProtocolErrorNotAResult()
     {
         await using RunningServer server = await McpTestClient.StartAsync();
