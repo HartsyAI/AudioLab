@@ -65,7 +65,7 @@ public sealed partial class MediaItem
     public static string IdOf(string file) => $"media-{file}";
 
     // A row is drawn again only when something it shows changed: a clock tick or a progress report for another row costs it nothing.
-    private (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) _shown;
+    private Shown _shown;
 
     private bool _drawn;
 
@@ -76,7 +76,7 @@ public sealed partial class MediaItem
     /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (MediaSummary?, UploadJob?, bool, bool, UploadState?, int, string?, long) now = (
+        Shown now = new(
             File,
             Job,
             Selected,
@@ -84,8 +84,9 @@ public sealed partial class MediaItem
             Job?.State,
             Job is null ? 0 : (int)(Job.Fraction * 100),
             Job?.Failure,
-            Job is { State: UploadState.Sending } ? (long)(Now - (Job.SendingSince ?? Now)).TotalSeconds : 0);
-        bool same = _drawn && Equals(_shown.Item1, now.Item1) && ReferenceEquals(_shown.Item2, now.Item2) && _shown == now;
+            Job is { State: UploadState.Sending } ? (long)(Now - (Job.SendingSince ?? Now)).TotalSeconds : 0,
+            Blocked);
+        bool same = _drawn && _shown == now;
         _shown = now;
         _drawn = true;
         return !same;
@@ -123,4 +124,16 @@ public sealed partial class MediaItem
     private Task CancelAsync() => OnCancel.InvokeAsync(Job!);
 
     private Task RetryAsync() => OnRetry.InvokeAsync(Job!);
+
+    // What a row shows, so that it is drawn again exactly when one of these changed (the hint is one of them).
+    private readonly record struct Shown(
+        MediaSummary? File,
+        UploadJob? Job,
+        bool Selected,
+        bool TabStop,
+        UploadState? State,
+        int Percent,
+        string? Failure,
+        long Waited,
+        string? Blocked);
 }
