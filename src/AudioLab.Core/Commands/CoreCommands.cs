@@ -25,6 +25,7 @@ public static class CoreCommands
         TrackSettingsCommands.Register(builder, tracks);
         MixerCommands.Register(builder, tracks);
         ClipCommands.Register(builder, ClipCommandJsonContext.Default);
+        RangeCommands.Register(builder, ClipCommandJsonContext.Default);
         MidiCommands.Register(builder, MidiCommandJsonContext.Default);
         EffectCommands.Register(builder, EffectCommandJsonContext.Default);
         AutomationCommands.Register(builder, AutomationCommandJsonContext.Default);

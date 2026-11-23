@@ -33,11 +33,15 @@ public static partial class ClipRules
         return clip.Start + clip.Length;
     }
 
-    /// <summary>Whether <paramref name="at"/> is inside the clip, clear of both ends by <see cref="SplitMargin"/>.</summary>
+    /// <summary>Whether a piece of a clip that long is kept by a split or a range delete: at least <see cref="SplitMargin"/>, within <see cref="ProjectLimits.Tolerance"/>.</summary>
+    /// <remarks>The tolerance is only for the rounding of a subtraction, so that exactly 4 to 4.001 counts as a millisecond. This is the one minimum-piece rule of the split and the range commands.</remarks>
+    public static bool FitsPiece(double length) => length >= SplitMargin - ProjectLimits.Tolerance;
+
+    /// <summary>Whether <paramref name="at"/> is inside the clip, leaving a piece of at least <see cref="SplitMargin"/> on both sides (see <see cref="FitsPiece"/>).</summary>
     public static bool CanSplit(AudioClip clip, double at)
     {
         double inside = at - clip.Start;
-        return inside > SplitMargin && inside < VisibleLength(clip) - SplitMargin;
+        return FitsPiece(inside) && FitsPiece(VisibleLength(clip) - inside);
     }
 
     /// <summary>Two clips that together play what <paramref name="clip"/> played, cut at <paramref name="at"/>.</summary>
@@ -68,6 +72,26 @@ public static partial class ClipRules
             Meta = LyricsOnly(clip.Meta),
         };
         return (left, right);
+    }
+
+    /// <summary>The clip playing another media file in the same place, keeping the part it played as far as the new file allows.</summary>
+    /// <remarks>
+    /// The start, name, colour, gain and mute stay. The offset stays unless it leaves less than <see cref="MinClipLength"/> of the new file,
+    /// then it is 0; the visible length stays unless the new file is shorter, then it is cut to it, and fades that no longer fit are
+    /// shortened. A file under <see cref="MinClipLength"/> plays whole. The metadata is not touched here: the command drops the lyrics (their
+    /// times are seconds of the old file) with the stems that follow them, and keeps the score and stem records. The same file and length
+    /// give back the same instance.
+    /// </remarks>
+    public static AudioClip ReplaceMedia(AudioClip clip, MediaId media, double duration)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Media == media && clip.Duration == duration)
+        {
+            return clip;
+        }
+        double offset = clip.Offset >= duration - MinClipLength ? 0 : clip.Offset;
+        double kept = Math.Min(VisibleLength(clip), duration - offset);
+        return FitFades(clip with { Media = media, Duration = duration, Offset = offset, TrimEnd = duration - offset - kept });
     }
 
     /// <summary>Moves the start edge to <paramref name="edge"/> on the timeline.</summary>
