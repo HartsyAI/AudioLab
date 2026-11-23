@@ -105,19 +105,22 @@ public sealed class HubResilienceTests
     public async Task EveryEndpointOfTheServerNeedsTheDoorExceptTheHealthRoute()
     {
         await using RunningServer server = await StartAsync();
-        List<RouteEndpoint> endpoints = [.. server.Services.GetServices<EndpointDataSource>().SelectMany(source => source.Endpoints).OfType<RouteEndpoint>()];
+        IEnumerable<Microsoft.AspNetCore.Http.Endpoint> all = server.Services.GetServices<EndpointDataSource>().SelectMany(source => source.Endpoints);
+        List<RouteEndpoint> endpoints = [.. all.OfType<RouteEndpoint>()];
         bool NeedsDoor(RouteEndpoint endpoint) => endpoint.Metadata.GetMetadata<AudioLab.Server.Doors.DoorRequired>() is not null;
         bool IsUi(RouteEndpoint endpoint) => endpoint.Metadata.GetMetadata<AudioLab.Server.Routes.UiEndpoint>() is not null;
         IEnumerable<RouteEndpoint> unguarded = endpoints.Where(endpoint => !NeedsDoor(endpoint) && !IsUi(endpoint));
         List<string> open = [.. unguarded.Select(endpoint => endpoint.RoutePattern.RawText ?? "?")];
         Assert.Equal(["/health"], open);
+        Assert.Equal(["GET"], endpoints.Single(endpoint => endpoint.RoutePattern.RawText == "/health").Metadata
+            .GetMetadata<HttpMethodMetadata>()!.HttpMethods);
         Assert.DoesNotContain(endpoints, endpoint => IsUi(endpoint) && NeedsDoor(endpoint));
         List<RouteEndpoint> ui = [.. endpoints.Where(IsUi)];
         // Two wildcards only: the start page for any address that is not a file, and the static files' own catch-all for one that is.
         // Every other open endpoint is a static file at a fixed address.
         IEnumerable<string> patterns = ui.Select(endpoint => endpoint.RoutePattern.RawText ?? "?");
         IEnumerable<string> wildcards = patterns.Where(pattern => pattern.Contains('{', StringComparison.Ordinal)).Distinct().Order();
-        Assert.Equal(["/{**path:file}", "/{*path:nonfile}"], wildcards);
+        Assert.Equal(["/{**path:file}"], wildcards);
         Assert.DoesNotContain(ui, endpoint => OutsideTheProgram(endpoint.RoutePattern.RawText ?? "?"));
         Assert.All(ui, endpoint => Assert.All(
             endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["(any method)"],

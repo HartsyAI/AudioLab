@@ -1,3 +1,5 @@
+using AudioLab.Server.Mcp;
+using AudioLab.Server.Media;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Configuration;
@@ -14,7 +16,10 @@ public sealed record AudioLabOptions
     /// <summary>Where projects are stored and how they autosave.</summary>
     public StoreOptions Storage { get; init; } = new();
 
-    /// <summary>The largest request body any route accepts, in bytes. Every body today is a small JSON object; a route that takes uploads will need its own limit.</summary>
+    /// <summary>What the media store accepts and keeps.</summary>
+    public MediaOptions Media { get; init; } = new();
+
+    /// <summary>The largest request body a route accepts, in bytes, unless the route sets its own limit as the media upload does.</summary>
     public long MaxRequestBodyBytes { get; init; } = 64 * 1024;
 
     /// <summary>The longest command the hub accepts, in characters; a longer one is refused with a <c>limit</c> error and the connection stays.</summary>
@@ -30,6 +35,9 @@ public sealed record AudioLabOptions
 
     /// <summary>The longest one message to a client may take to be handed to its connection; a client that takes longer is disconnected.</summary>
     public TimeSpan HubSendTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>The MCP endpoint's limits.</summary>
+    public McpOptions Mcp { get; init; } = new();
 
     /// <summary>The path the site is served under, such as /audiolab, or empty for the root.</summary>
     public string PathBase { get; init; } = string.Empty;

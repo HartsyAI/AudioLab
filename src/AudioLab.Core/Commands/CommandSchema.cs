@@ -9,9 +9,9 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Commands;
 
-/// <summary>Builds the JSON Schema of a command from its source-generated type info.</summary>
+/// <summary>Builds the JSON Schema of a command, or of any record a tool takes, from its source-generated type info.</summary>
 /// <remarks>The exporter treats a custom converter as "any value", so ids, enums and lists are spelled out here.</remarks>
-internal static class CommandSchema
+public static class CommandSchema
 {
     private static readonly JsonSchemaExporterOptions _options = new() { TransformSchemaNode = Transform };
 

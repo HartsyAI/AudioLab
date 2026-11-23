@@ -44,6 +44,14 @@ public static class BeatRules
         return trimmed.Length > PadNameLength ? trimmed[..PadNameLength] : trimmed;
     }
 
+    /// <summary>The lanes with one moved a place towards the first (up) or the last (down).</summary>
+    /// <remarks>A lane at that end, or one that is not there, leaves them as they were.</remarks>
+    public static ValueList<BeatLane> Move(ValueList<BeatLane> lanes, BeatLaneId lane, MoveDirection direction)
+    {
+        ArgumentNullException.ThrowIfNull(lanes);
+        return StepMove.Swap(lanes, lanes.ToList().FindIndex(candidate => candidate.Id == lane), direction);
+    }
+
     /// <summary>A lane's steps at a new length: the leading steps stay, new ones are off.</summary>
     public static ValueList<bool> Resize(ValueList<bool> steps, int count)
     {

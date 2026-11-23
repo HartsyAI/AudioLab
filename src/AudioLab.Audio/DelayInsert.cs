@@ -1,0 +1,144 @@
+using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
+
+namespace AudioLab.Audio;
+
+/// <summary>A feedback delay, free-running or following the tempo.</summary>
+/// <remarks>
+/// The delay line feeds a low-pass tone filter, whose output is both the wet signal and the feedback. A synced delay follows the
+/// tempo steps, and every change of time glides over about 15 ms, worked out per sample from the frame.
+/// </remarks>
+internal sealed class DelayInsert : IInsert
+{
+    /// <summary>The longest delay time, which is also the longest synced one, in seconds.</summary>
+    public const double DelayLimitSeconds = 4;
+
+    private const double GlideSeconds = 0.015;
+    // A Butterworth low-pass has no peak, so the loop cannot gain whatever the feedback.
+    private const double ToneQDb = -3.0103;
+    /// <summary>The longest a delay is made to ring, in seconds.</summary>
+    public const double MaxTailSeconds = 30;
+    private const double SilenceDb = -60;
+
+    private readonly TempoStep[] _steps;
+    private readonly double[] _targetFrames;
+    private readonly float _feedback;
+    private readonly float _dry;
+    private readonly float _wet;
+    private readonly double _glide;
+    private readonly float[] _lineLeft;
+    private readonly float[] _lineRight;
+    private readonly Biquad _toneLeft;
+    private readonly Biquad _toneRight;
+    private int _write;
+    private int _step;
+    private double _delay;
+    private bool _primed;
+
+    public DelayInsert(DelayEffect effect, InsertContext context)
+    {
+        _steps = [.. context.TempoSteps];
+        _targetFrames = [.. _steps.Select(step => TargetSeconds(effect, step.Bpm) * context.SampleRate)];
+        _feedback = (float)Math.Min(0.9, effect.Feedback);
+        _dry = (float)(1 - effect.Mix);
+        _wet = (float)effect.Mix;
+        _glide = 1 - Math.Exp(-1 / (GlideSeconds * context.SampleRate));
+        int length = (int)Math.Ceiling(_targetFrames.Max()) + 4;
+        _lineLeft = new float[length];
+        _lineRight = new float[length];
+        BiquadCoefficients tone = BiquadCoefficients.LowPass(effect.Tone, ToneQDb, context.SampleRate);
+        _toneLeft = new Biquad(tone);
+        _toneRight = new Biquad(tone);
+        TailSeconds = TailFor(effect, context);
+        TailIsCut = UncutTailFor(effect, context) > MaxTailSeconds;
+    }
+
+    /// <summary>How many frames the delay line holds.</summary>
+    public int LineFrames => _lineLeft.Length;
+
+    public double TailSeconds { get; }
+
+    public bool TailIsCut { get; }
+
+    /// <summary>How long a delay rings after its input stops: until its echoes are 60 dB down, at most 30 s.</summary>
+    public static double TailFor(DelayEffect effect, InsertContext context) =>
+        Math.Min(MaxTailSeconds, UncutTailFor(effect, context));
+
+    public void Reset()
+    {
+        Array.Clear(_lineLeft);
+        Array.Clear(_lineRight);
+        _toneLeft.Reset();
+        _toneRight.Reset();
+        _write = 0;
+        _primed = false;
+    }
+
+    public void Process(Span<float> left, Span<float> right, long startFrame)
+    {
+        if (!_primed)
+        {
+            _step = StepAt(startFrame);
+            _delay = _targetFrames[_step];
+            _primed = true;
+        }
+        for (int i = 0; i < left.Length; i++)
+        {
+            long frame = startFrame + i;
+            while (_step + 1 < _steps.Length && _steps[_step + 1].Frame <= frame)
+            {
+                _step++;
+            }
+            _delay += (_targetFrames[_step] - _delay) * _glide;
+            float echoLeft = _toneLeft.Process(Read(_lineLeft, _delay));
+            float echoRight = _toneRight.Process(Read(_lineRight, _delay));
+            _lineLeft[_write] = left[i] + (echoLeft * _feedback);
+            _lineRight[_write] = right[i] + (echoRight * _feedback);
+            _write = _write + 1 == _lineLeft.Length ? 0 : _write + 1;
+            left[i] = (left[i] * _dry) + (echoLeft * _wet);
+            right[i] = (right[i] * _dry) + (echoRight * _wet);
+        }
+    }
+
+    // The delay time the settings ask for at a tempo; a plain delay ignores the tempo.
+    private static double TargetSeconds(DelayEffect effect, double bpm) =>
+        Math.Min(DelayLimitSeconds, effect.Sync ? EffectRules.SyncedDelayTime(effect.Division, bpm) : effect.Time);
+
+    // The echoes fall by the feedback each time, so the delay rings until they are 60 dB down.
+    /// <summary>How long a delay would ring if nothing cut it.</summary>
+    public static double UncutTailFor(DelayEffect effect, InsertContext context)
+    {
+        double longest = context.TempoSteps.Max(step => TargetSeconds(effect, step.Bpm));
+        double feedback = Math.Min(0.9, effect.Feedback);
+        double repeats = feedback < 1e-3 ? 0 : SilenceDb / (20 * Math.Log10(feedback));
+        return longest * (1 + repeats);
+    }
+
+    private int StepAt(long frame)
+    {
+        int step = 0;
+        while (step + 1 < _steps.Length && _steps[step + 1].Frame <= frame)
+        {
+            step++;
+        }
+        return step;
+    }
+
+    // Reads the line a fractional number of frames behind the write position, by linear interpolation.
+    private float Read(float[] line, double delayFrames)
+    {
+        double position = _write - delayFrames;
+        if (position < 0)
+        {
+            position += line.Length;
+        }
+        if (position >= line.Length)
+        {
+            position -= line.Length;
+        }
+        int index = (int)position;
+        float fraction = (float)(position - index);
+        int next = index + 1 == line.Length ? 0 : index + 1;
+        return (line[index] * (1 - fraction)) + (line[next] * fraction);
+    }
+}

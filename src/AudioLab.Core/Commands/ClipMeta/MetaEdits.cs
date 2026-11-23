@@ -66,6 +66,18 @@ internal static class MetaEdits
         return edited with { Tracks = tracks };
     }
 
+    /// <summary>The document with the recorded cut of each stem separated from the clip held to <paramref name="duration"/>, the length of the clip's file.</summary>
+    public static ProjectDocument ClampStemCuts(ProjectDocument document, ClipId source, double duration)
+    {
+        bool Past(AudioClip candidate) => candidate.Meta?.StemOf is { ClipId: { } from, SourceOffset: { } cut } && from == source && cut > duration;
+        AudioClip Clamp(AudioClip candidate) => Past(candidate) ? WithStem(candidate, candidate.Meta!.StemOf!.Value with { SourceOffset = duration }) : candidate;
+        ValueList<Track> tracks =
+        [
+            .. document.Tracks.Select(track => track.Clips.Any(Past) ? track with { Clips = [.. track.Clips.Select(Clamp)] } : track),
+        ];
+        return document with { Tracks = tracks };
+    }
+
     private static AudioClip With(AudioClip clip, Func<ClipMeta, ClipMeta> change) => clip with { Meta = Tidy(change(clip.Meta ?? new ClipMeta())) };
 
     // A clip with no content left in its metadata has none, as the old DAW kept it.
