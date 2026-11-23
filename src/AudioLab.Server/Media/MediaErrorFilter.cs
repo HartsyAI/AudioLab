@@ -34,6 +34,11 @@ public sealed class MediaErrorFilter(ILogger<MediaErrorFilter> logger) : IEndpoi
             // The client went away mid-upload; there is no one to answer and nothing wrong with the store.
             return Results.StatusCode(StatusCodes.Status400BadRequest);
         }
+        catch (MediaPeaksPendingException exception)
+        {
+            context.HttpContext.Response.Headers.RetryAfter = exception.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: exception.Message);
+        }
         catch (MediaBusyException exception)
         {
             return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: exception.Message);

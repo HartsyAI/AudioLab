@@ -192,7 +192,7 @@ public sealed class MediaStoreTests
         await using TestStore store = TestStore.On(folder.Path);
         MediaRecord record = await store.UploadAsync(Users.Alice, Wav(), "..\\..\\..\\etc/passwd");
         Assert.Equal("..\\..\\..\\etc/passwd", record.Name);
-        Assert.All(MediaFiles(store, Users.Alice), name => Assert.Matches("^m[0-9a-f]{32}\\.(json|wav)$", name));
+        Assert.All(MediaFiles(store, Users.Alice), name => Assert.Matches("^m[0-9a-f]{32}\\.(json|wav|peaks)$", name));
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public sealed class MediaStoreTests
         // Announces more than the limit: refused without reading a byte.
         await Assert.ThrowsAsync<MediaTooLargeException>(() => Send(store, new ThrowingStream(), file.Length + 1L));
 
-        Assert.Equal(2, MediaFiles(store, Users.Alice).Length);
+        Assert.Equal(3, MediaFiles(store, Users.Alice).Length);
         Assert.Single(store.MediaFiles.List(Users.Alice).Files);
     }
 
@@ -226,7 +226,7 @@ public sealed class MediaStoreTests
         await Assert.ThrowsAsync<MediaQuotaExceededException>(() => store.UploadAsync(Users.Alice, Wav()));
         await Assert.ThrowsAsync<MediaQuotaExceededException>(() => Send(store, new ThrowingStream(), 10));
         await store.UploadAsync(Users.Bob, Wav());
-        Assert.Equal(4, MediaFiles(store, Users.Alice).Length);
+        Assert.Equal(6, MediaFiles(store, Users.Alice).Length);
 
         byte[] file = Wav();
         MediaOptions sizedOptions = new() { MaxBytesPerUser = (file.Length * 2L) + 10, MaxUploadBytes = file.Length };
@@ -254,7 +254,7 @@ public sealed class MediaStoreTests
             Assert.Equal(file, await ReadAllAsync(store.MediaFiles.OpenContent(Users.Alice, record.Id)));
         }
         Assert.Equal(12, store.MediaFiles.List(Users.Alice).Files.Count);
-        Assert.Equal(24, MediaFiles(store, Users.Alice).Length);
+        Assert.Equal(36, MediaFiles(store, Users.Alice).Length);
         Assert.DoesNotContain(MediaFiles(store, Users.Alice), name => name.EndsWith(".tmp", StringComparison.Ordinal));
     }
 
@@ -281,7 +281,7 @@ public sealed class MediaStoreTests
         Assert.Equal(5, uploads.Count(upload => upload.IsCompletedSuccessfully));
         Assert.Equal(9, uploads.Count(upload => upload.IsFaulted));
         Assert.Equal(5, store.MediaFiles.List(Users.Alice).Files.Count);
-        Assert.Equal(10, MediaFiles(store, Users.Alice).Length);
+        Assert.Equal(15, MediaFiles(store, Users.Alice).Length);
     }
 
     [Fact]

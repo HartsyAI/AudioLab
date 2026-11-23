@@ -111,11 +111,12 @@ public sealed class MediaStore : IMediaCatalog
 
     /// <summary>Stores a file: renames its bytes into place, then writes its record, under the user's lock so no race passes the quota.</summary>
     /// <param name="record">The record of the file, with the id the temporary file's name was made from.</param>
-    /// <param name="tempData">The finished temporary file; it is moved, so it must be on the same volume.</param>
+    /// <param name="tempData">The finished temporary file of the bytes; it is moved, so it must be on the same volume.</param>
+    /// <param name="tempPeaks">The finished temporary file of the peaks, moved in the same way.</param>
     /// <param name="cancellationToken">Cancels the commit before the record is written.</param>
     /// <exception cref="MediaQuotaExceededException">The quota says no.</exception>
     /// <exception cref="IOException">The user's folder cannot be read or written.</exception>
-    public async Task<MediaRecord> CommitAsync(MediaRecord record, string tempData, CancellationToken cancellationToken)
+    public async Task<MediaRecord> CommitAsync(MediaRecord record, string tempData, string tempPeaks, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
         UserMedia media = Readable(record.Owner);
@@ -133,15 +134,18 @@ public sealed class MediaStore : IMediaCatalog
                 throw new MediaQuotaExceededException(refusal);
             }
             string data = _root.Paths.MediaDataFile(record.Owner, record.Id);
+            string peaks = _root.Paths.MediaPeaksFile(record.Owner, record.Id);
             File.Move(tempData, data);
             try
             {
+                File.Move(tempPeaks, peaks);
                 await _root.Atomic.WriteAsync(_root.Paths.MediaRecordFile(record.Owner, record.Id), json, cancellationToken);
             }
             catch
             {
                 // Whatever stopped the record, the bytes it would have belonged to must not stay; the error itself goes on.
                 TryDelete(data);
+                TryDelete(peaks);
                 throw;
             }
             lock (media.Sync)
@@ -162,21 +166,82 @@ public sealed class MediaStore : IMediaCatalog
     public FileStream OpenContent(UserId user, MediaId id)
     {
         MediaRecord record = Get(user, id);
-        FileStreamOptions options = new()
-        {
-            Mode = FileMode.Open,
-            Access = FileAccess.Read,
-            Share = FileShare.ReadWrite | FileShare.Delete,
-            Options = FileOptions.Asynchronous,
-        };
         try
         {
-            return new FileStream(_root.Paths.MediaDataFile(user, record.Id), options);
+            return OpenForReading(_root.Paths.MediaDataFile(user, record.Id));
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
             throw new MediaNotFoundException();
         }
+    }
+
+    /// <summary>The record of a file even while its delete is pending, or null when the user has none.</summary>
+    public MediaRecord? FindIncludingPendingDelete(UserId owner, MediaId id)
+    {
+        UserMedia media = Loaded(owner);
+        lock (media.Sync)
+        {
+            return media.Entries.TryGetValue(id, out MediaEntry? entry) ? entry.Record : null;
+        }
+    }
+
+    /// <summary>Opens the peaks of a user's file for reading.</summary>
+    /// <exception cref="MediaNotFoundException">The user has no such file or the peak file is not there.</exception>
+    public FileStream OpenPeaks(UserId user, MediaId id)
+    {
+        MediaRecord record = Get(user, id);
+        try
+        {
+            return OpenForReading(_root.Paths.MediaPeaksFile(user, record.Id));
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            throw new MediaNotFoundException();
+        }
+    }
+
+    /// <summary>Refuses a file from now on: its bytes were found missing or invalid, which is a damaged media file, not a damaged cache.</summary>
+    public void Refuse(UserId user, MediaId id, string reason)
+    {
+        UserMedia media = Readable(user);
+        lock (media.Sync)
+        {
+            if (media.Entries.Remove(id, out MediaEntry? removed))
+            {
+                media.TotalBytes -= removed.Record.Bytes;
+                media.Refused++;
+                MediaLog.RecordRefused(_logger, StorePaths.MediaFileName(id), reason);
+            }
+        }
+    }
+
+    /// <summary>The bytes files of every user that have a record but no peak file, as pairs of paths, for the rebuild at start.</summary>
+    public IReadOnlyList<(string Data, string Peaks)> FindMissingPeaks()
+    {
+        List<(string, string)> missing = [];
+        if (!Directory.Exists(_root.Paths.UsersDirectory))
+        {
+            return missing;
+        }
+        foreach (string userFolder in Directory.EnumerateDirectories(_root.Paths.UsersDirectory))
+        {
+            string media = Path.Combine(userFolder, "media");
+            if (!Directory.Exists(media))
+            {
+                continue;
+            }
+            foreach (string file in Directory.EnumerateFiles(media, "*" + StorePaths.DataExtension))
+            {
+                string? record = StorePaths.RecordNameOfData(Path.GetFileName(file));
+                string peaks = Path.ChangeExtension(file, StorePaths.PeaksExtension);
+                if (record is not null && File.Exists(Path.Combine(media, record)) && !File.Exists(peaks))
+                {
+                    missing.Add((file, peaks));
+                }
+            }
+        }
+        return missing;
     }
 
     /// <summary>Hides a file from <see cref="Find"/> and from reads; the first step of a delete.</summary>
@@ -229,11 +294,24 @@ public sealed class MediaStore : IMediaCatalog
                 }
             }
             TryDelete(_root.Paths.MediaDataFile(user, id));
+            TryDelete(_root.Paths.MediaPeaksFile(user, id));
         }
         finally
         {
             media.Gate.Release();
         }
+    }
+
+    internal static FileStream OpenForReading(string path)
+    {
+        FileStreamOptions options = new()
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.ReadWrite | FileShare.Delete,
+            Options = FileOptions.Asynchronous,
+        };
+        return new FileStream(path, options);
     }
 
     // Called by MediaUpload: what the user has, plus what their other admitted uploads have received; an upload is

@@ -295,7 +295,7 @@ public sealed class MediaRouteTests
         byte[] fits = Wav(400);
         Assert.True(fits.Length <= 2048);
         Assert.Equal(HttpStatusCode.Created, (await UploadAsync(server, fits)).StatusCode);
-        Assert.Equal(2, Media(server).Length);
+        Assert.Equal(3, Media(server).Length);
     }
 
     [Fact]
@@ -422,7 +422,7 @@ public sealed class MediaRouteTests
         IEnumerable<string> all = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories);
         foreach (string file in all.Where(file => !file.EndsWith("store.lock", StringComparison.Ordinal)))
         {
-            Assert.Matches(@"^users/u[0-9a-f]{32}/media/m[0-9a-f]{32}\.(json|wav)$", Path.GetRelativePath(root, file).Replace('\\', '/'));
+            Assert.Matches(@"^users/u[0-9a-f]{32}/media/m[0-9a-f]{32}\.(json|wav|peaks)$", Path.GetRelativePath(root, file).Replace('\\', '/'));
         }
     }
 

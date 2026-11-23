@@ -77,6 +77,10 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add($"AudioLab:Media:MaxUploadBytes must be 1024 to {WavReader.MaxFileBytes}, the most a WAV file can hold.");
         }
+        if (media.PeaksRebuildWait <= TimeSpan.Zero || media.PeaksRebuildWait > TimeSpan.FromMinutes(1))
+        {
+            problems.Add("AudioLab:Media:PeaksRebuildWait must be above zero and at most one minute.");
+        }
         if (media.MaxConcurrentUploadsPerUser < 1)
         {
             problems.Add("AudioLab:Media:MaxConcurrentUploadsPerUser must be at least 1.");

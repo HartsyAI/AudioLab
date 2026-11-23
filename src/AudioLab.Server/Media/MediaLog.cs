@@ -15,6 +15,12 @@ internal static partial class MediaLog
     [LoggerMessage(EventId = 204, Level = LogLevel.Warning, Message = "The project {File} could not be read for a delete, so it was not searched: {Reason}")]
     public static partial void ProjectNotSearched(ILogger logger, string file, string reason);
 
+    [LoggerMessage(EventId = 205, Level = LogLevel.Information, Message = "Rebuilt the peak file {File} from its bytes.")]
+    public static partial void PeaksRebuilt(ILogger logger, string file);
+
+    [LoggerMessage(EventId = 206, Level = LogLevel.Warning, Message = "The peaks of {File} could not be rebuilt at start: {Reason}")]
+    public static partial void PeaksNotRebuilt(ILogger logger, string file, string reason);
+
     [LoggerMessage(EventId = 203, Level = LogLevel.Error, Message = "The media folder could not be read: {Reason}; its files count as missing.")]
     public static partial void FolderUnreadable(ILogger logger, string reason);
 }

@@ -12,6 +12,7 @@ public sealed class MediaService(
     IIdService ids,
     MediaOptions options,
     TimeProvider time,
+    PeakRebuilder rebuilder,
     ILogger<MediaService> logger)
 {
     private const int CopyBufferBytes = 80 * 1024;
@@ -43,11 +44,13 @@ public sealed class MediaService(
 
         MediaId id = ids.Next<MediaId>();
         string temp = root.Paths.MediaTempFile(user, id);
+        string tempPeaks = root.Paths.MediaPeaksTempFile(user, id);
         Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
         try
         {
             (long bytes, string hash) = await ReceiveAsync(body, temp, upload, cancellationToken);
-            WavFormat format = await CheckAsync(temp, cancellationToken);
+            (WavFormat format, PeakData peaks) = await CheckAsync(temp, cancellationToken);
+            await WritePeaksAsync(tempPeaks, peaks, cancellationToken);
             MediaRecord record = new()
             {
                 Id = id,
@@ -63,13 +66,14 @@ public sealed class MediaService(
                 Sha256 = hash,
                 Created = time.GetUtcNow(),
             };
-            return await store.CommitAsync(record, temp, cancellationToken);
+            return await store.CommitAsync(record, temp, tempPeaks, cancellationToken);
         }
         finally
         {
             // After a commit the file has been moved; this only removes what a failed, refused or cancelled upload left,
             // and must not hide the error that ended it.
             TryDelete(temp);
+            TryDelete(tempPeaks);
         }
     }
 
@@ -82,6 +86,40 @@ public sealed class MediaService(
     {
         (IReadOnlyList<MediaRecord> records, int refused) = store.List(user);
         return new MediaListing([.. records.Select(MediaSummary.Of)], refused);
+    }
+
+    /// <summary>Opens the peaks of a user's file, rebuilding them from its bytes first when they are missing or damaged.</summary>
+    /// <exception cref="MediaNotFoundException">The user has no such file, or its bytes turned out to be damaged and it is now refused.</exception>
+    /// <exception cref="MediaPeaksPendingException">A rebuild is running and was not ready within the wait.</exception>
+    public async Task<FileStream> OpenPeaksAsync(UserId user, MediaId id, CancellationToken cancellationToken)
+    {
+        MediaRecord record = store.Get(user, id);
+        string peaks = root.Paths.MediaPeaksFile(user, id);
+        if (!PeaksAreWhole(peaks, record))
+        {
+            Task rebuild = rebuilder.EnsureAsync(root.Paths.MediaDataFile(user, id), peaks);
+            Task first = await Task.WhenAny(rebuild, Task.Delay(options.PeaksRebuildWait, cancellationToken));
+            if (first != rebuild)
+            {
+                throw new MediaPeaksPendingException(Math.Max(1, (int)Math.Ceiling(options.PeaksRebuildWait.TotalSeconds)));
+            }
+            try
+            {
+                await rebuild;
+            }
+            catch (Exception exception) when (exception is MediaRejectedException or FileNotFoundException or DirectoryNotFoundException)
+            {
+                store.Refuse(user, id, "bytes: " + exception.Message);
+                throw new MediaNotFoundException();
+            }
+            if (store.FindIncludingPendingDelete(user, id) is null)
+            {
+                // Deleted while it was being rebuilt: the new file has no record to belong to.
+                TryDelete(peaks);
+                throw new MediaNotFoundException();
+            }
+        }
+        return store.OpenPeaks(user, id);
     }
 
     /// <summary>Opens the bytes of a user's file for reading.</summary>
@@ -164,7 +202,40 @@ public sealed class MediaService(
         }
     }
 
-    private static async Task<WavFormat> CheckAsync(string path, CancellationToken cancellationToken)
+    private static async Task WritePeaksAsync(string path, PeakData peaks, CancellationToken cancellationToken)
+    {
+        FileStreamOptions fileOptions = new()
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            Options = FileOptions.Asynchronous,
+        };
+        await using FileStream file = new(path, fileOptions);
+        await file.WriteAsync(PeakFile.Write(peaks), cancellationToken);
+        file.Flush(flushToDisk: true);
+    }
+
+    // Whole means a peak file whose header, table and length are what this very file needs; damage inside the values is not seen.
+    private static bool PeaksAreWhole(string path, MediaRecord record)
+    {
+        try
+        {
+            using FileStream stream = MediaStore.OpenForReading(path);
+            byte[] head = new byte[Math.Min(stream.Length, PeakFile.HeaderBytes + (PeakFile.LevelEntryBytes * PeakFile.MaxLevels))];
+            stream.ReadExactly(head);
+            PeakHeader header = PeakFile.ReadHeader(head);
+            long frames = (long)Math.Round(record.Duration * record.SampleRate);
+            return header.Channels == record.Channels && header.SampleRate == record.SampleRate
+                && header.Frames == frames && header.TotalBytes == stream.Length;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<(WavFormat Format, PeakData Peaks)> CheckAsync(string path, CancellationToken cancellationToken)
     {
         FileStreamOptions fileOptions = new()
         {
@@ -176,6 +247,6 @@ public sealed class MediaService(
         await using FileStream file = new(path, fileOptions);
         WavFormat format = WavReader.Read(file);
         await WavReader.RequireFiniteAsync(file, format, cancellationToken);
-        return format;
+        return (format, await PeakComputer.ComputeAsync(file, format, cancellationToken));
     }
 }
