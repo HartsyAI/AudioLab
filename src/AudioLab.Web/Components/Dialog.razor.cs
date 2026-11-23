@@ -54,6 +54,10 @@ public sealed partial class Dialog
     [Parameter]
     public string? Error { get; set; }
 
+    /// <summary>Raised after the dialog has closed and the browser has moved the focus, so a caller can put the focus somewhere else.</summary>
+    [Parameter]
+    public EventCallback OnClosed { get; set; }
+
     /// <summary>Raised when the user confirms, by the button or by Enter in a field; the parent closes the dialog when it succeeded.</summary>
     [Parameter]
     public EventCallback OnConfirm { get; set; }
@@ -112,6 +116,7 @@ public sealed partial class Dialog
         {
             await OpenChanged.InvokeAsync(false);
         }
+        await OnClosed.InvokeAsync();
     }
 
     private Task RequestCloseAsync()
