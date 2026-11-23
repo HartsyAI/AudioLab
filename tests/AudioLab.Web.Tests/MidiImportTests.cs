@@ -8,7 +8,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>Importing a .mid file through the seam: the stream goes to it, the clip is selectable only once the page holds it, and a refusal is shown.</summary>
+/// <summary>Importing a .mid file through the seam: the stream reaches it, the clip is selectable once the page holds it, a refusal shows.</summary>
 public sealed class MidiImportTests
 {
     private static readonly TrackId _track = TrackId.From("keys");
@@ -71,7 +71,8 @@ public sealed class MidiImportTests
     public async Task ARefusalIsTheServersReasonAndSelectsNothing()
     {
         await using LiveProject live = await OpenAsync();
-        FakeTransfer transfer = new() { Refusal = new ApiException(HttpStatusCode.UnprocessableEntity, "Not an accepted MIDI file: it is format 2.") };
+        ApiException refusal = new(HttpStatusCode.UnprocessableEntity, "Not an accepted MIDI file: it is format 2.");
+        FakeTransfer transfer = new() { Refusal = refusal };
         using MemoryStream file = new([1]);
 
         MidiImportOutcome outcome = await new MidiEditor(live).ImportAsync(transfer, _track, "Verse", 4, file);

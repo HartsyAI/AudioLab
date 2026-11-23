@@ -6,12 +6,5 @@
     }
     <Button Name="Import MIDI file" Disabled="@(Transfer.Unavailable is not null || !CanEdit)"
             DisabledReason="@(Transfer.Unavailable ?? Reason)" OnClick="Choose">Import .mid</Button>
-    @if (Transfer.ExportAddress(Project, Clip) is { } address)
-    {
-        <Button Name="Export clip as MIDI file" Href="@address.ToString()" download>Export .mid</Button>
-    }
-    else
-    {
-        <Button Name="Export clip as MIDI file" Disabled="true" DisabledReason="@Transfer.Unavailable">Export .mid</Button>
-    }
+    <MidiExportButton Project="Project" Clip="Clip" />
 </span>

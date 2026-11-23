@@ -266,7 +266,7 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
     }
 
     /// <summary>Waits until the document the page holds is of a revision or a later one, for at most a few seconds.</summary>
-    /// <remarks>A route that is not a command (a file import) answers with the revision it made, and the page waits to hold it before it selects.</remarks>
+    /// <remarks>A route that is not a command (a file import) answers with the revision it made; the page waits to hold it, then selects.</remarks>
     /// <param name="revision">The revision that holds what the caller needs.</param>
     /// <param name="cancellationToken">Stops the wait.</param>
     /// <returns>Whether the page holds that revision now.</returns>

@@ -1,0 +1,8 @@
+@if (Transfer.ExportAddress(Project, Clip) is { } address)
+{
+    <Button Name="Export clip as MIDI file" Href="@address.ToString()" download>Export .mid</Button>
+}
+else
+{
+    <Button Name="Export clip as MIDI file" Disabled="true" DisabledReason="@Transfer.Unavailable">Export .mid</Button>
+}
