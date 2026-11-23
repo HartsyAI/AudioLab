@@ -50,9 +50,23 @@
     min-height: 0;
 }
 
-/* The waveform is a stand-in until media exists, so it is drawn fainter than a real one will be. */
-svg[data-peaks="placeholder"] {
-    opacity: 0.55;
+/* While the peaks load there is nothing to draw, so the clip keeps a quiet line where the silence of the waveform will be. */
+svg[data-peaks="loading"] {
+    top: 50%;
+    height: 0;
+    border-top: 1px solid color-mix(in srgb, var(--clip) 40%, transparent);
+}
+
+.wave-note {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-6);
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: var(--font-size-label);
+    white-space: nowrap;
 }
 
 svg {

@@ -30,9 +30,10 @@ internal sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMess
             request.RequestUri!.PathAndQuery,
             sent,
             request.Content?.Headers.ContentType?.MediaType,
-            request.Content?.Headers.ContentLength));
+            request.Content?.Headers.ContentLength,
+            request.Headers.Range?.ToString()));
         return answer(request);
     }
 }
 
-internal sealed record SentRequest(HttpMethod Method, string Path, byte[] Body, string? ContentType, long? ContentLength);
+internal sealed record SentRequest(HttpMethod Method, string Path, byte[] Body, string? ContentType, long? ContentLength, string? Range);
