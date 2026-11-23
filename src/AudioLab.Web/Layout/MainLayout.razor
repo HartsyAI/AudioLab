@@ -1,11 +1,12 @@
 @inherits LayoutComponentBase
 
 <div class="shell">
-    <ErrorBoundary>
+    <ErrorBoundary @ref="_boundary">
         <ChildContent>@Body</ChildContent>
-        <ErrorContent Context="problem">
-            <EmptyState Heading="Something went wrong" Message="@problem.Message">
-                <Button Variant="ButtonVariant.Primary" Href="">Go to your projects</Button>
+        <ErrorContent>
+            <EmptyState Heading="Something went wrong" Message="This screen stopped working. Try again, or go back to your projects.">
+                <Button Variant="ButtonVariant.Primary" OnClick="Recover">Try again</Button>
+                <Button Href="">Go to your projects</Button>
             </EmptyState>
         </ErrorContent>
     </ErrorBoundary>
