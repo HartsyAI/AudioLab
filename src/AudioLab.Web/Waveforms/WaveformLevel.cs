@@ -3,10 +3,8 @@ namespace AudioLab.Web.Waveforms;
 /// <summary>Chooses which zoom level of a peak file a clip is drawn from.</summary>
 public static class WaveformLevel
 {
-    /// <summary>
-    /// The coarsest level that still has a peak for every pixel (its frames a peak are at most the frames a pixel covers), or the
-    /// finest when the view is closer than that. Coarser would blur the picture; finer would load and scan more than a pixel can show.
-    /// </summary>
+    /// <summary>The coarsest level whose frames a peak are at most the frames a pixel covers, or the finest when the view is closer than that.</summary>
+    /// <remarks>Coarser would blur the picture; finer would load and scan more than a pixel can show.</remarks>
     /// <param name="framesPerPeak">The levels' frames a peak, finest first.</param>
     /// <param name="sampleRate">Frames a second of the media file.</param>
     /// <param name="pixelsPerSecond">How many pixels a second of the timeline takes.</param>

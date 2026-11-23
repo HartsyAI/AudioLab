@@ -37,10 +37,8 @@ public sealed class PeakStore(MediaApi api, TimeProvider clock, long budget = Pe
     /// <summary>How many bytes of peak values are held.</summary>
     public long HeldBytes => _bytes;
 
-    /// <summary>
-    /// What is known of a file's peaks at the zoom of <paramref name="pixelsPerSecond"/>, asking for what is missing. A level that is
-    /// ready is returned with its file's header; a file that is still loading, or failed, is returned as that.
-    /// </summary>
+    /// <summary>What is known of a file's peaks at the zoom of <paramref name="pixelsPerSecond"/>, asking for what is missing.</summary>
+    /// <remarks>A level that is ready is returned with its file's header; a file that is still loading, or failed, is returned as that.</remarks>
     public PeakView Get(string media, double pixelsPerSecond)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(media);

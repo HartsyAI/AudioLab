@@ -22,10 +22,8 @@ public static class WavePath
     /// <summary>How many columns a clip of this width is drawn with: one for each pixel, never more than <see cref="MaxColumns"/>.</summary>
     public static int Columns(double widthPixels) => Math.Clamp((int)Math.Round(widthPixels), 2, MaxColumns);
 
-    /// <summary>
-    /// The path of the lowest and highest sample of every column of the window, over all channels: the top edge from left to right, then
-    /// the bottom edge back, in a 1000 by 100 box with silence on the middle line.
-    /// </summary>
+    /// <summary>The path of the lowest and highest sample of every column of the window, over all channels, in a 1000 by 100 box.</summary>
+    /// <remarks>The top edge runs from left to right, then the bottom edge back; silence is on the middle line.</remarks>
     /// <param name="level">The level of peaks to draw from.</param>
     /// <param name="channels">Channels of the media file.</param>
     /// <param name="sampleRate">Frames a second of the media file.</param>
