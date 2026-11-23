@@ -14,6 +14,7 @@ public sealed class MediaService(
     MediaOptions options,
     TimeProvider time,
     PeakRebuilder rebuilder,
+    IMediaQuota quota,
     ILogger<MediaService> logger)
 {
     private const int CopyBufferBytes = 80 * 1024;
@@ -81,6 +82,24 @@ public sealed class MediaService(
     /// <summary>A user's file.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
     public MediaRecord Get(UserId user, MediaId id) => store.Get(user, id);
+
+    /// <summary>The limits that apply to the user and what they have used, as an upload would be judged now.</summary>
+    /// <exception cref="IOException">The user's media folder cannot be read.</exception>
+    public async Task<MediaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken)
+    {
+        MediaQuotaLimits limits = await quota.LimitsAsync(user, cancellationToken);
+        (MediaUsage usage, int running) = store.CurrentOf(user);
+        return new MediaLimits(
+            options.MaxUploadBytes,
+            limits.MaxFiles,
+            limits.MaxBytes,
+            options.MaxConcurrentUploadsPerUser,
+            usage.Files,
+            usage.Bytes,
+            Math.Max(0, limits.MaxFiles - usage.Files),
+            Math.Max(0L, limits.MaxBytes - usage.Bytes),
+            running);
+    }
 
     /// <summary>The user's files, newest first.</summary>
     public MediaListing List(UserId user)

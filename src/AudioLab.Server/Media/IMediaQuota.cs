@@ -12,4 +12,9 @@ public interface IMediaQuota
     /// <param name="incomingBytes">The size of the file, or 0 when it is not known yet.</param>
     /// <param name="cancellationToken">Cancels the question.</param>
     public ValueTask<string?> RefusalAsync(UserId user, MediaUsage usage, long incomingBytes, CancellationToken cancellationToken);
+
+    /// <summary>What <paramref name="user"/> may keep, to tell a client before it uploads; the limits <see cref="RefusalAsync"/> enforces.</summary>
+    /// <param name="user">The user the door resolved.</param>
+    /// <param name="cancellationToken">Cancels the question.</param>
+    public ValueTask<MediaQuotaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken);
 }
