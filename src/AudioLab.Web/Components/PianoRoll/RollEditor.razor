@@ -29,6 +29,12 @@
                     DisabledReason="@Actions.Reason"
                     OnClick="() => StepLength(1)">Longer</Button>
         </span>
+        <span class="group">
+            <Button Name="Import MIDI file" Disabled="@(Transfer.Unavailable is not null || !Actions.CanEdit)"
+                    DisabledReason="@(Transfer.Unavailable ?? Actions.Reason)" OnClick="ImportFileAsync">Import .mid</Button>
+            <Button Name="Export clip as MIDI file" Disabled="@(Transfer.Unavailable is not null)" DisabledReason="@Transfer.Unavailable"
+                    OnClick="ExportFileAsync">Export .mid</Button>
+        </span>
     </div>
     <div class="scroll" id="roll-scroll">
         <div class="board" style="grid-template-columns: var(--roll-keys) @Css.Px(Geometry.Width)">

@@ -131,6 +131,12 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
     private NoteAudition Sound { get; set; } = default!;
 
     [Inject]
+    private IMidiTransfer Transfer { get; set; } = default!;
+
+    [Inject]
+    private SessionSelection Selection { get; set; } = default!;
+
+    [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
 
     [Inject]
@@ -526,6 +532,30 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         if (result.Succeeded && edit.SelectCreated && result.Created.Count > 0)
         {
             State.Select(result.Created.Select(id => new NoteId(int.Parse(id, CultureInfo.InvariantCulture))));
+        }
+    }
+
+    // ----- .mid files: the seam of IMidiTransfer, which has no implementation yet
+
+    private async Task ImportFileAsync()
+    {
+        EditResult result = await Transfer.ImportAsync(Track.Id, MidiClipPlan.NextStart(Document, Track));
+        if (!result.Succeeded && result.Refusal is { } reason)
+        {
+            Toasts.Show(ToastKind.Warning, reason);
+        }
+        else if (result.Created.Count > 0)
+        {
+            Selection.SelectClip(Track.Id, ClipId.From(result.Created[0]));
+        }
+    }
+
+    private async Task ExportFileAsync()
+    {
+        EditResult result = await Transfer.ExportAsync(Clip.Id);
+        if (!result.Succeeded && result.Refusal is { } reason)
+        {
+            Toasts.Show(ToastKind.Warning, reason);
         }
     }
 
