@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using AudioLab.Web.Media;
 using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Web.Services;
@@ -43,6 +44,34 @@ public sealed class SessionEditor(LiveProject live)
             try
             {
                 return await live.SendAsync(new MoveClip { Project = project, Clip = clip, Start = start, Track = track }, gesture);
+            }
+            finally
+            {
+                await live.EndGestureAsync(gesture);
+            }
+        });
+    }
+
+    /// <summary>Adds a media file as a clip: one gesture of one command, one undo step, with the file's own duration sent as the server measured it.</summary>
+    public Task<EditResult> AddClipAsync(MediaPlacement placement)
+    {
+        string name = Path.GetFileNameWithoutExtension(placement.File.Name);
+        return RunAsync(async project =>
+        {
+            string gesture = live.NewGesture();
+            try
+            {
+                return await live.SendAsync(
+                    new AddClip
+                    {
+                        Project = project,
+                        Track = placement.Track,
+                        Media = MediaId.From(placement.File.Id),
+                        Duration = placement.File.Duration,
+                        Start = placement.Start,
+                        Name = string.IsNullOrWhiteSpace(name) ? null : name,
+                    },
+                    gesture);
             }
             finally
             {

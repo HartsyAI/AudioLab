@@ -38,4 +38,17 @@ public sealed class TrackLayout
         }
         return new TrackLayout(tops, heights, top);
     }
+
+    /// <summary>The row a point of the lanes falls in; a point below the last row is in the last row.</summary>
+    public int RowAt(double y)
+    {
+        for (int row = 0; row < Tops.Count; row++)
+        {
+            if (y < Tops[row] + Heights[row])
+            {
+                return row;
+            }
+        }
+        return Tops.Count - 1;
+    }
 }

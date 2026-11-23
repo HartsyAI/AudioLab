@@ -130,7 +130,7 @@ public sealed class ClipDrag
         Left = Math.Max(0, laneX - _grabX);
         Top = Math.Clamp(laneY - _grabY, 0, Math.Max(0, _layout.Total - Height));
         TargetStart = Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
-        int hovered = RowAt(laneY);
+        int hovered = _layout.RowAt(laneY);
         if (KindFits(_kinds[hovered]))
         {
             TargetRow = hovered;
@@ -163,31 +163,8 @@ public sealed class ClipDrag
         return new ClipMove(Clip, TargetStart, sameTrack ? null : _tracks[TargetRow]);
     }
 
-    // The grid as the lanes draw it: a musical grid is counted in beats from the start, so every line sits on a subdivision of its bar
-    // whatever the tempo map does before it (the drawn bars come from the same map); a grid in seconds is counted in seconds.
-    private double Snap(double seconds)
-    {
-        if (GridRules.Beats(_grid, _signature) is { } step && step > 0)
-        {
-            double beats = Math.Round(_tempo.BeatsAt(seconds) / step) * step;
-            return Math.Max(0, _tempo.TimeAtBeat(beats));
-        }
-        double length = GridRules.StepSeconds(_grid, _tempo, _signature, seconds);
-        return length > 0 ? Math.Round(seconds / length) * length : seconds;
-    }
+    private double Snap(double seconds) => GridSnap.Seconds(_tempo, _signature, _grid, seconds);
 
     // An audio clip goes on an audio track and a MIDI clip on an instrument track (D22).
     private bool KindFits(TrackKind kind) => kind == (_midi ? TrackKind.Instrument : TrackKind.Audio);
-
-    private int RowAt(double laneY)
-    {
-        for (int row = 0; row < _layout.Tops.Count; row++)
-        {
-            if (laneY < _layout.Tops[row] + _layout.Heights[row])
-            {
-                return row;
-            }
-        }
-        return _layout.Tops.Count - 1;
-    }
 }

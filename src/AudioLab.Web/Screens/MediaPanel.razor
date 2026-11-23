@@ -35,7 +35,7 @@
             @foreach (MediaSummary file in Library.Files)
             {
                 <MediaItem @key="file.Id" File="file" Selected="file.Id == _selected" TabStop="file.Id == TabStopId" OnSelect="Select"
-                           OnKey="KeyAsync" OnDelete="BeginDelete" />
+                           OnKey="KeyAsync" OnDelete="BeginDelete" OnPointerDown="PressAsync" />
             }
         </ul>
     }

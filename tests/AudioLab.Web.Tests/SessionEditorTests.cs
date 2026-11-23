@@ -39,6 +39,49 @@ public sealed class SessionEditorTests
         }
     }
 
+    /// <summary>Adding a file is one gesture of one clip_add that carries the file duration exactly as the server measured it.</summary>
+    [Fact]
+    public async Task AddingAFileIsOneGestureOfOneClipAddThatCarriesTheFileDurationExactly()
+    {
+        (LiveProject live, SessionEditor editor) = await OpenAsync();
+        await using (live)
+        {
+            _hub.Reply = new CommandReply(true, true, 1, [], ["clp_new"]);
+            MediaSummary file = new(
+                "med_9", "Kick drum.v2.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 0.30000000000000004, 44100, 2, 100,
+                new string('0', 64), DateTimeOffset.UnixEpoch);
+
+            EditResult result = await editor.AddClipAsync(new Media.MediaPlacement(file, TrackId.From("t2"), 5.5));
+
+            (string command, string json, string? gesture) = Assert.Single(_hub.Sent);
+            Assert.Equal("clip_add", command);
+            Assert.NotNull(gesture);
+            Assert.Equal($"end song {gesture}", _hub.Calls[^1]);
+            AddClip sent = Assert.IsType<AddClip>(CoreCommands.CreateRegistry().Parse(command, json).Command);
+            Assert.Equal((TrackId.From("t2"), MediaId.From("med_9"), 0.30000000000000004, 5.5), (sent.Track, sent.Media, sent.Duration, sent.Start));
+            Assert.Equal("Kick drum.v2", sent.Name);
+            Assert.Equal(["clp_new"], result.Created);
+        }
+    }
+
+    /// <summary>A refused add says why in the server words.</summary>
+    [Fact]
+    public async Task ARefusedAddSaysWhyInTheServerWords()
+    {
+        (LiveProject live, SessionEditor editor) = await OpenAsync();
+        await using (live)
+        {
+            _hub.Reply = new CommandReply(false, false, 1, [new HubCommandError(CommandErrorCode.NotFound, "There is no such media file.")], []);
+            MediaSummary file = new(
+                "med_9", "a.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 1, 44100, 2, 100, new string('0', 64), DateTimeOffset.UnixEpoch);
+
+            EditResult result = await editor.AddClipAsync(new Media.MediaPlacement(file, TrackId.From("t2"), 0));
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("There is no such media file.", result.Refusal);
+        }
+    }
+
     /// <summary>A move is one gesture of one command with absolute targets and the gesture is closed after it.</summary>
     [Fact]
     public async Task AMoveIsOneGestureOfOneCommandWithAbsoluteTargetsAndTheGestureIsClosedAfterIt()

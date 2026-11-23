@@ -1,0 +1,17 @@
+@implements IDisposable
+
+@if (State.Current is { Active: true } drag)
+{
+    <div class="drag-chip" data-refused="@(drag.Refusal is null ? "false" : "true")" aria-hidden="true"
+         style="left: @Css.Px(drag.PointerX + 12); top: @Css.Px(drag.PointerY + 12)">
+        <span class="chip-name">@drag.File.Name</span>
+        @if (drag.Refusal is { } reason)
+        {
+            <span class="chip-reason">@reason</span>
+        }
+        else
+        {
+            <span class="chip-detail">@MediaText.Length(drag.File.Duration)</span>
+        }
+    </div>
+}

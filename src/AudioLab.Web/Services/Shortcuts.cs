@@ -45,10 +45,13 @@ public static class Shortcuts
     /// <summary>Delete the media file that has the focus in the library.</summary>
     public static readonly Shortcut DeleteMedia = new("media.delete", "Delete media file", "Delete", Media);
 
+    /// <summary>Add the media file that has the focus in the library to the arrangement.</summary>
+    public static readonly Shortcut AddMedia = new("media.add", "Add to the arrangement", "Enter", Media);
+
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
-        DeleteMedia,
+        DeleteMedia, AddMedia,
     ];
 }

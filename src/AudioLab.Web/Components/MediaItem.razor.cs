@@ -1,5 +1,6 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Media;
+using AudioLab.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -36,6 +37,10 @@ public sealed partial class MediaItem
     [Parameter]
     public EventCallback<(MediaSummary File, KeyboardEventArgs Key)> OnKey { get; set; }
 
+    /// <summary>Raised with the file and the press when the primary button goes down on it, which may begin a drag onto the lanes.</summary>
+    [Parameter]
+    public EventCallback<(MediaSummary File, PointerEventArgs Press)> OnPointerDown { get; set; }
+
     /// <summary>Raised with the file when its delete control is pressed.</summary>
     [Parameter]
     public EventCallback<MediaSummary> OnDelete { get; set; }
@@ -55,6 +60,8 @@ public sealed partial class MediaItem
 
     private string Description => $"{File!.Name}, {MediaText.Length(File.Duration)} long, {MediaText.Format(File)}, {MediaText.Size(File.Bytes)}";
 
+    private string Hint => $"{File!.Name}. Drag it onto an audio track, or press {Shortcuts.AddMedia.Display} to add it at the playhead.";
+
     private string StateName => Job!.State.ToString().ToLowerInvariant();
 
     private double? ProgressFraction => Job!.State == UploadState.Sending ? null : Job.State == UploadState.Queued ? 0 : Job.Fraction;
@@ -67,6 +74,8 @@ public sealed partial class MediaItem
     };
 
     private Task SelectAsync() => OnSelect.InvokeAsync(File!);
+
+    private Task PressAsync(PointerEventArgs press) => press.Button == 0 ? OnPointerDown.InvokeAsync((File!, press)) : Task.CompletedTask;
 
     private Task KeyAsync(KeyboardEventArgs key) => OnKey.InvokeAsync((File!, key));
 

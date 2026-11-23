@@ -1,0 +1,34 @@
+.drag-chip {
+    position: fixed;
+    z-index: var(--z-popover);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 22rem;
+    padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-overlay);
+    color: var(--text);
+    font-size: var(--font-size-body);
+    pointer-events: none;
+}
+
+.chip-name {
+    overflow: hidden;
+    font-weight: var(--font-weight-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chip-detail {
+    color: var(--text-dim);
+    font-size: var(--font-size-label);
+    font-variant-numeric: tabular-nums;
+}
+
+.chip-reason {
+    color: var(--text-soft);
+    font-size: var(--font-size-label);
+    line-height: 1.3;
+}

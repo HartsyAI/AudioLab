@@ -2,7 +2,7 @@
 {
     <li class="media-item" data-kind="file" data-selected="@(Selected ? "true" : "false")">
         <button type="button" id="@ElementId" class="media-main" tabindex="@(TabStop ? 0 : -1)" aria-pressed="@(Selected ? "true" : "false")"
-                aria-label="@Description" title="@File.Name" @onclick="SelectAsync" @onkeydown="KeyAsync">
+                aria-label="@Description" title="@Hint" @onclick="SelectAsync" @onkeydown="KeyAsync" @onpointerdown="PressAsync">
             <span class="media-name">@File.Name</span>
             <span class="media-length">@MediaText.Length(File.Duration)</span>
             <span class="media-format">@MediaText.Format(File)</span>

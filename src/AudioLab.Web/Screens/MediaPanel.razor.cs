@@ -3,6 +3,7 @@ using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Media;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -27,8 +28,28 @@ public sealed partial class MediaPanel : IDisposable
 
     private CancellationTokenSource? _request;
 
+    /// <summary>The document, which the lanes a file is dragged onto are laid out from.</summary>
+    [Parameter, EditorRequired]
+    public ProjectDocument Document { get; set; } = null!;
+
+    /// <summary>What the screen can do to the project, and why not when it cannot.</summary>
+    [Parameter, EditorRequired]
+    public SessionActions Actions { get; set; } = null!;
+
     [Inject]
     private MediaLibrary Library { get; set; } = default!;
+
+    [Inject]
+    private MediaDragger Dragger { get; set; } = default!;
+
+    [Inject]
+    private SessionSelection Selection { get; set; } = default!;
+
+    [Inject]
+    private SessionPlayhead Playhead { get; set; } = default!;
+
+    [Inject]
+    private ToastService Toasts { get; set; } = default!;
 
     [Inject]
     private IElementClick Click { get; set; } = default!;
@@ -117,12 +138,43 @@ public sealed partial class MediaPanel : IDisposable
 
     private void RetryUpload(UploadJob job) => Library.Retry(job.Id);
 
-    private void KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)
+    // A press on a file selects it and, when the project can be edited, may become a drag onto the lanes; nothing is sent until the release.
+    private void PressAsync((MediaSummary File, PointerEventArgs Press) down)
     {
+        Select(down.File);
+        if (Actions.CanEdit)
+        {
+            Dragger.Begin(down.File, Document, down.Press.ClientX, down.Press.ClientY, Actions.AddClip);
+        }
+    }
+
+    // The keyboard path to the same edit: the selected audio track, at the playhead or after the selected clip.
+    private Task AddAtInsertionPointAsync(MediaSummary file)
+    {
+        if (!Actions.CanEdit)
+        {
+            Toasts.Show(ToastKind.Warning, $"The file was not added. {Actions.Reason}");
+            return Task.CompletedTask;
+        }
+        (MediaPlacement? placement, string? refusal) = ClipInsertion.For(Document, file, Selection.Track, Selection.Clip, Playhead.Seconds);
+        if (placement is not { } where)
+        {
+            Toasts.Show(ToastKind.Error, refusal ?? "The file could not be added.");
+            return Task.CompletedTask;
+        }
+        return Actions.AddClip(where);
+    }
+
+    private Task KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)
+    {
+        if (Shortcuts.AddMedia.Matches(press.Key))
+        {
+            return AddAtInsertionPointAsync(press.File);
+        }
         if (Shortcuts.DeleteMedia.Matches(press.Key))
         {
             BeginDelete(press.File);
-            return;
+            return Task.CompletedTask;
         }
         IReadOnlyList<MediaSummary> files = Library.Files;
         int at = files.ToList().FindIndex(file => file.Id == press.File.Id);
@@ -139,6 +191,7 @@ public sealed partial class MediaPanel : IDisposable
             _selected = files[next].Id;
             _focus = _selected;
         }
+        return Task.CompletedTask;
     }
 
     private void BeginDelete(MediaSummary file)

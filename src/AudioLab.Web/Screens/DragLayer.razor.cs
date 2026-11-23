@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Media;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
@@ -15,6 +16,9 @@ public sealed partial class DragLayer : IDisposable
     private ClipDragState State { get; set; } = default!;
 
     [Inject]
+    private MediaDragState MediaDrags { get; set; } = default!;
+
+    [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 
     [Inject]
@@ -26,12 +30,14 @@ public sealed partial class DragLayer : IDisposable
     public void Dispose()
     {
         State.Changed -= OnChanged;
+        MediaDrags.Changed -= OnChanged;
     }
 
     /// <inheritdoc />
     protected override void OnInitialized()
     {
         State.Changed += OnChanged;
+        MediaDrags.Changed += OnChanged;
     }
 
     private void OnChanged() => StateHasChanged();
