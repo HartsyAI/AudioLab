@@ -58,13 +58,21 @@ public sealed class CommandWriteTests
         {
             return JsonSerializer.Deserialize<object>(options[0].GetRawText());
         }
-        string type = schema.TryGetProperty("type", out JsonElement kind) ? (kind.ValueKind == JsonValueKind.Array ? kind[0].GetString()! : kind.GetString()!) : "string";
+        string type = "string";
+        if (schema.TryGetProperty("type", out JsonElement kind))
+        {
+            type = kind.ValueKind == JsonValueKind.Array ? kind[0].GetString()! : kind.GetString()!;
+        }
         switch (type)
         {
             case "object":
                 Dictionary<string, object?> members = [];
-                HashSet<string> required = schema.TryGetProperty("required", out JsonElement names) ? [.. names.EnumerateArray().Select(name => name.GetString()!)] : [];
-                foreach (JsonProperty property in schema.GetProperty("properties").EnumerateObject().Where(property => required.Contains(property.Name)))
+                HashSet<string> required = schema.TryGetProperty("required", out JsonElement names)
+                    ? [.. names.EnumerateArray().Select(name => name.GetString()!)]
+                    : [];
+                JsonElement.ObjectEnumerator all = schema.GetProperty("properties").EnumerateObject();
+                IEnumerable<JsonProperty> needed = all.Where(property => required.Contains(property.Name));
+                foreach (JsonProperty property in needed)
                 {
                     members[property.Name] = Value(property.Value);
                 }
