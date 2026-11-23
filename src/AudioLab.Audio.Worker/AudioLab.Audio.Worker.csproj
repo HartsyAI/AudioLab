@@ -12,6 +12,19 @@
     <WasmDebugLevel>0</WasmDebugLevel>
   </PropertyGroup>
 
+  <!-- Ahead-of-time compilation of the engine, for a publish: `-p:AudioLabWorkerAot=true`, which needs the wasm-tools workload (docs/engine-aot.md).
+       It is a property of its own and not RunAOTCompilation, which would compile the page's runtime as well. -->
+  <PropertyGroup Condition="'$(AudioLabWorkerAot)' == 'true'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(AudioLabWorkerAot)' == 'true'">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AudioLabAot</_Parameter1>
+      <_Parameter2>true</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>

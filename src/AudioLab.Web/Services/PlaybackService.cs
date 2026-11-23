@@ -79,6 +79,12 @@ public sealed class PlaybackService : IDisposable
     /// <summary>Whether the engine keeps up with the audio device.</summary>
     public PlaybackHealth Health => _health.Health;
 
+    /// <summary>Whether the engine runs ahead-of-time compiled code; false until the engine has reported.</summary>
+    public bool CompiledAhead => _status?.CompiledAhead ?? false;
+
+    /// <summary>A sentence for a project the engine, as built, is unlikely to keep up with, or null: the warning comes before the dropout.</summary>
+    public string? LoadWarning => _status is not null && _project?.Document is { } document ? EngineLoadAdvice.Warning(document, CompiledAhead) : null;
+
     /// <summary>A sentence about a miss for the person at the controls, or null.</summary>
     public string? HealthMessage => _health.Message;
 

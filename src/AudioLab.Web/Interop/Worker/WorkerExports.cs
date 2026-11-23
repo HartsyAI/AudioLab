@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 using AudioLab.Audio.Live;
@@ -16,7 +17,7 @@ public static partial class WorkerExports
     public static void Start(string baseAddress, int sampleRate, int chunkFrames)
     {
         HttpClient http = new() { BaseAddress = new Uri(baseAddress) };
-        _host = new LiveHost(new HttpClipSource(http), sampleRate, chunkFrames, _ => Task.Delay(1));
+        _host = new LiveHost(new HttpClipSource(http), sampleRate, chunkFrames, _ => Task.Delay(1), CompiledAhead());
     }
 
     /// <summary>Makes a document, as <c>ProjectJson</c> writes it, the one to play.</summary>
@@ -50,6 +51,10 @@ public static partial class WorkerExports
     /// <summary>The status as JSON, or nothing before <see cref="Start"/>.</summary>
     [JSExport]
     public static string ReadStatus() => _host?.ReadStatus() ?? string.Empty;
+
+    // The worker project says in its own metadata whether it was published with ahead-of-time compilation (AudioLabWorkerAot).
+    private static bool CompiledAhead() =>
+        typeof(WorkerExports).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any(item => item.Key == "AudioLabAot" && item.Value == "true");
 
     private static LiveHost Host => _host ?? throw new InvalidOperationException("The engine host has not been started.");
 }

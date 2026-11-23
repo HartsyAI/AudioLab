@@ -36,6 +36,7 @@ public sealed class LiveHost
     private readonly byte[] _chunk;
     private readonly int _chunkFrames;
     private readonly int _rate;
+    private readonly bool _compiledAhead;
     private ProjectDocument? _wanted;
     private ProjectDocument? _built;
     private long _wantedRevision = -1;
@@ -47,13 +48,14 @@ public sealed class LiveHost
     private long _lastRender;
 
     /// <summary>Creates a host that renders chunks of <paramref name="chunkFrames"/> frames at <paramref name="sampleRate"/>.</summary>
-    public LiveHost(IClipSource clips, int sampleRate, int chunkFrames, Func<CancellationToken, Task> pause)
+    public LiveHost(IClipSource clips, int sampleRate, int chunkFrames, Func<CancellationToken, Task> pause, bool compiledAhead = false)
     {
         ArgumentNullException.ThrowIfNull(clips);
         ArgumentNullException.ThrowIfNull(pause);
         ArgumentOutOfRangeException.ThrowIfLessThan(chunkFrames, 1);
         _clips = clips;
         _pause = pause;
+        _compiledAhead = compiledAhead;
         _rate = sampleRate;
         _chunkFrames = chunkFrames;
         _engine = new LiveEngine(sampleRate, chunkFrames);
@@ -148,7 +150,7 @@ public sealed class LiveHost
         LevelPair master = count == 0 ? default : new LevelPair(levels.Peaks[count * 2], levels.Peaks[(count * 2) + 1]);
         HostStatus status = new(
             _engine.State, _engine.Position, _rate, _engine.Revision, _loading, _problem, stats.Chunks, stats.Overruns, _maxRenderMs,
-            _longestGapMs, master, tracks);
+            _longestGapMs, master, tracks, _compiledAhead);
         _maxRenderMs = 0;
         _longestGapMs = 0;
         return JsonSerializer.Serialize(status, PlaybackJsonContext.Default.HostStatus);
