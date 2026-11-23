@@ -7,7 +7,9 @@ namespace AudioLab.Audio.Instruments;
 /// The old DAW's rules: a muted clip plays nothing and covers nothing; a later clip covers earlier ones, so a note that starts under it
 /// does not sound and a note that is running when it starts is let go there (audit row 31); a note sounds no longer than its clip, and
 /// a sustain pedal (controller 64, down from 64) that is down when the note ends holds it until the pedal comes up or the clip ends.
-/// Note times are seconds, so no tempo enters here. The work is quadratic in the clips of one track that overlap, as the audio layering is.
+/// Note times are seconds, so no tempo enters here. It does not use the audio layering of <see cref="AudioLab.Core.Rules.LayerRules"/>, which
+/// cuts spans with fades and seams; a note is covered by any later unmuted clip that reaches it. The work is quadratic in the clips of one
+/// track that overlap, as the audio layering is.
 /// </remarks>
 internal static class NoteSchedule
 {

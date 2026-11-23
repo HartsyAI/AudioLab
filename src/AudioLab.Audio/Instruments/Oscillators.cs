@@ -5,7 +5,8 @@ namespace AudioLab.Audio.Instruments;
 /// <summary>The oscillator shapes of the synth, as a function of a phase in [0, 1) and the phase step of one sample.</summary>
 /// <remarks>
 /// Every wave starts at phase 0 as the Web Audio oscillator the old DAW used does: a sine, a triangle and a sawtooth at zero going up,
-/// a square at its high level. The sawtooth and the square are band-limited with PolyBLEP, which removes the aliasing of their jumps;
+/// a square rising from zero to its high level in its first sample. The sawtooth and the square are band-limited with PolyBLEP, which
+/// removes the aliasing of their jumps;
 /// the triangle is not, since its harmonics fall off as the square of their number. No oscillator uses a random number.
 /// </remarks>
 internal static class Oscillators
@@ -41,7 +42,7 @@ internal static class Oscillators
         return (phase < 0.5 ? 1 : -1) + Blep(phase, step) - Blep(shifted, step);
     }
 
-    // The correction of a unit upward jump at phase 0, spread over the sample before it and the sample after.
+    // The correction for a jump of 2 (from -1 up to 1) at phase 0, spread over the sample before it and the sample after.
     private static double Blep(double phase, double step)
     {
         if (phase < step)
