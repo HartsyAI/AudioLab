@@ -2,6 +2,7 @@ using AudioLab.Audio;
 using AudioLab.Audio.Instruments;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
@@ -49,6 +50,7 @@ public sealed class ExportService(
         {
             ProjectDocument document = await reader.CurrentAsync(user, project, linked.Token);
             CheckTracks(document, request);
+            CheckLength(document, kind, request);
             await RequireMediaAsync(document, linked.Token);
             RenderMedia renderMedia = await media.OpenAsync(user, request.SampleRate, linked.Token);
             PreparedExport export = await MeasureAsync(document, kind, request, renderMedia, new Hold(lease, limit, linked, requestAborted));
@@ -93,7 +95,8 @@ public sealed class ExportService(
         catch (MissingMediaException exception)
         {
             string message = "A clip or an instrument of the project plays a media file that is not available.";
-            throw new ExportRefusedException(ExportRefusal.MissingMedia, message, [.. exception.Missing.Select(id => id.Value)]);
+            string[] details = [.. exception.Missing.Select(id => $"media {id.Value} is not available")];
+            throw new ExportRefusedException(ExportRefusal.MissingMedia, message, details);
         }
         catch (Exception exception) when (exception is ExportTooLargeException or RenderLimitException)
         {
@@ -124,6 +127,20 @@ public sealed class ExportService(
         catch (GateBusyException exception)
         {
             throw new ExportRefusedException(ExportRefusal.Busy, exception.Message);
+        }
+    }
+
+    // From the document alone, before any file is read: the audio of the range can be no shorter than this, so an export that is too long
+    // is refused without decoding a byte. The measure that follows gives the exact length.
+    private void CheckLength(ProjectDocument document, ExportKind kind, ExportRequest request)
+    {
+        double end = request.End ?? ProjectContent.End(document, audibleOnly: true, ignoreSolo: kind == ExportKind.Stems);
+        double seconds = end - request.Start + (request.Tail ? request.TailSeconds ?? 0 : 0);
+        if (seconds > options.MaxSeconds)
+        {
+            throw new ExportRefusedException(
+                ExportRefusal.TooLarge,
+                $"The export would be longer than the {options.MaxSeconds:0} seconds the server allows; ask for a shorter range.");
         }
     }
 
@@ -209,7 +226,7 @@ public sealed class ExportService(
             return;
         }
         HashSet<TrackId> known = [.. document.Tracks.Select(track => track.Id)];
-        string[] unknown = [.. tracks.Where(id => !known.Contains(id)).Select(id => id.Value)];
+        string[] unknown = [.. tracks.Where(id => !known.Contains(id)).Select(id => $"track {id.Value} is not in the project")];
         if (unknown.Length > 0)
         {
             throw new ExportRefusedException(ExportRefusal.BadOptions, "tracks names a track the project does not have.", unknown);

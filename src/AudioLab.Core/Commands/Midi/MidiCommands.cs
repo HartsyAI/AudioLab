@@ -89,7 +89,7 @@ internal static class MidiCommands
             ImportedNote note = command.Notes[i];
             bool fits = note.Pitch is >= NoteRules.LowestPitch and <= NoteRules.HighestPitch
                 && note.Velocity is >= 1 and <= NoteRules.HighestPitch
-                && double.IsFinite(note.Start) && note.Start >= 0 && note.Start <= latest
+                && double.IsFinite(note.Start) && note.Start >= 0 && NoteRules.StartsInside(note.Start, command.Length)
                 && double.IsFinite(note.Duration) && note.Duration >= NoteRules.MinDuration && note.Duration <= ProjectLimits.MaxSeconds;
             if (!fits)
             {
@@ -103,8 +103,8 @@ internal static class MidiCommands
         for (int i = 0; i < command.ControlChanges.Count; i++)
         {
             ImportedControlChange control = command.ControlChanges[i];
-            bool fits = control.Controller is >= 0 and <= NoteRules.HighestPitch
-                && control.Value is >= 0 and <= NoteRules.HighestPitch
+            bool fits = control.Controller is >= 0 and <= NoteRules.HighestController
+                && control.Value is >= 0 and <= NoteRules.HighestControllerValue
                 && double.IsFinite(control.Time) && control.Time >= 0 && control.Time <= command.Length;
             if (!fits)
             {

@@ -10,6 +10,7 @@ using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AudioLab.Server.Tests;
 
@@ -143,6 +144,38 @@ internal static class ExportTestSupport
                 : Bits == 16
                     ? BinaryPrimitives.ReadInt16LittleEndian(at) / 32768.0
                     : (((at[0] | (at[1] << 8) | (at[2] << 16)) << 8) >> 8) / 8388608.0;
+        }
+    }
+
+    /// <summary>What the server logged, kept so that a test can say that something happened.</summary>
+    public sealed class CapturedLogs : ILoggerProvider
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _messages = new();
+
+        public IEnumerable<string> Messages => _messages;
+
+        public ILogger CreateLogger(string categoryName) => new Capture(_messages);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Capture(System.Collections.Concurrent.ConcurrentQueue<string> messages) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                messages.Enqueue(formatter(state, exception));
+            }
         }
     }
 }

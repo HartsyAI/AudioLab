@@ -109,6 +109,10 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add($"AudioLab:Midi:MaxFileBytes must be 1024 to {MidiLimits.MaxFileBytes}, the most the MIDI reader looks at.");
         }
+        if (midi.MaxReadTime < TimeSpan.FromSeconds(1) || midi.MaxReadTime > TimeSpan.FromHours(1))
+        {
+            problems.Add("AudioLab:Midi:MaxReadTime must be from one second to one hour.");
+        }
         if (midi.MaxConcurrentPerUser < 1 || midi.MaxConcurrent < 1)
         {
             problems.Add("AudioLab:Midi:MaxConcurrentPerUser and MaxConcurrent must be at least 1.");

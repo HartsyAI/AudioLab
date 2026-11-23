@@ -137,7 +137,7 @@ public sealed class UserMediaSourceTests
     }
 
     [Fact]
-    public async Task ACancelledTokenStopsTheDecodeAndTheConversion()
+    public async Task ACancelledTokenStopsTheDecode()
     {
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
@@ -252,6 +252,26 @@ public sealed class UserMediaSourceTests
         Assert.Null(await store.FindAsync(Users.Alice, record.Id));
         Assert.Equal(1, store.Media.List(Users.Alice).Refused);
         Assert.False(source.TryGet(record.Id, out _));
+    }
+
+    [Fact]
+    public async Task AFloatFileChangedOnDiskToHoldNotANumberIsRefusedForGoodAndNeverReachesTheEngine()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        MediaRecord record = await store.UploadAsync(Users.Alice, TestWav.Build(SampleEncoding.Float32, 2, 48000, 24000));
+        UserMediaSource source = await ReadyAsync(store, Users.Alice);
+        string data = store.Paths.MediaDataFile(Users.Alice, record.Id);
+        byte[] bytes = await File.ReadAllBytesAsync(data);
+        // The same size and header, and one sample in the middle of the data that is NaN: the upload's own check no longer applies.
+        long sample = AudioLab.Audio.Wav.WavReader.Read(new MemoryStream(bytes)).DataOffset + (4 * 1000);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan((int)sample, 4), 0x7FC00000);
+        await File.WriteAllBytesAsync(data, bytes);
+
+        Assert.False(source.TryGet(record.Id, out _));
+
+        Assert.Null(await store.FindAsync(Users.Alice, record.Id));
+        Assert.Equal(0, source.HeldBytes);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ namespace AudioLab.Core.Model;
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(MediaSummary))]
 [JsonSerializable(typeof(MediaListing))]
+[JsonSerializable(typeof(MediaLimits))]
 public sealed partial class MediaJsonContext : JsonSerializerContext
 {
 }

@@ -119,7 +119,9 @@ public sealed class ProjectEditService(OpenProjects open, CommandRegistry regist
         media.RequireReadable(user);
         using IDisposable order = await open.EnterOrderAsync(user, project, cancellationToken);
         ProjectSession session = await open.OpenAsync(user, project, cancellationToken);
-        EditOutcome outcome = session.Apply(command, client, null);
+        // On a worker: a command that carries a million notes is the handler, the validator and the document written as JSON, and the
+        // request's thread must not be held by it, though the project's lock is.
+        EditOutcome outcome = await Task.Run(() => session.Apply(command, client, null), cancellationToken);
         return await FinishAsync(user, outcome, reason, outcome.Result?.Created.ToArray() ?? []);
     }
 

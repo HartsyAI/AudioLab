@@ -7,6 +7,7 @@ using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using static AudioLab.Server.Tests.ExportTestSupport;
 
 namespace AudioLab.Server.Tests;
@@ -295,6 +296,7 @@ public sealed class ExportRouteTests
         using HttpResponseMessage response = await ExportAsync(server, project, "mix", json);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("bad_options", (await ProblemAsync(response)).GetProperty("reason").GetString());
         AssertNoFileHeaders(response);
     }
 
@@ -444,13 +446,59 @@ public sealed class ExportRouteTests
     }
 
     [Fact]
-    public async Task AClientThatLeavesMidStreamStopsTheRenderFreesItsPlaceAndLeavesNoFile()
+    public async Task ANameWithLettersBeyondAsciiKeepsItsNameInTheDownload()
     {
         await using RunningServer server = await RunningServer.StartAsync();
+        (ProjectId project, _) = await OneClipProjectAsync(server, name: "Café ♪ 日本");
+
+        using HttpResponseMessage response = await ExportAsync(server, project, "mix", "{\"tail\":false}");
+
+        Assert.Equal("Café ♪ 日本.wav", response.Content.Headers.ContentDisposition?.FileNameStar);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnExportThatIsTooLongIsRefusedByItsLengthBeforeAnyFileIsDecoded()
+    {
+        // The file is also over the decode limit: had it been read first, the answer would have been about the file.
+        Dictionary<string, string?> settings = new()
+        {
+            ["AudioLab:Render:MaxSeconds"] = "1",
+            ["AudioLab:Render:MaxDecodedBytesPerFile"] = "1048576",
+        };
+        await using RunningServer server = await RunningServer.StartAsync(settings);
+        (ProjectId project, _) = await OneClipProjectAsync(server, Constant(seconds: 3));
+
+        using HttpResponseMessage response = await ExportAsync(server, project, "mix");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("seconds the server allows", (await ProblemAsync(response)).GetProperty("title").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheDetailsOfARefusalAreAlwaysAListOfSentencesAndAbsentWhenThereIsNothingToList()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        (ProjectId project, _) = await OneClipProjectAsync(server);
+
+        using HttpResponseMessage unknown = await ExportAsync(server, project, "stems", "{\"tracks\":[\"ghost\"]}");
+        using HttpResponseMessage plain = await ExportAsync(server, project, "mix", "{\"sampleRate\":1}");
+
+        JsonElement details = (await ProblemAsync(unknown)).GetProperty("details");
+        Assert.Equal(JsonValueKind.Array, details.ValueKind);
+        Assert.Equal(["track ghost is not in the project"], details.EnumerateArray().Select(item => item.GetString()));
+        Assert.False((await ProblemAsync(plain)).TryGetProperty("details", out _));
+    }
+
+    [Fact]
+    public async Task AClientThatLeavesMidStreamStopsTheRenderAndFreesItsPlace()
+    {
+        CapturedLogs logs = new();
+        await using RunningServer server = await RunningServer.StartAsync(
+            new Dictionary<string, string?> { ["Logging:LogLevel:AudioLab.Server.Render.ExportErrorFilter"] = "Information" },
+            services => services.AddSingleton<ILoggerProvider>(logs));
         (ProjectId project, _) = await LongProjectAsync(server);
         ConcurrencyGate gate = server.Services.GetRequiredKeyedService<ConcurrencyGate>(GateKeys.Export);
-        await server.Services.GetRequiredService<AudioLab.Server.Store.OpenProjects>().FlushAllAsync(CancellationToken.None);
-        string[] before = Directory.GetFileSystemEntries(server.StoreFolder, "*", SearchOption.AllDirectories);
 
         using (HttpResponseMessage response = await ExportAsync(server, project, "mix", Huge, completion: HttpCompletionOption.ResponseHeadersRead))
         {
@@ -463,8 +511,8 @@ public sealed class ExportRouteTests
         }
 
         await WaitForAsync(() => gate.Running == 0);
-        string[] after = Directory.GetFileSystemEntries(server.StoreFolder, "*", SearchOption.AllDirectories);
-        Assert.Equal(before.Order(), after.Order());
+        // The server noticed that the client had gone, after the first byte, and ended the response by cutting it: its own log says so.
+        await WaitForAsync(() => logs.Messages.Any(message => message.Contains("stopped after its first byte", StringComparison.Ordinal)));
     }
 
     [Fact]

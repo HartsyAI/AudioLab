@@ -36,11 +36,12 @@ format 2, SMPTE timing, and anything the reader judges damaged are refused (belo
 
 | Status | When |
 |--------|------|
-| 400 | `start` is not a number, or `start` or `name` is sent twice. |
+| 400 | `start` is not a finite number, or `start` or `name` is sent twice. |
 | 404 | The project or the track is not the user's or does not exist (the same answer). |
-| 413 | The file is over the limit, or the clip would make the project larger than the server stores (`reason` is `limit`). |
+| 408 | The whole file did not arrive within `AudioLab:Midi:MaxReadTime` (two minutes). |
+| 413 | The file is over the limit, or its notes could not fit the project (`reason` is `limit`). |
 | 415 | The content type is not a MIDI one. |
-| 422 | Not an accepted MIDI file (the title says why); not an instrument track (`rejected`); a name or value breaks the project's rules. |
+| 422 | Not an accepted MIDI file (the title says why); not an instrument track (`rejected`); a value breaks the rules (`invalid`). |
 | 429 | The user, or the server, is running as many MIDI jobs as it allows. `Retry-After` says when to retry. |
 
 The reader is strict on purpose: a file with bytes after its last chunk, a track that declares more than the file holds, a
