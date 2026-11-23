@@ -6,17 +6,18 @@ namespace AudioLab.Web.Components;
 
 /// <summary>The browser's file chooser for audio, which a button opens and a drag of files lands on; the files go to the media library.</summary>
 /// <remarks>
-/// The browser reads a chosen file through the element it was chosen in, so the element stays in the page while any upload may still read
-/// from it, and is replaced only when none is left, so that choosing the same file again raises a change.
+/// The browser reads a chosen file through the element it was chosen in, and an element forgets its earlier selection when it is used
+/// again. So each choice ends the use of its element: a new, empty one takes the id and the old one stays in the page, hidden, until the
+/// uploads of its files are over. This also lets the same file be chosen twice in a row.
 /// </remarks>
 public sealed partial class FilePicker : IDisposable
 {
     /// <summary>The id of the one chooser of the session screen, which the Add audio button opens and a drop lands on.</summary>
     public const string ChooserId = "media-picker";
 
-    private int _generation;
+    private readonly List<Chooser> _choosers = [new Chooser(0)];
 
-    private bool _used;
+    private int _next = 1;
 
     /// <summary>The element's id, so a button can open the chooser.</summary>
     [Parameter, EditorRequired]
@@ -53,20 +54,36 @@ public sealed partial class FilePicker : IDisposable
         Library.Changed += OnLibraryChanged;
     }
 
+    private string IdOf(Chooser chooser) => chooser == _choosers[^1] ? Id : $"{Id}-{chooser.Number}";
+
     private void OnLibraryChanged()
     {
-        if (_used && Library.Uploads.Count == 0)
+        if (Prune())
         {
-            _used = false;
-            _generation++;
             _ = InvokeAsync(StateHasChanged);
         }
     }
 
-    private async Task ChosenAsync(InputFileChangeEventArgs chosen)
+    // An old chooser goes when none of its files has an upload left, whether it finished or was dismissed.
+    private bool Prune()
     {
-        _used = true;
-        Library.Add(chosen.GetMultipleFiles(chosen.FileCount).Select(file => new BrowserFileSource(file)));
+        HashSet<long> live = [.. Library.Uploads.Select(job => job.Id)];
+        return _choosers.RemoveAll(chooser => chooser != _choosers[^1] && !chooser.Jobs.Exists(live.Contains)) > 0;
+    }
+
+    private async Task ChosenAsync(InputFileChangeEventArgs chosen, Chooser chooser)
+    {
+        IReadOnlyList<UploadJob> jobs = Library.Add(chosen.GetMultipleFiles(chosen.FileCount).Select(file => new BrowserFileSource(file)));
+        chooser.Jobs.AddRange(jobs.Select(job => job.Id));
+        _choosers.Add(new Chooser(_next++));
+        Prune();
         await OnChosen.InvokeAsync();
+    }
+
+    private sealed class Chooser(int number)
+    {
+        public int Number { get; } = number;
+
+        public List<long> Jobs { get; } = [];
     }
 }

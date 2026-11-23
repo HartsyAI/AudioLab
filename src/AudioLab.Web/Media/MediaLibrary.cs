@@ -55,10 +55,11 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         return _loading is { IsCompleted: false } running ? running : _loading = ReadAsync(cancellationToken);
     }
 
-    /// <summary>Starts uploading the chosen files, a few at a time, and returns at once; each file's outcome shows in <see cref="Uploads"/> and in a toast.</summary>
-    public void Add(IEnumerable<IUploadSource> sources)
+    /// <summary>Starts uploading the chosen files, a few at a time, and returns their jobs at once; each file's outcome shows in <see cref="Uploads"/> and in a toast.</summary>
+    public IReadOnlyList<UploadJob> Add(IEnumerable<IUploadSource> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
+        List<UploadJob> added = [];
         foreach (IUploadSource source in sources)
         {
             UploadJob job;
@@ -67,9 +68,11 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
                 job = new UploadJob(++_next, source);
                 _uploads.Add(job);
             }
+            added.Add(job);
             _ = RunAsync(job);
         }
         Changed?.Invoke();
+        return added;
     }
 
     /// <summary>Sends a refused upload again.</summary>

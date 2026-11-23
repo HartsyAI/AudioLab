@@ -1,2 +1,6 @@
-<InputFile @key="_generation" id="@Id" class="@Class" multiple accept=".wav,audio/wav,audio/x-wav" OnChange="ChosenAsync" aria-label="@Label"
-           tabindex="@TabIndex" />
+@foreach (Chooser chooser in _choosers)
+{
+    bool current = chooser == _choosers[^1];
+    <InputFile @key="chooser.Number" id="@IdOf(chooser)" class="@(current ? Class : null)" multiple accept=".wav,audio/wav,audio/x-wav"
+               OnChange="args => ChosenAsync(args, chooser)" aria-label="@Label" tabindex="@TabIndex" hidden="@(current ? null : "hidden")" />
+}
