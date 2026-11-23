@@ -72,7 +72,7 @@ public sealed partial class MediaPanel : IDisposable
     private SessionSelection Selection { get; set; } = default!;
 
     [Inject]
-    private SessionPlayhead Playhead { get; set; } = default!;
+    private PlaybackService Playback { get; set; } = default!;
 
     [Inject]
     private IElementClick Click { get; set; } = default!;
@@ -223,7 +223,7 @@ public sealed partial class MediaPanel : IDisposable
     // The keyboard path to the same edit, and the button: the selected audio track, at the playhead or after the selected clip.
     private Task AddAsync(MediaSummary file)
     {
-        return Adder.AddAsync(file, Document, Selection.Track, Selection.Clip, Playhead.Seconds, Actions.CanEdit, Actions.Reason, Actions.AddClip);
+        return Adder.AddAsync(file, Document, Selection.Track, Selection.Clip, Playback.Position, Actions.CanEdit, Actions.Reason, Actions.AddClip);
     }
 
     private Task KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)

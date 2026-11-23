@@ -35,6 +35,12 @@ public sealed class SessionEditor(LiveProject live)
         return RunAsync(project => live.SendAsync(new SetTrackSoloed { Project = project, Track = track, Soloed = soloed }));
     }
 
+    /// <summary>Turns the project's metronome on or off, for everyone in it.</summary>
+    public Task<EditResult> SetMetronomeAsync(bool on)
+    {
+        return RunAsync(project => live.SendAsync(new SetMetronome { Project = project, Enabled = on }));
+    }
+
     /// <summary>Moves a clip to an absolute start, and to another track when one is given: one gesture, one command, one undo step.</summary>
     public Task<EditResult> MoveClipAsync(ClipId clip, double start, TrackId? track)
     {

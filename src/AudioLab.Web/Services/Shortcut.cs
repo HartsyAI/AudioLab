@@ -19,7 +19,7 @@ public sealed record Shortcut(string Id, string Name, string Key, string Scope, 
     /// <summary>The chord as a person reads it, such as Ctrl+Shift+Z (Cmd+Shift+Z on an Apple system).</summary>
     public string Display =>
         (Ctrl ? CommandKey + "+" : string.Empty) + (Alt ? "Alt+" : string.Empty) + (Shift ? "Shift+" : string.Empty)
-        + (Key.Length == 1 ? Key.ToUpperInvariant() : Key);
+        + (Key == " " ? "Space" : Key.Length == 1 ? Key.ToUpperInvariant() : Key);
 
     /// <summary>Whether a key press is this chord.</summary>
     public bool Matches(KeyboardEventArgs press)

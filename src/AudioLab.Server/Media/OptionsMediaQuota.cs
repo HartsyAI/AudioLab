@@ -19,4 +19,10 @@ public sealed class OptionsMediaQuota(MediaOptions options) : IMediaQuota
         }
         return ValueTask.FromResult(refusal);
     }
+
+    /// <inheritdoc />
+    public ValueTask<MediaQuotaLimits> LimitsAsync(UserId user, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new MediaQuotaLimits(options.MaxFilesPerUser, options.MaxBytesPerUser));
+    }
 }

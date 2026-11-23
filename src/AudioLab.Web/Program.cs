@@ -33,6 +33,8 @@ if (OperatingSystem.IsBrowser())
     builder.Services.AddSingleton<IPointerTracker, PointerTracker>();
     builder.Services.AddSingleton<IShortcutListener, ShortcutListener>();
     builder.Services.AddSingleton<IElementMetrics, ElementMetrics>();
+    builder.Services.AddSingleton<IAudioHost, AudioHost>();
+    builder.Services.AddSingleton<PlaybackService>();
 }
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(CoreCommands.CreateRegistry());
@@ -50,7 +52,6 @@ builder.Services.AddScoped<MediaDragState>();
 builder.Services.AddScoped<MediaAdder>();
 builder.Services.AddScoped<TimelineZoom>();
 builder.Services.AddScoped<MediaDragger>();
-builder.Services.AddScoped<SessionPlayhead>();
 builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();

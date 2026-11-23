@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Plain HttpClient code that ships in the worker's runtime; it runs anywhere, so it is tested here. -->
+    <Compile Include="..\..\src\AudioLab.Audio.Worker\HttpClipSource.cs" Link="Support\HttpClipSource.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
