@@ -9,12 +9,12 @@
             @if (Target is { } track)
             {
                 <Button Variant="ButtonVariant.Primary" Name="Add MIDI clip" Shortcut="@Shortcuts.AddMidiClip.Display" Disabled="@(!Actions.CanEdit)"
-                        DisabledReason="@Actions.Reason" OnClick="() => AddAsync(track)">Add MIDI clip</Button>
+                        DisabledReason="@Actions.Reason" OnClick="() => AddAsync(track)" id="@AddId">Add MIDI clip</Button>
             }
             else if (!HasInstrument)
             {
-                <Button Name="Add instrument track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
-                        OnClick="Actions.AddInstrumentTrack">Add instrument track</Button>
+                <Button Name="Add instrument track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" id="@AddId"
+                        OnClick="AddInstrumentAsync">Add instrument track</Button>
             }
         </EmptyState>
     }

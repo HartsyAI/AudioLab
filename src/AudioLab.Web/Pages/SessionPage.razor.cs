@@ -342,13 +342,14 @@ public sealed partial class SessionPage
         {
             _ = InvokeAsync(() => _actions.Redo());
         }
-        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && Selection.Track is { } target
+        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && RollDrags.Current is null
+            && Selection.Track is { } target
             && _live?.Document?.Tracks.Any(candidate => candidate.Id == target && candidate.Kind == TrackKind.Instrument) == true)
         {
             _ = InvokeAsync(() => AddMidiClipAsync(target));
         }
         else if ((Shortcuts.MidiClipLonger.Matches(chord) || Shortcuts.MidiClipShorter.Matches(chord))
-            && Drags.Current is null && Selection.Clip is { } open
+            && Drags.Current is null && RollDrags.Current is null && Selection.Clip is { } open
             && _live?.Document is { } document && MidiClipPlan.Find(document, open) is not null)
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;
