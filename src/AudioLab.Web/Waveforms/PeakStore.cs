@@ -119,8 +119,9 @@ public sealed class PeakStore(MediaApi api, TimeProvider clock, long budget = Pe
                 {
                     await Task.Delay(Wait(busy), clock);
                 }
-                catch (Exception exception) when (exception is not OperationCanceledException)
+                catch (Exception exception)
                 {
+                    // No token is passed, so a cancellation here is the client's own timeout: a failure like any other, never a clip stuck loading.
                     failure = FailureText.Of(exception);
                 }
             }

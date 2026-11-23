@@ -163,6 +163,22 @@ public sealed class PeakStoreTests
         Assert.Equal(WavePhase.Ready, after.Phase);
     }
 
+    /// <summary>A request that times out fails the file with a sentence instead of leaving it loading.</summary>
+    [Fact]
+    public async Task ARequestThatTimesOutFailsTheFileInsteadOfLeavingItLoading()
+    {
+        RecordingHandler handler = new(_ => throw new TaskCanceledException("The request timed out."));
+        PeakStore store = Store(handler);
+        List<string> arrived = [];
+        store.Arrived += arrived.Add;
+
+        store.Get("m1", 34);
+        await UntilAsync(() => store.Get("m1", 34).Phase == WavePhase.Failed);
+
+        Assert.Equal("The server took too long to answer. Try again.", store.Get("m1", 34).Failure);
+        Assert.Equal(["m1"], arrived);
+    }
+
     /// <summary>Peaks the server sends that are not a peak file fail the file with a sentence, not a parser error.</summary>
     [Fact]
     public async Task PeaksThatAreNotAPeakFileFailTheFile()
