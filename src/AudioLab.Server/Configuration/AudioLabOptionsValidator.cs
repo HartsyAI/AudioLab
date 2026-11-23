@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AudioLab.Audio.Midi;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;

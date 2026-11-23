@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Server.Media;

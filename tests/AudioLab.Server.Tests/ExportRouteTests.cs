@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Services;

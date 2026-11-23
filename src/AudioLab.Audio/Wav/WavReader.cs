@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using AudioLab.Core.Model;
 
-namespace AudioLab.Server.Media;
+namespace AudioLab.Audio.Wav;
 
 /// <summary>Reads and checks a RIFF WAVE file: integer PCM of 16, 24 or 32 bits and 32-bit float, nothing else.</summary>
 /// <remarks>
@@ -28,8 +28,8 @@ public static class WavReader
 
     /// <summary>Checks the file's structure and header and says where its samples are.</summary>
     /// <param name="stream">A seekable stream of the whole file.</param>
-    /// <exception cref="MediaRejectedException">The file is not a WAV file this server accepts; the message says why.</exception>
-    public static WavFormat Read(Stream stream)
+    /// <exception cref="WavFormatException">The file is not a WAV file this engine reads; the message says why.</exception>
+    public static WavHeader Read(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
         long length = stream.Length;
@@ -111,7 +111,7 @@ public static class WavReader
         {
             throw Refuse("the audio data is not a whole number of frames");
         }
-        WavFormat result = new(fmt.Encoding, fmt.Channels, fmt.SampleRate, fmt.BlockAlign, dataOffset, dataBytes);
+        WavHeader result = new(fmt.Encoding, fmt.Channels, fmt.SampleRate, fmt.BlockAlign, dataOffset, dataBytes);
         if (result.Duration > ProjectLimits.MaxSeconds)
         {
             throw Refuse($"the audio is longer than the {ProjectLimits.MaxSeconds} seconds a project may hold");
@@ -120,8 +120,8 @@ public static class WavReader
     }
 
     /// <summary>Refuses a float file whose samples hold a NaN or an infinity, which would poison every mix that plays it.</summary>
-    /// <exception cref="MediaRejectedException">A sample is not a finite number.</exception>
-    public static async Task RequireFiniteAsync(Stream stream, WavFormat format, CancellationToken cancellationToken)
+    /// <exception cref="WavFormatException">A sample is not a finite number.</exception>
+    public static async Task RequireFiniteAsync(Stream stream, WavHeader format, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(stream);
         if (format.Encoding != SampleEncoding.Float32)
@@ -239,7 +239,7 @@ public static class WavReader
         }
     }
 
-    private static MediaRejectedException Refuse(string reason) => new($"Not an accepted WAV file: {reason}.");
+    private static WavFormatException Refuse(string reason) => new($"Not an accepted WAV file: {reason}.");
 
     private readonly record struct FormatChunk(SampleEncoding Encoding, int Channels, int SampleRate, int BlockAlign);
 }
