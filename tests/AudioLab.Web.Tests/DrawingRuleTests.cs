@@ -84,7 +84,7 @@ public sealed class DrawingRuleTests
         Assert.StartsWith("M0,50 L0.0,", path, StringComparison.Ordinal);
     }
 
-    /// <summary>Midi notes are one line each in one path, within the clip, with the highest pitch at the top.</summary>
+    /// <summary>Midi notes are lines in one path, within the clip, with the highest pitch at the top.</summary>
     [Fact]
     public void MidiNotesAreOneLineEachInOnePathWithTheHighestPitchAtTheTop()
     {
@@ -95,16 +95,18 @@ public sealed class DrawingRuleTests
             new MidiNote(new NoteId(1), 72, 0, 1, 90),
             new MidiNote(new NoteId(2), 60, 3, 4, 90));
 
-        Assert.Equal("M0 10h250M750 90h250", MidiPreview.Path(clip));
+        Assert.Equal("M750 90h250M0 10h250", MidiPreview.Path(clip));
         Assert.Equal(string.Empty, MidiPreview.Path(Song.Midi("m2", 0, 4)));
     }
 
-    /// <summary>A clip of one pitch is drawn in the middle, and a very short note stays wide enough to see.</summary>
+    /// <summary>A clip of one pitch is drawn in the middle, and a very short note is a whole unit that square caps make three pixels.</summary>
     [Fact]
     public void AClipOfOnePitchIsDrawnInTheMiddleAndAVeryShortNoteStaysVisible()
     {
         MidiClip clip = Song.Midi("m1", 0, 100, new MidiNote(new NoteId(1), 60, 0, 0.02, 90));
 
-        Assert.Equal("M0 50h3", MidiPreview.Path(clip));
+        Assert.Equal("M0 50h1", MidiPreview.Path(clip));
+        Assert.Contains("stroke-linecap: square;", RepoText.Read("src/AudioLab.Web/Components/Clip.razor.css"), StringComparison.Ordinal);
+        Assert.Contains("stroke-width: 3px;", RepoText.Read("src/AudioLab.Web/Components/Clip.razor.css"), StringComparison.Ordinal);
     }
 }

@@ -48,13 +48,11 @@ public static class Shortcuts
     /// <summary>Add a MIDI clip to the selected instrument track.</summary>
     public static readonly Shortcut AddMidiClip = new("midi.clip.add", "Add MIDI clip", "n", Session);
 
-    /// <summary>Lengthen the focused MIDI clip by one bar.</summary>
-    public static readonly Shortcut MidiClipLonger =
-        new("midi.clip.longer", "Lengthen MIDI clip by a bar", "ArrowRight", Session, Shift: true, Alt: true);
+    /// <summary>Lengthen the selected MIDI clip by one bar.</summary>
+    public static readonly Shortcut MidiClipLonger = new("midi.clip.longer", "Lengthen MIDI clip by a bar", "]", Session);
 
-    /// <summary>Shorten the focused MIDI clip by one bar.</summary>
-    public static readonly Shortcut MidiClipShorter =
-        new("midi.clip.shorter", "Shorten MIDI clip by a bar", "ArrowLeft", Session, Shift: true, Alt: true);
+    /// <summary>Shorten the selected MIDI clip by one bar.</summary>
+    public static readonly Shortcut MidiClipShorter = new("midi.clip.shorter", "Shorten MIDI clip by a bar", "[", Session);
 
     /// <summary>Use the select tool in the piano roll.</summary>
     public static readonly Shortcut RollSelectTool = new("roll.tool.select", "Select tool", "v", PianoRoll);

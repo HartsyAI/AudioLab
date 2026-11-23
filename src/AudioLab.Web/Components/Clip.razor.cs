@@ -17,13 +17,11 @@ public sealed partial class Clip
 {
     private AudioClip? _audio;
 
-    private MidiClip? _midi;
+    private readonly MidiPathMemo _notes = new();
 
     private (string, bool, bool, bool, bool, double, double?, double, double?, string?) _shown;
 
-    private MidiClip? _pathFor;
-
-    private string _notes = string.Empty;
+    private bool _midiChanged;
 
     private bool _drawn;
 
@@ -125,11 +123,7 @@ public sealed partial class Clip
     protected override void OnParametersSet()
     {
         // The path is built when the notes change, so a lifted copy that follows the pointer does not build it again on every move.
-        if (Midi is not null && !ReferenceEquals(_pathFor, Midi) && !Equals(_pathFor, Midi))
-        {
-            _notes = MidiPreview.Path(Midi);
-        }
-        _pathFor = Midi;
+        _midiChanged = Midi is not null && _notes.Update(Midi);
     }
 
     /// <inheritdoc />
@@ -137,10 +131,9 @@ public sealed partial class Clip
     {
         bool same = _drawn
             && Equals(_audio, Audio)
-            && Equals(_midi, Midi)
+            && !_midiChanged
             && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
         _audio = Audio;
-        _midi = Midi;
         _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
         _drawn = true;
         return !same;
