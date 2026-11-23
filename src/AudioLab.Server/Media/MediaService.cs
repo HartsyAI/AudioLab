@@ -98,7 +98,7 @@ public sealed class MediaService(
         if (!PeaksAreWhole(peaks, record))
         {
             Task rebuild = rebuilder.EnsureAsync(root.Paths.MediaDataFile(user, id), peaks);
-            Task first = await Task.WhenAny(rebuild, Task.Delay(options.PeaksRebuildWait, cancellationToken));
+            Task first = await Task.WhenAny(rebuild, Task.Delay(options.PeaksRebuildWait, time, cancellationToken));
             if (first != rebuild)
             {
                 throw new MediaPeaksPendingException(Math.Max(1, (int)Math.Ceiling(options.PeaksRebuildWait.TotalSeconds)));
