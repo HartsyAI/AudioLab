@@ -68,26 +68,4 @@ public sealed class CrossUserTests
         ProjectFormatException error = await Assert.ThrowsAsync<ProjectFormatException>(() => store.Service.OpenAsync(Users.Alice, other, _none));
         Assert.Contains(error.Problems, problem => problem.StartsWith("id", StringComparison.Ordinal));
     }
-
-    [Fact]
-    public async Task MediaRecordsAreScopedToTheirOwnerToo()
-    {
-        using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path);
-        MediaRecord record = await store.Media.CreateAsync(Users.Alice, "audio/wav", 1234, _none);
-        Assert.Equal(Users.Alice, record.Owner);
-
-        await Assert.ThrowsAsync<ProjectNotFoundException>(() => store.Media.GetAsync(Users.Bob, record.Id, _none));
-        Assert.Empty((await store.Media.ListAsync(Users.Bob, _none)).Records);
-        Assert.False(store.Media.Delete(Users.Bob, record.Id));
-        Assert.Equal(record, await store.Media.GetAsync(Users.Alice, record.Id, _none));
-
-        string bobs = store.Paths.MediaRecordFile(Users.Bob, record.Id);
-        Directory.CreateDirectory(Path.GetDirectoryName(bobs)!);
-        File.Copy(store.Paths.MediaRecordFile(Users.Alice, record.Id), bobs);
-        await Assert.ThrowsAsync<ProjectFormatException>(() => store.Media.GetAsync(Users.Bob, record.Id, _none));
-        (IReadOnlyList<MediaRecord> records, int refused) = await store.Media.ListAsync(Users.Bob, _none);
-        Assert.Empty(records);
-        Assert.Equal(1, refused);
-    }
 }

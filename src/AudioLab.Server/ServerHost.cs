@@ -7,6 +7,8 @@ using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
+using AudioLab.Server.Mcp;
+using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
@@ -90,7 +92,7 @@ public static class ServerHost
         services.AddSingleton<AtomicFile>();
         services.AddSingleton<StoreRoot>();
         services.AddSingleton<ProjectStore>();
-        services.AddSingleton<MediaStore>();
+        services.AddMedia(options.Media);
         services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
         services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
@@ -105,11 +107,13 @@ public static class ServerHost
             hub.MaximumParallelInvocationsPerClient = 1;
             hub.EnableDetailedErrors = false;
         }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
+        services.AddAudioLabMcp();
         services.AddProblemDetails();
         services.ConfigureHttpJsonOptions(json =>
         {
             json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
-            json.SerializerOptions.TypeInfoResolverChain.Insert(1, ApiJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(1, MediaJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(2, ApiJsonContext.Default);
             // A resolver chain does not carry a context's own options, so a request body is read as strictly as the context reads it.
             json.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
             json.SerializerOptions.RespectNullableAnnotations = true;
@@ -132,6 +136,8 @@ public static class ServerHost
         RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
+        McpEndpoints.Map(api, options);
+        MediaRoutes.Map(api);
         app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
         UiRoutes.Map(app);
     }

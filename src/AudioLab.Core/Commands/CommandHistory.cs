@@ -70,6 +70,25 @@ public sealed class CommandHistory
     /// <summary>The name of the command that began the step Redo would reapply, or null when there is none.</summary>
     public string? RedoLabel => _redo.Count > 0 ? _redo[^1].Label : null;
 
+    /// <summary>Every document the history could show again: the current one, each undo and redo step, and each open gesture's start.</summary>
+    /// <remarks>A media store applies its reference rule to all of these, as an undo step can play a file the project no longer does.</remarks>
+    public IEnumerable<ProjectDocument> HeldDocuments()
+    {
+        yield return Current;
+        foreach (HistoryStep step in _undo)
+        {
+            yield return step.Document;
+        }
+        foreach (HistoryStep step in _redo)
+        {
+            yield return step.Document;
+        }
+        foreach (OpenGesture gesture in _open)
+        {
+            yield return gesture.Before;
+        }
+    }
+
     /// <summary>The gesture this client has open, or null.</summary>
     public GestureId? OpenGestureOf(ClientId client)
     {
