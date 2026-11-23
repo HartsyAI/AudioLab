@@ -1,7 +1,7 @@
 namespace AudioLab.Audio;
 
 /// <summary>Converts audio to another sample rate with a windowed-sinc filter, once, when a render is prepared.</summary>
-internal static class Resampler
+public static class Resampler
 {
     private const int HalfTaps = 32;
     private const int Phases = 256;
@@ -9,31 +9,48 @@ internal static class Resampler
     // The cutoff sits just under half the lower rate, so the transition band ends at it and nothing above it can fold back.
     private const double Guard = 0.97;
 
-    /// <summary>The audio at <paramref name="rate"/>; the same instance when it already is.</summary>
-    public static PcmAudio ToRate(PcmAudio source, int rate)
+    // Output frames converted between two looks at the token: a few milliseconds of work.
+    private const int SliceFrames = 1 << 16;
+
+    /// <summary>How many frames <paramref name="sourceFrames"/> at <paramref name="fromRate"/> make at <paramref name="toRate"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The result is more than an array can hold.</exception>
+    public static int OutputFrames(long sourceFrames, int fromRate, int toRate)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        if (source.SampleRate == rate)
+        ArgumentOutOfRangeException.ThrowIfNegative(sourceFrames);
+        ArgumentOutOfRangeException.ThrowIfLessThan(fromRate, AudioFormat.MinSampleRate);
+        ArgumentOutOfRangeException.ThrowIfLessThan(toRate, AudioFormat.MinSampleRate);
+        double frames = Math.Round(sourceFrames * ((double)toRate / fromRate));
+        if (frames > Array.MaxLength)
         {
-            return source;
+            throw new ArgumentOutOfRangeException(nameof(sourceFrames), "The audio would be longer than a buffer can hold at that sample rate.");
         }
-        double ratio = (double)source.SampleRate / rate;
+        return (int)frames;
+    }
+
+    /// <summary>The audio at <paramref name="rate"/>; the same instance when it already is.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The result would be more than an array can hold.</exception>
+    /// <exception cref="OperationCanceledException">The token was cancelled while the audio was converted.</exception>
+    public static PcmAudio ToRate(PcmAudio source, int rate, CancellationToken cancellationToken = default)
+    {
+        ResampleJob job = new(source, rate);
+        while (!job.IsDone)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            job.Run(SliceFrames);
+        }
+        return job.Result;
+    }
+
+    /// <summary>The filter's settings for a ratio of source rate to output rate.</summary>
+    internal static (double Cutoff, double Extent, int Reach) Shape(double ratio)
+    {
         double cutoff = Guard * Math.Min(1, 1 / ratio);
         double extent = HalfTaps / cutoff;
-        int reach = (int)Math.Ceiling(extent);
-        int taps = 2 * reach;
-        float[] table = BuildTable(cutoff, extent, reach, taps);
-        int frames = (int)Math.Round(source.Frames / ratio);
-        float[][] output = new float[source.ChannelCount][];
-        for (int channel = 0; channel < output.Length; channel++)
-        {
-            output[channel] = Convert(source.Channel(channel), frames, ratio, reach, taps, table);
-        }
-        return new PcmAudio(rate, output);
+        return (cutoff, extent, (int)Math.Ceiling(extent));
     }
 
     // Row p holds the weights for a fractional position p / Phases past a source sample; each row sums to one.
-    private static float[] BuildTable(double cutoff, double extent, int reach, int taps)
+    internal static float[] BuildTable(double cutoff, double extent, int reach, int taps)
     {
         float[] table = new float[(Phases + 1) * taps];
         double[] weights = new double[taps];
@@ -56,10 +73,11 @@ internal static class Resampler
         return table;
     }
 
-    private static float[] Convert(ReadOnlySpan<float> source, int frames, double ratio, int reach, int taps, float[] table)
+    /// <summary>Converts output frames <paramref name="from"/> up to <paramref name="to"/> of one channel into <paramref name="output"/>.</summary>
+    internal static void Convert(
+        ReadOnlySpan<float> source, float[] output, int from, int to, double ratio, int reach, int taps, float[] table)
     {
-        float[] output = new float[frames];
-        for (int n = 0; n < frames; n++)
+        for (int n = from; n < to; n++)
         {
             double position = n * ratio;
             int index = (int)position;
@@ -81,7 +99,6 @@ internal static class Resampler
             }
             output[n] = sum;
         }
-        return output;
     }
 
     private static double Sinc(double x) => Math.Abs(x) < 1e-12 ? 1 : Math.Sin(Math.PI * x) / (Math.PI * x);

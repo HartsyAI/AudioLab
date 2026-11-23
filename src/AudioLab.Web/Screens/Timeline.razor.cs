@@ -61,6 +61,9 @@ public sealed partial class Timeline : IDisposable
     [Inject]
     private ToastService Toasts { get; set; } = default!;
 
+    [Inject]
+    private PlaybackService Playback { get; set; } = default!;
+
     private TimelineGeometry Geometry => TimelineGeometry.Default;
 
     private TrackLayout Layout => _layout;
@@ -141,6 +144,15 @@ public sealed partial class Timeline : IDisposable
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
 
     private Task AddTrack() => Actions.AddTrack();
+
+    // The lanes start where the ruler does, so a press in the bars row is a time in the lanes' own pixels once their left edge is taken off.
+    private void RulerSeek(MouseEventArgs press)
+    {
+        if (Metrics.Origin(LaneSurfaceId) is { } origin)
+        {
+            Playback.Seek(Geometry.Seconds(Math.Max(0, press.ClientX - origin.Left)));
+        }
+    }
 
     private void SelectTrack(TrackId track) => Selection.SelectTrack(track);
 
