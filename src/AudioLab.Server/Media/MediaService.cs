@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Store;
 
@@ -49,7 +50,7 @@ public sealed class MediaService(
         try
         {
             (long bytes, string hash) = await ReceiveAsync(body, temp, upload, cancellationToken);
-            (WavFormat format, PeakData peaks) = await CheckAsync(temp, cancellationToken);
+            (WavHeader format, PeakData peaks) = await CheckAsync(temp, cancellationToken);
             await WritePeaksAsync(tempPeaks, peaks, cancellationToken);
             MediaRecord record = new()
             {
@@ -236,7 +237,7 @@ public sealed class MediaService(
         }
     }
 
-    private static async Task<(WavFormat Format, PeakData Peaks)> CheckAsync(string path, CancellationToken cancellationToken)
+    private static async Task<(WavHeader Format, PeakData Peaks)> CheckAsync(string path, CancellationToken cancellationToken)
     {
         FileStreamOptions fileOptions = new()
         {
@@ -246,8 +247,15 @@ public sealed class MediaService(
             Options = FileOptions.Asynchronous,
         };
         await using FileStream file = new(path, fileOptions);
-        WavFormat format = WavReader.Read(file);
-        await WavReader.RequireFiniteAsync(file, format, cancellationToken);
-        return (format, await PeakComputer.ComputeAsync(file, format, cancellationToken));
+        try
+        {
+            WavHeader format = WavReader.Read(file);
+            await WavReader.RequireFiniteAsync(file, format, cancellationToken);
+            return (format, await PeakComputer.ComputeAsync(file, format, cancellationToken));
+        }
+        catch (WavFormatException exception)
+        {
+            throw new MediaRejectedException(exception.Message);
+        }
     }
 }
