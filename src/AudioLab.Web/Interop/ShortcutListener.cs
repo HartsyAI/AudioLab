@@ -26,12 +26,13 @@ public sealed partial class ShortcutListener : IShortcutListener
             return;
         }
         _document = Query("html");
-        using JSObject wrapped = Wrap(press =>
-        {
-            using JSObject released = press;
-            Route(press);
-        });
-        _function = wrapped.GetPropertyAsJSObject("0")!;
+        _function = Bind(
+            press =>
+            {
+                using JSObject released = press;
+                Route(press);
+            },
+            null);
         AddListener(_document, "keydown", _function);
     }
 
@@ -90,9 +91,10 @@ public sealed partial class ShortcutListener : IShortcutListener
     [JSImport("globalThis.Event.prototype.preventDefault.call")]
     private static partial void PreventDefault(JSObject press);
 
-    // Array.of(f) is [f]: the one way to get the function that the marshaller made for a callback back as an object.
-    [JSImport("globalThis.Array.of")]
-    private static partial JSObject Wrap([JSMarshalAs<JSType.Function<JSType.Object>>] Action<JSObject> callback);
+    // Function.prototype.bind.call(f) is a plain JavaScript function that calls f: the one that can be handed back to removeEventListener,
+    // which the function the marshaller makes for a callback cannot.
+    [JSImport("globalThis.Function.prototype.bind.call")]
+    private static partial JSObject Bind([JSMarshalAs<JSType.Function<JSType.Object>>] Action<JSObject> callback, JSObject? thisArgument);
 
     [JSImport("globalThis.EventTarget.prototype.addEventListener.call")]
     private static partial void AddListener(JSObject target, string type, JSObject listener);
