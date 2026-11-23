@@ -3,7 +3,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>The preview of a MIDI clip costs a bounded path and a bounded number of steps whatever the clip holds, as a million notes would.</summary>
+/// <summary>The preview of a MIDI clip costs a bounded path and a bounded number of steps, whatever it holds.</summary>
 public sealed class MidiPreviewBoundTests
 {
     private const int MillionNotes = 1_000_000;
