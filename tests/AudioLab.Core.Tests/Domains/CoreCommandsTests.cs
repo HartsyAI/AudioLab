@@ -93,7 +93,7 @@ public sealed class CoreCommandsTests
         [
             "automation_point_add", "automation_point_move", "automation_point_delete", "automation_points_set_values",
             "automation_write_commit", "automation_set_mode", "automation_set_view",
-            "beat_lane_add", "beat_lane_remove", "beat_lane_rename", "beat_lane_set_gain", "beat_lane_set_media",
+            "beat_lane_add", "beat_lane_remove", "beat_lane_move", "beat_lane_rename", "beat_lane_set_gain", "beat_lane_set_media",
             "beat_lane_set_steps", "beat_pattern_set_steps", "beat_pattern_set_swing",
         ];
 
@@ -115,6 +115,9 @@ public sealed class CoreCommandsTests
             $$"""{"project":"{{project}}","track":"trk_1","parameter":"volume","points":[{"index":0,"value":1.5}]}""");
         CommandParseResult steps = _registry.Parse("beat_lane_set_steps", $$"""{"project":"{{project}}","lane":"bln_1","steps":[0,4,8],"on":true}""");
         CommandParseResult noMedia = _registry.Parse("beat_lane_add", $$"""{"project":"{{project}}"}""");
+        CommandParseResult move = _registry.Parse("beat_lane_move", $$"""{"project":"{{project}}","lane":"bln_1","direction":"down"}""");
+        Assert.Equal(MoveDirection.Down, Assert.IsType<MoveBeatLane>(move.Command).Direction);
+        Assert.False(_registry.Parse("beat_lane_move", $$"""{"project":"{{project}}","lane":"bln_1","direction":"sideways"}""").Succeeded);
         CommandParseResult badLane = _registry.Parse("beat_lane_remove", $$"""{"project":"{{project}}","lane":"not an id"}""");
         CommandParseResult badMode = _registry.Parse("automation_set_mode", $$"""{"project":"{{project}}","track":"trk_1","mode":"scribble"}""");
 
@@ -200,6 +203,27 @@ public sealed class CoreCommandsTests
         Assert.Equal(OscillatorWave.Sawtooth, Assert.IsType<SetOscillatorWave>(wave.Command).Wave);
         Assert.False(badWave.Succeeded);
         Assert.False(badMode.Succeeded);
+    }
+
+    [Fact]
+    public void TheRangeAndSectionNamingCommandsExistAndReadFromTheirJson()
+    {
+        string project = BlankProject.Create().Id.Value;
+
+        CommandParseResult replace = _registry.Parse(
+            "clip_replace_media",
+            $$"""{"project":"{{project}}","clip":"clp_1","media":"med_2","duration":12.5}""");
+        Assert.Equal(12.5, Assert.IsType<ReplaceClipMedia>(replace.Command).Duration);
+
+        CommandParseResult delete = _registry.Parse("range_delete", $$"""{"project":"{{project}}","start":4,"end":6.5,"tracks":["trk_1","trk_2"]}""");
+        CommandParseResult name = _registry.Parse("section_name_clips", $$"""{"project":"{{project}}"}""");
+        CommandParseResult bad = _registry.Parse("range_split", $$"""{"project":"{{project}}","start":4,"end":6.5}""");
+
+        DeleteRange parsed = Assert.IsType<DeleteRange>(delete.Command);
+        Assert.Equal((4.0, 6.5, 2), (parsed.Start, parsed.End, parsed.Tracks.Count));
+        Assert.Null(Assert.IsType<NameClipsAfterSections>(name.Command).Section);
+        Assert.False(bad.Succeeded);
+        Assert.NotNull(_registry.Find("range_split"));
     }
 
     [Fact]

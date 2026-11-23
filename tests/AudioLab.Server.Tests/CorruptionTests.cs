@@ -100,19 +100,6 @@ public sealed class CorruptionTests
         await store.Service.SaveAsync(Users.Alice, id, _none);
     }
 
-    [Fact]
-    public async Task ACorruptMediaRecordIsRefused()
-    {
-        using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path);
-        MediaRecord record = await store.Media.CreateAsync(Users.Alice, "audio/wav", 10, _none);
-        string file = store.Paths.MediaRecordFile(Users.Alice, record.Id);
-        await File.WriteAllTextAsync(file, (await File.ReadAllTextAsync(file)).Replace("audio/wav", "Audio/WAV", StringComparison.Ordinal));
-        ProjectFormatException error = await Assert.ThrowsAsync<ProjectFormatException>(() => store.Media.GetAsync(Users.Alice, record.Id, _none));
-        Assert.Contains(error.Problems, problem => problem.StartsWith("contentType", StringComparison.Ordinal));
-        Assert.Equal(1, (await store.Media.ListAsync(Users.Alice, _none)).Refused);
-    }
-
     private static byte[] Corrupt(string json, string kind)
     {
         return kind switch

@@ -85,7 +85,7 @@ public sealed class ProjectJsonTests
         Assert.Equal(alice, ProjectJson.Read(ProjectJson.Write(SampleProject.Create(alice))).Owner);
         Assert.Equal(bob, ProjectJson.Read(ProjectJson.Write(SampleProject.Create(bob))).Owner);
         Assert.Equal(UserId.Local, ProjectJson.Read(ProjectJson.Write(SampleProject.Create(UserId.Local))).Owner);
-        MediaRecord media = new() { Id = MediaId.From("med_1"), Owner = bob, ContentType = "audio/wav", Length = 1234 };
+        MediaRecord media = TestMedia.Record(owner: bob);
         string json = JsonSerializer.Serialize(media, ProjectJsonContext.Default.MediaRecord);
         Assert.Equal(media, JsonSerializer.Deserialize(json, ProjectJsonContext.Default.MediaRecord));
     }
