@@ -59,7 +59,8 @@ public sealed class MidiEditorTests
         MidiEditor editor = new(live);
 
         await editor.StepLengthAsync(ClipId.From("a"), 1);
-        SetMidiClipLength sent = Assert.IsType<SetMidiClipLength>(CoreCommands.CreateRegistry().Parse(_hub.Sent[0].Command, _hub.Sent[0].Json).Command);
+        (string command, string json, _) = _hub.Sent[0];
+        SetMidiClipLength sent = Assert.IsType<SetMidiClipLength>(CoreCommands.CreateRegistry().Parse(command, json).Command);
         Assert.Equal(6, sent.Length, 9);
 
         EditResult below = await editor.StepLengthAsync(ClipId.From("a"), -2);

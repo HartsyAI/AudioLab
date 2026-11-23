@@ -1,6 +1,6 @@
 namespace AudioLab.Web.Session;
 
-/// <summary>Which tab of the bottom panel is open, held where the arrangement can change it (a MIDI clip opens the piano roll) and the panel can follow.</summary>
+/// <summary>Which tab of the bottom panel is open, held where the arrangement can change it and the panel can follow.</summary>
 public sealed class BottomPanelState
 {
     /// <summary>The mixer tab.</summary>

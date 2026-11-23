@@ -3,7 +3,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Where a new MIDI clip goes and how long it is, and the length a clip takes when it is stepped by bars: all of it through the tempo map.</summary>
+/// <summary>Where a new MIDI clip goes, how long it is, and the length it takes when stepped by bars, all through the tempo map.</summary>
 public static class MidiClipPlan
 {
     private const double BarTolerance = 1e-6;
@@ -48,7 +48,7 @@ public static class MidiClipPlan
         return tempo.TimeAtBeat(bars * beatsPerBar);
     }
 
-    /// <summary>The length a clip has after its end moves by <paramref name="bars"/> bars (negative to shorten), or null below the least length.</summary>
+    /// <summary>The length a clip has after its end moves by <paramref name="bars"/> bars (negative to shorten); null below the least.</summary>
     public static double? Stepped(ProjectDocument document, MidiClip clip, int bars)
     {
         ArgumentNullException.ThrowIfNull(document);

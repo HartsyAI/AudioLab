@@ -5,7 +5,7 @@ using AudioLab.Core.Model;
 namespace AudioLab.Web.Session;
 
 /// <summary>Draws the notes of a MIDI clip as one SVG path: time across, pitch down, the clip's own pitch range over the height.</summary>
-/// <remarks>The path is one line for each note (stroked, so a note is as thick as a pixel count says whatever the clip's size), no element per note.</remarks>
+/// <remarks>The path is one stroked line for each note, as thick as a pixel count says whatever the clip size; no element per note.</remarks>
 public static class MidiPreview
 {
     /// <summary>The width of the drawing's coordinate space; the svg stretches it over the clip body.</summary>

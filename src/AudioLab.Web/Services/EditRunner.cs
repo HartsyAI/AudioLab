@@ -9,7 +9,7 @@ public static class EditRunner
 {
     private const string Lost = "The connection to the server was lost, so the edit was not sent.";
 
-    /// <summary>Sends through <paramref name="send"/> with the id of the open project; a refusal and a lost connection are results, never exceptions.</summary>
+    /// <summary>Sends through <paramref name="send"/> with the id of the open project; a refusal or a lost connection is a result.</summary>
     public static async Task<EditResult> RunAsync(LiveProject live, Func<ProjectId, Task<CommandReply>> send)
     {
         ArgumentNullException.ThrowIfNull(live);

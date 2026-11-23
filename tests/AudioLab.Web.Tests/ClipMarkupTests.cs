@@ -41,7 +41,8 @@ public sealed class ClipMarkupTests
     [Fact]
     public async Task TheNotesOfAMidiClipAreOnePathAndNoElementEach()
     {
-        MidiNote[] notes = [.. Enumerable.Range(0, 500).Select(index => new MidiNote(new NoteId(index + 1), 48 + (index % 24), index * 0.01, 0.01, 90))];
+        MidiNote[] notes =
+            [.. Enumerable.Range(0, 500).Select(index => new MidiNote(new NoteId(index + 1), 48 + (index % 24), index * 0.01, 0.01, 90))];
         RenderedMarkup clip = await RenderedMarkup.OfAsync<Clip>(new Dictionary<string, object?>
         {
             ["Midi"] = Song.Midi("m1", 0, 8, notes),

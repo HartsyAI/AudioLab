@@ -46,10 +46,12 @@ public static class Shortcuts
     public static readonly Shortcut AddMidiClip = new("midi.clip.add", "Add MIDI clip", "n", Session);
 
     /// <summary>Lengthen the focused MIDI clip by one bar.</summary>
-    public static readonly Shortcut MidiClipLonger = new("midi.clip.longer", "Lengthen MIDI clip by a bar", "ArrowRight", Session, Shift: true, Alt: true);
+    public static readonly Shortcut MidiClipLonger =
+        new("midi.clip.longer", "Lengthen MIDI clip by a bar", "ArrowRight", Session, Shift: true, Alt: true);
 
     /// <summary>Shorten the focused MIDI clip by one bar.</summary>
-    public static readonly Shortcut MidiClipShorter = new("midi.clip.shorter", "Shorten MIDI clip by a bar", "ArrowLeft", Session, Shift: true, Alt: true);
+    public static readonly Shortcut MidiClipShorter =
+        new("midi.clip.shorter", "Shorten MIDI clip by a bar", "ArrowLeft", Session, Shift: true, Alt: true);
 
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =

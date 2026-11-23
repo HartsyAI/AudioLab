@@ -45,7 +45,10 @@ public sealed partial class PianoRollPanel : IDisposable
         Selection.Changed += OnSelectionChanged;
     }
 
-    private static string NotesText(MidiClip clip) => clip.Notes.Count == 1 ? "1 note" : $"{clip.Notes.Count.ToString(CultureInfo.InvariantCulture)} notes";
+    private static string NotesText(MidiClip clip)
+    {
+        return clip.Notes.Count == 1 ? "1 note" : $"{clip.Notes.Count.ToString(CultureInfo.InvariantCulture)} notes";
+    }
 
     private string LengthText(MidiClip clip)
     {
