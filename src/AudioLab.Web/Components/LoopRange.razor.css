@@ -1,0 +1,18 @@
+.band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.band[data-part="ruler"] {
+    border-right: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.band[data-part="lanes"] {
+    z-index: var(--z-lane-overlay);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
