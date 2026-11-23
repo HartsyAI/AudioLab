@@ -112,7 +112,11 @@ public sealed class MidiCommandTests
 
         Assert.Equal(["1", "2", "3"], created);
         Assert.Equal(
-            [new MidiNote(new NoteId(1), 60, 0, 0.5, 100), new MidiNote(new NoteId(2), 64, 1, 0.25, 80), new MidiNote(new NoteId(3), 67, 2, 0.5, 127)],
+            [
+                new MidiNote(new NoteId(1), 60, 0, 0.5, 100),
+                new MidiNote(new NoteId(2), 64, 1, 0.25, 80),
+                new MidiNote(new NoteId(3), 67, 2, 0.5, 127),
+            ],
             Clip.Notes);
         Assert.Equal(new NoteId(4), Clip.NextNoteId);
         _rig.History.Undo();
