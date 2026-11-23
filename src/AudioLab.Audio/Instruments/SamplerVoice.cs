@@ -7,9 +7,8 @@ namespace AudioLab.Audio.Instruments;
 /// plays to the end of the sample, or to <see cref="SamplerSettings.OneShotLimit"/> seconds after the note, fading out over the last
 /// <see cref="SamplerSettings.LimitFade"/> seconds of that.
 /// </remarks>
-internal sealed class SamplerVoice : InstrumentVoice
+internal sealed class SamplerVoice(SamplerSettings settings) : InstrumentVoice
 {
-    private readonly SamplerSettings _settings;
     private double _position;
     private double _ratio;
     private double _level;
@@ -20,45 +19,42 @@ internal sealed class SamplerVoice : InstrumentVoice
     private long _limitFrame;
     private bool _attacking;
 
-    /// <summary>Makes a free voice that plays the settings' sample.</summary>
-    public SamplerVoice(SamplerSettings settings) => _settings = settings;
-
     /// <inheritdoc />
     public override double Level => _envelope;
 
     /// <inheritdoc />
     public override void Start(long startFrame, long offFrame, int pitch, float velocity, long elapsed)
     {
-        _ratio = _settings.Ratio(pitch);
+        _ratio = settings.Ratio(pitch);
         _position = elapsed * _ratio;
-        _level = _settings.Gain * velocity;
+        _level = settings.Gain * velocity;
         _envelope = 0;
         _age = 0;
         _attacking = true;
         StartFrame = startFrame;
         _offFrame = offFrame;
-        _limitFrame = Math.Max(offFrame, startFrame - elapsed) + _settings.LimitFrames;
+        _limitFrame = Math.Max(offFrame, startFrame - elapsed) + settings.LimitFrames;
         State = VoiceState.Held;
     }
 
     /// <inheritdoc />
     public override void Take()
     {
-        _fadeStep = _envelope / _settings.FadeFrames;
+        _fadeStep = _envelope / settings.FadeFrames;
         State = VoiceState.Fading;
     }
 
     /// <inheritdoc />
     public override void Render(long startFrame, int count, Span<float> left, Span<float> right)
     {
-        PcmAudio sample = _settings.Sample;
+        PcmAudio sample = settings.Sample;
         ReadOnlySpan<float> first = sample.Channel(0);
         bool mono = sample.ChannelCount == 1;
         ReadOnlySpan<float> second = mono ? first : sample.Channel(1);
         for (int i = 0; i < count && State != VoiceState.Free; i++)
         {
             long frame = startFrame + i;
-            if (State == VoiceState.Held && !_settings.OneShot && frame >= _offFrame)
+            if (State == VoiceState.Held && !settings.OneShot && frame >= _offFrame)
             {
                 State = VoiceState.Released;
             }
@@ -81,12 +77,12 @@ internal sealed class SamplerVoice : InstrumentVoice
     // A one-shot that is cut at its limit fades out over the last stretch, so the cut does not click; other voices have no limit.
     private double LimitGain(long frame)
     {
-        if (!_settings.OneShot)
+        if (!settings.OneShot)
         {
             return 1;
         }
         long left = _limitFrame - frame;
-        return left >= _settings.LimitFadeFrames ? 1 : (double)left / _settings.LimitFadeFrames;
+        return left >= settings.LimitFadeFrames ? 1 : (double)left / settings.LimitFadeFrames;
     }
 
     // Four points through the position, the Catmull-Rom spline; outside the sample is silence, and a whole position is the sample's own.
@@ -115,12 +111,12 @@ internal sealed class SamplerVoice : InstrumentVoice
             case VoiceState.Held:
                 if (_attacking)
                 {
-                    _attacking = _age < _settings.AttackFrames;
-                    _envelope = _attacking ? _level * _age / _settings.AttackFrames : _level;
+                    _attacking = _age < settings.AttackFrames;
+                    _envelope = _attacking ? _level * _age / settings.AttackFrames : _level;
                 }
                 break;
             case VoiceState.Released:
-                _envelope *= _settings.ReleaseCoefficient;
+                _envelope *= settings.ReleaseCoefficient;
                 if (_envelope < SynthSettings.SilentLevel)
                 {
                     State = VoiceState.Free;

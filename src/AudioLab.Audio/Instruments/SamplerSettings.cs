@@ -69,20 +69,16 @@ internal sealed class SamplerSettings
     /// <summary>How many times faster than its own pitch the sample plays for a note.</summary>
     public double Ratio(int pitch) => Math.Pow(2, (pitch - RootNote) / 12.0);
 
-    /// <summary>The frame a note stops sounding: its release, or for a one-shot where its sample ends or its limit comes.</summary>
+    /// <summary>The frame a note stops sounding: its release or where its sample ends, or for a one-shot its sample's end or its limit.</summary>
     public long SoundingEnd(NoteEvent note)
     {
-        if (!OneShot)
-        {
-            return note.OffFrame;
-        }
         long sampleEnd = note.OnFrame + (long)Math.Ceiling(Sample.Frames / Ratio(note.Pitch));
-        return Math.Min(sampleEnd, Math.Max(note.OffFrame, note.OnFrame) + LimitFrames);
+        return OneShot ? Math.Min(sampleEnd, Math.Max(note.OffFrame, note.OnFrame) + LimitFrames) : Math.Min(sampleEnd, note.OffFrame);
     }
 
-    /// <summary>How long the source sounds past <paramref name="trackEnd"/>, where the track's last clip ends, in seconds.</summary>
+    /// <summary>How long the source sounds past <paramref name="contentEnd"/>, where the project's audible content ends, in seconds.</summary>
     /// <remarks>It is the latest end of any note: where its sample ends, or its release has died away, or for a one-shot the limit.</remarks>
-    public double TailSeconds(NoteEvent[] notes, double trackEnd)
+    public double TailSeconds(NoteEvent[] notes, double contentEnd)
     {
         int rate = Sample.SampleRate;
         double last = 0;
@@ -94,7 +90,7 @@ internal sealed class SamplerSettings
             double end = Math.Min(sampleEnd, OneShot ? off + OneShotLimit : off + ReleaseTail);
             last = Math.Max(last, end);
         }
-        return Math.Max(0, last - trackEnd);
+        return Math.Max(0, last - contentEnd);
     }
 
     private static double Value(SamplerInstrument sampler, string name)

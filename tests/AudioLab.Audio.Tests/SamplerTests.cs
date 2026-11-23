@@ -226,18 +226,35 @@ public sealed class SamplerTests
     }
 
     [Fact]
-    public void BlockSizeNeverChangesTheSoundAndTwoRendersAreEqual()
+    public void BlockSizeNeverChangesTheSoundOfEitherChannelAndTwoRendersAreEqual()
     {
         MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 40 + ((i * 7) % 50), i * 0.07, 0.3 + (i % 5 * 0.2), 30 + (i * 2)))];
         ProjectDocument project = Notes(Sampler(60) with { Release = 0.3 }, notes);
-        MemoryMedia media = Media(Tone(300, 2));
+        PcmAudio sample = Signals.Stereo(Tone(300, 2).Channel(0).ToArray(), Tone(450, 2).Channel(0).ToArray(), Rate);
+        MemoryMedia media = Media(sample);
         RenderedAudio reference = Render(project, Rate, 512, media: media);
 
-        foreach (int block in new[] { 1, 7, 64, 480, 4096 })
+        foreach (int block in new[] { 1, 7, 64, 480, 4096, 1_000_000 })
         {
-            Assert.Equal(reference.Left, Render(project, Rate, block, media: media).Left);
+            RenderedAudio other = Render(project, Rate, block, media: media);
+            Assert.Equal(reference.Left, other.Left);
+            Assert.Equal(reference.Right, other.Right);
         }
         Assert.Equal(reference.Left, Render(project, Rate, 512, media: media).Left);
+        Assert.NotEqual(reference.Left, reference.Right);
+
+        RenderedAudio whole = Render(project, Rate, 100, tail: false, media: media);
+        MixerGraph graph = new(PlanFor(project, sample), 100);
+        float[] left = new float[whole.Frames];
+        float[] right = new float[whole.Frames];
+        int[] sizes = [1, 99, 333, 4000, 17, 700, 256, 255, 257];
+        for (int done = 0, turn = 0; done < left.Length; turn++)
+        {
+            int count = Math.Min(sizes[turn % sizes.Length], left.Length - done);
+            graph.Render(left.AsSpan(done, count), right.AsSpan(done, count));
+            done += count;
+        }
+        Assert.Equal(whole.Left, left);
     }
 
     [Fact]
@@ -257,6 +274,7 @@ public sealed class SamplerTests
     {
         Random random = new(8);
         PcmAudio noise = Noise.Create(Rate, 1.5, 1);
+        float noisePeak = noise.Channel(0).ToArray().Max(Math.Abs);
         for (int round = 0; round < 80; round++)
         {
             SamplerInstrument sampler = Sampler(random.Next(0, 128)) with
@@ -279,7 +297,7 @@ public sealed class SamplerTests
             }
 
             Assert.True(left.All(float.IsFinite) && right.All(float.IsFinite), $"round {round}");
-            Assert.True(left.Max(Math.Abs) <= 30 * 1.0001f * 0.5f + 1, $"round {round}");
+            Assert.True(left.Max(Math.Abs) <= PolyphonicSource.PoolSize * (float)sampler.Gain * noisePeak * 1.3f, $"round {round}");
         }
     }
 
@@ -311,7 +329,7 @@ public sealed class SamplerTests
     }
 
     [Fact]
-    public void ThirtyNotesAtOnceTakeVoicesWithoutAClickOrAnError()
+    public void FortyNotesWithinHalfASecondTakeVoicesByAFadeNotACut()
     {
         MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 50 + (i % 20), i * 0.01, 3))];
         PolyphonicSource source = Source(Sampler(60), Signals.Constant(0.01f, 6, Rate, 2), notes);
@@ -321,7 +339,62 @@ public sealed class SamplerTests
         source.Render(0, left, right);
 
         Assert.True(source.CountedVoices <= PolyphonicSource.MaxHeldVoices);
-        Assert.True(left.All(float.IsFinite));
+        float biggestStep = 0;
+        for (int i = 1; i < left.Length; i++)
+        {
+            biggestStep = Math.Max(biggestStep, Math.Abs(left[i] - left[i - 1]));
+        }
+        // A voice at full level is 0.01 here, and a cut would be a step of that; the attack and the 2 ms fade are a tenth of it each.
+        Assert.True(biggestStep < 0.003, $"A step of {biggestStep}: a voice was cut, not faded.");
+    }
+
+    [Fact]
+    public void ATailIsMeasuredFromTheEndOfTheProjectNotFromTheSamplersOwnTrack()
+    {
+        Track sampler = InstrumentTrack("s", Sampler() with { OneShot = true }, Clip("c", 0, 1, [Note(1, 69, 0, 0.5)]));
+        MemoryMedia media = new MemoryMedia()
+            .Add(SampleId, Signals.Constant(1, 20, Rate, 2))
+            .Add("long", Signals.Constant(0.1f, 60, Rate, 2))
+            .Add("short", Signals.Constant(0.1f, 5, Rate, 2));
+
+        Track longTrack = TestProject.Track("a", TrackKind.Audio, TestProject.Clip("ac", "long", 0, 60));
+        Track shortTrack = TestProject.Track("a", TrackKind.Audio, TestProject.Clip("ac", "short", 0, 5));
+
+        RenderedAudio longer = Render(Project(sampler, longTrack), Rate, media: media);
+        RenderedAudio shorter = Render(Project(sampler, shortTrack), Rate, media: media);
+
+        Assert.InRange(longer.Frames / (double)Rate, 59.9, 60.1);
+        Assert.InRange(shorter.Frames / (double)Rate, 19.9, 20.1);
+    }
+
+    [Fact]
+    public void ANoteWhoseSampleHasEndedIsNotRestartedBySeekingIntoItsHeldTime()
+    {
+        MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 60 + (i % 12), i * 0.05, 4))];
+        ProjectDocument project = Project(InstrumentTrack("t", Sampler(), Clip("c", 0, 6, notes)));
+        PolyphonicSource source = (PolyphonicSource)new InstrumentSourceFactory()
+            .Create(project, project.Tracks[0], new AudioFormat(Rate, 2), new Plan(Signals.Constant(1, 0.1, Rate, 2)))!;
+
+        source.Render((long)(2.5 * Rate), [], []);
+
+        Assert.Equal(0, source.CountedVoices);
+    }
+
+    [Fact]
+    public void ASampleAtAnotherRateThanThePlanIsResampledSoTheNotePitchIsStillRight()
+    {
+        RenderedAudio audio = Render(Notes(Sampler(), Note(1, 69, 0, 0.6)), 48000, media: Media(Signals.Sine(440, 1, 44100, 0.5, 2)));
+
+        Assert.Equal(440, Frequency(audio, 0.1, 0.5, 48000), 0);
+    }
+
+    [Fact]
+    public void ASampleAtAnotherRateFromACustomMediaIsRefused()
+    {
+        ProjectDocument project = Notes(Sampler(), Note(1, 69, 0, 0.6));
+
+        Assert.Throws<InvalidOperationException>(
+            () => new InstrumentSourceFactory().Create(project, project.Tracks[0], new AudioFormat(48000, 2), new Plan(Tone(440, 1))));
     }
 
     private static RenderPlan PlanFor(ProjectDocument project, PcmAudio? audio = null) =>

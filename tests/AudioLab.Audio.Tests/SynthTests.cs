@@ -376,7 +376,7 @@ public sealed class SynthTests
     }
 
     [Fact]
-    public void TheFactoryBuildsASourceForASynthAndNothingForASamplerOrAnInstrumentTrackWithNoInstrument()
+    public void TheFactoryBuildsASourceForASynthAndNothingForASamplerWithNoSampleOrAnInstrumentTrackWithNoInstrument()
     {
         InstrumentSourceFactory factory = new();
         ProjectDocument project = Project(Plain, Clip("a", 0, 1, []));

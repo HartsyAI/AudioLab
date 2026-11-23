@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Instruments;
 
@@ -6,7 +7,8 @@ namespace AudioLab.Audio.Instruments;
 /// <remarks>
 /// Pass it as <see cref="PlanOptions.Sources"/> or <see cref="OfflineOptions.Sources"/>; it is asked once for each track heard. A sampler
 /// with no sample, or whose track has no note that would sound, is left silent. A sampler that would sound asks the plan's media for its
-/// sample, so a sample the media cannot supply fails the plan with <see cref="MissingMediaException"/> as a missing clip does.
+/// sample, so a sample the media cannot supply fails the plan with <see cref="MissingMediaException"/> as a missing clip does. The plan's own
+/// media comes at the plan's rate; a sample at another rate from a caller's <see cref="IPlanMedia"/> is refused with an exception.
 /// </remarks>
 public sealed class InstrumentSourceFactory : ITrackSourceFactory
 {
@@ -19,7 +21,7 @@ public sealed class InstrumentSourceFactory : ITrackSourceFactory
         return track.Instrument switch
         {
             SynthInstrument synth => Synth(synth, track, format),
-            SamplerInstrument sampler => Sampler(sampler, track, format, media),
+            SamplerInstrument sampler => Sampler(document, sampler, track, format, media),
             _ => null,
         };
     }
@@ -31,7 +33,12 @@ public sealed class InstrumentSourceFactory : ITrackSourceFactory
         return new PolyphonicSource(() => new SynthVoice(settings), notes, mono: true, settings.TailSeconds);
     }
 
-    private static PolyphonicSource? Sampler(SamplerInstrument sampler, Track track, AudioFormat format, IPlanMedia media)
+    private static PolyphonicSource? Sampler(
+        ProjectDocument document,
+        SamplerInstrument sampler,
+        Track track,
+        AudioFormat format,
+        IPlanMedia media)
     {
         if (sampler.Sample is not { } id)
         {
@@ -52,12 +59,12 @@ public sealed class InstrumentSourceFactory : ITrackSourceFactory
             throw new InvalidOperationException($"The sample {id} is at {sample.SampleRate} Hz and the plan at {format.SampleRate} Hz.");
         }
         SamplerSettings settings = new(sampler, sample);
-        double trackEnd = track.MidiClips.Where(clip => !clip.Muted).Select(clip => clip.Start + clip.Length).DefaultIfEmpty(0).Max();
+        double contentEnd = ProjectContent.End(document, audibleOnly: true);
         return new PolyphonicSource(
             () => new SamplerVoice(settings),
             notes,
             sample.ChannelCount == 1,
-            settings.TailSeconds(notes, trackEnd),
+            settings.TailSeconds(notes, contentEnd),
             settings.SoundingEnd);
     }
 }
