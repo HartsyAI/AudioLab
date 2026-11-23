@@ -45,7 +45,7 @@ public sealed class LaneDragTests
         Assert.Null(same.Commit());
     }
 
-    /// <summary>A pedal event moves on the grid with its value kept, as a removal and an add in one edit, and does not move onto another event.</summary>
+    /// <summary>A pedal event moves on the grid with its value kept, as a removal and an add, and never onto another event.</summary>
     [Fact]
     public void APedalEventMovesOnTheGridAsARemovalAndAnAdd()
     {

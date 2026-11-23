@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The bars of the clip along the top of the roll, numbered as the arrangement numbers them; a press on it puts the insert point there.</summary>
+/// <summary>The bars of the clip along the top of the roll, numbered as the arrangement numbers them; a press puts the insert point there.</summary>
 public sealed partial class RollRuler : IDisposable
 {
     private const double MinLabelPixels = 36;

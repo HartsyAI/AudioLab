@@ -16,7 +16,8 @@ public sealed class MidiActions
     public Func<ClipId, int, Task<EditResult>> StepLength { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
     /// <summary>Sends commands built for the open project as one undo step; the ids they allocate come back in order.</summary>
-    public Func<Func<ProjectId, IReadOnlyList<Command>>, Task<EditResult>> Send { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
+    public Func<Func<ProjectId, IReadOnlyList<Command>>, Task<EditResult>> Send { get; init; } =
+        _ => Task.FromResult(EditResult.Refused(NotAvailable));
 
     /// <summary>Sets the grid the project snaps to, such as 1/16.</summary>
     public Func<string, Task<EditResult>> SetGrid { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));

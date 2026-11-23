@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>A drag on a pedal event: it moves along the grid the roll draws and keeps its value; an event is identified by its time, so a move is a removal and an add.</summary>
+/// <summary>A drag on a pedal event: it moves along the grid and keeps its value; an event is found by its time, so a move is two commands.</summary>
 public sealed class PedalDrag : IRollGesture
 {
     private readonly MidiClip _clip;

@@ -6,10 +6,13 @@
         <span class="group">
             <Button Name="@QuantizeName" Shortcut="@Shortcuts.RollQuantize.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
                     OnClick="Quantize">Quantize</Button>
-            <Button Name="@TransposeName(-12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(-12)">-12</Button>
-            <Button Name="@TransposeName(-1)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(-1)">-1</Button>
+            <Button Name="@TransposeName(-12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="() => Transpose(-12)">-12</Button>
+            <Button Name="@TransposeName(-1)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="() => Transpose(-1)">-1</Button>
             <Button Name="@TransposeName(1)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(1)">+1</Button>
-            <Button Name="@TransposeName(12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="() => Transpose(12)">+12</Button>
+            <Button Name="@TransposeName(12)" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                    OnClick="() => Transpose(12)">+12</Button>
         </span>
         <Segmented Words="true" Label="Grid" Items="GridItems" Value="@Document.View.Grid" ValueChanged="ChooseGrid" />
         <span class="group">
@@ -17,9 +20,11 @@
             <Button Name="Zoom in" Shortcut="@Shortcuts.RollZoomIn.Display" OnClick="() => Zoom(true)">+</Button>
         </span>
         <span class="group">
-            <Button Name="Shorten clip by a bar" Shortcut="@Shortcuts.MidiClipShorter.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+            <Button Name="Shorten clip by a bar" Shortcut="@Shortcuts.MidiClipShorter.Display" Disabled="@(!Actions.CanEdit)"
+                    DisabledReason="@Actions.Reason"
                     OnClick="() => StepLength(-1)">Shorter</Button>
-            <Button Name="Lengthen clip by a bar" Shortcut="@Shortcuts.MidiClipLonger.Display" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+            <Button Name="Lengthen clip by a bar" Shortcut="@Shortcuts.MidiClipLonger.Display" Disabled="@(!Actions.CanEdit)"
+                    DisabledReason="@Actions.Reason"
                     OnClick="() => StepLength(1)">Longer</Button>
         </span>
     </div>
@@ -36,7 +41,8 @@
                 <RollOverlay Geometry="Geometry" Clip="Clip" ColorToken="@ColorToken" />
             </div>
             <div class="lane-cell velocity-cell">
-                <VelocityLane Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" OnPress="VelocityPress" />
+                <VelocityLane Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken"
+                              OnPress="VelocityPress" />
             </div>
             <div class="label velocity-label"><span>Velocity</span></div>
             <div class="lane-cell pedal-cell">

@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>A drag on the notes: it follows the pointer on the grid the roll draws, shows where the notes would land, and on release says what to send.</summary>
+/// <summary>A drag on the notes: it follows the pointer on the grid the roll draws, shows where notes would land, and says what to send.</summary>
 /// <remarks>
 /// Nothing is sent while it moves. A move and a resize carry each note's absolute target (D23), clamped as a whole so the shape of the notes
 /// is kept at an edge; a press that never travels <see cref="Threshold"/> pixels is a click and sends nothing.
@@ -46,7 +46,17 @@ public sealed class NoteDrag : IRollGesture
 
     private int _pitchDelta;
 
-    private NoteDrag(NoteDragKind kind, ProjectDocument document, MidiClip clip, RollGeometry geometry, NoteIndex index, MidiNote[] notes, MidiNote grabbed, double x, double y, int velocity)
+    private NoteDrag(
+        NoteDragKind kind,
+        ProjectDocument document,
+        MidiClip clip,
+        RollGeometry geometry,
+        NoteIndex index,
+        MidiNote[] notes,
+        MidiNote grabbed,
+        double x,
+        double y,
+        int velocity)
     {
         Kind = kind;
         _clip = clip;
@@ -87,13 +97,29 @@ public sealed class NoteDrag : IRollGesture
     public (double X, double Y, double Width, double Height)? Marquee => _marquee;
 
     /// <summary>A drag of the selected notes by one of them.</summary>
-    public static NoteDrag ForMove(ProjectDocument document, MidiClip clip, RollGeometry geometry, NoteIndex index, IEnumerable<MidiNote> notes, MidiNote grabbed, double x, double y)
+    public static NoteDrag ForMove(
+        ProjectDocument document,
+        MidiClip clip,
+        RollGeometry geometry,
+        NoteIndex index,
+        IEnumerable<MidiNote> notes,
+        MidiNote grabbed,
+        double x,
+        double y)
     {
         return new NoteDrag(NoteDragKind.Move, document, clip, geometry, index, [.. notes], grabbed, x, y, 0);
     }
 
     /// <summary>A drag of the right edge of the selected notes by the edge of one of them.</summary>
-    public static NoteDrag ForResize(ProjectDocument document, MidiClip clip, RollGeometry geometry, NoteIndex index, IEnumerable<MidiNote> notes, MidiNote grabbed, double x, double y)
+    public static NoteDrag ForResize(
+        ProjectDocument document,
+        MidiClip clip,
+        RollGeometry geometry,
+        NoteIndex index,
+        IEnumerable<MidiNote> notes,
+        MidiNote grabbed,
+        double x,
+        double y)
     {
         return new NoteDrag(NoteDragKind.Resize, document, clip, geometry, index, [.. notes], grabbed, x, y, 0);
     }

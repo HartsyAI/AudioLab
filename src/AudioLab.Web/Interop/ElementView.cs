@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 
 namespace AudioLab.Web.Interop;
 
-/// <summary>Reads <c>getBoundingClientRect</c>, <c>scrollLeft</c>, <c>scrollTop</c>, <c>scrollTo</c>, <c>contains</c> and <c>activeElement</c>, all browser built-ins.</summary>
+/// <summary>Reads and sets scroll and focus state through <c>getBoundingClientRect</c>, <c>scrollTo</c> and <c>contains</c>, built-ins.</summary>
 [SupportedOSPlatform("browser")]
 public sealed partial class ElementView : IElementView
 {
@@ -17,7 +17,11 @@ public sealed partial class ElementView : IElementView
             return null;
         }
         using JSObject rect = Rect(element);
-        return (rect.GetPropertyAsDouble("left"), rect.GetPropertyAsDouble("top"), rect.GetPropertyAsDouble("width"), rect.GetPropertyAsDouble("height"));
+        return (
+            rect.GetPropertyAsDouble("left"),
+            rect.GetPropertyAsDouble("top"),
+            rect.GetPropertyAsDouble("width"),
+            rect.GetPropertyAsDouble("height"));
     }
 
     /// <inheritdoc />

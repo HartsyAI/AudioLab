@@ -3,8 +3,8 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>What the piano roll of this client holds that is not the document: the tool, the zoom, the selected notes and pedal event, the insert point and the clipboard.</summary>
-/// <remarks>A view state, like <see cref="SessionSelection"/>: never in the project, never sent. It follows one clip and starts over for another.</remarks>
+/// <summary>What the piano roll of this client holds that is not the document: tool, zoom, selection, insert point and clipboard.</summary>
+/// <remarks>A view state, like <see cref="SessionSelection"/>: never in the project, never sent. It follows one clip.</remarks>
 public sealed class PianoRollState
 {
     private readonly HashSet<NoteId> _selected = [];
@@ -50,7 +50,7 @@ public sealed class PianoRollState
     /// <summary>The notes that were copied, with their starts counted from the first.</summary>
     public IReadOnlyList<NewNote> Clipboard { get; private set; } = [];
 
-    /// <summary>Points the state at a clip; another clip clears the selection and the insert point and keeps the tool, the zoom and the clipboard.</summary>
+    /// <summary>Points the state at a clip; another clip clears the selection and the insert point and keeps the tool, zoom and clipboard.</summary>
     public void Bind(ClipId? clip)
     {
         if (clip == _clip)
@@ -77,7 +77,8 @@ public sealed class PianoRollState
             Cursor = null;
             changed = true;
         }
-        if (SelectedPedal is { } time && !clip.ControlChanges.Any(change => change.Controller == PedalController && Math.Abs(change.Time - time) < 1e-6))
+        if (SelectedPedal is { } time
+            && !clip.ControlChanges.Any(change => change.Controller == PedalController && Math.Abs(change.Time - time) < 1e-6))
         {
             SelectedPedal = null;
             changed = true;

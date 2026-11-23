@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>What moves while the user works: the insert point, the notes of a drag where they would land, an erase, and a marquee. Only this layer redraws on a pointer move.</summary>
+/// <summary>What moves while the user works: the insert point, notes of a drag, an erase and a marquee; only this layer redraws on a move.</summary>
 public sealed partial class RollOverlay : IDisposable
 {
     private NoteDrag? _carried;

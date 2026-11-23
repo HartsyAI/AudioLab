@@ -78,7 +78,8 @@ public static class Shortcuts
     public static readonly Shortcut RollBelow = new("roll.walk.below", "Select note below", "ArrowDown", PianoRoll);
 
     /// <summary>Add the previous note in time to the selection.</summary>
-    public static readonly Shortcut RollExtendPrevious = new("roll.extend.previous", "Add previous note to selection", "ArrowLeft", PianoRoll, Shift: true);
+    public static readonly Shortcut RollExtendPrevious =
+        new("roll.extend.previous", "Add previous note to selection", "ArrowLeft", PianoRoll, Shift: true);
 
     /// <summary>Add the next note in time to the selection.</summary>
     public static readonly Shortcut RollExtendNext = new("roll.extend.next", "Add next note to selection", "ArrowRight", PianoRoll, Shift: true);
@@ -111,13 +112,16 @@ public static class Shortcuts
     public static readonly Shortcut RollOctaveUp = new("roll.octave.up", "Transpose up an octave", "ArrowUp", PianoRoll, Shift: true, Alt: true);
 
     /// <summary>Transpose the selected notes down an octave.</summary>
-    public static readonly Shortcut RollOctaveDown = new("roll.octave.down", "Transpose down an octave", "ArrowDown", PianoRoll, Shift: true, Alt: true);
+    public static readonly Shortcut RollOctaveDown =
+        new("roll.octave.down", "Transpose down an octave", "ArrowDown", PianoRoll, Shift: true, Alt: true);
 
     /// <summary>Lengthen the selected notes by one grid step.</summary>
-    public static readonly Shortcut RollLonger = new("roll.length.longer", "Lengthen notes by a step", "ArrowRight", PianoRoll, Shift: true, Alt: true);
+    public static readonly Shortcut RollLonger =
+        new("roll.length.longer", "Lengthen notes by a step", "ArrowRight", PianoRoll, Shift: true, Alt: true);
 
     /// <summary>Shorten the selected notes by one grid step.</summary>
-    public static readonly Shortcut RollShorter = new("roll.length.shorter", "Shorten notes by a step", "ArrowLeft", PianoRoll, Shift: true, Alt: true);
+    public static readonly Shortcut RollShorter =
+        new("roll.length.shorter", "Shorten notes by a step", "ArrowLeft", PianoRoll, Shift: true, Alt: true);
 
     /// <summary>Raise the velocity of the selected notes.</summary>
     public static readonly Shortcut RollLouder = new("roll.velocity.up", "Raise velocity", "ArrowUp", PianoRoll, Ctrl: true);

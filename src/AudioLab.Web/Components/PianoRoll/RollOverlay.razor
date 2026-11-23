@@ -2,7 +2,8 @@
     <div class="insert" style="left: @Css.Px(Geometry.X(State.InsertTime))"></div>
     @if (Drag is { Active: true } drag)
     {
-        <svg class="ghosts" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none" width="@Css.Number(Geometry.Width)"
+        <svg class="ghosts" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none"
+             width="@Css.Number(Geometry.Width)"
              height="@Css.Number(Geometry.Height)" style="@Carried(drag)">
             <path class="ghost" d="@Ghosts(drag)"></path>
             <path class="erased" d="@Erased(drag)"></path>

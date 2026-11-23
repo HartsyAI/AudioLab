@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The sustain pedal of the clip: the stretches where it is down, and a line for each event, which can be pressed, moved and removed.</summary>
+/// <summary>The sustain pedal of the clip: the stretches where it is down, and a line for each event to press, move and remove.</summary>
 public sealed partial class PedalLane : IDisposable
 {
     private MidiClip? _built;

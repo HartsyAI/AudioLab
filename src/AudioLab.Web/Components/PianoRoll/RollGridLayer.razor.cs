@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The lines under the notes: the bands of the black keys, the octave lines, and the grid steps, beats and bars of the project's tempo map.</summary>
+/// <summary>The lines under the notes: the black key bands, the octave lines, and the grid steps, beats and bars of the tempo map.</summary>
 public sealed partial class RollGridLayer
 {
     private (RollLines, RollGeometry)? _shown;

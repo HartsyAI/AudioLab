@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The piano roll of one MIDI clip: the keys, the grid, the notes, the velocity lane and the sustain pedal lane, edited by pointer and by keyboard.</summary>
+/// <summary>The piano roll of one MIDI clip: keys, grid, notes, velocity lane and sustain pedal lane, edited by pointer and keyboard.</summary>
 /// <remarks>
 /// Every edit is commands sent in one gesture, with absolute targets (D23). A gesture follows the pointer through listeners on the document and is
 /// previewed with the same rules the server applies; nothing is sent until the release. Notes are drawn as a few SVG paths and found by a pointer
@@ -163,7 +163,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         {
             string selected = State.Selected.Count == 0
                 ? "No notes selected."
-                : $"{State.Selected.Count.ToString(CultureInfo.InvariantCulture)} of {Clip.Notes.Count.ToString(CultureInfo.InvariantCulture)} notes selected.";
+                : $"{State.Selected.Count.ToString(CultureInfo.InvariantCulture)} of {Clip.Notes.Count.ToString(CultureInfo.InvariantCulture)}"
+                    + " notes selected.";
             string note = State.Cursor is { } cursor && _index.Find(cursor) is { } found ? Describe(found) + " " : string.Empty;
             return $"{note}{selected} {_message}".Trim();
         }
@@ -183,7 +184,10 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             string? reason = Actions.CanEdit ? null : Actions.Reason;
             return
             [
-                .. new (string Id, string Label)[] { ("auto", "Auto"), ("1/4", "1/4"), ("1/8", "1/8"), ("1/16", "1/16"), ("1/32", "1/32"), ("1/8t", "1/8t") }
+                .. new (string Id, string Label)[]
+                    {
+                        ("auto", "Auto"), ("1/4", "1/4"), ("1/8", "1/8"), ("1/16", "1/16"), ("1/32", "1/32"), ("1/8t", "1/8t"),
+                    }
                     .Select(item => new SegmentItem(item.Id, $"Grid {item.Label}", Label: item.Label, Reason: reason)),
             ];
         }
@@ -303,7 +307,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             return;
         }
         double seconds = Geometry.Seconds(move.ClientX - box.Left);
-        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), GripPixels / State.PixelsPerSecond, out bool edge) is not null && edge;
+        double grip = GripPixels / State.PixelsPerSecond;
+        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), grip, out bool edge) is not null && edge;
         if (over != _overEdge)
         {
             _overEdge = over;

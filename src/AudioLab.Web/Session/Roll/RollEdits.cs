@@ -24,7 +24,7 @@ public static class RollEdits
         return RollEdit.Of(project => new DeleteNotes { Project = project, Clip = id, Notes = ids });
     }
 
-    /// <summary>Adds copies of notes at <paramref name="at"/> seconds from the clip start, the earliest of them there; the ones that would start past the clip are left out.</summary>
+    /// <summary>Adds copies of notes, the earliest at <paramref name="at"/> seconds from the clip start; those past the clip are left out.</summary>
     public static RollEdit? Place(MidiClip clip, IReadOnlyList<NewNote> notes, double at, out string? refusal)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -80,7 +80,7 @@ public static class RollEdits
         return RollEdit.Of(project => new TransposeNotes { Project = project, Clip = id, Notes = ids, Semitones = semitones });
     }
 
-    /// <summary>Moves notes one grid step: the earliest goes to the next line and the rest keep their places relative to it, all inside the clip.</summary>
+    /// <summary>Moves notes one grid step: the earliest goes to the next line, the rest keep their places relative to it, inside the clip.</summary>
     public static RollEdit? Nudge(ProjectDocument document, MidiClip clip, IReadOnlyList<MidiNote> notes, int direction)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -144,7 +144,8 @@ public static class RollEdits
             return null;
         }
         ClipId id = clip.Id;
-        (int Velocity, ValueList<NoteId> Notes)[] sets = [.. groups.Select(group => (group.Key, new ValueList<NoteId>([.. group.Select(note => note.Id)])))];
+        (int Velocity, ValueList<NoteId> Notes)[] sets =
+            [.. groups.Select(group => (group.Key, new ValueList<NoteId>([.. group.Select(note => note.Id)])))];
         return new RollEdit(project =>
             [.. sets.Select(set => (Command)new SetNoteVelocity { Project = project, Clip = id, Notes = set.Notes, Velocity = set.Velocity })]);
     }
@@ -155,8 +156,9 @@ public static class RollEdits
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(clip);
         double start = Math.Max(0, at);
-        double length = new GridSnap(document).Step(clip.Start + start);
-        return Place(clip, [new NewNote(pitch, 0, Math.Max(NoteRules.MinDuration, Math.Min(length, clip.Length - start)), velocity)], start, out refusal);
+        double step = new GridSnap(document).Step(clip.Start + start);
+        double length = Math.Max(NoteRules.MinDuration, Math.Min(step, clip.Length - start));
+        return Place(clip, [new NewNote(pitch, 0, length, velocity)], start, out refusal);
     }
 
     /// <summary>Puts the sustain pedal down or up at a time: down when it is up there and up when it is down.</summary>
@@ -165,7 +167,16 @@ public static class RollEdits
         ArgumentNullException.ThrowIfNull(clip);
         int value = PedalDownAt(clip, time) ? 0 : 127;
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new AddControlChange { Project = project, Clip = id, Time = Math.Clamp(time, 0, clip.Length), Controller = PianoRollState.PedalController, Value = value });
+        double at = Math.Clamp(time, 0, clip.Length);
+        return RollEdit.Of(
+            project => new AddControlChange
+            {
+                Project = project,
+                Clip = id,
+                Time = at,
+                Controller = PianoRollState.PedalController,
+                Value = value,
+            });
     }
 
     /// <summary>Removes the pedal event at a time.</summary>
@@ -173,7 +184,8 @@ public static class RollEdits
     {
         ArgumentNullException.ThrowIfNull(clip);
         ClipId id = clip.Id;
-        return RollEdit.Of(project => new RemoveControlChanges { Project = project, Clip = id, Time = time, Controller = PianoRollState.PedalController });
+        return RollEdit.Of(
+            project => new RemoveControlChanges { Project = project, Clip = id, Time = time, Controller = PianoRollState.PedalController });
     }
 
     /// <summary>Whether the pedal is down at a time: the last pedal event at or before it is 64 or more.</summary>

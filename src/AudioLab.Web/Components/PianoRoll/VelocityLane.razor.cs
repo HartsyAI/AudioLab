@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The velocity of every note as a bar under its start: one path for the notes and one for the selection, so a drag of a bar redraws only a small preview.</summary>
+/// <summary>The velocity of every note as a bar under its start: one path for the notes and one for the selection.</summary>
 public sealed partial class VelocityLane : IDisposable
 {
     private MidiClip? _built;

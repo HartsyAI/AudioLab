@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components.PianoRoll;
 
-/// <summary>The selected notes drawn over the notes: one path, so a change of selection costs the notes it changes and not every note of the clip.</summary>
+/// <summary>The selected notes drawn over the notes as one path, so a change of selection costs the notes it changes.</summary>
 public sealed partial class RollSelection
 {
     private const double MinPixels = 2;

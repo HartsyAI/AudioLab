@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>A drag on the velocity of a note: the height of the pointer in the lane is the velocity, for the note and for the selection it belongs to.</summary>
+/// <summary>A drag on the velocity of a note: the height of the pointer in the lane is the velocity, for the note and its selection.</summary>
 public sealed class VelocityDrag : IRollGesture
 {
     private readonly ClipId _clip;

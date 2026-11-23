@@ -53,7 +53,7 @@ public sealed class GridSnap
     /// <summary>The length of one step, in seconds, at the tempo in force at <paramref name="at"/>.</summary>
     public double Step(double at) => GridRules.StepSeconds(_grid, _tempo, _signature, at);
 
-    /// <summary>The lines from <paramref name="from"/> to <paramref name="to"/>, in seconds, as the lanes and the roll draw them; none past <paramref name="limit"/>.</summary>
+    /// <summary>The grid lines from <paramref name="from"/> to <paramref name="to"/> in seconds, at most <paramref name="limit"/>.</summary>
     public IEnumerable<double> Lines(double from, double to, int limit)
     {
         const double Tolerance = 1e-9;

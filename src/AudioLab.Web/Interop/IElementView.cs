@@ -1,6 +1,6 @@
 namespace AudioLab.Web.Interop;
 
-/// <summary>Reads and sets what the page cannot know from the document alone about a scrolling element: where it is, how far it is scrolled, and whether the focus is in it.</summary>
+/// <summary>Reads and sets what the page cannot know about a scrolling element: where it is, how far it is scrolled, and the focus in it.</summary>
 public interface IElementView
 {
     /// <summary>The left, top, width and height of the element with this id in client pixels; null when there is no such element.</summary>

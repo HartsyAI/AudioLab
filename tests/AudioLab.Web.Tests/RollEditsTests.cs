@@ -9,7 +9,10 @@ public sealed class RollEditsTests
 {
     private static readonly ProjectId _project = ProjectId.From("song");
 
-    private static MidiNote Note(int id, int pitch, double start, double duration, int velocity = 90) => new(new NoteId(id), pitch, start, duration, velocity);
+    private static MidiNote Note(int id, int pitch, double start, double duration, int velocity = 90)
+    {
+        return new MidiNote(new NoteId(id), pitch, start, duration, velocity);
+    }
 
     private readonly MidiClip _clip = Song.Midi("m", 0, 4, Note(1, 60, 1, 0.5), Note(2, 64, 1.5, 0.5, 120), Note(3, 67, 3, 0.5));
 
@@ -34,7 +37,8 @@ public sealed class RollEditsTests
     [Fact]
     public void AStretchChangesEveryLengthByOneStepAndNeverBelowTheLeast()
     {
-        ResizeNotes longer = Assert.IsType<ResizeNotes>(Assert.Single(Commands(RollEdits.Stretch(Document, _clip, [_clip.Notes[0], _clip.Notes[1]], 1))));
+        RollEdit? grown = RollEdits.Stretch(Document, _clip, [_clip.Notes[0], _clip.Notes[1]], 1);
+        ResizeNotes longer = Assert.IsType<ResizeNotes>(Assert.Single(Commands(grown)));
         Assert.All(longer.Notes, length => Assert.Equal(0.625, length.Duration, 9));
 
         MidiClip tiny = Song.Midi("t", 0, 4, Note(1, 60, 1, 0.05));
@@ -54,17 +58,19 @@ public sealed class RollEditsTests
         Assert.Null(RollEdits.Louder(Song.Midi("m", 0, 4, Note(1, 60, 1, 0.5, 127)), [Note(1, 60, 1, 0.5, 127)], 8));
     }
 
-    /// <summary>A duplicate goes right after the notes, a paste at the insert point, and what would start past the clip is left out with a reason.</summary>
+    /// <summary>A duplicate goes right after the notes, a paste at the insert point, and notes past the clip are left out with a reason.</summary>
     [Fact]
     public void ADuplicateGoesAfterTheNotesAndNotesPastTheClipAreLeftOutWithAReason()
     {
-        AddNotes copy = Assert.IsType<AddNotes>(Assert.Single(Commands(RollEdits.Duplicate(_clip, [_clip.Notes[0], _clip.Notes[1]], out string? none))));
+        RollEdit? duplicate = RollEdits.Duplicate(_clip, [_clip.Notes[0], _clip.Notes[1]], out string? none);
+        AddNotes copy = Assert.IsType<AddNotes>(Assert.Single(Commands(duplicate)));
         Assert.Null(none);
         Assert.Equal([2, 2.5], copy.Notes.Select(note => note.Start).ToArray());
 
         Assert.Null(RollEdits.Duplicate(_clip, [Note(9, 60, 3.6, 0.5)], out string? refusal));
         Assert.NotNull(refusal);
-        AddNotes pasted = Assert.IsType<AddNotes>(Assert.Single(Commands(RollEdits.Place(_clip, [new NewNote(60, 0, 0.5, 90), new NewNote(62, 3, 0.5, 90)], 2, out _))));
+        RollEdit? placed = RollEdits.Place(_clip, [new NewNote(60, 0, 0.5, 90), new NewNote(62, 3, 0.5, 90)], 2, out _);
+        AddNotes pasted = Assert.IsType<AddNotes>(Assert.Single(Commands(placed)));
         Assert.Single(pasted.Notes);
         Assert.Equal(2, pasted.Notes[0].Start);
     }

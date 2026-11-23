@@ -1,6 +1,6 @@
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>The one place seconds and pitches become pixels in the piano roll: time across a clip's own seconds, pitch down from the highest.</summary>
+/// <summary>The one place seconds and pitches become pixels in the piano roll: time across the clip, pitch down from the highest.</summary>
 /// <param name="PixelsPerSecond">How many CSS pixels one second takes.</param>
 /// <param name="RowHeight">How tall one pitch is, in CSS pixels.</param>
 /// <param name="Length">The clip length in seconds.</param>

@@ -70,7 +70,8 @@ public static class RollGrid
             double row = RollGeometry.Pitches - 1 - pitch;
             if (_black[pitch % 12])
             {
-                black.Append('M').Append(0).Append(' ').Append(Number(row)).Append('h').Append(Number(length)).Append("v1h-").Append(Number(length)).Append('z');
+                black.Append('M').Append(0).Append(' ').Append(Number(row)).Append('h').Append(Number(length))
+                    .Append("v1h-").Append(Number(length)).Append('z');
             }
             if (pitch % 12 == 0)
             {

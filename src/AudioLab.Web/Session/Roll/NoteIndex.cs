@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session.Roll;
 
-/// <summary>The notes of a MIDI clip laid out for finding them: by pitch for a pointer, in time order for the keyboard. Built once for each revision of the clip.</summary>
+/// <summary>The notes of a MIDI clip laid out for finding them: by pitch for a pointer, in time order for the keyboard.</summary>
 public sealed class NoteIndex
 {
     private readonly List<MidiNote>?[] _rows;
@@ -39,7 +39,7 @@ public sealed class NoteIndex
     /// <summary>A note by id, or null.</summary>
     public MidiNote? Find(NoteId id) => _order.TryGetValue(id, out int at) ? Ordered[at] : null;
 
-    /// <summary>The note under a point, the one drawn last when several overlap; <paramref name="edge"/> says whether the point is in its right-hand grip.</summary>
+    /// <summary>The note under a point, the one drawn last when several overlap; <paramref name="edge"/> says whether it is in the grip.</summary>
     /// <param name="seconds">The time, from the clip start.</param>
     /// <param name="pitch">The pitch.</param>
     /// <param name="gripSeconds">How wide the grip at the right edge of a note is, in seconds; never more than half the note.</param>
@@ -91,7 +91,7 @@ public sealed class NoteIndex
 
     /// <summary>The note the keyboard moves to from <paramref name="current"/>, or null when the key moves nowhere.</summary>
     /// <param name="current">The note that has the cursor, or null for none.</param>
-    /// <param name="key">ArrowLeft and ArrowRight go to the previous and next note in time; ArrowUp and ArrowDown to the nearest one above and below.</param>
+    /// <param name="key">ArrowLeft and ArrowRight walk in time; ArrowUp and ArrowDown go to the nearest note above or below.</param>
     public NoteId? Walk(NoteId? current, string key)
     {
         ArgumentNullException.ThrowIfNull(key);
