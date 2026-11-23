@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue tabs: one is the tab stop, the arrow keys, Home and End move between them, and the active one is strong with an underline.</summary>
+/// <summary>The catalogue tabs: one is the tab stop, the arrow keys, Home and End move between them, and the active one is underlined.</summary>
 public sealed partial class Tabs
 {
     private readonly string _id = Guid.NewGuid().ToString("N")[..8];

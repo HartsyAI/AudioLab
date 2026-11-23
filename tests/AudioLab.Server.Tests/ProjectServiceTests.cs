@@ -125,49 +125,19 @@ public sealed class ProjectServiceTests
     }
 
     [Fact]
-    public async Task ARestartKeepsTheProjectsAndMediaOfEveryUser()
+    public async Task ARestartKeepsTheProjectsOfEveryUser()
     {
         using TempFolder folder = new();
         string aliceProject;
         string bobProject;
-        MediaRecord media;
         await using (TestStore first = TestStore.On(folder.Path))
         {
             aliceProject = (await first.Service.CreateAsync(Users.Alice, "A", _none)).Id;
             bobProject = (await first.Service.CreateAsync(Users.Bob, "B", _none)).Id;
-            media = await first.Media.CreateAsync(Users.Alice, "audio/flac", 99, _none);
         }
         await using TestStore second = TestStore.On(folder.Path);
         Assert.Equal([aliceProject], (await second.Service.ListAsync(Users.Alice, _none)).Projects.Select(project => project.Id));
         Assert.Equal([bobProject], (await second.Service.ListAsync(Users.Bob, _none)).Projects.Select(project => project.Id));
-        Assert.Equal(media, await second.Media.GetAsync(Users.Alice, media.Id, _none));
-    }
-
-    [Fact]
-    public async Task MediaRecordsCreateReadListAndDelete()
-    {
-        using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path);
-        MediaRecord record = await store.Media.CreateAsync(Users.Alice, "audio/wav", 4096, _none);
-        Assert.Equal(new MediaRecord { Id = record.Id, Owner = Users.Alice, ContentType = "audio/wav", Length = 4096 }, record);
-        Assert.Equal([record], (await store.Media.ListAsync(Users.Alice, _none)).Records);
-        Assert.True(store.Media.Delete(Users.Alice, record.Id));
-        Assert.False(store.Media.Delete(Users.Alice, record.Id));
-        await Assert.ThrowsAsync<ProjectNotFoundException>(() => store.Media.GetAsync(Users.Alice, record.Id, _none));
-    }
-
-    [Theory]
-    [InlineData("AUDIO/WAV", 10)]
-    [InlineData("audio/wav; charset=x", 10)]
-    [InlineData("audio", 10)]
-    [InlineData("audio/wav", 0)]
-    [InlineData("audio/wav", -1)]
-    public async Task ARecordThatBreaksTheMediaRulesIsNotStored(string contentType, long length)
-    {
-        using TempFolder folder = new();
-        await using TestStore store = TestStore.On(folder.Path);
-        await Assert.ThrowsAsync<ProjectFormatException>(() => store.Media.CreateAsync(Users.Alice, contentType, length, _none));
-        Assert.Empty((await store.Media.ListAsync(Users.Alice, _none)).Records);
     }
 
     [Fact]

@@ -4,6 +4,6 @@ namespace AudioLab.Web.Services;
 public interface IProjectHubFactory
 {
     /// <summary>A new connection that is not yet open.</summary>
-    /// <param name="reconnects">True for a connection a screen keeps open, which opens again by itself after a loss; false for a one-shot request.</param>
+    /// <param name="reconnects">True for a connection a screen keeps open, which opens again by itself; false for a one-shot one.</param>
     public IProjectHub Create(bool reconnects);
 }

@@ -1,4 +1,7 @@
 .clip {
+    /* The clip's outline and its selected outline, as the session mock draws them; a hairline and a line and a half. */
+    --ring: 1px;
+    --ring-selected: 1.5px;
     position: absolute;
     top: var(--space-4);
     bottom: var(--space-4);
@@ -7,15 +10,16 @@
     overflow: hidden;
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--clip) 17%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--clip) 50%, transparent);
+    box-shadow: inset 0 0 0 var(--ring) color-mix(in srgb, var(--clip) 50%, transparent);
     outline: none;
     /* Selected text under the pointer makes the browser start a native drag, which cancels the pointer and so a clip drag. */
     user-select: none;
+    touch-action: none;
 }
 
 .clip[data-selected="true"] {
     background: color-mix(in srgb, var(--clip) 30%, transparent);
-    box-shadow: inset 0 0 0 1.5px var(--playhead);
+    box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead);
 }
 
 .clip:focus-visible {
@@ -46,6 +50,11 @@
     min-height: 0;
 }
 
+/* The waveform is a stand-in until media exists, so it is drawn fainter than a real one will be. */
+svg[data-peaks="placeholder"] {
+    opacity: 0.55;
+}
+
 svg {
     position: absolute;
     left: 0;
@@ -68,7 +77,7 @@ path {
 
 .clip[data-lifted="true"] {
     z-index: var(--z-lane-overlay);
-    box-shadow: inset 0 0 0 1.5px var(--playhead), var(--shadow-overlay);
+    box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead), var(--shadow-overlay);
     cursor: grabbing;
     pointer-events: none;
 }

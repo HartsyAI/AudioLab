@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>A button that says what it is in its title: its name and shortcut, or why it does nothing now. It stays focusable while disabled.</summary>
+/// <summary>A button that says what it is in its title: its name and shortcut, or why it does nothing now. It stays focusable disabled.</summary>
 /// <remarks>The look comes from the component that uses this one, through <c>class</c> and the other attributes it passes.</remarks>
 public sealed partial class TitledButton
 {

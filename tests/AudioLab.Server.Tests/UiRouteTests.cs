@@ -55,6 +55,17 @@ public sealed class UiRouteTests
         Assert.Equal(HttpStatusCode.NotFound, (await server.Client.GetAsync("/project/song.1")).StatusCode);
     }
 
+    [Fact]
+    public async Task AGetToARouteThatTakesOnlyAnotherMethodIsRefusedWithThatMethodNotTheStartPage()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+
+        HttpResponseMessage save = await server.Client.GetAsync("/api/projects/x/save");
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, save.StatusCode);
+        Assert.Equal(["POST"], save.Content.Headers.Allow);
+    }
+
     [Theory]
     [InlineData("/_framework/blazor.server.js")]
     [InlineData("/_framework/blazor.web.js")]

@@ -1,5 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
+using AudioLab.Server.Media;
 
 namespace AudioLab.Server.Store;
 
@@ -14,6 +16,7 @@ public sealed class OpenProjects(
     StoreOptions options,
     TimeProvider time,
     CommandRegistry registry,
+    MediaStore media,
     IIdService ids,
     ILogger<OpenProjects> logger)
     : IHostedService, IAsyncDisposable
@@ -36,7 +39,8 @@ public sealed class OpenProjects(
                 if (SessionOf(entry) is not { } session)
                 {
                     ProjectDocument document = await store.ReadAsync(user, id, cancellationToken);
-                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, ids, logger);
+                    await RequireMediaAsync(document, cancellationToken);
+                    session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, media, ids, logger);
                     SetSession(entry, session);
                 }
                 return session;
@@ -49,6 +53,31 @@ public sealed class OpenProjects(
         finally
         {
             Release(key, entry);
+        }
+    }
+
+    /// <summary>Refuses a document that names media its owner lacks, plays it at another length, or names a file being deleted.</summary>
+    /// <remarks>
+    /// A document read from a file has not been through a command. A missing file and another user's are told alike, with the
+    /// ids the project itself names. A file whose delete has begun is refused too, so that a project opened while the delete
+    /// searches cannot slip past it; the delete is then refused or finished, and a later try succeeds or says the file is gone.
+    /// </remarks>
+    /// <exception cref="IOException">The user's media cannot be read, which is a store failure to retry, not a verdict on the project.</exception>
+    /// <exception cref="MediaDeleteInProgressException">The document names a file that is being deleted.</exception>
+    /// <exception cref="ProjectFormatException">The document names media that is missing or has another length; the problems are listed.</exception>
+    public async Task RequireMediaAsync(ProjectDocument document, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        await media.PrepareAsync(document.Owner, cancellationToken);
+        media.RequireReadable(document.Owner);
+        IReadOnlyList<string> problems = MediaRules.DocumentProblems(document, media);
+        if (problems.Count > 0)
+        {
+            throw new ProjectFormatException("The project cannot be opened because of the media files it names:", problems);
+        }
+        if (MediaRules.DeletingMedia(document, media) is not null)
+        {
+            throw new MediaDeleteInProgressException();
         }
     }
 

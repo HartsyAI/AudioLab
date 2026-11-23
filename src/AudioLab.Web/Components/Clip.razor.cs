@@ -93,7 +93,13 @@ public sealed partial class Clip
 
     private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
 
-    private string Description => string.Create(CultureInfo.InvariantCulture, $"{Name}, {(Midi is null ? "audio" : "MIDI")} clip");
+    private const string PlaceholderNote = "The waveform is a placeholder until the media exists.";
+
+    private string Description => Midi is null
+        ? string.Create(CultureInfo.InvariantCulture, $"{Name}, audio clip. {PlaceholderNote}")
+        : string.Create(CultureInfo.InvariantCulture, $"{Name}, MIDI clip");
+
+    private string? Hint => Midi is null ? PlaceholderNote : null;
 
     private string PlaceStyle
     {

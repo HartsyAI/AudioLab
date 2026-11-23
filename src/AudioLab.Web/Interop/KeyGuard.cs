@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 
 namespace AudioLab.Web.Interop;
 
-/// <summary>Adds a capturing key listener through <c>addEventListener</c>, a browser built-in, so no script file is needed.</summary>
+/// <summary>Adds a key listener, in the bubble phase, through <c>addEventListener</c>, a browser built-in, so no script file is needed.</summary>
 [SupportedOSPlatform("browser")]
 public sealed partial class KeyGuard : IKeyGuard
 {
@@ -21,6 +21,7 @@ public sealed partial class KeyGuard : IKeyGuard
         }
         AddListener(container, "keydown", press =>
         {
+            using JSObject key = press;
             using JSObject target = press.GetPropertyAsJSObject("target")!;
             if (target.GetPropertyAsString("role") == targetRole && _keys.Contains(press.GetPropertyAsString("key")))
             {

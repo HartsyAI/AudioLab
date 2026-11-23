@@ -6,23 +6,37 @@ namespace AudioLab.Core.Rules;
 public static class ProjectContent
 {
     /// <summary>Where the last clip, audio or MIDI, ends in seconds; 0 for a project with none.</summary>
-    public static double End(ProjectDocument document)
+    /// <remarks>
+    /// With <paramref name="audibleOnly"/> a muted clip does not count, nor does a clip of a track that is muted or silent under solo
+    /// and sends nothing that is heard, so a render ends where the sound does; <paramref name="ignoreSolo"/> leaves solo out of that,
+    /// as a stem does.
+    /// </remarks>
+    public static double End(ProjectDocument document, bool audibleOnly = false, bool ignoreSolo = false)
     {
         ArgumentNullException.ThrowIfNull(document);
         double end = 0;
         foreach (Track track in document.Tracks)
         {
-            foreach (AudioClip clip in track.Clips)
+            if (audibleOnly && !IsHeard(document, track, ignoreSolo))
+            {
+                continue;
+            }
+            foreach (AudioClip clip in track.Clips.Where(clip => !audibleOnly || !clip.Muted))
             {
                 end = Math.Max(end, clip.Start + (clip.Duration - clip.Offset - clip.TrimEnd));
             }
-            foreach (MidiClip clip in track.MidiClips)
+            foreach (MidiClip clip in track.MidiClips.Where(clip => !audibleOnly || !clip.Muted))
             {
                 end = Math.Max(end, clip.Start + clip.Length);
             }
         }
         return end;
     }
+
+    // A track is heard when it is not muted and not silenced by solo, or when a send of it is heard.
+    private static bool IsHeard(ProjectDocument document, Track track, bool ignoreSolo) =>
+        (!MixRules.IsMuted(track, document.Groups) && (ignoreSolo || MixRules.IsSoloAudible(document, track)))
+        || track.Sends.Any(send => MixRules.SendGain(document, track, send, ignoreSolo) > 0);
 
     /// <summary>Whether the project holds anything worth keeping: an audio or MIDI clip, or a drum pad.</summary>
     public static bool HasContent(ProjectDocument document)
