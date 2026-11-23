@@ -38,6 +38,7 @@ builder.Services.AddSingleton<CommandSender>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<SessionClient>();
 builder.Services.AddScoped<ProjectApi>();
+builder.Services.AddScoped<MediaApi>();
 builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
