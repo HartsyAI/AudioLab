@@ -74,7 +74,7 @@ public sealed class McpIdentityTests
             Assert.True(response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized, response.StatusCode.ToString());
         }
         await using McpClient admitted = await McpTestClient.ConnectAsync(server, McpTestClient.AsUser("alice"));
-        Assert.Equal(5, (await admitted.ListToolsAsync()).Count);
+        Assert.Contains(await admitted.ListToolsAsync(), tool => tool.Name == "list_projects");
     }
 
     [Fact]

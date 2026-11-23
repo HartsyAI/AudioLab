@@ -1,6 +1,7 @@
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Configuration;
+using AudioLab.Server.Media;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 using ModelContextProtocol;
@@ -76,6 +77,10 @@ public sealed class McpResourceService(ProjectService projects, AudioLabOptions 
         catch (ProjectNotFoundException exception)
         {
             throw new McpProtocolException(exception.Message, McpErrorCode.ResourceNotFound);
+        }
+        catch (MediaDeleteInProgressException exception)
+        {
+            throw new McpProtocolException(exception.Message, McpErrorCode.InternalError);
         }
         catch (Exception exception) when (exception is SessionClosedException or ProjectFormatException or IOException or UnauthorizedAccessException)
         {

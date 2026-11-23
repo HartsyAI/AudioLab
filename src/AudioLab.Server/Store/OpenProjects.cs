@@ -38,8 +38,10 @@ public sealed class OpenProjects(
             {
                 if (SessionOf(entry) is not { } session)
                 {
-                    ProjectDocument document = await store.ReadAsync(user, id, cancellationToken);
-                    await RequireMediaAsync(document, cancellationToken);
+                    ProjectDocument read = await store.ReadAsync(user, id, cancellationToken);
+                    await RequireMediaAsync(read, cancellationToken);
+                    // A project opens with nothing armed or monitored (D27): who is at the controls is not part of the work, and the file is not rewritten for it.
+                    ProjectDocument document = LiveState.Reset(read);
                     session = new ProjectSession(store, document, store.ModifiedAt(user, id), options, time, registry, media, ids, logger);
                     SetSession(entry, session);
                 }

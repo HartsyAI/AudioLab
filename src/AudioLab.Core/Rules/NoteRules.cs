@@ -20,6 +20,9 @@ public static class NoteRules
     /// <summary>The highest pitch.</summary>
     public const int HighestPitch = 127;
 
+    /// <summary>Whether a note that long is kept when an edit cuts a note down to it: <see cref="MinDuration"/> or more, within a billionth.</summary>
+    public static bool FitsNote(double duration) => duration >= MinDuration - ProjectLimits.Tolerance;
+
     /// <summary>The length of a new note: one grid step, and never under <see cref="MinNewDuration"/>.</summary>
     public static double NewDuration(double gridStep) => Math.Max(MinNewDuration, gridStep);
 
