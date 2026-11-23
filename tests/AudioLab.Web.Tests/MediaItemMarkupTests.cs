@@ -8,7 +8,8 @@ namespace AudioLab.Web.Tests;
 public sealed class MediaItemMarkupTests
 {
     private static readonly MediaSummary _file = new(
-        "m1", "kick.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 1.5, 44100, 2, 264_644, new string('0', 64), DateTimeOffset.UnixEpoch);
+        "m1", "kick.wav", MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, 1.5, 44100, 2, 264_644,
+        new string('0', 64), DateTimeOffset.UnixEpoch);
 
     /// <summary>A file's row is named by everything it shows, and its delete control by the file and the shortcut.</summary>
     [Fact]

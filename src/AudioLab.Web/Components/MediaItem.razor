@@ -1,7 +1,8 @@
 @if (File is not null)
 {
     <li class="media-item" data-kind="file" data-selected="@(Selected ? "true" : "false")">
-        <button type="button" id="@ElementId" class="media-main" tabindex="@(TabStop ? 0 : -1)" aria-pressed="@(Selected ? "true" : "false")"
+        <button type="button" id="@ElementId" class="media-main" role="button" tabindex="@(TabStop ? 0 : -1)"
+                aria-pressed="@(Selected ? "true" : "false")"
                 aria-label="@Description" title="@File.Name" @onclick="SelectAsync" @onkeydown="KeyAsync">
             <span class="media-name">@File.Name</span>
             <span class="media-length">@MediaText.Length(File.Duration)</span>
@@ -22,7 +23,9 @@ else if (Job is not null)
         {
             <span class="media-failure">@Job.Failure</span>
             <Button OnClick="RetryAsync">Try again</Button>
-            <Button Variant="ButtonVariant.Icon" Name="@($"Dismiss {Job.Name}")" OnClick="CancelAsync"><Icon Name="IconName.Close" Size="10" /></Button>
+            <Button Variant="ButtonVariant.Icon" Name="@($"Dismiss {Job.Name}")" OnClick="CancelAsync">
+                <Icon Name="IconName.Close" Size="10" />
+            </Button>
         }
         else
         {

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The bottom panel: tabs for the selection's tools. Only the mixer and the media library have content yet; every other tab says so.</summary>
+/// <summary>The bottom panel: tabs for the selection's tools. The mixer and the media library have content yet; the others say so.</summary>
 public sealed partial class BottomPanel
 {
     /// <summary>The document.</summary>

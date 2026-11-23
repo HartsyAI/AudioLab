@@ -1,4 +1,4 @@
-<div class="drop-overlay" data-active="@(Active ? "true" : "false")" @ondragleave="CloseAsync">
+<div class="drop-overlay" data-active="@(Active ? "true" : "false")" @ondragleave="CloseAsync" @ondrop="CloseAsync">
     <FilePicker Id="@FilePicker.ChooserId" Class="drop-input" Label="Drop audio files here to add them to your media" OnChosen="CloseAsync" />
     <p class="drop-hint" role="status">@(Active ? "Drop WAV files to add them to your media" : null)</p>
 </div>

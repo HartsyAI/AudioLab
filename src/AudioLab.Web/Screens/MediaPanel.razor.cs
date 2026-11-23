@@ -11,6 +11,13 @@ namespace AudioLab.Web.Screens;
 /// <summary>The media tab of the bottom panel: the user's WAV files with their length, format and size, uploads on their way, and delete.</summary>
 public sealed partial class MediaPanel : IDisposable
 {
+    private const string PanelId = "media-panel";
+
+    private const string ListId = "media-list";
+
+    // Progress arrives many times a second; the list is drawn at most this often, so a busy upload never makes the page busy.
+    private static readonly TimeSpan _drawInterval = TimeSpan.FromMilliseconds(100);
+
     private readonly CancellationTokenSource _panel = new();
 
     private ITimer? _tick;
@@ -18,6 +25,20 @@ public sealed partial class MediaPanel : IDisposable
     private string? _selected;
 
     private string? _focus;
+
+    private int _shown = MediaListView.PageSize;
+
+    private MediaListView? _view;
+
+    private IReadOnlyList<MediaSummary>? _viewFiles;
+
+    private string? _viewSelected;
+
+    private int _viewShown;
+
+    private bool _drawQueued;
+
+    private bool _guarded;
 
     private MediaSummary? _target;
 
@@ -37,6 +58,9 @@ public sealed partial class MediaPanel : IDisposable
     private IElementFocus Focus { get; set; } = default!;
 
     [Inject]
+    private IKeyGuard Guard { get; set; } = default!;
+
+    [Inject]
     private TimeProvider Time { get; set; } = default!;
 
     private DateTimeOffset Now => Time.GetUtcNow();
@@ -48,7 +72,21 @@ public sealed partial class MediaPanel : IDisposable
     // A panel has one primary button: an empty or failed panel gives it to the call to action in its body.
     private ButtonVariant AddVariant => Empty ? ButtonVariant.Default : ButtonVariant.Primary;
 
-    private string? TabStopId => Library.Files.Any(file => file.Id == _selected) ? _selected : Library.Files.FirstOrDefault()?.Id;
+    // Worked out again only when the list, the selection or the page size changed, so a draw that changed none of them costs nothing.
+    private MediaListView View
+    {
+        get
+        {
+            if (_view is null || !ReferenceEquals(_viewFiles, Library.Files) || _viewSelected != _selected || _viewShown != _shown)
+            {
+                _view = new MediaListView(Library.Files, _selected, _shown);
+                _viewFiles = Library.Files;
+                _viewSelected = _selected;
+                _viewShown = _shown;
+            }
+            return _view;
+        }
+    }
 
     private string CountText => Library.State switch
     {
@@ -80,30 +118,51 @@ public sealed partial class MediaPanel : IDisposable
     {
         Library.Changed += OnChanged;
         _tick = Time.CreateTimer(_ => OnTick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-        if (Library.State is LibraryState.NotLoaded or LibraryState.Failed)
-        {
-            await Library.LoadAsync(_panel.Token);
-        }
+        // Opening the tab reads the list again, so a file added or deleted from another window is there.
+        await Library.RefreshAsync(_panel.Token);
     }
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
+        if (Library.Files.Count + Library.Uploads.Count == 0)
+        {
+            _guarded = false;
+        }
+        else if (!_guarded && OperatingSystem.IsBrowser())
+        {
+            _guarded = true;
+            Guard.PreventNavigationKeys(ListId, "button");
+        }
         if (_focus is not null)
         {
-            Focus.Focus(MediaItem.IdOf(_focus));
+            Focus.Focus(_focus);
             _focus = null;
         }
     }
 
-    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    // A change is drawn once the interval since the last draw has passed, however many changes come in it.
+    private void OnChanged()
+    {
+        if (_drawQueued)
+        {
+            return;
+        }
+        _drawQueued = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(_drawInterval, Time);
+            _drawQueued = false;
+            StateHasChanged();
+        });
+    }
 
     // The wait for the server has a clock beside it, which moves once a second while one is running.
     private void OnTick()
     {
         if (Library.Uploads.Any(job => job.State == UploadState.Sending))
         {
-            _ = InvokeAsync(StateHasChanged);
+            OnChanged();
         }
     }
 
@@ -117,6 +176,16 @@ public sealed partial class MediaPanel : IDisposable
 
     private void RetryUpload(UploadJob job) => Library.Retry(job.Id);
 
+    private void ShowMore()
+    {
+        int first = _shown;
+        _shown += MediaListView.PageSize;
+        if (first < Library.Files.Count)
+        {
+            _focus = MediaItem.IdOf(Library.Files[first].Id);
+        }
+    }
+
     private void KeyAsync((MediaSummary File, KeyboardEventArgs Key) press)
     {
         if (Shortcuts.DeleteMedia.Matches(press.Key))
@@ -124,21 +193,30 @@ public sealed partial class MediaPanel : IDisposable
             BeginDelete(press.File);
             return;
         }
-        IReadOnlyList<MediaSummary> files = Library.Files;
-        int at = files.ToList().FindIndex(file => file.Id == press.File.Id);
-        int? target = press.Key.Key switch
+        MediaStep? step = Step(press.Key);
+        if (step is MediaStep to && View.Go(press.File.Id, to) is { } go)
         {
-            "ArrowDown" => Math.Min(at + 1, files.Count - 1),
-            "ArrowUp" => Math.Max(at - 1, 0),
-            "Home" => 0,
-            "End" => files.Count - 1,
-            _ => null,
-        };
-        if (target is int next && at >= 0)
-        {
-            _selected = files[next].Id;
-            _focus = _selected;
+            _shown = Math.Max(_shown, go.Draw);
+            _selected = go.Target.Id;
+            _focus = MediaItem.IdOf(_selected);
         }
+    }
+
+    private static MediaStep? Step(KeyboardEventArgs key)
+    {
+        if (Shortcuts.MediaNext.Matches(key))
+        {
+            return MediaStep.Next;
+        }
+        if (Shortcuts.MediaPrevious.Matches(key))
+        {
+            return MediaStep.Previous;
+        }
+        if (Shortcuts.MediaFirst.Matches(key))
+        {
+            return MediaStep.First;
+        }
+        return Shortcuts.MediaLast.Matches(key) ? MediaStep.Last : null;
     }
 
     private void BeginDelete(MediaSummary file)
@@ -162,19 +240,21 @@ public sealed partial class MediaPanel : IDisposable
         {
             return;
         }
+        MediaSummary target = _target;
+        int at = View.IndexOf(target.Id);
         using CancellationTokenSource request = CancellationTokenSource.CreateLinkedTokenSource(_panel.Token);
         _request = request;
         _deleting = true;
         _error = null;
         try
         {
-            await Library.DeleteAsync(_target, request.Token);
-            _focus = Library.Files.FirstOrDefault()?.Id;
+            await Library.DeleteAsync(target, request.Token);
+            _focus = NeighbourOf(at);
             _target = null;
         }
         catch (OperationCanceledException)
         {
-            // Cancel or Escape ended the request; the dialog is already closing.
+            // Cancel or Escape ended the request; the dialog is already closing. A timeout is not this: it is a failure, shown below.
         }
         catch (Exception exception)
         {
@@ -185,5 +265,12 @@ public sealed partial class MediaPanel : IDisposable
             _request = null;
             _deleting = false;
         }
+    }
+
+    // After a delete the focus goes to the file that took its place, or the one before it, or to the panel when none is left.
+    private string NeighbourOf(int deleted)
+    {
+        IReadOnlyList<MediaSummary> files = Library.Files;
+        return files.Count == 0 ? PanelId : MediaItem.IdOf(files[Math.Clamp(deleted, 0, files.Count - 1)].Id);
     }
 }
