@@ -1,6 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Web.Session;
+using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -18,7 +19,7 @@ public sealed partial class Clip
 
     private MidiClip? _midi;
 
-    private (string, bool, bool, bool, bool, double, double?, double, double?, string?) _shown;
+    private (string, bool, bool, bool, bool, double, double?, double, double?, ClipWave) _shown;
 
     private bool _drawn;
 
@@ -66,9 +67,9 @@ public sealed partial class Clip
     [Parameter]
     public bool TabStop { get; set; }
 
-    /// <summary>The path of the waveform stand-in of an audio clip; see <see cref="PlaceholderWaveform"/>.</summary>
+    /// <summary>What an audio clip draws for its waveform: nothing while the peaks load, a path from them, or why there is none.</summary>
     [Parameter]
-    public string? Waveform { get; set; }
+    public ClipWave Wave { get; set; } = ClipWave.Loading;
 
     /// <summary>Raised with the clip's id when it is pressed or activated.</summary>
     [Parameter]
@@ -93,13 +94,21 @@ public sealed partial class Clip
 
     private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
 
-    private const string PlaceholderNote = "The waveform is a placeholder until the media exists.";
+    private string PeaksName => Wave.Phase.ToString().ToLowerInvariant();
 
     private string Description => Midi is null
-        ? string.Create(CultureInfo.InvariantCulture, $"{Name}, audio clip. {PlaceholderNote}")
-        : string.Create(CultureInfo.InvariantCulture, $"{Name}, MIDI clip");
+        ? WaveNote is null ? $"{Name}, audio clip" : $"{Name}, audio clip. {WaveNote}"
+        : $"{Name}, MIDI clip";
 
-    private string? Hint => Midi is null ? PlaceholderNote : null;
+    // Only a waveform that is not drawn from the file's peaks says anything about itself.
+    private string? WaveNote => Wave.Phase switch
+    {
+        WavePhase.Loading => "The waveform is loading.",
+        WavePhase.Failed => $"The waveform could not be loaded: {Wave.Reason} Select the clip to try again.",
+        _ => null,
+    };
+
+    private string? Hint => Midi is null ? WaveNote : null;
 
     private string PlaceStyle
     {
@@ -118,10 +127,10 @@ public sealed partial class Clip
         bool same = _drawn
             && Equals(_audio, Audio)
             && Equals(_midi, Midi)
-            && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
+            && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _audio = Audio;
         _midi = Midi;
-        _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
+        _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _drawn = true;
         return !same;
     }
