@@ -35,12 +35,12 @@ media id it plays, a track id); it is absent otherwise.
 
 | Status | `reason` | When |
 |--------|----------|------|
-| 400 | `bad_options` | The body is not a valid export request (an unlisted member, a wrong type), a member is out of range, a track is unknown or repeated. |
+| 400 | `bad_options` | A body that is not a valid export request (unlisted member, wrong type), a member out of range, an unknown or repeated track. |
 | 404 | | The project is not the user's or does not exist (the same answer). |
 | 409 | | The project was closed as the export began, or a media file it plays is being deleted (retry). |
 | 415 | | The body is not `application/json`. |
 | 422 | `missing_media` | A clip, drum lane or sampler names a file that is missing, of another length or not the user's; `details` says which. |
-| 422 | `too_large` | Over `MaxSeconds` of audio in a file (judged first, from the project, before any file is read), over `MaxBytes` or the 4 GiB a file holds, or media too large to decode. |
+| 422 | `too_large` | Over `MaxSeconds` (judged first, from the project, before any file is read), over `MaxBytes` or 4 GiB, or media too large to decode. |
 | 422 | `empty` | Nothing sounds in the range, or there is no track to make a stem of. |
 | 422 | `timed_out` | The export took longer than `MaxTime` before its first byte. |
 | 429 | `busy` | As many exports are running as the user or the server allows; `Retry-After` says when to retry. Nothing is queued. |
