@@ -1,5 +1,6 @@
 <footer class="status-bar">
     <StatusItem Dot="Dot" Soft="true">@State</StatusItem>
+    <PlaybackStatus />
     @if (Retry is not null)
     {
         <Button Name="Try again" OnClick="Retry">Try again</Button>
