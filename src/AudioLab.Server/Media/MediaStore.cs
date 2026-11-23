@@ -380,6 +380,19 @@ public sealed class MediaStore : IMediaCatalog
         return new FileStream(path, options);
     }
 
+    /// <summary>What the user has, counting what their running uploads have received so far, and how many uploads are running.</summary>
+    /// <remarks>The same count the quota is asked with, so "remaining" is what an upload would be told.</remarks>
+    /// <exception cref="IOException">The user's folder cannot be read.</exception>
+    public (MediaUsage Usage, int UploadsRunning) CurrentOf(UserId user)
+    {
+        UserMedia media = Readable(user);
+        lock (media.Sync)
+        {
+            MediaUsage stored = UsageOf(media);
+            return (new MediaUsage(stored.Files + media.UploadsAdmitted, stored.Bytes + media.UploadBytes), media.UploadsRunning);
+        }
+    }
+
     // Called by MediaUpload: what the user has, plus what their other admitted uploads have received; an upload is
     // counted only once it was admitted, so one that is about to be refused takes nothing from the others.
     internal async ValueTask<string?> UploadRefusalAsync(
