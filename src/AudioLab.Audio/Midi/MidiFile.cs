@@ -3,24 +3,14 @@ using AudioLab.Core.Model;
 namespace AudioLab.Audio.Midi;
 
 /// <summary>Reads and writes Standard MIDI Files between bytes and a MIDI clip; pure, so it runs in WebAssembly.</summary>
-/// <remarks>
-/// The reader takes format 0 and 1 files in ticks a quarter note and refuses the rest (format 2, SMPTE timing) and any file that is not
-/// whole: a truncated chunk, a length past its chunk, a variable-length number of more than four bytes, a data byte with no running
-/// status, an event after End of Track, a track with none, a tempo of 0 or over 1000 beats a minute, bytes after the last chunk, a
-/// header that disagrees with the chunks, or more than the limits of <see cref="MidiLimits"/>. Sysex and meta events cancel running status.
-/// A note-off with no note is counted and left out; a note never ended lasts to the end of its track. Every track and channel goes into
-/// one list, so a clip is the whole file. The writer makes a format 0 file at 480 ticks a quarter note.
-/// </remarks>
+/// <remarks>The limits and refusals are those of <see cref="MidiLimits"/>; every track and channel goes into one list.</remarks>
 public static class MidiFile
 {
     /// <summary>Reads a file, or throws <see cref="MidiFormatException"/> saying why it cannot.</summary>
     public static MidiImport Read(ReadOnlySpan<byte> bytes) => MidiReader.Read(bytes);
 
     /// <summary>Writes a clip as a file that starts where the clip does; the tempo map is the project's, from the project's start.</summary>
-    /// <remarks>
-    /// Notes are cut at the clip's end and controllers after it are left out. A pedal (controller 64) still down at the end is let up
-    /// there. A note with velocity 0 is left out, since 0 would end it and the engine plays it silent. A tempo under 3.58 beats a minute is refused.
-    /// </remarks>
+    /// <remarks>Notes are cut at the clip's end and a pedal still down there is let up; a tempo under 3.58 beats a minute is refused.</remarks>
     public static byte[] Write(MidiClip clip, double bpm, IReadOnlyList<TempoChange> changes, TimeSignature signature) =>
         MidiWriter.Write(clip, bpm, changes, signature);
 }

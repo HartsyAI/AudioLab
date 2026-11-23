@@ -137,7 +137,8 @@ public sealed class MidiWriteTests
 
         MidiImport import = MidiFile.Read(Write(clip, 130, changes));
 
-        Assert.Equal(3, import.TempoChanges.Count);
+        Assert.Equal([2.0, 5.5, 8.0], import.TempoChanges.Select(change => Math.Round(change.Time, 2)));
+        Assert.Equal([90.0, 170.0, 61.0], import.TempoChanges.Select(change => Math.Round(change.Bpm, 2)));
         Assert.All(clip.Notes.Zip(import.Notes), pair =>
         {
             Assert.InRange(Math.Abs(pair.First.Start - pair.Second.Start), 0, 0.0011);
@@ -256,8 +257,83 @@ public sealed class MidiWriteTests
                 Assert.Equal(note.Velocity, back.Velocity);
             }
             Assert.Equal(controls.Length, import.ControlChanges.Count);
+            foreach ((MidiControlChange sent, MidiControlChange back) in controls.Zip(import.ControlChanges))
+            {
+                Assert.Equal(sent.Controller, back.Controller);
+                Assert.Equal(sent.Value, back.Value);
+                Assert.InRange(Math.Abs(sent.Time - back.Time), 0, 0.0022);
+            }
         }
     }
 
     private static MidiControlChange Rounded(MidiControlChange change) => change with { Time = Math.Round(change.Time, 3) };
+
+    [Fact]
+    public void ATempoChangeJustAfterTheClipStartIsTheStartTempoNotDropped()
+    {
+        MidiImport import = MidiFile.Read(Write(Clip(4 - 1e-9, 2, [Note(1, 60, 0.5, 0.5)]), 120, Change("tmp-a", 4, 60)));
+
+        Assert.Equal(60, import.Bpm, 3);
+        Assert.Empty(import.TempoChanges);
+    }
+
+    [Fact]
+    public void TwoNotesOfOnePitchStartingTogetherKeepTheirOwnLengthsAndVelocities()
+    {
+        MidiClip clip = Clip(0, 2, [Note(1, 60, 0, 1.0, 100), Note(2, 60, 0, 0.5, 50)]);
+
+        MidiImport import = MidiFile.Read(Write(clip));
+
+        Assert.Equal(
+            [(0.5, 50), (1.0, 100)],
+            import.Notes.Select(note => (Math.Round(note.Duration, 2), note.Velocity)).OrderBy(pair => pair.Item1));
+    }
+
+    [Fact]
+    public void ANoteShorterThanAPianoRollHoldsIsWrittenAtTheLengthTheReaderGivesIt()
+    {
+        MidiImport import = MidiFile.Read(Write(Clip(0, 1, [Note(1, 60, 0.1, 0.005)])));
+
+        Assert.Equal(0.02, Assert.Single(import.Notes).Duration, 3);
+    }
+
+    [Fact]
+    public void AnEmptyStretchLongerThanOneDeltaHoldsIsCrossedAndTheLengthKept()
+    {
+        MidiClip clip = Clip(0, 900_000, [Note(1, 60, 0, 1), Note(2, 62, 899_990, 1)]);
+
+        byte[] file = Write(clip);
+        MidiImport import = MidiFile.Read(file);
+
+        Assert.True(file.Length < 200);
+        Assert.Equal(900_000, import.Length, 2);
+        Assert.Equal(899_990, import.Notes[1].Start, 2);
+    }
+
+    [Fact]
+    public void AHundredThousandTempoChangesAndAMillionNotesAreConvertedWithoutAWalkOverTheMap()
+    {
+        MidiNote[] notes = new MidiNote[1_000_000];
+        for (int i = 0; i < notes.Length; i++)
+        {
+            notes[i] = Note(i + 1, i % 128, i * 0.001, 0.01, 1 + (i % 127));
+        }
+        TempoChange[] changes = [.. Enumerable.Range(1, 99_999).Select(i => Change("tmp-" + i, i * 0.01, 60 + (i % 100)))];
+
+        byte[] file = Write(Clip(0, 1001, notes), 120, changes);
+
+        Assert.True(MidiFile.Read(file).Notes.Count == 1_000_000);
+    }
+
+    [Fact]
+    public void AnImportedClipIsPlacedAtAStartThatIsANumberInsideTheProject()
+    {
+        MidiImport import = MidiFile.Read(Write(Clip(0, 1, [Note(1, 60, 0, 0.5)])));
+        ClipId id = ClipId.From("clp-x");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => import.ToClip(id, "x", -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => import.ToClip(id, "x", double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => import.ToClip(id, "x", 2_000_000));
+        Assert.Equal(5, import.ToClip(id, "x", 5).Start);
+    }
 }

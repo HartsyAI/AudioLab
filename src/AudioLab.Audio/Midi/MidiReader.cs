@@ -185,7 +185,7 @@ internal static class MidiReader
         return notes;
     }
 
-    // Two events of one controller at one tick are one value, the later; the project identifies a controller event by its time and number.
+    // Two events of one controller at one tick are one value, the later.
     private static List<MidiControlChange> ConvertControls(List<MidiRawControl> raw, MidiTickClock clock)
     {
         raw.Sort((a, b) => a.Tick != b.Tick ? a.Tick.CompareTo(b.Tick) : a.Order.CompareTo(b.Order));
@@ -213,8 +213,7 @@ internal static class MidiReader
         return controls;
     }
 
-    // A tempo in force before the project's first change point sets the start tempo; the project keeps changes 0.01 s apart from the start
-    // and 0.001 s from each other, so closer ones fold into the one before.
+    // A tempo before 0.01 s is the start tempo and a change within 0.001 s of the one before replaces it, as a project's map requires.
     private static (double Bpm, List<MidiTempoEvent> Changes) ConvertTempo(MidiTickClock clock)
     {
         double bpm = clock.BpmOf(0);
@@ -231,6 +230,11 @@ internal static class MidiReader
             else if (changes.Count > 0 && time - changes[^1].Time < MinChangeSpacing)
             {
                 changes[^1] = changes[^1] with { Bpm = tempo };
+                double before = changes.Count > 1 ? changes[^2].Bpm : bpm;
+                if (changes[^1].Bpm == before)
+                {
+                    changes.RemoveAt(changes.Count - 1);
+                }
             }
             else if (tempo != current)
             {

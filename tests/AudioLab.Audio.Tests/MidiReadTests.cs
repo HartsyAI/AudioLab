@@ -248,4 +248,21 @@ public sealed class MidiReadTests
 
         Assert.Single(Read(longer).Notes);
     }
+
+    [Fact]
+    public void ChannelModeControllersAreLeftOutAndOrdinaryOnesAreKept()
+    {
+        MidiImport import = Read(Format0(t => t.Controller(0, 123, 0).Controller(0, 121, 0).Controller(0, 120, 0).Controller(0, 119, 5).End()));
+
+        Assert.Equal(new MidiControlChange(0, 119, 5), Assert.Single(import.ControlChanges));
+    }
+
+    [Fact]
+    public void ATempoThatFoldsBackToTheOneBeforeItLeavesNoChange()
+    {
+        MidiImport import = Read(Format0(t => t.Tempo(Quarter, 400_000).Tempo(1, Half).NoteOn(Quarter, 60, 100).NoteOff(Quarter, 60).End()));
+
+        Assert.Empty(import.TempoChanges);
+        Assert.Equal(120, import.Bpm);
+    }
 }

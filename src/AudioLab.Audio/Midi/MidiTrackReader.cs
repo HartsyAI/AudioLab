@@ -3,6 +3,9 @@ namespace AudioLab.Audio.Midi;
 /// <summary>Reads the events of one track chunk in order and refuses anything a track may not hold.</summary>
 internal ref struct MidiTrackReader
 {
+    // Controllers 120 to 127 are channel mode messages, such as all notes off, and are no part of a clip.
+    private const int FirstChannelMode = 120;
+
     private readonly ReadOnlySpan<byte> _data;
     private readonly int _track;
     private int _position;
@@ -65,7 +68,7 @@ internal ref struct MidiTrackReader
             0x8 => new MidiMessage(_tick, MidiMessageKind.NoteOff, channel, first, second),
             0x9 when second == 0 => new MidiMessage(_tick, MidiMessageKind.NoteOff, channel, first, 0),
             0x9 => new MidiMessage(_tick, MidiMessageKind.NoteOn, channel, first, second),
-            0xB => new MidiMessage(_tick, MidiMessageKind.Controller, channel, first, second),
+            0xB when first < FirstChannelMode => new MidiMessage(_tick, MidiMessageKind.Controller, channel, first, second),
             _ => new MidiMessage(_tick, MidiMessageKind.Ignored, channel, 0, 0),
         };
     }

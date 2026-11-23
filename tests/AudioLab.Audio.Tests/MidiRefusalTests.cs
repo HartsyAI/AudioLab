@@ -247,4 +247,43 @@ public sealed class MidiRefusalTests
             // A refusal is the other allowed outcome.
         }
     }
+
+    // Sizes come from what has been read, never from what a file declares, so a small file that declares the largest of everything stays small.
+    [Fact]
+    public void AFileThatDeclaresTheLargestOfEverythingCostsLittleToRefuse()
+    {
+        byte[] header = [.. "MThd"u8.ToArray(), 0, 0, 0, 6, 0, 1, 0xFF, 0xFF, 0x01, 0xE0];
+        byte[] hugeChunk = [.. MidiBytes.File(0, 480), .. "MTrk"u8.ToArray(), 0xFF, 0xFF, 0xFF, 0xFF, 1, 2, 3];
+        byte[] hugeMeta = OneTrack(t => t.Raw(0, 0xFF, 0x03, 0xFF, 0xFF, 0xFF, 0x7F));
+        byte[] hugeSysex = OneTrack(t => t.Raw(0, 0xF0, 0xFF, 0xFF, 0xFF, 0x7F));
+        byte[] hugeDelta = OneTrack(t => t.Raw(0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0x2F, 0x00));
+        byte[] hugeHeader = [.. "MThd"u8.ToArray(), 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 1, 1, 0xE0];
+        byte[][] files = [header, hugeChunk, hugeMeta, hugeSysex, hugeDelta, hugeHeader];
+        foreach (byte[] file in files)
+        {
+            Assert.True(file.Length < 1024);
+            TryRead(file);
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        foreach (byte[] file in files)
+        {
+            TryRead(file);
+        }
+        long used = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(used < 64 * 1024, $"Refusing six small files allocated {used} bytes.");
+    }
+
+    private static void TryRead(byte[] file)
+    {
+        try
+        {
+            MidiFile.Read(file);
+        }
+        catch (MidiFormatException)
+        {
+            // Every one of these files is refused; the cost of that is what is measured.
+        }
+    }
 }

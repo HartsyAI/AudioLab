@@ -56,31 +56,29 @@ public sealed class TempoMap
     // A missing or zero tempo plays at 120 and a negative one at the slowest, as the old DAW did.
     private static double StartTempo(double bpm) => !double.IsFinite(bpm) || bpm == 0 ? 120 : Math.Max(1, bpm);
 
-    private (double Time, double Bpm, double Beat) AtTime(double time)
-    {
-        (double Time, double Bpm, double Beat) found = _segments[0];
-        foreach ((double Time, double Bpm, double Beat) segment in _segments)
-        {
-            if (segment.Time > time)
-            {
-                break;
-            }
-            found = segment;
-        }
-        return found;
-    }
+    // The last segment that starts at or before the time, by search, so a map of many changes costs a logarithm and not a walk.
+    private (double Time, double Bpm, double Beat) AtTime(double time) => _segments[LastAtOrBefore(time, byBeat: false)];
 
-    private (double Time, double Bpm, double Beat) AtBeat(double beat)
+    private (double Time, double Bpm, double Beat) AtBeat(double beat) => _segments[LastAtOrBefore(beat, byBeat: true)];
+
+    // Segments are in order of time and of beat, so the ones at or before a limit form a prefix; the first segment is always taken.
+    private int LastAtOrBefore(double limit, bool byBeat)
     {
-        (double Time, double Bpm, double Beat) found = _segments[0];
-        foreach ((double Time, double Bpm, double Beat) segment in _segments)
+        int low = 0;
+        int high = _segments.Length - 1;
+        while (low < high)
         {
-            if (segment.Beat > beat)
+            int middle = (low + high + 1) >>> 1;
+            double at = byBeat ? _segments[middle].Beat : _segments[middle].Time;
+            if (at <= limit)
             {
-                break;
+                low = middle;
             }
-            found = segment;
+            else
+            {
+                high = middle - 1;
+            }
         }
-        return found;
+        return low;
     }
 }

@@ -22,8 +22,8 @@ internal static class MidiWriter
             throw new ArgumentException("The clip has no length.", nameof(clip));
         }
         int power = DenominatorPower(signature);
-        // The file starts where the clip does, so it opens at the tempo that holds there and keeps the changes after it.
-        double startBpm = TempoMap.From(bpm, changes).BpmAt(clip.Start);
+        // The file opens at the tempo in force where the clip starts.
+        double startBpm = TempoMap.From(bpm, changes).BpmAt(clip.Start + TempoEpsilon);
         List<TempoChange> shifted = ShiftedChanges(changes, clip.Start, clip.Length);
         TempoMap map = TempoMap.From(startBpm, shifted);
         List<(MidiMessage Message, int Order)> events = [];
@@ -37,7 +37,7 @@ internal static class MidiWriter
         return Assemble(events, end);
     }
 
-    // Only the changes inside the clip are written; one at or after its end would lengthen the file.
+    // A change at or after the clip's end would lengthen the file, so it is left out.
     private static List<TempoChange> ShiftedChanges(IReadOnlyList<TempoChange> changes, double start, double length) =>
         [.. changes.Where(change => change.Time - start > TempoEpsilon && change.Time - start < length)
             .Select(change => new TempoChange(change.Id, change.Time - start, change.Bpm))];
@@ -74,10 +74,10 @@ internal static class MidiWriter
         return (int)microseconds;
     }
 
-    // A note that starts inside the clip is written up to the clip's end, as playback hears it (audit row 37). Velocity 0 would be a
-    // note-off, and the engine plays such a note silent (D43), so it is left out.
+    // Velocity 0 would be a note-off, so such a note is left out; a note is at least as long as the reader makes it.
     private static void AddNotes(List<(MidiMessage Message, int Order)> events, MidiClip clip, TempoMap map)
     {
+        List<(long On, long Off, MidiNote Note)> notes = [];
         foreach (MidiNote note in clip.Notes)
         {
             if (note.Pitch is < 0 or > 127 || note.Velocity is < 0 or > 127 || !double.IsFinite(note.Start) || !double.IsFinite(note.Duration))
@@ -89,10 +89,23 @@ internal static class MidiWriter
                 continue;
             }
             long on = Tick(map, note.Start);
-            long off = Math.Max(on + 1, Tick(map, Math.Min(note.Start + note.Duration, clip.Length)));
+            double end = Math.Min(note.Start + Math.Max(note.Duration, NoteRules.MinDuration), clip.Length);
+            notes.Add((on, Math.Max(on + 1, Tick(map, end)), note));
+        }
+        // The reader ends the oldest open note of a pitch first, so of two that start together the shorter must start first.
+        notes.Sort(CompareNotes);
+        foreach ((long on, long off, MidiNote note) in notes)
+        {
             events.Add((new MidiMessage(on, MidiMessageKind.NoteOn, 0, note.Pitch, note.Velocity), events.Count));
             events.Add((new MidiMessage(off, MidiMessageKind.NoteOff, 0, note.Pitch, 0), events.Count));
         }
+    }
+
+    private static int CompareNotes((long On, long Off, MidiNote Note) a, (long On, long Off, MidiNote Note) b)
+    {
+        int result = a.On.CompareTo(b.On);
+        result = result != 0 ? result : a.Note.Pitch.CompareTo(b.Note.Pitch);
+        return result != 0 ? result : a.Off.CompareTo(b.Off);
     }
 
     private static void AddControls(List<(MidiMessage Message, int Order)> events, MidiClip clip, TempoMap map)
@@ -110,7 +123,7 @@ internal static class MidiWriter
         }
     }
 
-    // A pedal still down at the clip's end is let up there, so it does not hold the notes of whatever follows in a sequencer (audit row 75).
+    // A pedal still down at the clip's end is let up there, so it cannot hold the notes that follow.
     private static void ReleasePedal(List<(MidiMessage Message, int Order)> events, long end)
     {
         int last = -1;
@@ -133,11 +146,11 @@ internal static class MidiWriter
         long last = 0;
         foreach ((MidiMessage message, _) in events)
         {
-            WriteVariableLength(track, message.Tick - last);
+            WriteGap(track, message.Tick - last);
             last = message.Tick;
             WriteMessage(track, message);
         }
-        WriteVariableLength(track, end - last);
+        WriteGap(track, end - last);
         Put(track, [0xFF, 0x2F, 0x00]);
         if (track.WrittenCount + 22 > MidiLimits.MaxFileBytes)
         {
@@ -163,7 +176,7 @@ internal static class MidiWriter
         return result != 0 ? result : a.Order.CompareTo(b.Order);
     }
 
-    // Tempo and time signature first, then note-offs, controllers and note-ons, so a note that ends where another starts is not run together.
+    // Tempo and signature first, then note-offs, controllers and note-ons, so a note ending where another starts is not run into it.
     private static int Rank(MidiMessageKind kind) => kind switch
     {
         MidiMessageKind.Tempo or MidiMessageKind.TimeSignature => 0,
@@ -199,11 +212,23 @@ internal static class MidiWriter
 
     private static void Put(ArrayBufferWriter<byte> track, ReadOnlySpan<byte> bytes) => track.Write(bytes);
 
+    // A gap that one delta cannot hold is crossed with empty text events, which a reader skips.
+    private static void WriteGap(ArrayBufferWriter<byte> track, long delta)
+    {
+        while (delta > MidiLimits.MaxVariableLength)
+        {
+            WriteVariableLength(track, MidiLimits.MaxVariableLength);
+            Put(track, [0xFF, 0x01, 0x00]);
+            delta -= MidiLimits.MaxVariableLength;
+        }
+        WriteVariableLength(track, delta);
+    }
+
     private static void WriteVariableLength(ArrayBufferWriter<byte> track, long value)
     {
         if (value is < 0 or > MidiLimits.MaxVariableLength)
         {
-            throw new MidiFormatException("Two events of the clip are further apart than a MIDI file can hold.");
+            throw new InvalidOperationException("A gap was not split to fit a delta.");
         }
         Span<byte> bytes = stackalloc byte[4];
         int count = 0;

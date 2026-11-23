@@ -33,6 +33,12 @@ public sealed record MidiImport
     public MidiClip ToClip(ClipId id, string name, double start)
     {
         ArgumentNullException.ThrowIfNull(name);
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(start, MidiLimits.MaxSeconds);
+        if (!double.IsFinite(start))
+        {
+            throw new ArgumentOutOfRangeException(nameof(start), start, "The start of a clip is a number.");
+        }
         MidiNote[] notes = new MidiNote[Notes.Count];
         for (int i = 0; i < notes.Length; i++)
         {
