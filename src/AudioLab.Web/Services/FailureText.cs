@@ -13,7 +13,7 @@ public static class FailureText
         ArgumentNullException.ThrowIfNull(exception);
         return exception switch
         {
-            ApiException or HubException => exception.Message,
+            ApiException or HubException or UploadInterruptedException => exception.Message,
             HttpRequestException or WebSocketException => "The server did not answer. Check that AudioLab is still running.",
             OperationCanceledException or TimeoutException => "The server took too long to answer. Try again.",
             JsonException => "The server sent an answer this page cannot read.",
