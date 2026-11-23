@@ -203,6 +203,33 @@ public sealed class CommandSchemaContractTests
     }
 
     [Fact]
+    public void ManyNotesStateTheirListAndEachNoteItsRangesAndDescriptions()
+    {
+        JsonElement notes = Property("midi_notes_add", "notes");
+        JsonElement item = notes.GetProperty("items");
+        JsonElement properties = item.GetProperty("properties");
+        (double Min, double Max) Bounds(string member)
+        {
+            JsonElement property = properties.GetProperty(member);
+            return (property.GetProperty("minimum").GetDouble(), property.GetProperty("maximum").GetDouble());
+        }
+
+        Assert.Equal(["clip", "notes", "project"], Required("midi_notes_add"));
+        Assert.Equal((1, NoteRules.MaxAddedNotes), (notes.GetProperty("minItems").GetInt32(), notes.GetProperty("maxItems").GetInt32()));
+        string[] required = [.. item.GetProperty("required").EnumerateArray().Select(value => value.GetString()!)];
+        Assert.Equal(["pitch", "start"], required.Order(StringComparer.Ordinal));
+        Assert.Equal((0.0, 127.0), Bounds("pitch"));
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), Bounds("start"));
+        Assert.Equal((NoteRules.MinDuration, ProjectLimits.MaxSeconds), Bounds("duration"));
+        Assert.Equal((1.0, 127.0), Bounds("velocity"));
+        foreach (string member in new[] { "pitch", "start", "duration", "velocity" })
+        {
+            Assert.True(properties.GetProperty(member).TryGetProperty("description", out _), $"{member} has no description.");
+        }
+        Assert.True(notes.TryGetProperty("description", out _));
+    }
+
+    [Fact]
     public void TheEffectSettingAndPresetNamesInTheSchemaAreExactlyTheRulesOwn()
     {
         string[] settings = [.. Property("effect_set_parameter", "parameter").GetProperty("enum").EnumerateArray().Select(item => item.GetString()!)];

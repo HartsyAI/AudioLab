@@ -29,6 +29,6 @@ public sealed record AddNote : Command
 
     /// <summary>How hard it is played, 1 to 127; 100 when absent.</summary>
     [Description("How hard it is played, 1 to 127; 100 when absent.")]
-    [Range(1, NoteRules.HighestPitch)]
+    [Range(1, NoteRules.HighestVelocity)]
     public int? Velocity { get; init; }
 }

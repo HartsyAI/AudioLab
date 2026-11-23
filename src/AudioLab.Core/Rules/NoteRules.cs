@@ -17,6 +17,12 @@ public static class NoteRules
     /// <summary>The lowest pitch.</summary>
     public const int LowestPitch = 0;
 
+    /// <summary>The most notes one command adds; a bigger paste is several commands, and several undo steps.</summary>
+    public const int MaxAddedNotes = 10_000;
+
+    /// <summary>The highest velocity.</summary>
+    public const int HighestVelocity = 127;
+
     /// <summary>The highest pitch.</summary>
     public const int HighestPitch = 127;
 
