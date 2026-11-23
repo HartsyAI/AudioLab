@@ -22,6 +22,6 @@ public sealed record SetNoteVelocity : Command
 
     /// <summary>How hard they are played, 1 to 127.</summary>
     [Description("How hard they are played, 1 to 127.")]
-    [Range(1, NoteRules.HighestPitch)]
+    [Range(1, NoteRules.HighestVelocity)]
     public required int Velocity { get; init; }
 }

@@ -30,24 +30,26 @@ internal static class MidiCommands
 
     private static CommandResult AddNotes(ProjectDocument document, AddNotes command, IIdService ids)
     {
-        return AddAll(document, command.Clip, command.Notes);
+        return AddAll(document, command.Clip, command.Notes, listed: true);
     }
 
-    // One rule for one note and many: the first note that is refused refuses them all, and the ids count up in list order.
-    private static CommandResult AddAll(ProjectDocument document, ClipId clipId, IReadOnlyList<NewNote> added)
+    // One rule for one note and many: the first note that is refused refuses them all, and the ids count up in list order. A refusal from a list
+    // names the note by its place in it, from 0; the one note of midi_note_add is not named.
+    private static CommandResult AddAll(ProjectDocument document, ClipId clipId, IReadOnlyList<NewNote> added, bool listed = false)
     {
         if (Find(document, clipId, out ClipEdits.Location at) is { } missing)
         {
             return missing;
         }
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
-        if (added.Count == 0 || added.Count > ProjectLimits.MaxListItems)
+        if (added.Count == 0 || added.Count > NoteRules.MaxAddedNotes)
         {
-            return CommandChecks.OutOfRange($"Add from 1 to {ProjectLimits.MaxListItems} notes.");
+            return CommandChecks.OutOfRange($"Add from 1 to {NoteRules.MaxAddedNotes} notes in one command; split a bigger paste into several.");
         }
         double latestStart = NoteRules.LatestStart(clip.Length);
-        foreach (NewNote note in added)
+        for (int index = 0; index < added.Count; index++)
         {
+            NewNote note = added[index];
             CommandResult? invalid = CommandChecks.Range(nameof(note.Pitch), note.Pitch, NoteRules.LowestPitch, NoteRules.HighestPitch)
                 ?? CommandChecks.Range(nameof(note.Start), note.Start, 0, ProjectLimits.MaxSeconds);
             if (invalid is null && note.Start > latestStart)
@@ -56,10 +58,10 @@ internal static class MidiCommands
                 invalid = CommandChecks.OutOfRange($"A note starts inside its clip, at {latest} seconds at the latest.");
             }
             invalid ??= CommandChecks.Range(nameof(note.Duration), note.Duration, NoteRules.MinDuration, ProjectLimits.MaxSeconds)
-                ?? CommandChecks.Range(nameof(note.Velocity), note.Velocity, 1, NoteRules.HighestPitch);
+                ?? CommandChecks.Range(nameof(note.Velocity), note.Velocity, 1, NoteRules.HighestVelocity);
             if (invalid is not null)
             {
-                return invalid;
+                return listed ? CommandResult.Refuse(invalid.Errors[0].Code, $"Note {index}: {invalid.Errors[0].Message}") : invalid;
             }
         }
         if (added.Count > ProjectLimits.MaxListItems - clip.Notes.Count || added.Count > NoteId.Max - clip.NextNoteId.Value)
@@ -140,7 +142,7 @@ internal static class MidiCommands
             document,
             command.Clip,
             command.Notes,
-            () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch),
+            () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestVelocity),
             (_, note) => note with { Velocity = command.Velocity });
     }
 
