@@ -14,6 +14,7 @@ namespace AudioLab.Core.Commands;
     NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(AddBeatLane))]
 [JsonSerializable(typeof(RemoveBeatLane))]
+[JsonSerializable(typeof(MoveBeatLane))]
 [JsonSerializable(typeof(RenameBeatLane))]
 [JsonSerializable(typeof(SetBeatLaneGain))]
 [JsonSerializable(typeof(SetBeatLaneMedia))]

@@ -2,6 +2,7 @@ using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Server.Doors;
+using AudioLab.Server.Media;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
 using Microsoft.AspNetCore.SignalR;
@@ -151,9 +152,16 @@ public sealed class ProjectHub(ProjectEditService edits, ProjectMembers members,
         {
             throw new HubException("The project was closed or deleted; join it again.");
         }
-        catch (ProjectFormatException)
+        catch (MediaDeleteInProgressException exception)
         {
-            throw new HubException("The project file is not valid.");
+            throw new HubException(exception.Message);
+        }
+        catch (ProjectFormatException exception)
+        {
+            // The reason is about the user's own project, so it is safe to show; it is cut so one message stays short.
+            string reason = string.Join(' ', exception.Problems.Take(5));
+            string text = $"{exception.Message} {reason}".Trim();
+            throw new HubException(text.Length <= 600 ? text : text[..600] + "...");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
