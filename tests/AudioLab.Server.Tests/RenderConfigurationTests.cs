@@ -6,7 +6,7 @@ public sealed class RenderConfigurationTests
 {
     [Theory]
     [InlineData("MaxDecodedBytesPerFile", "1000")]
-    [InlineData("MediaCacheBytes", "0")]
+    [InlineData("MaxDecodedBytesPerRender", "1000")]
     [InlineData("MaxConcurrentExportsPerUser", "0")]
     [InlineData("MaxConcurrentExports", "0")]
     [InlineData("MaxSeconds", "0")]

@@ -110,4 +110,22 @@ public sealed class ExportMeasureTests
 
         Assert.Equal(new string('a', 98), cut);
     }
+
+    [Fact]
+    public async Task ACancelledTokenStopsThePreparationOfMediaBeforeAnyByteIsWritten()
+    {
+        using CancellationTokenSource cancel = new();
+        cancel.Cancel();
+        MemoryMedia slow = new MemoryMedia().Add("a", Signals.Sine(300, 1, 8000, 0.2)).Add("b", Signals.Sine(450, 1, 8000, 0.2, channels: 1));
+        OfflineOptions options = new() { SampleRate = 48000 };
+        AsyncOnlyStream wav = new();
+        AsyncOnlyStream zip = new();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => WavExporter.WriteAsync(Project(), slow, wav, new WavOptions(), options, cancel.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => StemExporter.WriteZipAsync(Project(), slow, zip, new WavOptions(), options, null, cancel.Token));
+
+        Assert.Equal((0, 0), (wav.Length, zip.Length));
+    }
 }
