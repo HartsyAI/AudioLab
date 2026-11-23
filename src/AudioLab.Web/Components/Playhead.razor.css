@@ -1,0 +1,20 @@
+.cap {
+    position: absolute;
+    bottom: 0;
+    display: block;
+    pointer-events: none;
+}
+
+.cap polygon {
+    fill: var(--playhead);
+}
+
+.line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-lane-overlay);
+    width: 1px;
+    background: var(--playhead);
+    pointer-events: none;
+}

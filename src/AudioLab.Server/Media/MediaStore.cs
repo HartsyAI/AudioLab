@@ -217,13 +217,16 @@ public sealed class MediaStore : IMediaCatalog
     }
 
     /// <summary>Opens a user's file for reading; a delete in progress does not wait for the reader, and the reader keeps its bytes.</summary>
+    /// <param name="user">The owner.</param>
+    /// <param name="id">The file.</param>
+    /// <param name="asynchronous">Whether the stream is for asynchronous reads, as a response's is; a synchronous reader passes false.</param>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
-    public FileStream OpenContent(UserId user, MediaId id)
+    public FileStream OpenContent(UserId user, MediaId id, bool asynchronous = true)
     {
         MediaRecord record = Get(user, id);
         try
         {
-            return OpenForReading(_root.Paths.MediaDataFile(user, record.Id));
+            return OpenForReading(_root.Paths.MediaDataFile(user, record.Id), asynchronous);
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
@@ -368,16 +371,29 @@ public sealed class MediaStore : IMediaCatalog
         }
     }
 
-    internal static FileStream OpenForReading(string path)
+    internal static FileStream OpenForReading(string path, bool asynchronous = true)
     {
         FileStreamOptions options = new()
         {
             Mode = FileMode.Open,
             Access = FileAccess.Read,
             Share = FileShare.ReadWrite | FileShare.Delete,
-            Options = FileOptions.Asynchronous,
+            Options = asynchronous ? FileOptions.Asynchronous : FileOptions.SequentialScan,
         };
         return new FileStream(path, options);
+    }
+
+    /// <summary>What the user has, counting what their running uploads have received so far, and how many uploads are running.</summary>
+    /// <remarks>The same count the quota is asked with, so "remaining" is what an upload would be told.</remarks>
+    /// <exception cref="IOException">The user's folder cannot be read.</exception>
+    public (MediaUsage Usage, int UploadsRunning) CurrentOf(UserId user)
+    {
+        UserMedia media = Readable(user);
+        lock (media.Sync)
+        {
+            MediaUsage stored = UsageOf(media);
+            return (new MediaUsage(stored.Files + media.UploadsAdmitted, stored.Bytes + media.UploadBytes), media.UploadsRunning);
+        }
     }
 
     // Called by MediaUpload: what the user has, plus what their other admitted uploads have received; an upload is

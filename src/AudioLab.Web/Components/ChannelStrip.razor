@@ -13,7 +13,7 @@
     <Knob Label="@($"Pan of {Name}")" Position="Pan" Text="@PanText" />
     <div class="fader-row">
         <Fader Label="@($"Volume of {Name}")" Position="VolumePosition" Text="@VolumeText" />
-        <div class="meter"><Meter /></div>
+        <div class="meter"><LiveMeter Track="Track" /></div>
     </div>
     <div class="foot">
         @if (!Master)

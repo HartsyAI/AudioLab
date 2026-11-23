@@ -1,9 +1,12 @@
 // BL0006 asks code not to use the render tree, which is right for an app. This is the one place that has to read what a component
 // wrote, and a renderer of our own over the framework's public Renderer is smaller than a test library for the sake of one check.
 #pragma warning disable BL0006
+using AudioLab.Web.Interop;
+using AudioLab.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AudioLab.Web.Tests;
@@ -44,6 +47,11 @@ internal sealed class RenderedMarkup : Renderer
     {
         ServiceCollection collection = new();
         services?.Invoke(collection);
+        // The live meters and the playhead read the playback service, which here has an engine that makes no sound.
+        collection.TryAddSingleton<IAudioHost, FakeAudioHost>();
+        collection.TryAddSingleton(new HttpClient { BaseAddress = new Uri("http://example.test/") });
+        collection.TryAddSingleton(TimeProvider.System);
+        collection.TryAddSingleton<PlaybackService>();
         await using ServiceProvider provider = collection.BuildServiceProvider();
         RenderedMarkup renderer = new(provider);
         T component = Activator.CreateInstance<T>();

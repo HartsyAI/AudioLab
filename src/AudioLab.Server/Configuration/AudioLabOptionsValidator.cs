@@ -3,6 +3,7 @@ using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;
+using AudioLab.Server.Render;
 using AudioLab.Server.Store;
 using Microsoft.Extensions.Options;
 
@@ -51,6 +52,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         ValidateStorage(options.Storage, problems);
         McpOptionsValidator.Validate(options.Mcp, problems);
         ValidateMedia(options.Media, problems);
+        ValidateRender(options.Render, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 
@@ -95,6 +97,38 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         if (media.MaxBytesPerUser < media.MaxUploadBytes)
         {
             problems.Add("AudioLab:Media:MaxBytesPerUser must be at least MaxUploadBytes.");
+        }
+    }
+
+    private static void ValidateRender(RenderOptions render, List<string> problems)
+    {
+        if (render.MaxDecodedBytesPerFile < 1024 * 1024)
+        {
+            problems.Add("AudioLab:Render:MaxDecodedBytesPerFile must be at least 1 MiB.");
+        }
+        if (render.MaxDecodedBytesPerRender < render.MaxDecodedBytesPerFile)
+        {
+            problems.Add("AudioLab:Render:MaxDecodedBytesPerRender must be at least MaxDecodedBytesPerFile.");
+        }
+        if (render.MaxConcurrentExportsPerUser < 1 || render.MaxConcurrentExports < 1)
+        {
+            problems.Add("AudioLab:Render:MaxConcurrentExportsPerUser and MaxConcurrentExports must be at least 1.");
+        }
+        if (!double.IsFinite(render.MaxSeconds) || render.MaxSeconds <= 0 || render.MaxSeconds > ProjectLimits.MaxSeconds)
+        {
+            problems.Add($"AudioLab:Render:MaxSeconds must be above 0 and at most {ProjectLimits.MaxSeconds} seconds.");
+        }
+        if (render.MaxBytes is < 1024 * 1024 or > uint.MaxValue)
+        {
+            problems.Add("AudioLab:Render:MaxBytes must be from 1 MiB to 4 GiB less one byte, the most a WAV or ZIP file holds.");
+        }
+        if (render.MaxTime <= TimeSpan.Zero || render.MaxTime > TimeSpan.FromHours(24))
+        {
+            problems.Add("AudioLab:Render:MaxTime must be above zero and at most 24 hours.");
+        }
+        if (!double.IsFinite(render.MaxTailSeconds) || render.MaxTailSeconds < 0 || render.MaxTailSeconds > 600)
+        {
+            problems.Add("AudioLab:Render:MaxTailSeconds must be from 0 to 600 seconds.");
         }
     }
 

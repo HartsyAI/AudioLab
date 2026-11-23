@@ -44,17 +44,6 @@
     color: var(--text-soft);
 }
 
-.cap {
-    position: absolute;
-    left: -5px;
-    bottom: 0;
-    display: block;
-}
-
-.cap polygon {
-    fill: var(--playhead);
-}
-
 .marker {
     position: absolute;
     top: 3px;

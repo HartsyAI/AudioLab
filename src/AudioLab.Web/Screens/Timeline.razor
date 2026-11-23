@@ -15,7 +15,8 @@
         <div class="ruler">
             @foreach (RulerRowKind kind in Kinds)
             {
-                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors" />
+                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors"
+                          OnSeek="RulerSeek" />
             }
         </div>
         <div class="headers" role="list" aria-label="Tracks">
@@ -42,6 +43,8 @@
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
                              OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" OnOpenClip="OpenClip"
                              OnLaneDoubleClick="LaneDoubleClickAsync" />
+                <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
+                <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />
             }
         </div>
     </div>
