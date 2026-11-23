@@ -139,8 +139,8 @@ public sealed class RangeRuleTests
         MidiClip after = Midi("after", 8, 1);
         MidiClip before = Midi("before", 0, 4);
 
-        ValueList<MidiClip> shuffled = RangeRules.Delete([before, inside, across, after], 4, 6, true);
-        ValueList<MidiClip> slipped = RangeRules.Delete([before, inside, across, after], 4, 6, false);
+        Assert.True(RangeRules.TryDelete([before, inside, across, after], 4, 6, true, out ValueList<MidiClip> shuffled, out _));
+        Assert.True(RangeRules.TryDelete([before, inside, across, after], 4, 6, false, out ValueList<MidiClip> slipped, out _));
 
         Assert.Equal(["before", "across", "after"], shuffled.Select(clip => clip.Id.Value));
         Assert.Equal([0.0, 3.0, 6.0], shuffled.Select(clip => clip.Start));

@@ -191,7 +191,8 @@ public sealed class RangeCommandTests
         Assert.Equal((3.0, 14.0), (clip.Start, clip.Length));
         Assert.Equal(5, clip.NextNoteId.Value);
         Assert.Empty(created);
-        Assert.Equal([new MidiControlChange(1, 64, 127), new MidiControlChange(3, 64, 0), new MidiControlChange(5, 64, 127)], clip.ControlChanges.Where(change => change.Controller == 64));
+        MidiControlChange[] pedal = [new MidiControlChange(1, 64, 127), new MidiControlChange(3, 64, 0), new MidiControlChange(5, 64, 127)];
+        Assert.Equal(pedal, clip.ControlChanges.Where(change => change.Controller == 64));
         Assert.DoesNotContain(clip.ControlChanges, change => change.Controller == 1);
         _rig.History.Undo();
         Assert.Equal(before, _rig.Project);
@@ -200,7 +201,7 @@ public sealed class RangeCommandTests
     [Fact]
     public void ANoteThatGoesOnPastTheRangeEndKeepsThatPartAsANewNoteWithTheNextId()
     {
-        // The range 4.5 to 6 cuts note 2 (abs 5 to 7) at its start and leaves 6 to 7 as a new note.
+        // Note 2 (abs 5 to 7) starts inside the range 4.5 to 6: it is removed and its part from 6 to 7 is kept as a new note.
         _rig.Created(Delete(4.5, 6, _lead));
 
         MidiClip clip = Track(_lead).MidiClips[0];
@@ -235,30 +236,70 @@ public sealed class RangeCommandTests
         Assert.Equal([(4.0, 2.0), (7.5, 1.0)], shuffle.Project.Tracks[2].MidiClips.Select(clip => (clip.Start, clip.Length)));
     }
 
-    [Fact]
-    public void AClipThatWouldUseEveryNoteIdIsRefusedForARangeThatNeedsANewOneAndNothingChanges()
+    // The project with the lead track's clip replaced.
+    private CommandRig RigWith(MidiClip lead)
     {
-        MidiClip full = Lead() with { NextNoteId = new NoteId(NoteId.Max) };
-        CommandRig rig = new(_rig.Project with { Tracks = [.. _rig.Project.Tracks.Take(4), Track(_lead) with { MidiClips = [full] }] });
+        return new CommandRig(_rig.Project with { Tracks = [.. _rig.Project.Tracks.Take(4), Track(_lead) with { MidiClips = [lead] }] });
+    }
+
+    // A range over the drums (whose clip it cuts in two, so an id would be used) and the lead is refused with the MIDI clip named and
+    // nothing changed, and then a delete of the drums alone takes the first id in line, so the refusal used none.
+    private void AssertRefusedBeforeAnIdIsUsed(CommandRig rig, double start, double end)
+    {
         ProjectDocument project = rig.Project;
 
-        rig.RefusedWith(new DeleteRange { Project = rig.Id, Start = 4.5, End = 6, Tracks = [_lead] }, CommandErrorCode.Invalid);
+        CommandResult refused = rig.Refused(new DeleteRange { Project = rig.Id, Start = start, End = end, Tracks = [_drums, _lead] });
 
+        Assert.Equal(CommandErrorCode.Invalid, refused.Errors[0].Code);
+        Assert.Contains("MIDI clip m3", refused.Errors[0].Message);
         Assert.Equal(project, rig.Project);
-        rig.Created(new DeleteRange { Project = rig.Id, Start = 6, End = 8, Tracks = [_lead] });
+        Assert.Equal(["clp_1001"], rig.Created(new DeleteRange { Project = rig.Id, Start = 4, End = 6, Tracks = [_drums] }));
     }
 
     [Fact]
-    public void AClipThatWouldPassTheNoteLimitIsRefusedAndNothingChanges()
+    public void AClipThatWouldUseEveryNoteIdIsRefusedBeforeAnIdIsUsedAndTwoNewNotesNeedTwoIds()
+    {
+        MidiNote[] spanning = [new MidiNote(new NoteId(1), 60, 2, 4, 100), new MidiNote(new NoteId(2), 62, 2.5, 4, 100)];
+        MidiClip noRoom = Lead() with { Notes = [.. spanning], NextNoteId = new NoteId(NoteId.Max), ControlChanges = [] };
+
+        AssertRefusedBeforeAnIdIsUsed(RigWith(noRoom), 4.5, 6);
+        CommandRig oneShort = RigWith(noRoom with { NextNoteId = new NoteId(NoteId.Max - 1) });
+        oneShort.RefusedWith(new DeleteRange { Project = oneShort.Id, Start = 4.5, End = 6, Tracks = [_lead] }, CommandErrorCode.Invalid);
+        CommandRig exact = RigWith(noRoom with { NextNoteId = new NoteId(NoteId.Max - 2) });
+        exact.Created(new DeleteRange { Project = exact.Id, Start = 4.5, End = 6, Tracks = [_lead] });
+        Assert.Equal(NoteId.Max, exact.Project.Tracks[4].MidiClips[0].NextNoteId.Value);
+    }
+
+    [Fact]
+    public void AClipThatWouldPassTheNoteLimitIsRefusedBeforeAnIdIsUsed()
     {
         MidiNote[] spanning = [.. Enumerable.Range(1, ProjectLimits.MaxListItems / 2 + 1).Select(i => new MidiNote(new NoteId(i), 60, 0, 20, 100))];
         MidiClip crowded = Lead() with { Notes = [.. spanning], NextNoteId = new NoteId(spanning.Length + 1), ControlChanges = [] };
-        CommandRig rig = new(_rig.Project with { Tracks = [.. _rig.Project.Tracks.Take(4), Track(_lead) with { MidiClips = [crowded] }] });
-        ProjectDocument project = rig.Project;
 
-        rig.RefusedWith(new DeleteRange { Project = rig.Id, Start = 6, End = 8, Tracks = [_lead] }, CommandErrorCode.Invalid);
+        AssertRefusedBeforeAnIdIsUsed(RigWith(crowded), 6, 8);
+    }
 
-        Assert.Equal(project, rig.Project);
+    [Fact]
+    public void AClipThatWouldPassTheControllerLimitWithThePedalItAddsIsRefusedBeforeAnIdIsUsed()
+    {
+        MidiControlChange[] filler = [.. Enumerable.Repeat(new MidiControlChange(0, 1, 0), ProjectLimits.MaxListItems - 1)];
+        MidiClip crowded = Lead() with { Notes = [], ControlChanges = [.. filler, new MidiControlChange(1, 64, 127)] };
+
+        AssertRefusedBeforeAnIdIsUsed(RigWith(crowded), 6, 8);
+    }
+
+    [Fact]
+    public void AnAudioClipAndAMidiClipCutByOneRangeAreOneUndoStepAndTheAudioIdIsReported()
+    {
+        ProjectDocument before = _rig.Project;
+
+        IReadOnlyList<string> created = _rig.Created(Delete(6, 8, _drums, _lead));
+
+        Assert.Equal(["clp_1001"], created);
+        Assert.Equal([(2.0, 6.0), (8.0, 12.0), (20.0, 24.0)], Spans(Track(_drums)));
+        Assert.Equal("1:0+1 2:2+1 4:7+1", Notes(Track(_lead).MidiClips[0]));
+        _rig.History.Undo();
+        Assert.Equal(before, _rig.Project);
     }
 
     [Fact]

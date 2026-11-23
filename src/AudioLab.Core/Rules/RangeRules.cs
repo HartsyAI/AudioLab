@@ -62,11 +62,34 @@ public static class RangeRules
         return [.. ripple ? kept.Select(Close) : kept];
     }
 
-    /// <summary>The MIDI clips of a track with the range removed from each, as <see cref="MidiRangeRules.Delete"/> does for one.</summary>
-    public static ValueList<MidiClip> Delete(IReadOnlyList<MidiClip> clips, double start, double end, bool ripple)
+    /// <summary>The MIDI clips of a track with the range removed from each, as <see cref="MidiRangeRules.TryDelete"/> does for one.</summary>
+    /// <returns>False, with the id of the first clip that cannot take the cut in <paramref name="refused"/>, when one would pass a limit.</returns>
+    public static bool TryDelete(
+        IReadOnlyList<MidiClip> clips,
+        double start,
+        double end,
+        bool ripple,
+        out ValueList<MidiClip> result,
+        out ClipId? refused)
     {
         ArgumentNullException.ThrowIfNull(clips);
-        return [.. clips.Select(clip => MidiRangeRules.Delete(clip, start, end, ripple)).OfType<MidiClip>()];
+        List<MidiClip> kept = [];
+        result = [];
+        refused = null;
+        foreach (MidiClip clip in clips)
+        {
+            if (!MidiRangeRules.TryDelete(clip, start, end, ripple, out MidiClip? cut))
+            {
+                refused = clip.Id;
+                return false;
+            }
+            if (cut is not null)
+            {
+                kept.Add(cut);
+            }
+        }
+        result = [.. kept];
+        return true;
     }
 
     /// <summary>The clips of a track cut at both edges of the range, each cut a split: the left piece keeps the id, the right one is new.</summary>
@@ -135,6 +158,7 @@ public static class RangeRules
         return text[..(char.IsHighSurrogate(text[room - 1]) ? room - 1 : room)].TrimEnd();
     }
 
+    // Whether a MIDI clip lies wholly inside the range, an edge counting when it is within the tolerance of it.
     internal static bool Inside(MidiClip clip, double start, double end)
     {
         return clip.Start >= start - Tolerance && ClipRules.EndOf(clip) <= end + Tolerance;
