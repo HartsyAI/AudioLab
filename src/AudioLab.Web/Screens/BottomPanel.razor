@@ -5,6 +5,10 @@
             {
                 <MixerPanel Document="Document" Selected="Selected" Actions="Actions" />
             }
+            else if (tab == "Media")
+            {
+                <MediaPanel />
+            }
             else
             {
                 <EmptyState Heading="@tab" Message="@($"The {tab.ToLowerInvariant()} tab arrives in a later phase.")" />

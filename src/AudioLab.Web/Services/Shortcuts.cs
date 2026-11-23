@@ -9,6 +9,9 @@ public static class Shortcuts
     /// <summary>The scope of the session screen.</summary>
     public const string Session = "session";
 
+    /// <summary>The scope of the media library panel.</summary>
+    public const string Media = "media";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
@@ -39,9 +42,13 @@ public static class Shortcuts
     /// <summary>Move the focused clip to the track below.</summary>
     public static readonly Shortcut NudgeDown = new("clip.nudge.down", "Move clip to the track below", "ArrowDown", Session, Alt: true);
 
+    /// <summary>Delete the media file that has the focus in the library.</summary>
+    public static readonly Shortcut DeleteMedia = new("media.delete", "Delete media file", "Delete", Media);
+
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
+        DeleteMedia,
     ];
 }
