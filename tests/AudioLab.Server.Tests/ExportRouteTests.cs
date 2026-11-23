@@ -499,6 +499,47 @@ public sealed class ExportRouteTests
     }
 
     [Fact]
+    public async Task InstrumentTracksAreExportedWithTheLengthPromisedAndNotAsSilence()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+        byte[] tone = TestWav.Build(SampleEncoding.Pcm16, 1, 48000, 24000, (frame, _) => Math.Sin(frame * 0.1) * 0.5);
+        MediaSummary sample = await UploadAsync(server, tone);
+        ProjectId project = await CreateProjectAsync(server, "Instruments");
+        string keys = "\"kind\":\"instrument\",\"preset\":\"Organ\",\"name\":\"Keys\"";
+        string synth = (await ApplyAsync(server, _local, project, "track_add", keys)).Created.Single();
+        string hits = "\"kind\":\"instrument\",\"preset\":\"Sampler\",\"name\":\"Hits\"";
+        string sampler = (await ApplyAsync(server, _local, project, "track_add", hits)).Created.Single();
+        _ = await ApplyAsync(server, _local, project, "instrument_set_sample", $"\"track\":\"{sampler}\",\"sample\":\"{sample.Id}\"");
+        foreach (string track in new[] { synth, sampler })
+        {
+            string add = $"\"track\":\"{track}\",\"start\":0,\"length\":2";
+            string clip = (await ApplyAsync(server, _local, project, "midi_clip_add", add)).Created.Single();
+            _ = await ApplyAsync(server, _local, project, "midi_note_add", $"\"clip\":\"{clip}\",\"pitch\":60,\"start\":0.1,\"duration\":0.5");
+        }
+
+        using HttpResponseMessage mix = await ExportAsync(server, project, "mix", "{\"format\":\"float32\"}");
+        using HttpResponseMessage stems = await ExportAsync(server, project, "stems", "{\"format\":\"float32\"}");
+
+        // The length in the header is what was written, with the tail of the instruments in it, or the connection would have been cut.
+        WavInfo wav = WavInfo.Parse(await BytesAsync(mix));
+        double peak = Enumerable.Range(0, wav.Frames).Max(frame => Math.Abs(wav.Sample(frame, 0)));
+        Assert.True(peak > 0.01, $"the mix of two instrument tracks is silent: peak {peak}");
+        using ZipArchive zip = new(new MemoryStream(await BytesAsync(stems)));
+        Assert.Equal(["01 Keys.wav", "02 Hits.wav"], zip.Entries.Select(entry => entry.FullName));
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            using MemoryStream bytes = new();
+            await using (Stream source = await entry.OpenAsync())
+            {
+                await source.CopyToAsync(bytes);
+            }
+            WavInfo stem = WavInfo.Parse(bytes.ToArray());
+            Assert.True(Enumerable.Range(0, stem.Frames).Max(frame => Math.Abs(stem.Sample(frame, 0))) > 0.01, $"{entry.Name} is silent");
+            Assert.Equal(wav.Frames, stem.Frames);
+        }
+    }
+
+    [Fact]
     public async Task TheOpenProjectsUnsavedChangesAreWhatIsExported()
     {
         await using RunningServer server = await RunningServer.StartAsync();

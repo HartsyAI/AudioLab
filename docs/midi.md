@@ -1,7 +1,7 @@
 # MIDI files in and out
 
 The server turns a Standard MIDI File into a MIDI clip on an instrument track, and a MIDI clip back into a file. The design
-is [DESIGN.md D46 and D42](../DESIGN.md#2-decisions) (Proposed). All routes are behind the door: the project is the
+is [DESIGN.md D52 and D42](../DESIGN.md#2-decisions) (Proposed). All routes are behind the door: the project is the
 signed-in user's, or it is a 404.
 
 | Route | Answer |
