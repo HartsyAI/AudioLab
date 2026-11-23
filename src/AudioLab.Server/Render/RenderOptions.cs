@@ -7,6 +7,6 @@ public sealed record RenderOptions
     /// <remarks>A 16-bit upload at the default upload limit decodes to twice its size, so this is the most an upload may need.</remarks>
     public long MaxDecodedBytesPerFile { get; init; } = 1024L * 1024 * 1024;
 
-    /// <summary>The most bytes of cleaned, resampled media one render keeps at once; the file in use is always kept. The default is 512 MiB.</summary>
+    /// <summary>The most bytes of cleaned, resampled media one render keeps at once; the file in use is always kept; 512 MiB by default.</summary>
     public long MediaCacheBytes { get; init; } = 512L * 1024 * 1024;
 }

@@ -16,7 +16,11 @@ public sealed class UserMediaSourceTests
         return new UserMediaSource(store.Media, user, limit, NullLogger.Instance, token);
     }
 
-    private static async Task<UserMediaSource> ReadySourceAsync(TestStore store, UserId user, long limit = 1L << 30, CancellationToken token = default)
+    private static async Task<UserMediaSource> ReadySourceAsync(
+        TestStore store,
+        UserId user,
+        long limit = 1L << 30,
+        CancellationToken token = default)
     {
         await store.Media.PrepareAsync(user, _none);
         return SourceOf(store, user, limit, token);
@@ -92,7 +96,8 @@ public sealed class UserMediaSourceTests
         long exactly = 24000L * 2 * sizeof(float);
 
         Assert.True((await ReadySourceAsync(store, Users.Alice, limit: exactly)).TryGet(record.Id, out _));
-        await Assert.ThrowsAsync<RenderLimitException>(async () => (await ReadySourceAsync(store, Users.Alice, limit: exactly - 1)).TryGet(record.Id, out _));
+        UserMediaSource tooSmall = await ReadySourceAsync(store, Users.Alice, limit: exactly - 1);
+        Assert.Throws<RenderLimitException>(() => tooSmall.TryGet(record.Id, out _));
     }
 
     [Fact]
@@ -132,7 +137,8 @@ public sealed class UserMediaSourceTests
         RenderMediaProvider provider = new(store.Media, new RenderOptions(), NullLogger<RenderMediaProvider>.Instance);
 
         RenderMedia media = await provider.OpenAsync(Users.Alice, 44100, _none);
-        RenderedAudio audio = OfflineRenderer.Render(document, media.Source, new OfflineOptions { SampleRate = 44100, Cache = media.Cache, IncludeTail = false });
+        OfflineOptions options = new() { SampleRate = 44100, Cache = media.Cache, IncludeTail = false };
+        RenderedAudio audio = OfflineRenderer.Render(document, media.Source, options);
 
         Assert.InRange(audio.Frames, 44099, 44101);
         float middle = audio.Left[audio.Frames / 2];
@@ -153,10 +159,13 @@ public sealed class UserMediaSourceTests
         RenderMediaProvider provider = new(store.Media, new RenderOptions(), NullLogger<RenderMediaProvider>.Instance);
 
         // A project document naming a file of another user cannot arise through a command; the source still refuses it.
-        ProjectDocument stolen = document with { Tracks = [.. document.Tracks.Select(track => track with { Clips = [.. track.Clips.Select(clip => clip with { Media = foreign.Id })] })] };
+        Track Retarget(Track track) => track with { Clips = [.. track.Clips.Select(clip => clip with { Media = foreign.Id })] };
+        ProjectDocument stolen = document with { Tracks = [.. document.Tracks.Select(Retarget)] };
         RenderMedia media = await provider.OpenAsync(Users.Alice, 48000, _none);
 
-        MissingMediaException missing = Assert.Throws<MissingMediaException>(() => OfflineRenderer.Render(stolen, media.Source, new OfflineOptions { Cache = media.Cache }));
+        OfflineOptions options = new() { Cache = media.Cache };
+
+        MissingMediaException missing = Assert.Throws<MissingMediaException>(() => OfflineRenderer.Render(stolen, media.Source, options));
         Assert.Equal([foreign.Id], missing.Missing);
     }
 
