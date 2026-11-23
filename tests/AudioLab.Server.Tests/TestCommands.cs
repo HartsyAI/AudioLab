@@ -21,7 +21,19 @@ internal sealed record AddMarkerCommand : Command
 
 internal sealed record RefuseCommand : Command;
 
+internal sealed record FailWithCommand : Command
+{
+    public required string Code { get; init; }
+}
+
+internal sealed record BadBpmCommand : Command;
+
 internal sealed record NoChangeCommand : Command;
+
+internal sealed record AddManyCommand : Command
+{
+    public required int Count { get; init; }
+}
 
 internal sealed record SlowCommand : Command;
 
