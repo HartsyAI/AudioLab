@@ -11,7 +11,7 @@ namespace AudioLab.Audio.Instruments;
 /// At most <see cref="MaxHeldVoices"/> notes sound at once, held or dying. A note that arrives with all of them in use takes over the
 /// voice that is dying and quietest, or if none is dying the one that has been sounding longest (the lowest index on a tie), and that
 /// voice fades out over 2 ms on a spare slot instead of cutting off. Should the spare slots too be in use, which takes more than
-/// <see cref="PoolSize"/> - <see cref="MaxHeldVoices"/> takeovers within 2 ms, the fading voice nearest its end is cut off.
+/// <see cref="PoolSize"/> - <see cref="MaxHeldVoices"/> takeovers within 2 ms, the fading voice with the lowest level is cut off.
 /// </para>
 /// <para>
 /// After a seek, or a first render, a note that began before the first frame and is still held starts there with a new attack.
@@ -143,6 +143,7 @@ internal sealed class SynthSource : ITrackSource
     }
 
     // Finds where the notes are at the frame: the ones before it are over or chased, the first one at or after it is next.
+    // It looks back over the notes that began up to the track's longest note before the frame, so a seek costs that many notes.
     private void Prime(long frame)
     {
         Reset();
@@ -183,7 +184,7 @@ internal sealed class SynthSource : ITrackSource
         {
             ChooseVictim().Take();
         }
-        FreeSlot().Start(frame, note.OffFrame, note.Pitch, note.Velocity);
+        FreeSlot().Start(note.OnFrame, note.OffFrame, note.Pitch, note.Velocity);
     }
 
     // The quietest voice that is dying, else the one held longest; the lowest index wins a tie, so the choice never depends on luck.

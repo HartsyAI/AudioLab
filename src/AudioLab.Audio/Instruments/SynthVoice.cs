@@ -5,9 +5,8 @@ namespace AudioLab.Audio.Instruments;
 /// Allocation-free once built. Everything it does depends on the frames since its own start, never on how a render is cut into blocks:
 /// the filter is recalculated every <see cref="SynthSettings.ControlInterval"/> frames counted from the voice's start.
 /// </remarks>
-internal sealed class SynthVoice
+internal sealed class SynthVoice(SynthSettings settings)
 {
-    private readonly SynthSettings _settings;
     private double _phase1;
     private double _phase2;
     private double _step1;
@@ -24,13 +23,10 @@ internal sealed class SynthVoice
     private double _s1;
     private double _s2;
 
-    /// <summary>Makes a free voice that plays with the given settings.</summary>
-    public SynthVoice(SynthSettings settings) => _settings = settings;
-
     /// <summary>Where the voice is in its life.</summary>
     public VoiceState State { get; private set; }
 
-    /// <summary>The frame the voice started on, which is how old it is against another voice.</summary>
+    /// <summary>The frame the voice's note started on, which is how old it is against another voice.</summary>
     public long StartFrame { get; private set; }
 
     /// <summary>The level of the envelope now.</summary>
@@ -40,14 +36,14 @@ internal sealed class SynthVoice
     public void Start(long startFrame, long offFrame, int pitch, float velocity)
     {
         double frequency = SynthSettings.Frequency(pitch);
-        int rate = _settings.SampleRate;
-        _step1 = frequency * _settings.Detune1 / rate;
-        _step2 = frequency * _settings.Ratio2 * _settings.Detune2 / rate;
+        int rate = settings.SampleRate;
+        _step1 = frequency * settings.Detune1 / rate;
+        _step2 = frequency * settings.Ratio2 * settings.Detune2 / rate;
         _osc1On = _step1 < 0.5;
-        _osc2On = _settings.Level2 > 0 && _step2 < 0.5;
+        _osc2On = settings.Level2 > 0 && _step2 < 0.5;
         _phase1 = 0;
         _phase2 = 0;
-        _level = _settings.Gain * velocity;
+        _level = settings.Gain * velocity;
         _envelope = 0;
         _age = 0;
         _attacking = true;
@@ -64,7 +60,7 @@ internal sealed class SynthVoice
     /// <summary>Lets a voice that is taken over for a newer note fade out over a few milliseconds instead of cutting off.</summary>
     public void Take()
     {
-        _fadeStep = _envelope / _settings.FadeFrames;
+        _fadeStep = _envelope / settings.FadeFrames;
         State = VoiceState.Fading;
     }
 
@@ -92,13 +88,13 @@ internal sealed class SynthVoice
         double sum = 0;
         if (_osc1On)
         {
-            sum += Oscillators.Sample(_settings.Osc1, _phase1, _step1) * _settings.Level1;
+            sum += Oscillators.Sample(settings.Osc1, _phase1, _step1) * settings.Level1;
             _phase1 += _step1;
             _phase1 -= _phase1 >= 1 ? 1 : 0;
         }
         if (_osc2On)
         {
-            sum += Oscillators.Sample(_settings.Osc2, _phase2, _step2) * _settings.Level2;
+            sum += Oscillators.Sample(settings.Osc2, _phase2, _step2) * settings.Level2;
             _phase2 += _step2;
             _phase2 -= _phase2 >= 1 ? 1 : 0;
         }
@@ -117,23 +113,23 @@ internal sealed class SynthVoice
     // The cutoff is a function of the voice's age only, so a sweep is the same whatever block it is rendered in.
     private void UpdateFilter()
     {
-        double baseCutoff = _settings.FilterBase;
-        double peak = _settings.FilterPeak;
+        double baseCutoff = settings.FilterBase;
+        double peak = settings.FilterPeak;
         if (peak == baseCutoff && _age > 0)
         {
             return;
         }
         double cutoff;
-        if (_age < _settings.AttackFrames)
+        if (_age < settings.AttackFrames)
         {
-            cutoff = baseCutoff + ((peak - baseCutoff) * _age / _settings.AttackFrames);
+            cutoff = baseCutoff + ((peak - baseCutoff) * _age / settings.AttackFrames);
         }
         else
         {
-            double target = baseCutoff + ((peak - baseCutoff) * _settings.Sustain);
-            cutoff = target + ((peak - target) * Math.Exp(-(_age - _settings.AttackFrames) / _settings.DecayTauFrames));
+            double target = baseCutoff + ((peak - baseCutoff) * settings.Sustain);
+            cutoff = target + ((peak - target) * Math.Exp(-(_age - settings.AttackFrames) / settings.DecayTauFrames));
         }
-        _filter = BiquadCoefficients.LowPass(cutoff, _settings.ResonanceDb, _settings.SampleRate);
+        _filter = BiquadCoefficients.LowPass(cutoff, settings.ResonanceDb, settings.SampleRate);
     }
 
     // The envelope for the next frame. A release goes on from the level the attack or decay had reached, so a note
@@ -146,7 +142,7 @@ internal sealed class SynthVoice
                 AdvanceHeld();
                 break;
             case VoiceState.Released:
-                _envelope *= _settings.ReleaseCoefficient;
+                _envelope *= settings.ReleaseCoefficient;
                 if (_envelope < SynthSettings.SilentLevel)
                 {
                     State = VoiceState.Free;
@@ -167,18 +163,24 @@ internal sealed class SynthVoice
     {
         if (_attacking)
         {
-            if (_age >= _settings.AttackFrames)
+            if (_age >= settings.AttackFrames)
             {
                 _attacking = false;
                 _envelope = _level;
             }
             else
             {
-                _envelope = _level * _age / _settings.AttackFrames;
+                _envelope = _level * _age / settings.AttackFrames;
             }
             return;
         }
-        double hold = _level * _settings.Sustain;
-        _envelope = hold + ((_envelope - hold) * _settings.DecayCoefficient);
+        double hold = _level * settings.Sustain;
+        _envelope = hold + ((_envelope - hold) * settings.DecayCoefficient);
+        if (hold < SynthSettings.SilentLevel && _envelope < SynthSettings.SilentLevel)
+        {
+            // A voice that has decayed to nothing is over, so it neither counts against the polyphony nor ends in subnormal numbers.
+            _envelope = 0;
+            State = VoiceState.Free;
+        }
     }
 }

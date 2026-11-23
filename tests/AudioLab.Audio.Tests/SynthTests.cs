@@ -372,7 +372,7 @@ public sealed class SynthTests
         source.Render(0, left, right);
 
         Assert.Equal(SynthSource.MaxHeldVoices, source.CountedVoices);
-        Assert.True(source.OldestHeldFrame < Rate / 100 * 8, "A held voice was taken while another was dying.");
+        Assert.Equal(7 * Rate / 100, source.OldestHeldFrame);
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public sealed class SynthTests
         return Project(InstrumentPresets.CreateSynth("Saw Lead"), Clip("a", 0, 4.5, notes, pedal), later);
     }
 
-    // A synth source with the given count of one-second-spaced-by-ten-milliseconds notes, held long; one of them can be short instead.
+    // A source that plays the given number of notes, one every 10 ms, each held 5 s; the one at shortestOneAt, if it is 0 or more, lasts 50 ms.
     private static (SynthSource Source, float[] Left, float[] Right) Rig(int count, int shortestOneAt)
     {
         SynthInstrument synth = Plain with { Release = 3, Attack = 0.001 };
@@ -491,4 +491,64 @@ public sealed class SynthTests
     {
         public PcmAudio? Get(MediaId id) => null;
     }
+
+    [Fact]
+    public void AHeldPluckThatHasDecayedToNothingFreesItsVoiceAndLeavesExactSilence()
+    {
+        MidiClip clip = Clip("a", 0, 40, [Note(1, 60, 0, 35)], new MidiControlChange(0.1, 64, 127));
+        SynthSource source = Make(InstrumentPresets.CreateSynth("Pluck"), 8000, clip);
+        float[] left = new float[8000 * 30];
+        float[] right = new float[left.Length];
+
+        for (int done = 0; done < left.Length; done += 800)
+        {
+            source.Render(done, left.AsSpan(done, 800), right.AsSpan(done, 800));
+        }
+
+        Assert.Equal(0, source.SoundingVoices);
+        Assert.All(left.AsSpan(8000 * 5).ToArray(), sample => Assert.Equal(0f, sample));
+    }
+
+    [Fact]
+    public void RepeatedNotesOfOnePitchEachTakeANewVoiceAsTheOldDawDid()
+    {
+        MidiNote[] notes = [.. Enumerable.Range(0, 5).Select(i => Note(i + 1, 60, i * 0.01, 3))];
+        SynthSource source = Make(Plain, Rate, Clip("a", 0, 4, notes));
+        float[] left = new float[Rate / 10];
+        float[] right = new float[left.Length];
+
+        source.Render(0, left, right);
+
+        Assert.Equal(5, source.CountedVoices);
+    }
+
+    [Fact]
+    public void TheCutoffSweepGoesOnThroughTheReleaseAsTheOldGraphsDid()
+    {
+        SynthInstrument slow = Plain with { Osc1 = OscillatorWave.Sawtooth, Cutoff = 300, FilterEnv = 3, Attack = 0.6, Release = 4 };
+
+        RenderedAudio audio = Single(slow, 36, 0.1);
+
+        Assert.True(Brightness(audio, 0.6, 0.7) > Brightness(audio, 0.15, 0.2) * 1.3, "The sweep stopped when the note was let go.");
+    }
+
+    [Fact]
+    public void AfterASeekTheNotesAreAsOldAsTheyWereSoTheSameVoicesAreTakenAsInContinuousPlay()
+    {
+        MidiNote[] notes = [.. Enumerable.Range(0, 40).Select(i => Note(i + 1, 40 + i, i * 0.01, 5))];
+        MidiClip clip = Clip("a", 0, 10, notes, new MidiControlChange(0, 64, 127));
+        SynthSource continuous = Make(Plain with { Release = 3 }, Rate, clip);
+        SynthSource seeked = Make(Plain with { Release = 3 }, Rate, clip);
+        float[] left = new float[(int)(0.45 * Rate)];
+        float[] right = new float[left.Length];
+        continuous.Render(0, left, right);
+
+        seeked.Render(left.Length, new float[1], new float[1]);
+
+        Assert.Equal(continuous.OldestHeldFrame, seeked.OldestHeldFrame);
+        Assert.Equal(continuous.CountedVoices, seeked.CountedVoices);
+    }
+
+    private static SynthSource Make(SynthInstrument synth, int rate, params MidiClip[] clips) =>
+        new(new SynthSettings(synth, rate), NoteSchedule.Build(clips, rate));
 }
