@@ -18,7 +18,12 @@ internal static class SectionCommands
             .Add("section_set_color", "Recolours a section.", json.SetSectionColor, SetColor)
             .Add("section_remove", "Removes a section.", json.RemoveSection, Remove)
             .Add("section_clear", "Removes every section.", json.ClearSections, Clear)
-            .Add("section_from_markers", "Replaces every section with one per marker and allocates their ids in order.", json.SectionsFromMarkers, FromMarkers);
+            .Add(
+                "section_from_markers",
+                "Replaces every section with one per marker and allocates their ids in order.",
+                json.SectionsFromMarkers,
+                FromMarkers)
+            .Add("section_name_clips", "Renames the clips that start inside a section after it.", json.NameClipsAfterSections, NameClips);
     }
 
     private static CommandResult Add(ProjectDocument document, AddSection command, IIdService ids)
@@ -147,5 +152,28 @@ internal static class SectionCommands
         }
         ValueList<Section> sections = [.. document.Sections.Select(section => section.Id == id ? edit(section) : section)];
         return CommandResult.Ok(document with { Sections = sections });
+    }
+
+    private static CommandResult NameClips(ProjectDocument document, NameClipsAfterSections command, IIdService ids)
+    {
+        if (command.Section is { } only && !document.Sections.Any(section => section.Id == only))
+        {
+            return CommandChecks.NotFound("section", only.Value);
+        }
+        // Each clip is named after the section it starts in; one that starts outside every section keeps its name.
+        string? NameOf(double start, string trackName)
+        {
+            Section? section = SectionRules.At(document.Sections, start);
+            return section is null || (command.Section is { } wanted && section.Id != wanted) ? null : RangeRules.ClipName(section, trackName);
+        }
+        ValueList<Track> tracks =
+        [
+            .. document.Tracks.Select(track => track with
+            {
+                Clips = [.. track.Clips.Select(clip => NameOf(clip.Start, track.Name) is { } name ? clip with { Name = name } : clip)],
+                MidiClips = [.. track.MidiClips.Select(clip => NameOf(clip.Start, track.Name) is { } name ? clip with { Name = name } : clip)],
+            }),
+        ];
+        return CommandResult.Ok(document with { Tracks = tracks });
     }
 }
