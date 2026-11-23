@@ -146,11 +146,22 @@ public sealed class MidiWriteTests
     }
 
     [Fact]
-    public void AVelocityOfZeroIsWrittenAsOneBecauseZeroWouldEndTheNote()
+    public void ANoteOfVelocityZeroIsLeftOutBecauseZeroWouldEndItAndTheEngineIsSilentOnIt()
     {
-        MidiImport import = MidiFile.Read(Write(Clip(0, 1, [Note(1, 60, 0, 0.5, velocity: 0)])));
+        MidiImport import = MidiFile.Read(Write(Clip(0, 1, [Note(1, 60, 0, 0.5, velocity: 0), Note(2, 62, 0.5, 0.25, velocity: 1)])));
 
-        Assert.Equal(1, Assert.Single(import.Notes).Velocity);
+        Assert.Equal(62, Assert.Single(import.Notes).Pitch);
+    }
+
+    [Fact]
+    public void ATempoChangeAtOrAfterTheClipEndIsNotWrittenAndDoesNotLengthenTheFile()
+    {
+        MidiClip clip = Clip(1, 2, [Note(1, 60, 0, 0.5)]);
+
+        MidiImport import = MidiFile.Read(Write(clip, 120, Change("tmp-a", 3, 60), Change("tmp-b", 5, 90)));
+
+        Assert.Empty(import.TempoChanges);
+        Assert.Equal(2.0, import.Length, 3);
     }
 
     [Fact]

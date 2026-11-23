@@ -19,7 +19,7 @@ public static class MidiFile
     /// <summary>Writes a clip as a file that starts where the clip does; the tempo map is the project's, from the project's start.</summary>
     /// <remarks>
     /// Notes are cut at the clip's end and controllers after it are left out. A pedal (controller 64) still down at the end is let up
-    /// there. A note with velocity 0 is written with 1, since 0 would end it. A tempo under 3.58 beats a minute is refused.
+    /// there. A note with velocity 0 is left out, since 0 would end it and the engine plays it silent. A tempo under 3.58 beats a minute is refused.
     /// </remarks>
     public static byte[] Write(MidiClip clip, double bpm, IReadOnlyList<TempoChange> changes, TimeSignature signature) =>
         MidiWriter.Write(clip, bpm, changes, signature);

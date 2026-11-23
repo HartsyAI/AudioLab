@@ -24,7 +24,7 @@ internal static class MidiWriter
         int power = DenominatorPower(signature);
         // The file starts where the clip does, so it opens at the tempo that holds there and keeps the changes after it.
         double startBpm = TempoMap.From(bpm, changes).BpmAt(clip.Start);
-        List<TempoChange> shifted = ShiftedChanges(changes, clip.Start);
+        List<TempoChange> shifted = ShiftedChanges(changes, clip.Start, clip.Length);
         TempoMap map = TempoMap.From(startBpm, shifted);
         List<(MidiMessage Message, int Order)> events = [];
         AddTempo(events, map, startBpm, shifted);
@@ -37,8 +37,9 @@ internal static class MidiWriter
         return Assemble(events, end);
     }
 
-    private static List<TempoChange> ShiftedChanges(IReadOnlyList<TempoChange> changes, double start) =>
-        [.. changes.Where(change => change.Time - start > TempoEpsilon)
+    // Only the changes inside the clip are written; one at or after its end would lengthen the file.
+    private static List<TempoChange> ShiftedChanges(IReadOnlyList<TempoChange> changes, double start, double length) =>
+        [.. changes.Where(change => change.Time - start > TempoEpsilon && change.Time - start < length)
             .Select(change => new TempoChange(change.Id, change.Time - start, change.Bpm))];
 
     private static int DenominatorPower(TimeSignature signature)
@@ -73,7 +74,8 @@ internal static class MidiWriter
         return (int)microseconds;
     }
 
-    // A note that starts inside the clip is written up to the clip's end, as playback hears it (audit row 37); velocity 0 would be a note-off.
+    // A note that starts inside the clip is written up to the clip's end, as playback hears it (audit row 37). Velocity 0 would be a
+    // note-off, and the engine plays such a note silent (D43), so it is left out.
     private static void AddNotes(List<(MidiMessage Message, int Order)> events, MidiClip clip, TempoMap map)
     {
         foreach (MidiNote note in clip.Notes)
@@ -82,13 +84,13 @@ internal static class MidiWriter
             {
                 throw new ArgumentException($"Note {note.Id} is not a valid note.", nameof(clip));
             }
-            if (note.Start < 0 || note.Start >= clip.Length)
+            if (note.Start < 0 || note.Start >= clip.Length || note.Velocity == 0)
             {
                 continue;
             }
             long on = Tick(map, note.Start);
             long off = Math.Max(on + 1, Tick(map, Math.Min(note.Start + note.Duration, clip.Length)));
-            events.Add((new MidiMessage(on, MidiMessageKind.NoteOn, 0, note.Pitch, Math.Max(1, note.Velocity)), events.Count));
+            events.Add((new MidiMessage(on, MidiMessageKind.NoteOn, 0, note.Pitch, note.Velocity), events.Count));
             events.Add((new MidiMessage(off, MidiMessageKind.NoteOff, 0, note.Pitch, 0), events.Count));
         }
     }
