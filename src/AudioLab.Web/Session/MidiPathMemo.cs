@@ -2,7 +2,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Keeps the preview path of one MIDI clip and builds it again only when the clip's notes changed, so a redraw or a lifted copy costs nothing.</summary>
+/// <summary>Keeps the preview path of one MIDI clip and builds it again only when its notes changed, so a redraw or a lifted copy costs nothing.</summary>
 public sealed class MidiPathMemo
 {
     private MidiClip? _clip;
