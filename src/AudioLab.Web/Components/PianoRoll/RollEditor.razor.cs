@@ -15,7 +15,7 @@ namespace AudioLab.Web.Components.PianoRoll;
 /// <remarks>
 /// Every edit is commands sent in one gesture, with absolute targets (D23). A gesture follows the pointer through listeners on the document and is
 /// previewed with the same rules the server applies; nothing is sent until the release. Notes are drawn as a few SVG paths and found by a pointer
-/// in C#, so one handler serves the whole grid (D17, D55).
+/// in C#, so one handler serves the whole grid (D17, D48).
 /// </remarks>
 public sealed partial class RollEditor : IDisposable, IHandleEvent
 {

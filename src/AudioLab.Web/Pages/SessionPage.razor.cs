@@ -57,6 +57,7 @@ public sealed partial class SessionPage
 
     [Inject]
     private ClipDragState Drags { get; set; } = default!;
+    [Inject] private BottomPanelState Panel { get; set; } = default!;
 
     [Inject]
     private RollDragState RollDrags { get; set; } = default!;
@@ -109,6 +110,7 @@ public sealed partial class SessionPage
         _page = new CancellationTokenSource();
         _failure = null;
         Selection.Clear();
+        Panel.Reset();
         LiveProject live = Factory.Create();
         _live = live;
         _editor = new SessionEditor(live);
@@ -340,10 +342,18 @@ public sealed partial class SessionPage
         {
             _ = InvokeAsync(() => _actions.Redo());
         }
-        else if (Shortcuts.AddMidiClip.Matches(chord) && Selection.Track is { } target
+        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && RollDrags.Current is null
+            && Selection.Track is { } target
             && _live?.Document?.Tracks.Any(candidate => candidate.Id == target && candidate.Kind == TrackKind.Instrument) == true)
         {
             _ = InvokeAsync(() => AddMidiClipAsync(target));
+        }
+        else if ((Shortcuts.MidiClipLonger.Matches(chord) || Shortcuts.MidiClipShorter.Matches(chord))
+            && Drags.Current is null && RollDrags.Current is null && Selection.Clip is { } open
+            && _live?.Document is { } document && MidiClipPlan.Find(document, open) is not null)
+        {
+            int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;
+            _ = InvokeAsync(() => _actions.Midi.StepLength(open, bars));
         }
         else if (Shortcuts.RenameTrack.Matches(chord) && Selection.Track is { } track)
         {
