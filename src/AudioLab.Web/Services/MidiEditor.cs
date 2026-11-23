@@ -1,7 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
-using AudioLab.Core.Realtime;
+using Microsoft.AspNetCore.SignalR;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Services;
@@ -38,45 +38,67 @@ public sealed class MidiEditor(LiveProject live)
     }
 
     /// <summary>Sends commands as one gesture, so they are one undo step; all the ids they allocate are in the result, in order.</summary>
-    /// <remarks>A command that is refused after others were applied takes those back, so an edit is never left half done.</remarks>
-    public Task<EditResult> SendAsync(Func<ProjectId, IReadOnlyList<Command>> build)
+    /// <remarks>
+    /// A command that is refused, or a connection that is lost, after others were applied does not take them back: undo is shared by every
+    /// client, so a take-back could undo another client's step. The result says how many were applied, and an undo takes them back as one step.
+    /// </remarks>
+    public async Task<EditResult> SendAsync(Func<ProjectId, IReadOnlyList<Command>> build)
     {
         ArgumentNullException.ThrowIfNull(build);
-        return EditRunner.RunAsync(live, async project =>
+        if (live.Document is not { } document)
         {
-            IReadOnlyList<Command> commands = build(project);
-            string? gesture = commands.Count > 1 ? live.NewGesture() : null;
-            List<string> created = [];
-            CommandReply reply = new(true, false, 0, [], []);
-            bool changed = false;
-            try
+            return EditResult.Refused("The project is not open yet.");
+        }
+        IReadOnlyList<Command> commands = build(document.Id);
+        if (commands.Count <= 1)
+        {
+            return commands.Count == 0 ? EditResult.Applied(changed: false, []) : await EditRunner.RunAsync(live, _ => live.SendAsync(commands[0]));
+        }
+        string gesture = live.NewGesture();
+        List<string> created = [];
+        bool changed = false;
+        try
+        {
+            for (int index = 0; index < commands.Count; index++)
             {
-                for (int index = 0; index < commands.Count; index++)
+                Command command = commands[index];
+                EditResult result = await EditRunner.RunAsync(live, _ => live.SendAsync(command, gesture));
+                if (!result.Succeeded)
                 {
-                    reply = await live.SendAsync(commands[index], gesture);
-                    if (!reply.Succeeded)
-                    {
-                        if (gesture is not null && index > 0)
-                        {
-                            await live.EndGestureAsync(gesture);
-                            gesture = null;
-                            await live.UndoAsync();
-                        }
-                        return reply;
-                    }
-                    changed |= reply.Changed;
-                    created.AddRange(reply.Created);
+                    return EditResult.Refused(Partial(result.Refusal, index, commands.Count));
                 }
+                changed |= result.Changed;
+                created.AddRange(result.Created);
             }
-            finally
-            {
-                if (gesture is not null)
-                {
-                    await live.EndGestureAsync(gesture);
-                }
-            }
-            return reply with { Changed = changed, Created = [.. created] };
-        });
+        }
+        finally
+        {
+            await EndAsync(gesture);
+        }
+        return EditResult.Applied(changed, created);
+    }
+
+    /// <summary>What a refusal in the middle of a gesture says: the reason, and how much of the edit was applied.</summary>
+    public static string Partial(string? reason, int applied, int total)
+    {
+        string why = string.IsNullOrWhiteSpace(reason) ? "The server refused the edit." : reason;
+        return applied == 0
+            ? why
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{why} {applied} of {total} commands of this edit were applied and the rest were not; Undo takes the applied ones back as one step if no one else has edited meanwhile.");
+    }
+
+    private async Task EndAsync(string gesture)
+    {
+        try
+        {
+            await live.EndGestureAsync(gesture);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or HubException or OperationCanceledException)
+        {
+            // The connection went: the server closes the gesture of a client that is gone.
+        }
     }
 
     /// <summary>Sets the grid the project snaps to.</summary>
