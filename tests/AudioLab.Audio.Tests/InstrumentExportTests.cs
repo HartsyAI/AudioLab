@@ -37,8 +37,10 @@ public sealed class InstrumentExportTests
         ProjectDocument project = Project();
         Track muted = project.Tracks[1] with { MidiClips = [project.Tracks[1].MidiClips[0] with { Muted = true }] };
 
+        ProjectDocument withMuted = project with { Tracks = [project.Tracks[0], muted, project.Tracks[2]] };
+
         Assert.Equal(["syn", "smp", "rev"], StemExporter.StemTracks(project).Select(id => id.Value));
-        Assert.Equal(["syn", "rev"], StemExporter.StemTracks(project with { Tracks = [project.Tracks[0], muted, project.Tracks[2]] }).Select(id => id.Value));
+        Assert.Equal(["syn", "rev"], StemExporter.StemTracks(withMuted).Select(id => id.Value));
     }
 
     [Fact]
