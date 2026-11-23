@@ -47,7 +47,7 @@ public sealed class WorkletModel(int chunk, int slots)
         ReadOnlySpan<float> samples = MemoryMarshal.Cast<byte, float>(bytes.AsSpan(LiveHost.HeaderBytes));
         samples[..chunk].CopyTo(_left.AsSpan(at, chunk));
         _starts[_written % slots] = BinaryPrimitives.ReadDoubleLittleEndian(bytes);
-        _live[_written % slots] = (BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8)) & 1) == 1;
+        _live[_written % slots] = BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(8)) == 1;
         _written++;
         Fill += chunk;
         if (Fill > _capacity)

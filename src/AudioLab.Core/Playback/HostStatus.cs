@@ -15,6 +15,7 @@ namespace AudioLab.Core.Playback;
 /// <param name="LongestGapMs">The longest time between two chunks rendered since the last report, in milliseconds.</param>
 /// <param name="Master">The master's peak levels since the last report.</param>
 /// <param name="Tracks">The peak level of each track since the last report, after its fader and pan.</param>
+/// <param name="CompiledAhead">Whether the engine runs ahead-of-time compiled code, which an effects-heavy project needs (D60).</param>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record HostStatus(
     TransportState State,
@@ -28,4 +29,5 @@ public sealed record HostStatus(
     double MaxRenderMs,
     double LongestGapMs,
     LevelPair Master,
-    IReadOnlyList<TrackLevel> Tracks);
+    IReadOnlyList<TrackLevel> Tracks,
+    bool CompiledAhead = false);

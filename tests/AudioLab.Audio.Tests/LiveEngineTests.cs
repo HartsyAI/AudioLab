@@ -68,6 +68,60 @@ public sealed class LiveEngineTests
     }
 
     [Fact]
+    public void PauseAndStopTakeEffectAtOnceWhenThereIsNoPlanYetSoAClipThatNeverLoadsCannotHoldTheTransport()
+    {
+        LiveEngine engine = new(Rate, Chunk);
+        engine.Seek(800);
+
+        engine.Play();
+        engine.Pause();
+        Assert.Equal(TransportState.Paused, engine.State);
+        engine.Play();
+        engine.Seek(1600);
+        engine.Stop();
+
+        Assert.Equal(TransportState.Stopped, engine.State);
+        Assert.Equal(800, engine.Position);
+        Assert.Equal(800, engine.Cue);
+    }
+
+    [Fact]
+    public void AJumpWhilePlayingFadesTheChunkItInterruptsOutAndTheNextOneInSoItDoesNotClick()
+    {
+        LiveEngine engine = new(Rate, 512);
+        engine.Install(PlanOf(Signals.Sine(200, 2, Rate, 0.5, 1)), 1, null);
+        engine.Play();
+        Pull(engine, 10, 512);
+
+        engine.Seek(3333);
+        (float[] after, _) = Pull(engine, 4, 512);
+
+        // A sine of 200 Hz at 8 kHz and 0.5 moves at most 0.0785 a sample; a hard jump to another phase would step by up to a whole 1.
+        for (int i = 1; i < after.Length; i++)
+        {
+            Assert.True(Math.Abs(after[i] - after[i - 1]) < 0.12f, $"a step of {after[i] - after[i - 1]} at {i}");
+        }
+        Assert.Equal(3333 + (3 * 512), engine.Position);
+    }
+
+    [Fact]
+    public void ALoopWrapThatJumpsToAnotherPhaseIsRampedDownAndUpSoItDoesNotClick()
+    {
+        LiveEngine engine = new(Rate, 512);
+        engine.Install(PlanOf(Signals.Sine(200, 2, Rate, 0.5, 1)), 1, null);
+        engine.SetLoop(true, 1000, 3010);
+        engine.Seek(2000);
+        engine.Play();
+
+        (float[] output, _) = Pull(engine, 8, 512);
+
+        for (int i = 300; i < output.Length; i++)
+        {
+            Assert.True(Math.Abs(output[i] - output[i - 1]) < 0.12f, $"a step of {output[i] - output[i - 1]} at {i}");
+        }
+    }
+
+    [Fact]
     public void PlayingFadesInAndAPauseFadesOutSoNeitherClicks()
     {
         LiveEngine engine = new(Rate, 512);
@@ -99,25 +153,28 @@ public sealed class LiveEngineTests
     }
 
     [Fact]
-    public void ALoopWrapsAtItsEndToItsStartWhereverTheChunkFalls()
+    public void ALoopWrapsAtItsEndToItsStartAndOnlyTheFramesAroundTheWrapAreRamped()
     {
         PcmAudio ramp = Ramp(2 * Rate);
-        LiveEngine engine = new(Rate, Chunk);
+        LiveEngine engine = new(Rate, 512);
         engine.Install(PlanOf(ramp), 1, null);
         engine.SetLoop(true, 1000, 3000);
-        engine.Seek(2700);
+        engine.Seek(2300);
         engine.Play();
-        Pull(engine, 2);
+        Pull(engine, 1, 512);
 
-        (float[] left, _) = Pull(engine, 1);
+        (float[] left, _) = Pull(engine, 1, 512);
 
-        // 2956 + 44 reaches the loop's end at 3000; the next frame is the start of the loop.
-        for (int i = 0; i < Chunk; i++)
+        // The chunk starts at 2812 and reaches the loop's end at 3000, 188 frames in; 64 frames either side are ramped, the rest is the music.
+        for (int i = 0; i < 120; i++)
         {
-            int source = i < 44 ? 2956 + i : 1000 + (i - 44);
-            Assert.Equal(source < ramp.Frames ? ramp.Channel(0)[source] : 0, left[i], 5);
+            Assert.Equal(ramp.Channel(0)[2812 + i], left[i], 5);
         }
-        Assert.Equal(1000 + (Chunk - 44), engine.Position);
+        for (int i = 260; i < 512; i++)
+        {
+            Assert.Equal(ramp.Channel(0)[1000 + (i - 188)], left[i], 5);
+        }
+        Assert.Equal(1000 + (512 - 188), engine.Position);
     }
 
     [Fact]

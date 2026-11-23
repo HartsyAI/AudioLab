@@ -1,8 +1,9 @@
 using AudioLab.Audio.Live;
+using AudioLab.Audio.Wav;
 
 namespace AudioLab.Audio.Tests;
 
-public sealed class WavDecoderTests
+public sealed class ClipDecoderTests
 {
     private const int Rate = 8000;
 
@@ -25,7 +26,7 @@ public sealed class WavDecoderTests
         float[] right = [.. left.Select(sample => -sample * 0.5f)];
         byte[] file = Wav(new RenderedAudio(new AudioFormat(Rate, 2), left, right), format);
 
-        PcmAudio decoded = await WavDecoder.DecodeAsync(file, Pause, CancellationToken.None);
+        PcmAudio decoded = await ClipDecoder.DecodeAsync(file, Pause, CancellationToken.None);
 
         Assert.Equal(Rate, decoded.SampleRate);
         Assert.Equal(2, decoded.ChannelCount);
@@ -43,23 +44,21 @@ public sealed class WavDecoderTests
         byte[] file = Wav(new RenderedAudio(new AudioFormat(Rate, 2), new float[100000], new float[100000]), WavFormat.Pcm16);
         int pauses = 0;
 
-        await WavDecoder.DecodeAsync(file, _ => Task.FromResult(++pauses), CancellationToken.None);
+        await ClipDecoder.DecodeAsync(file, _ => Task.FromResult(++pauses), CancellationToken.None);
 
         Assert.True(pauses >= 100000 / 16384);
     }
 
     [Fact]
-    public async Task AFileThatIsNotAWavOrNotAFormatTheEngineDecodesIsRefusedWithAReason()
+    public async Task AFileTheReaderRefusesIsRefusedWithItsReasonAndNotDecoded()
     {
         byte[] notWav = "RIFX....WAVE"u8.ToArray();
-        byte[] eightBit = Wav(new RenderedAudio(new AudioFormat(Rate, 2), new float[10], new float[10]), WavFormat.Pcm16);
-        eightBit[34] = 8;
+        byte[] cut = Wav(new RenderedAudio(new AudioFormat(Rate, 2), new float[1000], new float[1000]), WavFormat.Pcm16)[..500];
 
-        WavFormatException first = await Assert.ThrowsAsync<WavFormatException>(() => WavDecoder.DecodeAsync(notWav, Pause, CancellationToken.None));
-        WavFormatException second = await Assert.ThrowsAsync<WavFormatException>(
-            () => WavDecoder.DecodeAsync(eightBit, Pause, CancellationToken.None));
+        WavFormatException first = await Assert.ThrowsAsync<WavFormatException>(() => ClipDecoder.DecodeAsync(notWav, Pause, CancellationToken.None));
+        WavFormatException second = await Assert.ThrowsAsync<WavFormatException>(() => ClipDecoder.DecodeAsync(cut, Pause, CancellationToken.None));
 
         Assert.Contains("RIFF", first.Message);
-        Assert.Contains("8 bits", second.Message);
+        Assert.Contains("truncated", second.Message);
     }
 }

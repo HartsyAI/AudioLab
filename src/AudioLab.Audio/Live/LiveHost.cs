@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using AudioLab.Audio.Instruments;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Core.Playback;
 
@@ -11,31 +12,31 @@ namespace AudioLab.Audio.Live;
 /// <summary>What the page's worker runs: it keeps the plan current with the project, fetches the clips it needs and renders chunks.</summary>
 /// <remarks>
 /// One thread: every member is called from the worker's event loop, so a call is never interrupted except at an await. The newest document
-/// wins: one that arrives while an older one is still preparing replaces it, and a failed build leaves the plan that was playing. Fetching and
-/// resampling a clip run in slices with a pause between them, so a chunk is never late by more than one slice; building a plan from cached
-/// media is a few milliseconds, and an edit that needs a clip not yet held waits for it while the old plan keeps playing.
+/// wins: one that arrives while an older one is still preparing replaces it, and a failed build leaves the plan that was playing. Fetching,
+/// decoding and resampling a clip run in slices with a pause between them; what does not (reading the document, building a plan from clips
+/// that are held, the header check of a file) is a single step of some milliseconds that can make a chunk late. Every failure of a build is
+/// a problem the status reports, and none of them touches the transport.
 /// </remarks>
 public sealed class LiveHost
 {
-    /// <summary>Bytes before the samples of a chunk: the timeline frame of its first sample as a little-endian double, then 32 bits of flags and 32 spare.</summary>
+    /// <summary>Bytes before the samples of a chunk: two little-endian doubles, the frame of its first sample and 1 for audio due, else 0.</summary>
     public const int HeaderBytes = 16;
 
-    /// <summary>The flag in a chunk header that says the chunk is audio the listener is due, so that missing it is a dropout.</summary>
-    public const int AudibleFlag = 1;
-
     private const int LoadAttempts = 3;
-
-    // What of a document does not change a plan, so that renaming the project or toggling the click does not rebuild it.
-    private static readonly ProjectView _blankView = new() { Ruler = RulerMode.Beats, EditMode = EditMode.Slip, Grid = "1/4" };
 
     private readonly IClipSource _clips;
     private readonly Func<CancellationToken, Task> _pause;
     private readonly LiveEngine _engine;
-    private readonly MediaCache _cache;
     private readonly InstrumentSourceFactory _instruments = new();
     private readonly byte[] _chunk;
     private readonly int _chunkFrames;
     private readonly int _rate;
+    private readonly bool _compiledAhead;
+    private readonly MediaCache _cache;
+    private CancellationTokenSource? _loadCancellation;
+    private MediaId? _loadingClip;
+    private Dictionary<MediaId, string> _names = [];
+    private TrackLevel[] _trackLevels = [];
     private ProjectDocument? _wanted;
     private ProjectDocument? _built;
     private long _wantedRevision = -1;
@@ -47,13 +48,14 @@ public sealed class LiveHost
     private long _lastRender;
 
     /// <summary>Creates a host that renders chunks of <paramref name="chunkFrames"/> frames at <paramref name="sampleRate"/>.</summary>
-    public LiveHost(IClipSource clips, int sampleRate, int chunkFrames, Func<CancellationToken, Task> pause)
+    public LiveHost(IClipSource clips, int sampleRate, int chunkFrames, Func<CancellationToken, Task> pause, bool compiledAhead = false)
     {
         ArgumentNullException.ThrowIfNull(clips);
         ArgumentNullException.ThrowIfNull(pause);
         ArgumentOutOfRangeException.ThrowIfLessThan(chunkFrames, 1);
         _clips = clips;
         _pause = pause;
+        _compiledAhead = compiledAhead;
         _rate = sampleRate;
         _chunkFrames = chunkFrames;
         _engine = new LiveEngine(sampleRate, chunkFrames);
@@ -65,7 +67,7 @@ public sealed class LiveHost
     public LiveEngine Engine => _engine;
 
     /// <summary>Makes the project at <paramref name="revision"/> the one to play; the task ends when the newest is in place or failed.</summary>
-    /// <remarks>A revision not above the newest seen is ignored. An unreadable document is reported through the status.</remarks>
+    /// <remarks>A revision not above the newest seen is ignored. A document or a clip that cannot be played is a problem in the status.</remarks>
     public async Task SetDocumentAsync(string json, long revision)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -78,7 +80,7 @@ public sealed class LiveHost
         {
             document = ProjectJson.Read(json);
         }
-        catch (JsonException exception)
+        catch (ProjectFormatException exception)
         {
             _problem = $"The project could not be read: {exception.Message}";
             return;
@@ -86,6 +88,11 @@ public sealed class LiveHost
         _wanted = document;
         _wantedRevision = revision;
         _engine.SetClick(document.Metronome);
+        if (_loadingClip is { } loading && !ClipNames(document).ContainsKey(loading))
+        {
+            // The clip being fetched is not in the newer document: no reason to wait for it.
+            _loadCancellation?.Cancel();
+        }
         if (_pumping)
         {
             return;
@@ -126,10 +133,9 @@ public sealed class LiveHost
         }
         _lastRender = now;
         BinaryPrimitives.WriteDoubleLittleEndian(_chunk, _engine.Position);
-        BinaryPrimitives.WriteInt32LittleEndian(_chunk.AsSpan(8), 0);
         Span<float> samples = MemoryMarshal.Cast<byte, float>(_chunk.AsSpan(HeaderBytes));
         _engine.Render(samples[.._chunkFrames], samples[_chunkFrames..]);
-        BinaryPrimitives.WriteInt32LittleEndian(_chunk.AsSpan(8), _engine.Audible ? AudibleFlag : 0);
+        BinaryPrimitives.WriteDoubleLittleEndian(_chunk.AsSpan(8), _engine.Audible ? 1 : 0);
         return _chunk;
     }
 
@@ -140,18 +146,31 @@ public sealed class LiveHost
         _maxRenderMs = Math.Max(_maxRenderMs, stats.MaxMilliseconds);
         MeterReading levels = _engine.TakeLevels();
         int count = levels.Tracks.Count;
-        TrackLevel[] tracks = new TrackLevel[count];
+        if (_trackLevels.Length != count)
+        {
+            _trackLevels = new TrackLevel[count];
+        }
         for (int i = 0; i < count; i++)
         {
-            tracks[i] = new TrackLevel(levels.Tracks[i].Value, new LevelPair(levels.Peaks[i * 2], levels.Peaks[(i * 2) + 1]));
+            _trackLevels[i] = new TrackLevel(levels.Tracks[i].Value, new LevelPair(levels.Peaks[i * 2], levels.Peaks[(i * 2) + 1]));
         }
         LevelPair master = count == 0 ? default : new LevelPair(levels.Peaks[count * 2], levels.Peaks[(count * 2) + 1]);
         HostStatus status = new(
             _engine.State, _engine.Position, _rate, _engine.Revision, _loading, _problem, stats.Chunks, stats.Overruns, _maxRenderMs,
-            _longestGapMs, master, tracks);
+            _longestGapMs, master, _trackLevels, _compiledAhead);
         _maxRenderMs = 0;
         _longestGapMs = 0;
         return JsonSerializer.Serialize(status, PlaybackJsonContext.Default.HostStatus);
+    }
+
+    private static Dictionary<MediaId, string> ClipNames(ProjectDocument document)
+    {
+        Dictionary<MediaId, string> names = [];
+        foreach (AudioClip clip in document.Tracks.SelectMany(track => track.Clips))
+        {
+            names.TryAdd(clip.Media, clip.Name);
+        }
+        return names;
     }
 
     private long Frames(double seconds) => (long)Math.Max(0, Math.Round(seconds * _rate, MidpointRounding.AwayFromZero));
@@ -162,22 +181,31 @@ public sealed class LiveHost
         {
             long revision = _wantedRevision;
             _wanted = null;
-            if (_built is { } built && Key(built).Equals(Key(document)))
+            ProjectDocument key = PlanKey.Of(document);
+            if (_built is { } built && built.Equals(key))
             {
                 continue;
             }
-            if (await BuildAsync(document, revision))
+            try
             {
-                _built = document;
+                if (await BuildAsync(document, revision))
+                {
+                    _built = key;
+                }
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The edge of what the worker does for the page: whatever a build throws becomes a problem, and the old plan keeps playing.
+                _problem = $"The project could not be played: {exception.Message}";
+                _loading = 0;
             }
         }
     }
 
-    private static ProjectDocument Key(ProjectDocument document) => document with { Name = string.Empty, Metronome = false, View = _blankView };
-
     // Makes a plan, fetching what it is missing first; false when it could not, so the plan that was playing stays.
     private async Task<bool> BuildAsync(ProjectDocument document, long revision)
     {
+        _names = ClipNames(document);
         PlanOptions options = new() { SampleRate = _rate, Cache = _cache, Sources = _instruments };
         for (int attempt = 0; attempt < LoadAttempts; attempt++)
         {
@@ -195,6 +223,11 @@ public sealed class LiveHost
                     return false;
                 }
             }
+            catch (ArgumentException exception)
+            {
+                _problem = $"The project cannot be played: {exception.Message}";
+                return false;
+            }
         }
         _problem = "The clips could not all be held in memory at once.";
         return false;
@@ -203,24 +236,50 @@ public sealed class LiveHost
     private async Task<bool> LoadAsync(IReadOnlyList<MediaId> ids)
     {
         _loading = ids.Count;
+        MediaId current = default;
         try
         {
             foreach (MediaId id in ids)
             {
-                PcmAudio decoded = await _clips.LoadAsync(id, _pause, CancellationToken.None);
-                await _cache.AddAsync(id, decoded, _pause, CancellationToken.None);
+                if (_wanted is not null)
+                {
+                    return false;
+                }
+                current = id;
+                using CancellationTokenSource cancellation = new();
+                _loadCancellation = cancellation;
+                _loadingClip = id;
+                PcmAudio decoded = await _clips.LoadAsync(id, _pause, cancellation.Token);
+                await _cache.AddAsync(id, decoded, _pause, cancellation.Token);
                 _loading--;
             }
             return true;
         }
-        catch (Exception exception) when (exception is HttpRequestException or WavFormatException or ArgumentException)
+        catch (OperationCanceledException) when (_wanted is not null)
         {
-            _problem = $"A clip could not be loaded: {exception.Message}";
+            return false;
+        }
+        catch (Exception exception) when (exception is ClipUnavailableException or WavFormatException or HttpRequestException
+            or OperationCanceledException or OverflowException or ArgumentException or InvalidDataException)
+        {
+            string name = _names.GetValueOrDefault(current) ?? current.Value;
+            _problem = $"The clip \"{name}\" {Reason(exception)}";
             return false;
         }
         finally
         {
             _loading = 0;
+            _loadingClip = null;
+            _loadCancellation = null;
         }
     }
+
+    // A clip source says what is wrong in words that follow the clip's name; anything else gets the plainest wording that fits.
+    private static string Reason(Exception exception) => exception switch
+    {
+        ClipUnavailableException => exception.Message + ".",
+        WavFormatException => "is not a WAV file the engine can read: " + exception.Message,
+        OperationCanceledException => "timed out while it was fetched.",
+        _ => "could not be loaded: " + exception.Message,
+    };
 }

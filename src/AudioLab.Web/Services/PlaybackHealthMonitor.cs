@@ -29,7 +29,7 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
     /// <summary>A sentence for the person at the controls, or null while all is well.</summary>
     public string? Message => Health switch
     {
-        PlaybackHealth.Dropping => "Playback is dropping out: this computer cannot keep up with this project in the browser. "
+        PlaybackHealth.Dropping => "Playback is dropping out: the audio engine in this page could not keep up with this project. "
             + "Mixing on the server instead is not built yet, so try fewer effects or tracks.",
         PlaybackHealth.Strained => "Playback is close to dropping out: the engine is using most of the time it has for each chunk of audio.",
         _ => null,
