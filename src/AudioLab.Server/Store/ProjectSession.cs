@@ -1,6 +1,7 @@
 using System.Text;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Server.Store;
 
@@ -143,6 +144,17 @@ public sealed class ProjectSession
             }
             _history = null;
             return Commit(next);
+        }
+    }
+
+    /// <summary>Whether the current document or any step of its undo and redo history plays <paramref name="media"/>.</summary>
+    /// <remarks>Taken under the session's lock, so a command that is applying has finished before the answer is made.</remarks>
+    public bool ReferencesMedia(MediaId media)
+    {
+        lock (_state)
+        {
+            IEnumerable<ProjectDocument> held = _history?.HeldDocuments() ?? [_snapshot.Document];
+            return held.Any(document => ProjectContent.ReferencedMedia(document).Contains(media));
         }
     }
 
