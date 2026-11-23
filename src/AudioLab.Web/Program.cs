@@ -33,6 +33,8 @@ if (OperatingSystem.IsBrowser())
     builder.Services.AddSingleton<IPointerTracker, PointerTracker>();
     builder.Services.AddSingleton<IShortcutListener, ShortcutListener>();
     builder.Services.AddSingleton<IElementMetrics, ElementMetrics>();
+    builder.Services.AddSingleton<IAudioHost, AudioHost>();
+    builder.Services.AddSingleton<PlaybackService>();
 }
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(CoreCommands.CreateRegistry());

@@ -12,6 +12,7 @@ namespace AudioLab.Core.Model;
     NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(MediaSummary))]
 [JsonSerializable(typeof(MediaListing))]
+[JsonSerializable(typeof(MediaLimits))]
 public sealed partial class MediaJsonContext : JsonSerializerContext
 {
 }

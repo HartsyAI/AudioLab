@@ -3,7 +3,7 @@
     {
         <TitledButton @key="item.Id" Reason="@item.Reason" Name="@item.Name" Shortcut="@item.Shortcut" Disabled="@(item.Reason is not null)"
                       OnClick="() => ChooseAsync(item)" class="segment" data-chosen="@(item.Id == Value ? "true" : "false")"
-                      data-wide="@(item.Id == Wide ? "true" : "false")" aria-pressed="@(item.Id == Value ? "true" : "false")">
+                      data-wide="@(item.Id == Wide ? "true" : "false")" aria-pressed="@Pressed(item)">
             @if (item.Icon is IconName icon)
             {
                 <Icon Name="icon" Size="@(Transport ? 14 : 13)" />

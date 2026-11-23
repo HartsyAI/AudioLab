@@ -24,6 +24,7 @@ public static class MediaRoutes
     {
         RouteGroupBuilder media = routes.MapGroup("/media").AddEndpointFilter<MediaErrorFilter>();
         media.MapGet("/", List);
+        media.MapGet("/limits", LimitsAsync);
         media.MapPost("/", UploadAsync);
         media.MapGet("/{id}", Get);
         media.MapMethods("/{id}/content", ["GET", "HEAD"], Content);
@@ -32,6 +33,11 @@ public static class MediaRoutes
     }
 
     private static IResult List(HttpContext http, MediaService service) => Results.Ok(service.List(http.RequireUser()));
+
+    private static async Task<IResult> LimitsAsync(HttpContext http, MediaService service, CancellationToken cancellationToken)
+    {
+        return Results.Ok(await service.LimitsAsync(http.RequireUser(), cancellationToken));
+    }
 
     // The body is the WAV file itself, not a form: it is streamed to disk, never held in memory.
     private static async Task<IResult> UploadAsync(HttpContext http, MediaService service, MediaOptions options, CancellationToken cancellationToken)

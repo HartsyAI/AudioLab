@@ -10,7 +10,8 @@
         <div class="ruler">
             @foreach (RulerRowKind kind in Kinds)
             {
-                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors" />
+                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors"
+                          OnSeek="RulerSeek" />
             }
         </div>
         <div class="headers" role="list" aria-label="Tracks">
@@ -36,6 +37,8 @@
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
                              OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" />
+                <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
+                <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />
             }
         </div>
     </div>

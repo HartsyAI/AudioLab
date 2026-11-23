@@ -33,7 +33,8 @@ public sealed class TestStore : IAsyncDisposable
         Open = new OpenProjects(Projects, Options, Time, Registry, Media, Ids, NullLogger<OpenProjects>.Instance);
         MediaReferences references = new(Open, Projects, NullLogger<MediaReferences>.Instance, betweenPasses);
         Rebuilder = new PeakRebuilder(NullLogger<PeakRebuilder>.Instance, beforeRebuild);
-        MediaFiles = new MediaService(Media, references, Root, Ids, mediaOptions, Time, Rebuilder, NullLogger<MediaService>.Instance);
+        OptionsMediaQuota quota = new(mediaOptions);
+        MediaFiles = new MediaService(Media, references, Root, Ids, mediaOptions, Time, Rebuilder, quota, NullLogger<MediaService>.Instance);
         Service = new ProjectService(Projects, Open, Ids, Time, events ?? NullProjectEvents.Instance);
         Edits = new ProjectEditService(Open, Registry, events ?? NullProjectEvents.Instance, new AudioLabOptions(), Media);
     }
