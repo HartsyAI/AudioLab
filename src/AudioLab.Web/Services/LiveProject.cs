@@ -265,6 +265,22 @@ public sealed class LiveProject(IProjectHubFactory hubs, CommandSender sender) :
         }
     }
 
+    /// <summary>Waits until the document the page holds is of a revision or a later one, for at most a few seconds.</summary>
+    /// <remarks>A route that is not a command (a file import) answers with the revision it made; the page waits to hold it, then selects.</remarks>
+    /// <param name="revision">The revision that holds what the caller needs.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    /// <returns>Whether the page holds that revision now.</returns>
+    public async Task<bool> WaitForRevisionAsync(long revision, CancellationToken cancellationToken = default)
+    {
+        if (Revision < revision)
+        {
+            TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _waiters.Add((revision, done));
+            await Task.WhenAny(done.Task, Task.Delay(_settle, cancellationToken));
+        }
+        return Revision >= revision;
+    }
+
     // After a reply the document of that revision, or a later one, is on its way to everyone, this client included.
     private async Task SettleAsync(CommandReply reply, CancellationToken cancellationToken)
     {

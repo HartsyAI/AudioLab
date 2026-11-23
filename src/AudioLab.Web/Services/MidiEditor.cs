@@ -1,4 +1,5 @@
 using System.Globalization;
+using AudioLab.Core.Api;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Web.Session;
@@ -9,6 +10,8 @@ namespace AudioLab.Web.Services;
 /// <summary>The edits of MIDI clips the session screen makes, each one command sent by wire name; the server's reasons come back as words.</summary>
 public sealed class MidiEditor(LiveProject live)
 {
+    private const string LateClip = "The server made the clip, and it will appear when its change reaches this page.";
+
     private bool _adding;
 
     /// <summary>Adds an empty clip of one bar to an instrument track at <paramref name="start"/> or after its last clip.</summary>
@@ -91,6 +94,8 @@ public sealed class MidiEditor(LiveProject live)
                 $"{why} {applied} of {total} commands of this edit were applied and the rest were not; {Undoable}");
     }
 
+    private static string? JoinSentences(string? first, string second) => first is null ? second : first + " " + second;
+
     private async Task EndAsync(string gesture)
     {
         try
@@ -100,6 +105,54 @@ public sealed class MidiEditor(LiveProject live)
         catch (Exception exception) when (exception is InvalidOperationException or HubException or OperationCanceledException)
         {
             // The connection went: the server closes the gesture of a client that is gone.
+        }
+    }
+
+    /// <summary>Imports a .mid file through the seam and waits for the revision that holds the clip, so it can be selected.</summary>
+    /// <remarks>
+    /// A file the server refuses changes nothing. The project's tempo is never changed by an import, and the notice in the outcome says so when the
+    /// file's differs (docs/midi.md).
+    /// </remarks>
+    /// <param name="transfer">The seam to the server's route.</param>
+    /// <param name="track">The instrument track the clip goes on.</param>
+    /// <param name="name">The clip's name.</param>
+    /// <param name="start">Where the clip starts, in seconds.</param>
+    /// <param name="file">The file the user chose, which the seam reads.</param>
+    /// <param name="cancellationToken">Cancels the upload.</param>
+    public async Task<MidiImportOutcome> ImportAsync(
+        IMidiTransfer transfer,
+        TrackId track,
+        string name,
+        double start,
+        Stream file,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transfer);
+        ArgumentNullException.ThrowIfNull(file);
+        if (live.Document is not { } document)
+        {
+            return new MidiImportOutcome(EditResult.Refused("The project is not open yet."), null);
+        }
+        if (transfer.Unavailable is { } unavailable)
+        {
+            return new MidiImportOutcome(EditResult.Refused(unavailable), null);
+        }
+        try
+        {
+            MidiImportResult result = await transfer.ImportAsync(document.Id, track, name, start, file, cancellationToken);
+            bool held = await live.WaitForRevisionAsync(result.Revision, cancellationToken);
+            string? notice = MidiImportNotice.Of(result, live.Document ?? document, start);
+            return held
+                ? new MidiImportOutcome(EditResult.Applied(changed: true, [result.Clip]), notice)
+                : new MidiImportOutcome(EditResult.Applied(changed: true, []), JoinSentences(notice, LateClip));
+        }
+        catch (Exception exception) when (exception is ApiException or UploadInterruptedException or HttpRequestException or TimeoutException)
+        {
+            return new MidiImportOutcome(EditResult.Refused(exception.Message), null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new MidiImportOutcome(EditResult.Refused("The import was cancelled; nothing was imported."), null);
         }
     }
 

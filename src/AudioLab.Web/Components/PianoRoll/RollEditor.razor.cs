@@ -7,6 +7,7 @@ using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components.PianoRoll;
@@ -36,6 +37,9 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
     private const int VelocityStep = 8;
 
     private const string NoSelection = "Select some notes first.";
+
+    // The server's default limit for a .mid file (AudioLab:Midi:MaxFileBytes), so a larger file is refused before it is read.
+    private const long MaxMidiFileBytes = 16L * 1024 * 1024;
 
     // The roll hears its keys while the focus is on the notes, a lane or the keys: the page offers them to the roll before the transport,
     // whose Shift with an arrow is the roll's Shift with an arrow (D48).
@@ -135,6 +139,12 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     [Inject]
     private NoteAudition Sound { get; set; } = default!;
+
+    [Inject]
+    private IMidiTransfer Transfer { get; set; } = default!;
+
+    [Inject]
+    private SessionSelection Selection { get; set; } = default!;
 
     [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
@@ -553,6 +563,37 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         if (result.Succeeded && edit.SelectCreated && result.Created.Count > 0)
         {
             State.Select(result.Created.Select(id => new NoteId(int.Parse(id, CultureInfo.InvariantCulture))));
+        }
+    }
+
+    // ----- .mid files: the file the user chose goes to the seam of IMidiTransfer as a stream
+
+    private async Task ImportChosenAsync(InputFileChangeEventArgs chosen)
+    {
+        IBrowserFile file = chosen.File;
+        string name = Path.GetFileNameWithoutExtension(file.Name).Trim();
+        name = name.Length == 0 ? "MIDI" : name;
+        try
+        {
+            await using Stream stream = file.OpenReadStream(MaxMidiFileBytes);
+            double start = MidiClipPlan.NextStart(Document, Track);
+            MidiImportOutcome outcome = await Actions.Midi.Import(Transfer, Track.Id, name, start, stream);
+            if (!outcome.Edit.Succeeded)
+            {
+                Toasts.Show(ToastKind.Warning, outcome.Edit.Refusal ?? "The file could not be imported.");
+                return;
+            }
+            if (outcome.Edit.Created.Count > 0)
+            {
+                // The clip is in the document the page holds now: the import waited for the revision that has it.
+                Selection.SelectClip(Track.Id, ClipId.From(outcome.Edit.Created[0]));
+            }
+            string said = "Imported " + name + ".";
+            Toasts.Show(outcome.Notice is null ? ToastKind.Success : ToastKind.Warning, outcome.Notice is null ? said : said + " " + outcome.Notice);
+        }
+        catch (IOException)
+        {
+            Toasts.Show(ToastKind.Warning, "That file is larger than the 16 MiB the server takes, or could not be read.");
         }
     }
 

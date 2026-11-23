@@ -22,6 +22,11 @@ public sealed class MidiActions
     /// <summary>Sets the grid the project snaps to, such as 1/16.</summary>
     public Func<string, Task<EditResult>> SetGrid { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Imports a .mid file through the seam: the transfer, the track, the clip's name, where it starts and the file's stream.</summary>
+    /// <remarks>The caller shows a refusal, since it also has the outcome's notice to show.</remarks>
+    public Func<IMidiTransfer, TrackId, string, double, Stream, Task<MidiImportOutcome>> Import { get; init; } =
+        (_, _, _, _, _) => Task.FromResult(new MidiImportOutcome(EditResult.Refused(NotAvailable), null));
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
     public static MidiActions For(MidiEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
     {
@@ -33,6 +38,7 @@ public sealed class MidiActions
             StepLength = (clip, bars) => show(editor.StepLengthAsync(clip, bars)),
             Send = build => show(editor.SendAsync(build)),
             SetGrid = grid => show(editor.SetGridAsync(grid)),
+            Import = (transfer, track, name, start, file) => editor.ImportAsync(transfer, track, name, start, file),
         };
     }
 }

@@ -62,6 +62,7 @@ builder.Services.AddScoped<PianoRollState>();
 builder.Services.AddScoped<RollDragState>();
 builder.Services.AddScoped<PianoRollKeys>();
 builder.Services.AddSingleton<IAuditionSink, UnavailableAudition>();
+builder.Services.AddSingleton<IMidiTransfer, UnavailableMidiTransfer>();
 builder.Services.AddScoped<NoteAudition>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddScoped<PeakStore>();

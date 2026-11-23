@@ -29,6 +29,7 @@
                     DisabledReason="@Actions.Reason"
                     OnClick="() => StepLength(1)">Longer</Button>
         </span>
+        <MidiFileButtons Project="Document.Id" Clip="Clip.Id" CanEdit="Actions.CanEdit" Reason="@Actions.Reason" OnChosen="ImportChosenAsync" />
     </div>
     <div class="scroll" id="roll-scroll">
         <div class="board" style="grid-template-columns: var(--roll-keys) @Css.Px(Geometry.Width)">
