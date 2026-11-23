@@ -98,6 +98,53 @@ public sealed class MidiCommandTests
         _rig.RefusedWith(new AddNote { Project = _rig.Id, Clip = ClipId.From("clp_none"), Pitch = 60, Start = 0 }, CommandErrorCode.NotFound);
     }
 
+    // ----- add many
+
+    [Fact]
+    public void ManyNotesAreAddedInOneStepWithIdsInListOrderAndTheSameDefaultsAsOne()
+    {
+        IReadOnlyList<string> created = _rig.Created(new AddNotes
+        {
+            Project = _rig.Id,
+            Clip = _clip,
+            Notes = [new NewNote(60, 0), new NewNote(64, 1, 0.25, 80), new NewNote(67, 2, null, 127)],
+        });
+
+        Assert.Equal(["1", "2", "3"], created);
+        Assert.Equal(
+            [new MidiNote(new NoteId(1), 60, 0, 0.5, 100), new MidiNote(new NoteId(2), 64, 1, 0.25, 80), new MidiNote(new NoteId(3), 67, 2, 0.5, 127)],
+            Clip.Notes);
+        Assert.Equal(new NoteId(4), Clip.NextNoteId);
+        _rig.History.Undo();
+        Assert.Empty(Clip.Notes);
+        Assert.Equal(new NoteId(1), Clip.NextNoteId);
+    }
+
+    [Fact]
+    public void OneRefusedNoteRefusesTheWholeListAndChangesNothing()
+    {
+        _rig.RefusedWith(
+            new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(61, 4)] },
+            CommandErrorCode.Invalid);
+        _rig.RefusedWith(
+            new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(128, 1)] },
+            CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0, null, 0)] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [] }, CommandErrorCode.Invalid);
+
+        Assert.Empty(Clip.Notes);
+        Assert.Equal(new NoteId(1), Clip.NextNoteId);
+    }
+
+    [Fact]
+    public void ManyNotesGoOnlyIntoAMidiClipThatExists()
+    {
+        ClipId audio = ClipId.From(_rig.Created(new AddClip { Project = _rig.Id, Track = _audio, Media = MediaId.From("med_1"), Duration = 3 })[0]);
+
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = audio, Notes = [new NewNote(60, 0)] }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = ClipId.From("clp_none"), Notes = [new NewNote(60, 0)] }, CommandErrorCode.NotFound);
+    }
+
     // ----- move, resize, velocity, transpose
 
     [Fact]
