@@ -58,4 +58,4 @@
 
 <Dialog Title="Delete media file" ConfirmText="Delete file" ConfirmVariant="ButtonVariant.Danger" Open="_target is not null" OpenChanged="EndDelete"
         ConfirmDisabled="_deleting" ConfirmDisabledReason="@(_deleting ? "Waiting for the server." : null)" Error="@_error" OnConfirm="DeleteAsync"
-        Description="@DeleteText" />
+        OnClosed="AfterDelete" Description="@DeleteText" />

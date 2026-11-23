@@ -190,12 +190,27 @@ public sealed partial class Clip : IDisposable
 
     private Task SelectAsync()
     {
+        RetryWave();
         return Lifted ? Task.CompletedTask : OnSelect.InvokeAsync(Id);
+    }
+
+    // Activating a clip whose waveform failed asks again, selected already or not: the label says to select the clip to try again.
+    private void RetryWave()
+    {
+        if (!Lifted && Audio is not null && _wave.Phase == WavePhase.Failed)
+        {
+            Waves.RetryIfFailed(Audio);
+        }
     }
 
     private Task KeyAsync(KeyboardEventArgs key)
     {
-        return key.Key is "Enter" or " " ? OnSelect.InvokeAsync(Id) : OnKey.InvokeAsync((Id, key));
+        if (key.Key is "Enter" or " ")
+        {
+            RetryWave();
+            return OnSelect.InvokeAsync(Id);
+        }
+        return OnKey.InvokeAsync((Id, key));
     }
 
     private Task PressAsync(PointerEventArgs press)

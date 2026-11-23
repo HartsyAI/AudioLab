@@ -27,6 +27,8 @@ public sealed partial class MediaPanel : IDisposable
 
     private string? _focus;
 
+    private string? _afterDelete;
+
     private int _shown = MediaListView.PageSize;
 
     private MediaListView? _view;
@@ -298,7 +300,7 @@ public sealed partial class MediaPanel : IDisposable
         try
         {
             await Library.DeleteAsync(target, request.Token);
-            _focus = NeighbourOf(at);
+            _afterDelete = NeighbourOf(at);
             _target = null;
         }
         catch (OperationCanceledException)
@@ -313,6 +315,16 @@ public sealed partial class MediaPanel : IDisposable
         {
             _request = null;
             _deleting = false;
+        }
+    }
+
+    // The browser moves the focus when a dialog closes, to the file that was deleted, which is gone: the focus is put right once it has closed.
+    private void AfterDelete()
+    {
+        if (_afterDelete is not null)
+        {
+            Focus.Focus(_afterDelete);
+            _afterDelete = null;
         }
     }
 
