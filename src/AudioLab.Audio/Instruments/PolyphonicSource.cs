@@ -1,6 +1,6 @@
 namespace AudioLab.Audio.Instruments;
 
-/// <summary>A polyphonic subtractive synth that plays the notes of an instrument track, the same notes for live playback and for export.</summary>
+/// <summary>A pool of voices, of a synth or a sampler, that plays the notes of an instrument track, for live playback and export alike.</summary>
 /// <remarks>
 /// <para>
 /// The notes are worked out before the render (<see cref="NoteSchedule"/>) and every voice is built up front, so
@@ -14,10 +14,11 @@ namespace AudioLab.Audio.Instruments;
 /// <see cref="PoolSize"/> - <see cref="MaxHeldVoices"/> takeovers within 2 ms, the fading voice nearest its end is cut off.
 /// </para>
 /// <para>
-/// After a seek, or a first render, a note that began before the first frame and is still held starts there with a new attack.
+/// After a seek, or a first render, a note that began before the first frame and is still held starts there, told how much of it was
+/// over, and the voice decides what that means for its sound.
 /// </para>
 /// </remarks>
-internal sealed class SynthSource : ITrackSource
+internal sealed class PolyphonicSource : ITrackSource
 {
     /// <summary>The most notes that sound at once, held or dying.</summary>
     public const int MaxHeldVoices = 32;
@@ -27,23 +28,28 @@ internal sealed class SynthSource : ITrackSource
 
     private const int ScratchFrames = 256;
 
-    private readonly SynthSettings _settings;
     private readonly NoteEvent[] _notes;
-    private readonly SynthVoice[] _voices = new SynthVoice[PoolSize];
-    private readonly float[] _mix = new float[ScratchFrames];
+    private readonly InstrumentVoice[] _voices;
+    private readonly float[] _left = new float[ScratchFrames];
+    private readonly float[] _right = new float[ScratchFrames];
+    private readonly bool _mono;
+    private readonly double _tailSeconds;
     private readonly long _longestNote;
     private int _next;
     private long _expected;
     private bool _primed;
 
-    /// <summary>Makes a source of the given settings that plays the notes, which must be in the order <see cref="NoteSchedule"/> gives.</summary>
-    public SynthSource(SynthSettings settings, NoteEvent[] notes)
+    /// <summary>Makes a source that plays the notes, which must be in the order <see cref="NoteSchedule"/> gives.</summary>
+    /// <remarks>It builds <see cref="PoolSize"/> voices with <paramref name="makeVoice"/>; <paramref name="mono"/>: both channels match.</remarks>
+    public PolyphonicSource(Func<InstrumentVoice> makeVoice, NoteEvent[] notes, bool mono, double tailSeconds)
     {
-        _settings = settings;
         _notes = notes;
+        _mono = mono;
+        _tailSeconds = tailSeconds;
+        _voices = new InstrumentVoice[PoolSize];
         for (int i = 0; i < _voices.Length; i++)
         {
-            _voices[i] = new SynthVoice(settings);
+            _voices[i] = makeVoice();
         }
         foreach (NoteEvent note in notes)
         {
@@ -52,10 +58,10 @@ internal sealed class SynthSource : ITrackSource
     }
 
     /// <inheritdoc />
-    public bool IsMono => true;
+    public bool IsMono => _mono;
 
     /// <inheritdoc />
-    public double TailSeconds => _settings.TailSeconds;
+    public double TailSeconds => _tailSeconds;
 
     /// <summary>How many voices are sounding, held, dying or fading.</summary>
     public int SoundingVoices => Count(held: true, dying: true, fading: true);
@@ -69,7 +75,7 @@ internal sealed class SynthSource : ITrackSource
         get
         {
             long oldest = -1;
-            foreach (SynthVoice voice in _voices)
+            foreach (InstrumentVoice voice in _voices)
             {
                 if (voice.State == VoiceState.Held && (oldest < 0 || voice.StartFrame < oldest))
                 {
@@ -83,7 +89,7 @@ internal sealed class SynthSource : ITrackSource
     /// <inheritdoc />
     public void Reset()
     {
-        foreach (SynthVoice voice in _voices)
+        foreach (InstrumentVoice voice in _voices)
         {
             voice.Stop();
         }
@@ -103,7 +109,7 @@ internal sealed class SynthSource : ITrackSource
             long frame = startFrame + done;
             while (_next < _notes.Length && _notes[_next].OnFrame <= frame)
             {
-                Start(_notes[_next], frame);
+                Start(_notes[_next], frame, 0);
                 _next++;
             }
             int chunk = Math.Min(left.Length - done, ScratchFrames);
@@ -111,16 +117,18 @@ internal sealed class SynthSource : ITrackSource
             {
                 chunk = (int)Math.Min(chunk, _notes[_next].OnFrame - frame);
             }
-            Span<float> mix = _mix.AsSpan(0, chunk);
-            mix.Clear();
-            foreach (SynthVoice voice in _voices)
+            Span<float> mixLeft = _left.AsSpan(0, chunk);
+            Span<float> mixRight = _right.AsSpan(0, chunk);
+            mixLeft.Clear();
+            mixRight.Clear();
+            foreach (InstrumentVoice voice in _voices)
             {
-                voice.Render(frame, chunk, mix);
+                voice.Render(frame, chunk, mixLeft, mixRight);
             }
             for (int i = 0; i < chunk; i++)
             {
-                left[done + i] += mix[i];
-                right[done + i] += mix[i];
+                left[done + i] += mixLeft[i];
+                right[done + i] += mixRight[i];
             }
             done += chunk;
         }
@@ -131,7 +139,7 @@ internal sealed class SynthSource : ITrackSource
     private int Count(bool held, bool dying, bool fading)
     {
         int count = 0;
-        foreach (SynthVoice voice in _voices)
+        foreach (InstrumentVoice voice in _voices)
         {
             if ((held && voice.State == VoiceState.Held) || (dying && voice.State == VoiceState.Released)
                 || (fading && voice.State == VoiceState.Fading))
@@ -153,7 +161,7 @@ internal sealed class SynthSource : ITrackSource
         {
             if (_notes[i].OffFrame > frame)
             {
-                Start(_notes[i], frame);
+                Start(_notes[i], frame, frame - _notes[i].OnFrame);
             }
         }
     }
@@ -177,21 +185,21 @@ internal sealed class SynthSource : ITrackSource
         return low;
     }
 
-    private void Start(NoteEvent note, long frame)
+    private void Start(NoteEvent note, long frame, long elapsed)
     {
         if (CountedVoices >= MaxHeldVoices)
         {
             ChooseVictim().Take();
         }
-        FreeSlot().Start(frame, note.OffFrame, note.Pitch, note.Velocity);
+        FreeSlot().Start(frame, note.OffFrame, note.Pitch, note.Velocity, elapsed);
     }
 
     // The quietest voice that is dying, else the one held longest; the lowest index wins a tie, so the choice never depends on luck.
-    private SynthVoice ChooseVictim()
+    private InstrumentVoice ChooseVictim()
     {
-        SynthVoice? dying = null;
-        SynthVoice? oldest = null;
-        foreach (SynthVoice voice in _voices)
+        InstrumentVoice? dying = null;
+        InstrumentVoice? oldest = null;
+        foreach (InstrumentVoice voice in _voices)
         {
             if (voice.State == VoiceState.Released && (dying is null || voice.Level < dying.Level))
             {
@@ -205,10 +213,10 @@ internal sealed class SynthSource : ITrackSource
         return dying ?? oldest!;
     }
 
-    private SynthVoice FreeSlot()
+    private InstrumentVoice FreeSlot()
     {
-        SynthVoice? nearest = null;
-        foreach (SynthVoice voice in _voices)
+        InstrumentVoice? nearest = null;
+        foreach (InstrumentVoice voice in _voices)
         {
             if (voice.State == VoiceState.Free)
             {

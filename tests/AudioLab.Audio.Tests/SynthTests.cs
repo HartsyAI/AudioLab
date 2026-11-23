@@ -355,23 +355,23 @@ public sealed class SynthTests
     [Fact]
     public void ANoteThatTakesAVoiceFromTheOldestHeldNoteWhenNoneIsDying()
     {
-        (SynthSource source, float[] left, float[] right) = Rig(40, shortestOneAt: -1);
+        (PolyphonicSource source, float[] left, float[] right) = Rig(40, shortestOneAt: -1);
 
         source.Render(0, left, right);
 
-        Assert.Equal(SynthSource.MaxHeldVoices, source.CountedVoices);
-        Assert.True(source.SoundingVoices <= SynthSource.PoolSize);
+        Assert.Equal(PolyphonicSource.MaxHeldVoices, source.CountedVoices);
+        Assert.True(source.SoundingVoices <= PolyphonicSource.PoolSize);
         Assert.Equal(8 * Rate / 100, source.OldestHeldFrame);
     }
 
     [Fact]
     public void ANoteTakesTheDyingVoiceBeforeAHeldOne()
     {
-        (SynthSource source, float[] left, float[] right) = Rig(40, shortestOneAt: 30);
+        (PolyphonicSource source, float[] left, float[] right) = Rig(40, shortestOneAt: 30);
 
         source.Render(0, left, right);
 
-        Assert.Equal(SynthSource.MaxHeldVoices, source.CountedVoices);
+        Assert.Equal(PolyphonicSource.MaxHeldVoices, source.CountedVoices);
         Assert.True(source.OldestHeldFrame < Rate / 100 * 8, "A held voice was taken while another was dying.");
     }
 
@@ -440,7 +440,7 @@ public sealed class SynthTests
     // What the source itself makes, before the mixer, which would hide a sample that is not a number by making it silence.
     private static float[] FromSource(SynthInstrument synth, MidiClip clip, int rate, double seconds)
     {
-        SynthSource source = new(new SynthSettings(synth, rate), NoteSchedule.Build([clip], rate));
+        PolyphonicSource source = Source(synth, rate, clip);
         float[] left = new float[(int)(seconds * rate)];
         float[] right = new float[left.Length];
         for (int done = 0; done < left.Length; done += 997)
@@ -477,12 +477,12 @@ public sealed class SynthTests
     }
 
     // A synth source with the given count of one-second-spaced-by-ten-milliseconds notes, held long; one of them can be short instead.
-    private static (SynthSource Source, float[] Left, float[] Right) Rig(int count, int shortestOneAt)
+    private static (PolyphonicSource Source, float[] Left, float[] Right) Rig(int count, int shortestOneAt)
     {
         SynthInstrument synth = Plain with { Release = 3, Attack = 0.001 };
         MidiNote[] notes = [.. Enumerable.Range(0, count).Select(i =>
             Note(i + 1, 40 + i, i * 0.01, i == shortestOneAt ? 0.05 : 5))];
-        SynthSource source = new(new SynthSettings(synth, Rate), NoteSchedule.Build([Clip("a", 0, 10, notes)], Rate));
+        PolyphonicSource source = Source(synth, Rate, Clip("a", 0, 10, notes));
         int frames = (count * Rate / 100) + 200;
         return (source, new float[frames], new float[frames]);
     }

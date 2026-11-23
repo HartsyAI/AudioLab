@@ -40,6 +40,13 @@ public static class SynthProject
     public static Track InstrumentTrack(string id, Instrument instrument, params MidiClip[] clips) =>
         TestProject.Track(id, TrackKind.Instrument) with { Instrument = instrument, MidiClips = new ValueList<MidiClip>(clips) };
 
+    /// <summary>The synth's voices and the notes of the clips, as the factory builds them, so a test can look inside.</summary>
+    internal static PolyphonicSource Source(SynthInstrument synth, int rate, params MidiClip[] clips)
+    {
+        SynthSettings settings = new(synth, rate);
+        return new PolyphonicSource(() => new SynthVoice(settings), NoteSchedule.Build(clips, rate), mono: true, settings.TailSeconds);
+    }
+
     public static ProjectDocument Project(params Track[] tracks) => TestProject.Create(tracks);
 
     public static ProjectDocument Project(SynthInstrument synth, params MidiClip[] clips) => Project(InstrumentTrack("t", synth, clips));
