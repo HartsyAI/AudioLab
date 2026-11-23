@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using AudioLab.Core.Model;
 
-namespace AudioLab.Server.Tests;
+namespace AudioLab.Audio.Tests.Support;
 
 /// <summary>Builds WAV files for tests, whole or in the pieces a test can break.</summary>
 public static class TestWav

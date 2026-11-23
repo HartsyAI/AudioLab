@@ -15,6 +15,9 @@ public sealed class PlaybackService : IDisposable
     // How much of a level is left after one status (40 ms): about 35 dB a second.
     private const double Fallback = 0.85;
 
+    // Under this a level is nothing: -80 dBFS.
+    private const double Silent = 1e-4;
+
     private readonly IAudioHost _host;
     private readonly HttpClient _http;
     private readonly PlaybackHealthMonitor _health;
@@ -27,6 +30,7 @@ public sealed class PlaybackService : IDisposable
     private (double Start, double End)? _sentLoop;
     private WorkletStats? _worklet;
     private HostStatus? _status;
+    private bool _commandedPlaying;
     private LevelPair _master;
     private readonly Dictionary<string, LevelPair> _levels = [];
 
@@ -42,6 +46,7 @@ public sealed class PlaybackService : IDisposable
         host.StatusReceived += OnStatus;
         host.WorkletReported += OnWorklet;
         host.Failed += OnFailed;
+        host.Rejected += OnRejected;
     }
 
     /// <summary>Raised when the transport, the playhead, the health or a problem changed; about every 40 ms while the engine runs.</summary>
@@ -83,10 +88,13 @@ public sealed class PlaybackService : IDisposable
     public bool CompiledAhead => _status?.CompiledAhead ?? false;
 
     /// <summary>A sentence for a project the engine, as built, is unlikely to keep up with, or null: the warning comes before the dropout.</summary>
-    public string? LoadWarning => _status is not null && _project?.Document is { } document ? EngineLoadAdvice.Warning(document, CompiledAhead) : null;
+    public string? LoadWarning =>
+        _status is not null && _project?.Document is { } document ? EngineLoadAdvice.Warning(document, CompiledAhead) : null;
 
     /// <summary>A sentence about a miss for the person at the controls, or null.</summary>
-    public string? HealthMessage => _health.Message;
+    public string? HealthMessage => _health.Message is { } message && !CompiledAhead && _status is not null
+        ? message + " The engine in this page is not compiled ahead of time (docs/engine-aot.md)."
+        : _health.Message;
 
     /// <summary>How many times the audio thread ran out of audio since the engine started: a run of quanta without audio is one.</summary>
     public long Dropouts => _worklet?.Events ?? 0;
@@ -113,7 +121,8 @@ public sealed class PlaybackService : IDisposable
         Push();
     }
 
-    /// <summary>Stops following, and stops playing: the engine's project belongs to the one that was open.</summary>
+    /// <summary>Stops following, and lets the engine go: its plan, its clips and its worker belong to the project that was open.</summary>
+    /// <remarks>The next Play starts the engine again, which costs a second or two the first time and less after.</remarks>
     public void Unfollow()
     {
         if (_project is null)
@@ -124,10 +133,7 @@ public sealed class PlaybackService : IDisposable
         _project = null;
         _sent = null;
         _sentRevision = -1;
-        if (Phase == PlaybackPhase.Ready)
-        {
-            _host.Stop();
-        }
+        ReleaseEngine();
     }
 
     /// <summary>The level of a track now, falling after a peak.</summary>
@@ -136,46 +142,40 @@ public sealed class PlaybackService : IDisposable
     /// <summary>Starts playing from the playhead, starting the engine first if it is not running; call it from the click that asks.</summary>
     public async Task PlayAsync()
     {
-        if (Phase != PlaybackPhase.Ready && !await StartAsync())
+        if (!_host.Running && !await StartAsync())
         {
             return;
         }
+        _commandedPlaying = true;
         _host.Play();
     }
 
     /// <summary>Pauses; the playhead stays.</summary>
     public void Pause()
     {
-        if (Phase == PlaybackPhase.Ready)
-        {
-            _host.Pause();
-        }
+        _commandedPlaying = false;
+        _host.Pause();
     }
 
     /// <summary>Stops and returns the playhead to where playing began.</summary>
     public void Stop()
     {
-        if (Phase == PlaybackPhase.Ready)
-        {
-            _host.Stop();
-        }
+        _commandedPlaying = false;
+        _host.Stop();
     }
 
     /// <summary>Moves the playhead to a time in seconds.</summary>
     public void Seek(double seconds)
     {
         _requested = Math.Max(0, seconds);
-        if (Phase == PlaybackPhase.Ready)
-        {
-            _host.Seek(_requested);
-        }
+        _host.Seek(_requested);
         Changed?.Invoke();
     }
 
-    /// <summary>Plays or pauses, as the play button and the space bar do.</summary>
+    /// <summary>Plays or pauses, as the play button and the space bar do; it goes by what was last asked, not by a report up to 40 ms old.</summary>
     public Task TogglePlayAsync()
     {
-        if (Transport != TransportState.Playing)
+        if (!_commandedPlaying)
         {
             return PlayAsync();
         }
@@ -198,6 +198,7 @@ public sealed class PlaybackService : IDisposable
         _host.StatusReceived -= OnStatus;
         _host.WorkletReported -= OnWorklet;
         _host.Failed -= OnFailed;
+        _host.Rejected -= OnRejected;
         _host.Dispose();
     }
 
@@ -217,7 +218,7 @@ public sealed class PlaybackService : IDisposable
         {
             await _host.StartAsync(_http.BaseAddress!.AbsoluteUri, PlaybackFormat.BudgetMilliseconds, CancellationToken.None);
         }
-        catch (AudioHostException exception)
+        catch (Exception exception) when (exception is AudioHostException or TimeoutException or OperationCanceledException)
         {
             Phase = PlaybackPhase.Failed;
             Problem = exception.Message;
@@ -301,6 +302,20 @@ public sealed class PlaybackService : IDisposable
     private void Fall(HostStatus status)
     {
         _master = Held(_master, status.Master);
+        HashSet<string> reported = [.. status.Tracks.Select(track => track.Track)];
+        foreach (string gone in _levels.Keys.Where(track => !reported.Contains(track)).ToList())
+        {
+            // A track the engine no longer reports (muted, silenced by solo, deleted) falls to nothing instead of keeping its last level.
+            LevelPair fallen = Held(_levels[gone], default);
+            if (fallen.Left < Silent && fallen.Right < Silent)
+            {
+                _levels.Remove(gone);
+            }
+            else
+            {
+                _levels[gone] = fallen;
+            }
+        }
         foreach (TrackLevel track in status.Tracks)
         {
             _levels[track.Track] = Held(_levels.GetValueOrDefault(track.Track), track.Level);
@@ -316,10 +331,35 @@ public sealed class PlaybackService : IDisposable
         _health.Observe(stats);
     }
 
+    // The worker is gone: what the page held of the engine is let go, and the next Play starts it again.
     private void OnFailed(string reason)
     {
+        ReleaseEngine();
         Phase = PlaybackPhase.Failed;
+        Problem = $"{reason} Press Play to start the audio engine again.";
+        Changed?.Invoke();
+    }
+
+    // The worker refused a call and went on: the reason is shown, and the engine and the transport stay as they are.
+    private void OnRejected(string reason)
+    {
         Problem = reason;
+        Changed?.Invoke();
+    }
+
+    private void ReleaseEngine()
+    {
+        _host.Dispose();
+        Phase = PlaybackPhase.Idle;
+        Problem = null;
+        _status = null;
+        _worklet = null;
+        _commandedPlaying = false;
+        _sent = null;
+        _sentRevision = -1;
+        _sentLoop = null;
+        _master = default;
+        _levels.Clear();
         Changed?.Invoke();
     }
 }

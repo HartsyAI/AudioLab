@@ -11,7 +11,6 @@ namespace AudioLab.Core.Playback;
     AllowDuplicateProperties = false,
     NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(HostStatus))]
-[JsonSerializable(typeof(WorkletStats))]
 public sealed partial class PlaybackJsonContext : JsonSerializerContext
 {
 }

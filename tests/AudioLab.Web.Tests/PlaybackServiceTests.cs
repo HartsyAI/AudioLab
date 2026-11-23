@@ -76,18 +76,23 @@ public sealed class PlaybackServiceTests
         Assert.Contains("Six", _host.Documents[^1].Json);
     }
 
-    /// <summary>Leaving the project stops playing because the engines project belonged to it.</summary>
+    /// <summary>Leaving the project lets the engine go because its plan and its clips belonged to the project.</summary>
     [Fact]
-    public async Task LeavingTheProjectStopsPlayingBecauseTheEnginesProjectBelongedToIt()
+    public async Task LeavingTheProjectLetsTheEngineGoAndTheNextPlayStartsItAgain()
     {
         await using LiveProject live = await OpenAsync();
         using PlaybackService playback = Service();
         playback.Follow(live);
         await playback.PlayAsync();
+        _host.Report(Status(TransportState.Playing, 1) with { Master = new LevelPair(0.5, 0.5) });
 
         playback.Unfollow();
 
-        Assert.Equal("stop", _host.Calls[^1]);
+        Assert.Equal("dispose", _host.Calls[^1]);
+        Assert.Equal(PlaybackPhase.Idle, playback.Phase);
+        Assert.Equal(default, playback.Master);
+        await playback.PlayAsync();
+        Assert.Equal(PlaybackPhase.Ready, playback.Phase);
     }
 
     /// <summary>The loop covers what is heard and its end follows an edit.</summary>
@@ -132,16 +137,78 @@ public sealed class PlaybackServiceTests
         Assert.True(playback.Master.Left < 0.5 && playback.Master.Left > 0);
     }
 
-    /// <summary>A worker that fails after it started is reported too.</summary>
+    /// <summary>A worker that crashes after it started ends the engine, says why, and the next Play starts it again.</summary>
     [Fact]
-    public async Task AWorkerThatFailsAfterItStartedIsReportedToo()
+    public async Task AWorkerThatCrashesAfterItStartedEndsTheEngineAndTheNextPlayStartsItAgain()
     {
         using PlaybackService playback = Service();
         await playback.PlayAsync();
 
-        _host.Fail("The engine threw.");
+        _host.Fail("The engine's worker failed: out of memory.");
 
         Assert.Equal(PlaybackPhase.Failed, playback.Phase);
-        Assert.Equal("The engine threw.", playback.Problem);
+        Assert.Contains("out of memory", playback.Problem);
+        Assert.Contains("Press Play", playback.Problem);
+        await playback.PlayAsync();
+        Assert.Equal(PlaybackPhase.Ready, playback.Phase);
+        Assert.Null(playback.Problem);
+    }
+
+    /// <summary>A call the worker refuses shows its reason and leaves the engine and the transport as they were.</summary>
+    [Fact]
+    public async Task ACallTheWorkerRefusesShowsItsReasonAndPauseAndStopStillReachTheEngine()
+    {
+        using PlaybackService playback = Service();
+        await playback.PlayAsync();
+
+        _host.Reject("Something the worker did not like.");
+        playback.Pause();
+        playback.Stop();
+
+        Assert.Equal(PlaybackPhase.Ready, playback.Phase);
+        Assert.Equal("Something the worker did not like.", playback.Problem);
+        Assert.Equal(["pause", "stop"], _host.Calls.TakeLast(2));
+    }
+
+    /// <summary>A start that times out leaves the service failed with the reason, not starting for ever.</summary>
+    [Fact]
+    public async Task AStartThatTimesOutIsAFailureWithTheReasonAndNotAServiceStuckStarting()
+    {
+        _host.StartFailure = new TimeoutException("The worker did not start.");
+        using PlaybackService playback = Service();
+
+        await playback.PlayAsync();
+
+        Assert.Equal(PlaybackPhase.Failed, playback.Phase);
+        Assert.Contains("did not start", playback.Problem);
+    }
+
+    /// <summary>The toggle goes by what was last asked, so a quick second press pauses and does not send play twice.</summary>
+    [Fact]
+    public async Task ThePlayToggleGoesByWhatWasLastAskedNotByTheLastReport()
+    {
+        using PlaybackService playback = Service();
+
+        await playback.TogglePlayAsync();
+        await playback.TogglePlayAsync();
+        await playback.TogglePlayAsync();
+
+        Assert.Equal(["play", "pause", "play"], _host.Calls.Where(call => call is "play" or "pause"));
+    }
+
+    /// <summary>A track the engine stops reporting falls to nothing and a closed project leaves no levels behind.</summary>
+    [Fact]
+    public async Task ATrackTheEngineStopsReportingFallsToNothing()
+    {
+        using PlaybackService playback = Service();
+        await playback.PlayAsync();
+        _host.Report(Status() with { Tracks = [new TrackLevel("t1", new LevelPair(0.8, 0.8))] });
+
+        for (int i = 0; i < 80; i++)
+        {
+            _host.Report(Status());
+        }
+
+        Assert.Equal(default, playback.LevelOf(TrackId.From("t1")));
     }
 }

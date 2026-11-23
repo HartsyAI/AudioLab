@@ -35,11 +35,16 @@ public sealed class EngineFileRouteTests
         ];
 
         Assert.Contains(names, name => Wasm(name, "AudioLab.Audio.Worker."));
-        Assert.Contains(names, name => Wasm(name, "AudioLab.Audio."));
+        Assert.Contains(names, name => Wasm(name, "AudioLab.Audio.") && !name.StartsWith("AudioLab.Audio.Worker.", StringComparison.Ordinal));
         foreach (string name in names)
         {
             using HttpResponseMessage file = await server.Client.GetAsync($"/worker/_framework/{name}");
             Assert.True(file.StatusCode == HttpStatusCode.OK, $"{name} answered {(int)file.StatusCode}");
+            if (name.EndsWith(".wasm", StringComparison.Ordinal))
+            {
+                // Under nosniff a browser starts a module only when it is served as WebAssembly.
+                Assert.Equal("application/wasm", file.Content.Headers.ContentType?.MediaType);
+            }
         }
     }
 }

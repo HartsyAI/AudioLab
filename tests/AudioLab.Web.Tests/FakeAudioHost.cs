@@ -12,13 +12,15 @@ internal sealed class FakeAudioHost : IAudioHost
 
     public event Action<string>? Failed;
 
+    public event Action<string>? Rejected;
+
     public List<string> Calls { get; } = [];
 
     public List<(string Json, long Revision)> Documents { get; } = [];
 
     public Exception? StartFailure { get; set; }
 
-    public bool Running { get; private set; }
+    public bool Running { get; set; }
 
     public bool Available { get; set; } = true;
 
@@ -43,21 +45,36 @@ internal sealed class FakeAudioHost : IAudioHost
         return Task.CompletedTask;
     }
 
-    public void Play() => Calls.Add("play");
+    public void Play() => Record("play");
 
-    public void Pause() => Calls.Add("pause");
+    public void Pause() => Record("pause");
 
-    public void Stop() => Calls.Add("stop");
+    public void Stop() => Record("stop");
 
-    public void Seek(double seconds) => Calls.Add($"seek {seconds:0.###}");
+    public void Seek(double seconds) => Record($"seek {seconds:0.###}");
 
-    public void SetLoop(bool on, double startSeconds, double endSeconds) => Calls.Add($"loop {on} {startSeconds:0.###} {endSeconds:0.###}");
+    public void SetLoop(bool on, double startSeconds, double endSeconds) => Record($"loop {on} {startSeconds:0.###} {endSeconds:0.###}");
 
-    public void Dispose() => Calls.Add("dispose");
+    public void Dispose()
+    {
+        Calls.Add("dispose");
+        Running = false;
+    }
+
+    // The real host does nothing for a transport call while it is not running, and so does this one.
+    private void Record(string call)
+    {
+        if (Running)
+        {
+            Calls.Add(call);
+        }
+    }
 
     public void Report(HostStatus status) => StatusReceived?.Invoke(status);
 
     public void Report(WorkletStats stats) => WorkletReported?.Invoke(stats);
 
     public void Fail(string reason) => Failed?.Invoke(reason);
+
+    public void Reject(string reason) => Rejected?.Invoke(reason);
 }

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using AudioLab.Audio.Live;
 using AudioLab.Audio.Tests.Support;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Core.Playback;
 
@@ -89,6 +90,9 @@ public sealed class LiveHostTests
 
         await Send(host, first, 1);
         await Send(host, first with { Name = "two", Metronome = true }, 2);
+        AudioClip clip = first.Tracks[0].Clips[0] with { Name = "Take 2" };
+        Track renamed = first.Tracks[0] with { Name = "Drums", Color = "#ff0000", Armed = true, Clips = [clip] };
+        await Send(host, first with { Tracks = [renamed], Markers = [new Marker { Id = MarkerId.From("k"), Time = 1, Name = "Verse" }] }, 3);
 
         Assert.Equal(1, Status(host).Revision);
         Assert.Single(clips.Fetched);
@@ -160,5 +164,50 @@ public sealed class LiveHostTests
         HostStatus status = Status(host);
         Assert.Equal(1, status.Revision);
         Assert.Contains("gone", status.Problem);
+    }
+
+    [Fact]
+    public async Task ADocumentThatCannotBeReadIsAProblemAndTheTransportStillAnswers()
+    {
+        LiveHost host = HostOf(Clips("a"));
+        host.Play();
+
+        await host.SetDocumentAsync("{\"version\": 4}", 1);
+        host.Pause();
+
+        Assert.Contains("could not be read", Status(host).Problem);
+        Assert.Equal(TransportState.Paused, Status(host).State);
+    }
+
+    [Theory]
+    [InlineData(typeof(TaskCanceledException))]
+    [InlineData(typeof(OverflowException))]
+    [InlineData(typeof(HttpRequestException))]
+    [InlineData(typeof(InvalidDataException))]
+    [InlineData(typeof(WavFormatException))]
+    public async Task AClipThatFailsToLoadInAnyOfTheWaysItCanIsAProblemThatNamesTheClip(Type failure)
+    {
+        FakeClips clips = Clips("a");
+        clips.Failure = (Exception)Activator.CreateInstance(failure, ["the cause"])!;
+        LiveHost host = HostOf(clips);
+        host.Play();
+
+        await Send(host, Document("p", ("t1", "a", false)), 1);
+        host.Stop();
+
+        Assert.Contains("c-t1", Status(host).Problem);
+        Assert.Equal(TransportState.Stopped, Status(host).State);
+    }
+
+    [Fact]
+    public async Task AFileThatIsNotFoundIsSaidToBeNotFoundWithTheClipName()
+    {
+        FakeClips clips = Clips("a");
+        clips.Failure = new ClipUnavailableException("was not found: it may have been deleted");
+        LiveHost host = HostOf(clips);
+
+        await Send(host, Document("p", ("t1", "a", false)), 1);
+
+        Assert.Equal("The clip \"c-t1\" was not found: it may have been deleted.", Status(host).Problem);
     }
 }
