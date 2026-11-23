@@ -26,4 +26,7 @@ public sealed class BottomPanelState
         Active = tab;
         Changed?.Invoke();
     }
+
+    /// <summary>Goes back to the first tab, as a project that is opened starts.</summary>
+    public void Reset() => Show(Mixer);
 }

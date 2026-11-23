@@ -1,5 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
@@ -19,6 +21,9 @@ public sealed partial class PianoRollPanel : IDisposable
 
     [Inject]
     private SessionSelection Selection { get; set; } = default!;
+
+    [Inject]
+    private IElementFocus Focus { get; set; } = default!;
 
     private (Track Track, MidiClip Clip)? Open => Selection.Clip is { } clip ? MidiClipPlan.Find(Document, clip) : null;
 
@@ -56,6 +61,28 @@ public sealed partial class PianoRollPanel : IDisposable
         return bars == 1 ? "1 bar" : $"{bars.ToString("0.##", CultureInfo.InvariantCulture)} bars";
     }
 
+    // The buttons of the empty state go when they are used, and the focus would go with them: it moves to the clip that was made, or to the
+    // button that replaces them.
+    private const string AddId = "piano-roll-add";
+
+    private string? _focus;
+
+    /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_focus is { } id && (id != AddId || Target is not null))
+        {
+            _focus = null;
+            Focus.Focus(id);
+        }
+    }
+
+    private async Task AddInstrumentAsync()
+    {
+        _focus = AddId;
+        await Actions.AddInstrumentTrack();
+    }
+
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
 
     private Task StepAsync(MidiClip clip, int bars) => Actions.Midi.StepLength(clip.Id, bars);
@@ -65,7 +92,9 @@ public sealed partial class PianoRollPanel : IDisposable
         EditResult result = await Actions.Midi.AddClip(track.Id, null);
         if (result.Succeeded && result.Created.Count > 0)
         {
-            Selection.SelectClip(track.Id, ClipId.From(result.Created[0]));
+            ClipId made = ClipId.From(result.Created[0]);
+            Selection.SelectClip(track.Id, made);
+            _focus = Clip.IdOf(made);
         }
     }
 }

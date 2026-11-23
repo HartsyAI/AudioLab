@@ -1,3 +1,4 @@
+using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Web.Session;
@@ -7,17 +8,32 @@ namespace AudioLab.Web.Services;
 /// <summary>The edits of MIDI clips the session screen makes, each one command sent by wire name; the server's reasons come back as words.</summary>
 public sealed class MidiEditor(LiveProject live)
 {
+    private bool _adding;
+
     /// <summary>Adds an empty clip of one bar to an instrument track at <paramref name="start"/> or after its last clip.</summary>
-    public Task<EditResult> AddClipAsync(TrackId track, double? start = null)
+    /// <remarks>A second call while the first is on its way does nothing: the place of the next clip depends on the first being drawn.</remarks>
+    public async Task<EditResult> AddClipAsync(TrackId track, double? start = null)
     {
-        return EditRunner.RunAsync(live, project =>
+        if (_adding)
         {
-            ProjectDocument document = live.Document!;
-            Track? target = document.Tracks.FirstOrDefault(candidate => candidate.Id == track);
-            double at = Math.Max(0, start ?? (target is null ? 0 : MidiClipPlan.NextStart(document, target)));
-            double length = MidiClipPlan.DefaultLength(document, at);
-            return live.SendAsync(new AddMidiClip { Project = project, Track = track, Start = at, Length = length });
-        });
+            return EditResult.Applied(changed: false, []);
+        }
+        _adding = true;
+        try
+        {
+            return await EditRunner.RunAsync(live, project =>
+            {
+                ProjectDocument document = live.Document!;
+                Track? target = document.Tracks.FirstOrDefault(candidate => candidate.Id == track);
+                double at = Math.Max(0, start ?? (target is null ? 0 : MidiClipPlan.NextStart(document, target)));
+                double length = MidiClipPlan.DefaultLength(document, at);
+                return live.SendAsync(new AddMidiClip { Project = project, Track = track, Start = at, Length = length });
+            });
+        }
+        finally
+        {
+            _adding = false;
+        }
     }
 
     /// <summary>Sets a clip's length to an absolute number of seconds.</summary>
@@ -35,6 +51,6 @@ public sealed class MidiEditor(LiveProject live)
         }
         return MidiClipPlan.Stepped(document, found.Clip, bars) is { } length
             ? await SetLengthAsync(clip, length)
-            : EditResult.Refused($"A MIDI clip is at least {MidiClip.MinLength} seconds long.");
+            : EditResult.Refused(string.Create(CultureInfo.InvariantCulture, $"A MIDI clip is at least {MidiClip.MinLength} seconds long."));
     }
 }

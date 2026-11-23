@@ -70,15 +70,39 @@ public sealed class MidiEditorTests
         Assert.False(missing.Succeeded);
     }
 
-    /// <summary>The server's reason for shortening a clip past a note comes back as written.</summary>
+    /// <summary>The server reason for shortening a clip so that it would lose a note comes back as the server wrote it.</summary>
     [Fact]
     public async Task TheServersReasonForAShortenedClipComesBackAsWritten()
     {
         await using LiveProject live = await OpenAsync();
-        _hub.Reply = FakeProjectHub.Refused(CommandErrorCode.Rejected, "a note starts at or after the new end");
+        _hub.Reply = FakeProjectHub.Refused(
+            CommandErrorCode.Rejected,
+            "a note or controller event would fall outside the shorter clip; remove or move it first");
 
-        EditResult result = await new MidiEditor(live).StepLengthAsync(ClipId.From("a"), 1);
+        EditResult result = await new MidiEditor(live).StepLengthAsync(ClipId.From("a"), -1);
 
-        Assert.Equal("A note starts at or after the new end.", result.Refusal);
+        Assert.Equal("A note or controller event would fall outside the shorter clip; remove or move it first.", result.Refusal);
+    }
+
+    /// <summary>A second add while the first is on its way does nothing, so a held key or a double press makes one clip.</summary>
+    [Fact]
+    public async Task ASecondAddWhileTheFirstIsOnItsWayMakesNoSecondClip()
+    {
+        await using LiveProject live = await OpenAsync();
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hub.BeforeApplyReturns = () => release.Task;
+        MidiEditor editor = new(live);
+
+        Task<EditResult> first = editor.AddClipAsync(TrackId.From("keys"));
+        EditResult second = await editor.AddClipAsync(TrackId.From("keys"));
+        release.SetResult();
+        await first;
+
+        Assert.True(second.Succeeded);
+        Assert.False(second.Changed);
+        Assert.Single(_hub.Sent);
+        _hub.BeforeApplyReturns = null;
+        await editor.AddClipAsync(TrackId.From("keys"));
+        Assert.Equal(2, _hub.Sent.Count);
     }
 }

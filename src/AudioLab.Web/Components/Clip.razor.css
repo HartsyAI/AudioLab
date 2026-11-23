@@ -68,7 +68,6 @@ path {
     fill: var(--clip);
 }
 
-
 .clip[data-lifted="true"] {
     z-index: var(--z-lane-overlay);
     box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead), var(--shadow-overlay);
@@ -76,10 +75,11 @@ path {
     pointer-events: none;
 }
 
-/* One line for each note, a constant thickness whatever size the clip is stretched to. */
+/* One line for each run of notes, three pixels thick and at least three pixels long whatever size the clip is stretched to. */
 svg.notes path {
     fill: none;
     stroke: var(--clip);
     stroke-width: 3px;
+    stroke-linecap: square;
     vector-effect: non-scaling-stroke;
 }
