@@ -51,5 +51,20 @@ public sealed class MidiErrorFilter : IEndpointFilter
         };
     }
 
-    private static Dictionary<string, object?> ReasonOf(CommandErrorCode code) => new() { ["reason"] = code.ToString().ToLowerInvariant() };
+    // The names a command's refusal has on the wire, so a client reads one vocabulary.
+    private static Dictionary<string, object?> ReasonOf(CommandErrorCode code)
+    {
+        string reason = code switch
+        {
+            CommandErrorCode.Malformed => "malformed",
+            CommandErrorCode.UnknownCommand => "unknown_command",
+            CommandErrorCode.WrongProject => "wrong_project",
+            CommandErrorCode.NotFound => "not_found",
+            CommandErrorCode.Rejected => "rejected",
+            CommandErrorCode.Limit => "limit",
+            CommandErrorCode.Invalid => "invalid",
+            _ => throw new ArgumentOutOfRangeException(nameof(code)),
+        };
+        return new Dictionary<string, object?> { ["reason"] = reason };
+    }
 }

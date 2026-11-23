@@ -269,6 +269,7 @@ public sealed class MidiRouteTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, onAudio.StatusCode);
         Assert.Equal("rejected", (await ProblemAsync(onAudio)).GetProperty("reason").GetString());
         Assert.Equal(HttpStatusCode.NotFound, onGhost.StatusCode);
+        Assert.Equal("not_found", (await ProblemAsync(onGhost)).GetProperty("reason").GetString());
         Assert.All((await DocumentAsync(server, _local, project)).Tracks, track => Assert.Empty(track.MidiClips));
     }
 
@@ -407,14 +408,21 @@ public sealed class MidiRouteTests
     }
 
     [Fact]
-    public async Task TheUndoStepOfAnImportIsNamedAfterTheCommand()
+    public async Task EveryClientOfTheProjectHearsTheImportAndItsUndoStepIsNamedAfterTheCommand()
     {
         await using RunningServer server = await RunningServer.StartAsync();
         (ProjectId project, string track) = await ProjectWithInstrumentAsync(server);
+        await using HubClient watcher = await HubClient.ConnectAsync(server);
+        await watcher.JoinAsync(project.Value);
 
         using HttpResponseMessage response = await ImportAsync(server, project, track, File());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        MidiImportResult result = (await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.MidiImportResult))!;
+        ProjectChange heard = await watcher.NextChangeAsync();
+        Assert.Equal(("midi_clip_import", result.Revision), (heard.Reason, heard.Revision));
+        ProjectDocument announced = ProjectJson.Read(heard.Document);
+        Assert.Equal(result.Clip, Assert.Single(announced.Tracks.Single().MidiClips).Id.Value);
         Assert.Equal("midi_clip_import", (await HistoryAsync(server, _local, project)).UndoLabel);
     }
 }
