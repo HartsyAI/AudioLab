@@ -59,14 +59,18 @@ svg[data-peaks="loading"] {
 
 .wave-note {
     position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
+    left: var(--space-4);
+    top: var(--space-4);
+    max-width: calc(100% - var(--space-8));
     padding: 0 var(--space-6);
     overflow: hidden;
-    color: var(--text-dim);
+    border-radius: var(--radius-xs);
+    background: var(--clip);
+    color: var(--ink);
     font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
     white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 svg {

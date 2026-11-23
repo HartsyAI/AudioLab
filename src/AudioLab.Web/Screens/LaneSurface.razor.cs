@@ -3,14 +3,13 @@ using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Session;
-using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
 /// <summary>The lanes as DOM with inline SVG waveforms (D17): every clip is in the page and redraws only when its own record changes.</summary>
-public sealed partial class LaneSurface : IDisposable
+public sealed partial class LaneSurface
 {
     private const double ClipGap = 2;
 
@@ -67,34 +66,6 @@ public sealed partial class LaneSurface : IDisposable
 
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
-
-    [Inject]
-    private WaveformService Waves { get; set; } = default!;
-
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        Waves.Arrived -= OnPeaksArrived;
-    }
-
-    /// <inheritdoc />
-    protected override void OnInitialized()
-    {
-        Waves.Arrived += OnPeaksArrived;
-    }
-
-    private void OnPeaksArrived(string media) => _ = InvokeAsync(StateHasChanged);
-
-    // Selecting a clip whose waveform failed asks for its peaks again.
-    private Task SelectAudioAsync(ClipId id)
-    {
-        AudioClip? clip = Document.Tracks.SelectMany(track => track.Clips).FirstOrDefault(candidate => candidate.Id == id);
-        if (clip is not null)
-        {
-            Waves.RetryIfFailed(clip);
-        }
-        return OnSelectClip.InvokeAsync(id);
-    }
 
     private double Width => Math.Round(Geometry.Width(Length));
 

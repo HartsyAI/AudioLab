@@ -109,6 +109,21 @@ public sealed class WavePathTests
         Assert.All(y.Skip(4), value => Assert.Equal(50.5, value));
     }
 
+    /// <summary>A column that never crosses the middle is drawn where its samples are, not stretched down to the middle line.</summary>
+    [Fact]
+    public void AColumnThatNeverCrossesTheMiddleIsDrawnWhereItsSamplesAre()
+    {
+        float[] samples = new float[48000];
+        Array.Fill(samples, 0.25f);
+        samples[10] = 0.5f;
+        PeakLevel level = Level(samples, 1, 2);
+
+        double[] y = Ys(WavePath.Build(level, 1, Rate, 0, 1, 2));
+
+        Assert.Equal(50 - (0.5 * 46), y[0], 1);
+        Assert.Equal(50 - (0.25 * 46), y[3], 1);
+    }
+
     /// <summary>A window that reaches the end of the file, or a view closer than the finest level, still draws every column.</summary>
     [Theory]
     [InlineData(0.0, 1.0, 400)]

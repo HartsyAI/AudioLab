@@ -126,7 +126,7 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
         }
     }
 
-    /// <summary>One level of a media file's peaks, asked for as its own byte range so a zoom that needs a coarse level never loads a fine one.</summary>
+    /// <summary>One level of a media file's peaks, as its own byte range, so a zoom that needs a coarse level never loads a fine one.</summary>
     public async Task<PeakLevel> GetPeakLevelAsync(string id, PeakHeader header, int level, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(header);

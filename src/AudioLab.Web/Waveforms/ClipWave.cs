@@ -4,8 +4,8 @@ namespace AudioLab.Web.Waveforms;
 /// <param name="Phase">Where the waveform is.</param>
 /// <param name="Path">The path in a 1000 by 100 box, to be stretched over the clip's body; set only when ready.</param>
 /// <param name="Reason">Why the peaks could not be loaded, in one sentence fit for the user; set only when failed.</param>
-public sealed record ClipWave(WavePhase Phase, string? Path = null, string? Reason = null)
+public readonly record struct ClipWave(WavePhase Phase, string? Path = null, string? Reason = null)
 {
     /// <summary>The state of a waveform whose peaks have not arrived.</summary>
-    public static ClipWave Loading { get; } = new(WavePhase.Loading);
+    public static ClipWave Loading => new(WavePhase.Loading);
 }

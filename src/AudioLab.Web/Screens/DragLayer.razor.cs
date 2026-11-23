@@ -1,6 +1,5 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Session;
-using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
@@ -22,9 +21,6 @@ public sealed partial class DragLayer : IDisposable
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 
-    [Inject]
-    private WaveformService Waves { get; set; } = default!;
-
     private ClipDrag? Drag => State.Current;
 
     /// <inheritdoc />
@@ -40,8 +36,6 @@ public sealed partial class DragLayer : IDisposable
     }
 
     private void OnChanged() => StateHasChanged();
-
-    private ClipWave Wave(AudioClip? audio, double width) => audio is null ? ClipWave.Loading : Waves.For(audio, width, PixelsPerSecond);
 
     private Lifted? Found(ClipId clip)
     {
