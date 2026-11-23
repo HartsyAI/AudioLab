@@ -60,6 +60,10 @@ public sealed partial class LaneSurface
     [Parameter]
     public EventCallback<(ClipId Clip, KeyboardEventArgs Key)> OnClipKey { get; set; }
 
+    /// <summary>Raised with a clip and the press when the primary button goes down on it, which may begin a drag.</summary>
+    [Parameter]
+    public EventCallback<(ClipId Clip, PointerEventArgs Press)> OnClipPointerDown { get; set; }
+
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 

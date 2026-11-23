@@ -1,4 +1,4 @@
-<div class="surface" style="width: @Css.Px(Width); height: @Css.Px(Layout.Total)">
+<div id="lane-surface" class="surface" style="width: @Css.Px(Width); height: @Css.Px(Layout.Total)">
     <svg class="grid" width="@Css.Number(Width)" height="@Css.Number(Layout.Total)" aria-hidden="true">
         <path class="weak" d="@WeakPath"></path>
         <path class="strong" d="@StrongPath"></path>
@@ -13,15 +13,16 @@
                 <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@AudioWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
                       TabStop="@(clip.Id == TabStop)" Waveform="@Waves.For(clip.Id.Value, AudioWidth(clip))"
-                      OnSelect="OnSelectClip" OnKey="OnClipKey" />
+                      OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
             }
             @foreach (MidiClip clip in track.MidiClips)
             {
                 <Clip @key="clip.Id" Midi="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@MidiWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnKey="OnClipKey" />
+                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
             }
         </div>
     }
+    <DragLayer Document="Document" />
     <div class="playhead" style="left: 0"></div>
 </div>

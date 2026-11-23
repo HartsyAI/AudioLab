@@ -8,17 +8,17 @@ public sealed class ShortcutTests
 {
     /// <summary>No two commands share an id or a chord.</summary>
     [Fact]
-    public void NoTwoCommandsShareAnIdOrAChord()
+    public void NoTwoCommandsShareAnIdOrAChordOnTheSameScreen()
     {
         Assert.Equal(Shortcuts.All.Count, Shortcuts.All.Select(shortcut => shortcut.Id).Distinct().Count());
-        Assert.Equal(Shortcuts.All.Count, Shortcuts.All.Select(shortcut => shortcut.Display).Distinct().Count());
+        Assert.Equal(Shortcuts.All.Count, Shortcuts.All.Select(shortcut => (shortcut.Scope, shortcut.Display)).Distinct().Count());
     }
 
     /// <summary>A chord matches only its own modifiers.</summary>
     [Fact]
     public void AChordMatchesOnlyItsOwnModifiers()
     {
-        Shortcut undo = new("edit.undo", "Undo", "z", Ctrl: true);
+        Shortcut undo = new("edit.undo", "Undo", "z", "test", Ctrl: true);
 
         Assert.Equal("Ctrl+Z", undo.Display);
         Assert.True(undo.Matches(new KeyboardEventArgs { Key = "z", CtrlKey = true }));

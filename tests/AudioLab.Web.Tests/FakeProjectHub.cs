@@ -1,4 +1,5 @@
 using AudioLab.Core.Commands;
+using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Web.Services;
 
@@ -15,6 +16,26 @@ internal sealed class FakeProjectHub : IProjectHub
 
     /// <summary>Disposed.</summary>
     public bool Disposed { get; private set; }
+
+    public List<(string Command, string Json, string? Gesture)> Sent { get; } = [];
+
+    /// <summary>Throw on apply.</summary>
+    public Exception? ThrowOnApply { get; set; }
+
+    /// <summary>Join document.</summary>
+    public string JoinDocument { get; set; } = ProjectJson.Write(Song.Empty());
+
+    /// <summary>Join revision.</summary>
+    public long JoinRevision { get; set; } = 1;
+
+    /// <summary>Throw on connect.</summary>
+    public Exception? ThrowOnConnect { get; set; }
+
+    /// <summary>Throw on join.</summary>
+    public Exception? ThrowOnJoin { get; set; }
+
+    /// <summary>Before join returns.</summary>
+    public Func<Task>? BeforeJoinReturns { get; set; }
 
     /// <summary>State changed.</summary>
     public event Action<HubState>? StateChanged;
@@ -45,15 +66,27 @@ internal sealed class FakeProjectHub : IProjectHub
     public Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         Calls.Add("connect");
+        if (ThrowOnConnect is { } failure)
+        {
+            throw failure;
+        }
         Move(HubState.Connected);
         return Task.CompletedTask;
     }
 
     /// <summary>Join async.</summary>
-    public Task<JoinReply> JoinAsync(string project, CancellationToken cancellationToken = default)
+    public async Task<JoinReply> JoinAsync(string project, CancellationToken cancellationToken = default)
     {
         Calls.Add($"join {project}");
-        return Task.FromResult(new JoinReply(project, 1, "{}"));
+        if (ThrowOnJoin is { } failure)
+        {
+            throw failure;
+        }
+        if (BeforeJoinReturns is { } before)
+        {
+            await before();
+        }
+        return new JoinReply(project, JoinRevision, JoinDocument);
     }
 
     /// <summary>Leave async.</summary>
@@ -71,6 +104,11 @@ internal sealed class FakeProjectHub : IProjectHub
         string? gesture = null,
         CancellationToken cancellationToken = default)
     {
+        if (ThrowOnApply is { } failure)
+        {
+            throw failure;
+        }
+        Sent.Add((command, json, gesture));
         Calls.Add($"apply {project} {command} {json} {gesture}".TrimEnd());
         return Task.FromResult(Reply);
     }

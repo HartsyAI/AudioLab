@@ -12,6 +12,8 @@
     background: color-mix(in srgb, var(--clip) 17%, transparent);
     box-shadow: inset 0 0 0 var(--ring) color-mix(in srgb, var(--clip) 50%, transparent);
     outline: none;
+    /* Selected text under the pointer makes the browser start a native drag, which cancels the pointer and so a clip drag. */
+    user-select: none;
     touch-action: none;
 }
 
@@ -71,4 +73,11 @@ path {
     height: 3px;
     border-radius: var(--radius-xs);
     background: var(--clip);
+}
+
+.clip[data-lifted="true"] {
+    z-index: var(--z-lane-overlay);
+    box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead), var(--shadow-overlay);
+    cursor: grabbing;
+    pointer-events: none;
 }

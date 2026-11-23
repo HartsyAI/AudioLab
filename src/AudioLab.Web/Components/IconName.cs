@@ -44,4 +44,10 @@ public enum IconName
 
     /// <summary>An I-beam between two bars: the range tool.</summary>
     Range,
+
+    /// <summary>An arrow curving back: undo.</summary>
+    Undo,
+
+    /// <summary>An arrow curving forward: redo.</summary>
+    Redo,
 }

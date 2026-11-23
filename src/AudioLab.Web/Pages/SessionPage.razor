@@ -1,15 +1,19 @@
 @page "/project/{Id}"
+@implements IAsyncDisposable
 
-@if (_document is not null)
+@if (_live?.Document is { } document)
 {
-    <SessionScreen Document="_document" Revision="_revision" CanEdit="false" ReadOnlyReason="@ReadOnly" Dot="StatusDot.Caution"
-                   State="Read-only snapshot" />
+    <SessionScreen Document="document" Revision="_live.Revision" Actions="_actions" Dot="Dot" State="@StateText" />
+    <Dialog Title="Rename track" ConfirmText="Rename track" Open="_renaming is not null" OpenChanged="EndRename"
+            ConfirmDisabled="@(string.IsNullOrWhiteSpace(_name) || _busy)" Error="@_renameError" OnConfirm="RenameAsync">
+        <Field Label="Name" @bind-Value="_name" />
+    </Dialog>
 }
 else if (_failure is not null)
 {
     <AppBar />
     <EmptyState Heading="The project could not be opened" Message="@_failure">
-        <Button Variant="ButtonVariant.Primary" OnClick="LoadAsync">Try again</Button>
+        <Button Variant="ButtonVariant.Primary" OnClick="OpenAsync">Try again</Button>
         <Button Href="">Back to your projects</Button>
     </EmptyState>
 }

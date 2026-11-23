@@ -2,7 +2,7 @@
     <div class="grid" style="grid-template-columns: var(--header-column) @Css.Px(LaneWidth); --rows: @Kinds.Count">
         <div class="corner">
             <span class="caption">TRACKS</span>
-            <Button Name="Add track" Disabled="@(!CanEdit)" DisabledReason="@AddTrackReason" OnClick="AddTrack">
+            <Button Name="Add track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddTrack">
                 <Icon Name="IconName.Plus" Size="10" />
                 <span>Add track</span>
             </Button>
@@ -18,14 +18,16 @@
             {
                 Track track = Document.Tracks[index];
                 <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.Heights[index]" Selected="@(track.Id == Selection.Track)"
-                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" />
+                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" Reason="@Actions.Reason"
+                             OnMute="Actions.ToggleMute"
+                             OnSolo="Actions.ToggleSolo" OnRename="Actions.RenameTrack" />
             }
         </div>
         <div class="lanes">
             @if (Document.Tracks.Count == 0)
             {
                 <EmptyState Heading="No tracks yet" Message="Add a track, then put clips on it.">
-                    <Button Variant="ButtonVariant.Primary" Disabled="@(!CanEdit)" DisabledReason="@AddTrackReason" Name="Add track"
+                    <Button Variant="ButtonVariant.Primary" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" Name="Add track"
                             OnClick="AddTrack">Add track</Button>
                 </EmptyState>
             }
@@ -33,7 +35,7 @@
             {
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
-                             OnClipKey="ClipKeyAsync" />
+                             OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" />
             }
         </div>
     </div>

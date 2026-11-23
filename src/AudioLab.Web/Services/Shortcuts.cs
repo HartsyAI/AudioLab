@@ -3,12 +3,45 @@ namespace AudioLab.Web.Services;
 /// <summary>The one registry of shortcuts. A shortcut is never written into a component: menus, tooltips and key handlers read it here.</summary>
 public static class Shortcuts
 {
+    /// <summary>The scope of the project list.</summary>
+    public const string Projects = "projects";
+
+    /// <summary>The scope of the session screen.</summary>
+    public const string Session = "session";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
-    public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2");
+    public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
     /// <summary>Delete the project that has the focus in the list.</summary>
-    public static readonly Shortcut DeleteProject = new("project.delete", "Delete project", "Delete");
+    public static readonly Shortcut DeleteProject = new("project.delete", "Delete project", "Delete", Projects);
+
+    /// <summary>Go back one undo step.</summary>
+    public static readonly Shortcut Undo = new("edit.undo", "Undo", "z", Session, Ctrl: true);
+
+    /// <summary>Go forward one redo step.</summary>
+    public static readonly Shortcut Redo = new("edit.redo", "Redo", "z", Session, Ctrl: true, Shift: true);
+
+    /// <summary>Go forward one redo step, the way many editors also write it.</summary>
+    public static readonly Shortcut RedoAlternate = new("edit.redo.alternate", "Redo", "y", Session, Ctrl: true);
+
+    /// <summary>Rename the selected track.</summary>
+    public static readonly Shortcut RenameTrack = new("track.rename", "Rename track", "F2", Session);
+
+    /// <summary>Move the focused clip one grid step earlier.</summary>
+    public static readonly Shortcut NudgeLeft = new("clip.nudge.left", "Move clip earlier", "ArrowLeft", Session, Alt: true);
+
+    /// <summary>Move the focused clip one grid step later.</summary>
+    public static readonly Shortcut NudgeRight = new("clip.nudge.right", "Move clip later", "ArrowRight", Session, Alt: true);
+
+    /// <summary>Move the focused clip to the track above.</summary>
+    public static readonly Shortcut NudgeUp = new("clip.nudge.up", "Move clip to the track above", "ArrowUp", Session, Alt: true);
+
+    /// <summary>Move the focused clip to the track below.</summary>
+    public static readonly Shortcut NudgeDown = new("clip.nudge.down", "Move clip to the track below", "ArrowDown", Session, Alt: true);
 
     /// <summary>Every shortcut, in the order they are listed.</summary>
-    public static readonly IReadOnlyList<Shortcut> All = [RenameProject, DeleteProject];
+    public static readonly IReadOnlyList<Shortcut> All =
+    [
+        RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
+    ];
 }

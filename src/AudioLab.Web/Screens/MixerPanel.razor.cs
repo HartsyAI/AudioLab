@@ -11,6 +11,10 @@ public sealed partial class MixerPanel
     [Parameter, EditorRequired]
     public ProjectDocument Document { get; set; } = null!;
 
+    /// <summary>What the screen can do to the project.</summary>
+    [Parameter, EditorRequired]
+    public SessionActions Actions { get; set; } = null!;
+
     /// <summary>The selected track, or null.</summary>
     [Parameter]
     public TrackId? Selected { get; set; }
