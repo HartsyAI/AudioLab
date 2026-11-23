@@ -9,7 +9,7 @@ namespace AudioLab.Web.Components.PianoRoll;
 /// <summary>The notes of the clip as a few SVG paths, not an element each: one path for each step of velocity.</summary>
 /// <remarks>
 /// The drawing is in seconds across and pitch rows down and stretched over the clip, so a note is a rectangle of the path. It is built when the
-/// notes or the scale change, and not for a selection or a gesture, which <see cref="RollSelection"/> and the overlay draw (D17, D48).
+/// notes or the scale change, and not for a selection or a gesture, which <see cref="RollSelection"/> and the overlay draw (D17, D55).
 /// </remarks>
 public sealed partial class RollNotes
 {
