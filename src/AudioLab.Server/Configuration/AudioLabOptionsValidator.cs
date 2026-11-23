@@ -105,9 +105,9 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         {
             problems.Add("AudioLab:Render:MaxDecodedBytesPerFile must be at least 1 MiB.");
         }
-        if (render.MediaCacheBytes < 1024 * 1024)
+        if (render.MaxDecodedBytesPerRender < render.MaxDecodedBytesPerFile)
         {
-            problems.Add("AudioLab:Render:MediaCacheBytes must be at least 1 MiB.");
+            problems.Add("AudioLab:Render:MaxDecodedBytesPerRender must be at least MaxDecodedBytesPerFile.");
         }
     }
 

@@ -217,13 +217,16 @@ public sealed class MediaStore : IMediaCatalog
     }
 
     /// <summary>Opens a user's file for reading; a delete in progress does not wait for the reader, and the reader keeps its bytes.</summary>
+    /// <param name="user">The owner.</param>
+    /// <param name="id">The file.</param>
+    /// <param name="asynchronous">Whether the stream is for asynchronous reads, as a response is; a caller that reads synchronously passes false.</param>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
-    public FileStream OpenContent(UserId user, MediaId id)
+    public FileStream OpenContent(UserId user, MediaId id, bool asynchronous = true)
     {
         MediaRecord record = Get(user, id);
         try
         {
-            return OpenForReading(_root.Paths.MediaDataFile(user, record.Id));
+            return OpenForReading(_root.Paths.MediaDataFile(user, record.Id), asynchronous);
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
@@ -368,14 +371,14 @@ public sealed class MediaStore : IMediaCatalog
         }
     }
 
-    internal static FileStream OpenForReading(string path)
+    internal static FileStream OpenForReading(string path, bool asynchronous = true)
     {
         FileStreamOptions options = new()
         {
             Mode = FileMode.Open,
             Access = FileAccess.Read,
             Share = FileShare.ReadWrite | FileShare.Delete,
-            Options = FileOptions.Asynchronous,
+            Options = asynchronous ? FileOptions.Asynchronous : FileOptions.SequentialScan,
         };
         return new FileStream(path, options);
     }
