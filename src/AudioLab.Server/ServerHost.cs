@@ -4,6 +4,7 @@ using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
+using AudioLab.Server.Mcp;
 using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Routes;
@@ -100,6 +101,7 @@ public static class ServerHost
             hub.MaximumParallelInvocationsPerClient = 1;
             hub.EnableDetailedErrors = false;
         }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
+        services.AddAudioLabMcp();
         services.AddProblemDetails();
         services.ConfigureHttpJsonOptions(json =>
         {
@@ -121,6 +123,7 @@ public static class ServerHost
         RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
+        McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
         app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
     }
