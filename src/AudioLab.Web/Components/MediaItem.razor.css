@@ -1,0 +1,79 @@
+.media-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-height: var(--control-lg);
+    padding: 0 var(--space-8) 0 0;
+    border-bottom: 1px solid var(--lane-line);
+    list-style: none;
+}
+
+.media-item[data-selected="true"] {
+    background: var(--surface-selected);
+}
+
+.media-main {
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) var(--strip-width) calc(var(--strip-width) * 2) var(--strip-width);
+    align-items: center;
+    gap: var(--space-12);
+    min-width: 0;
+    min-height: var(--control-lg);
+    padding: 0 var(--space-12);
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    text-align: left;
+    cursor: pointer;
+    /* Text selected under the pointer would start a native drag, which ends the pointer drag onto the lanes. */
+    user-select: none;
+}
+
+.media-main:hover {
+    background: var(--highlight);
+}
+
+.media-main:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+}
+
+.media-name {
+    overflow: hidden;
+    font-weight: var(--font-weight-strong);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.media-length,
+.media-size {
+    color: var(--text-soft);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.media-format {
+    overflow: hidden;
+    color: var(--text-dim);
+    font-size: var(--font-size-label);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.media-item[data-kind="upload"] {
+    padding-left: var(--space-12);
+}
+
+.media-item[data-kind="upload"] .media-name {
+    flex: 1;
+}
+
+.media-failure {
+    flex: 2;
+    color: var(--text-soft);
+    font-size: var(--font-size-label);
+    line-height: 1.3;
+}

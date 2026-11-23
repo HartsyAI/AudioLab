@@ -5,6 +5,13 @@ namespace AudioLab.Web.Tests;
 /// <summary>Builds small valid documents for the tests of the UI's rules.</summary>
 internal static class Song
 {
+    /// <summary>A media file of 16-bit stereo audio.</summary>
+    public static MediaSummary Media(string id, string name, double duration = 1)
+    {
+        return new MediaSummary(
+            id, name, MediaKind.Audio, MediaFormat.Wav, SampleEncoding.Pcm16, duration, 44100, 2, 100, new string('0', 64), DateTimeOffset.UnixEpoch);
+    }
+
     /// <summary>Empty.</summary>
     public static ProjectDocument Empty(double bpm = 120, IEnumerable<TempoChange>? changes = null)
     {

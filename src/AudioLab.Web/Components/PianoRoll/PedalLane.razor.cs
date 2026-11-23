@@ -10,7 +10,15 @@ namespace AudioLab.Web.Components.PianoRoll;
 /// <summary>The sustain pedal of the clip: the stretches where it is down, and a line for each event to press, move and remove.</summary>
 public sealed partial class PedalLane : IDisposable
 {
+    private const string Label =
+        "Sustain pedal; press to put it down or up, drag an event to move it. "
+        + "P puts it down or up at the insert point; Delete removes the selected event.";
+
     private MidiClip? _built;
+
+    private bool _rebuilt;
+
+    private (PedalDrag?, double?, double?, RollGeometry) _drawn;
 
     private double _length = -1;
 
@@ -39,7 +47,9 @@ public sealed partial class PedalLane : IDisposable
     [Inject]
     private RollDragState Drags { get; set; } = default!;
 
-    private PedalDrag? Drag => Drags.Current as PedalDrag;
+    private PedalDrag? Drag => Drags.Latest<PedalDrag>();
+
+    private (PedalDrag?, double?, double?, RollGeometry) Shown => (Drag, Drag?.Time, SelectedTime, Geometry);
 
     /// <inheritdoc />
     public void Dispose()
@@ -56,10 +66,12 @@ public sealed partial class PedalLane : IDisposable
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        _rebuilt = false;
         if (_built is not null && _length == Geometry.Length && (ReferenceEquals(_built, Clip) || _built.Equals(Clip)))
         {
             return;
         }
+        _rebuilt = true;
         _built = Clip;
         _length = Geometry.Length;
         StringBuilder down = new();
@@ -89,6 +101,14 @@ public sealed partial class PedalLane : IDisposable
         _off = off.ToString();
     }
 
+    /// <inheritdoc />
+    protected override bool ShouldRender()
+    {
+        bool draw = _rebuilt || Shown != _drawn;
+        _drawn = Shown;
+        return draw;
+    }
+
     private static string Line(double time) => "M" + Format(time) + " 0V1";
 
     private static void Region(StringBuilder path, double from, double to)
@@ -98,5 +118,11 @@ public sealed partial class PedalLane : IDisposable
 
     private static string Format(double value) => value.ToString("0.####", CultureInfo.InvariantCulture);
 
-    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnChanged()
+    {
+        if (Shown != _drawn)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
 }

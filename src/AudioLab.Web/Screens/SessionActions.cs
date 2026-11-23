@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Media;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Screens;
@@ -41,6 +42,12 @@ public sealed class SessionActions
 
     /// <summary>Moves a clip.</summary>
     public Func<ClipMove, Task> MoveClip { get; init; } = _ => Task.CompletedTask;
+
+    /// <summary>Adds a media file as a clip at a place on an audio track.</summary>
+    public Func<MediaPlacement, Task> AddClip { get; init; } = _ => Task.CompletedTask;
+
+    /// <summary>Turns the metronome on or off.</summary>
+    public Func<bool, Task> SetMetronome { get; init; } = _ => Task.CompletedTask;
 
     /// <summary>Goes back one undo step.</summary>
     public Func<Task> Undo { get; init; } = () => Task.CompletedTask;

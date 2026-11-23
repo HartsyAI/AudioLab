@@ -13,7 +13,11 @@
         }
         else
         {
-            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true" data-peaks="placeholder"><path d="@Waveform"></path></svg>
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true" data-peaks="@PeaksName"><path d="@Wave.Path"></path></svg>
+            @if (Wave.Phase == WavePhase.Failed)
+            {
+                <span class="wave-note">Waveform unavailable</span>
+            }
         }
     </div>
 </div>

@@ -74,7 +74,6 @@
     grid-row: 2;
     overflow: hidden;
     outline: none;
-    touch-action: none;
     user-select: none;
 }
 

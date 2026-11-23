@@ -8,9 +8,7 @@ namespace AudioLab.Web.Components.PianoRoll;
 /// <summary>What moves while the user works: the insert point, notes of a drag, an erase and a marquee; only this layer redraws on a move.</summary>
 public sealed partial class RollOverlay : IDisposable
 {
-    private NoteDrag? _carried;
-
-    private string _carriedPath = string.Empty;
+    private readonly Dictionary<NoteDrag, string> _carried = [];
 
     /// <summary>The scale.</summary>
     [Parameter]
@@ -30,7 +28,19 @@ public sealed partial class RollOverlay : IDisposable
     [Inject]
     private PianoRollState State { get; set; } = default!;
 
-    private NoteDrag? Drag => Drags.Current as NoteDrag;
+    // The gestures that draw: those landing and the one the pointer is in, so a drop stays where it landed until its edit is answered.
+    private List<NoteDrag> Shown
+    {
+        get
+        {
+            List<NoteDrag> shown = [.. Drags.Shown.OfType<NoteDrag>().Where(drag => drag.Active)];
+            foreach (NoteDrag gone in _carried.Keys.Where(drag => !shown.Contains(drag)).ToList())
+            {
+                _carried.Remove(gone);
+            }
+            return shown;
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -46,10 +56,7 @@ public sealed partial class RollOverlay : IDisposable
         State.Changed += OnChanged;
     }
 
-    private static string Rectangles(IEnumerable<MidiNote> notes, double clipLength, double least = 0.02)
-    {
-        return RollNotes.Rectangles(notes, clipLength, least);
-    }
+    private string Rectangles(IEnumerable<MidiNote> notes) => RollNotes.Rectangles(notes, Geometry);
 
     private void OnChanged() => _ = InvokeAsync(StateHasChanged);
 
@@ -59,14 +66,14 @@ public sealed partial class RollOverlay : IDisposable
     {
         if (drag.Kind != NoteDragKind.Move)
         {
-            return Rectangles(drag.Ghosts, Clip.Length);
+            return Rectangles(drag.Ghosts);
         }
-        if (!ReferenceEquals(_carried, drag))
+        if (!_carried.TryGetValue(drag, out string? path))
         {
-            _carried = drag;
-            _carriedPath = Rectangles(drag.Origins, Clip.Length, 0.02);
+            path = Rectangles(drag.Origins);
+            _carried[drag] = path;
         }
-        return _carriedPath;
+        return path;
     }
 
     private string? Carried(NoteDrag drag)
@@ -78,5 +85,5 @@ public sealed partial class RollOverlay : IDisposable
             : null;
     }
 
-    private string Erased(NoteDrag drag) => Rectangles(Clip.Notes.Where(note => drag.Erased.Contains(note.Id)), Clip.Length);
+    private string Erased(NoteDrag drag) => Rectangles(drag.ErasedNotes);
 }

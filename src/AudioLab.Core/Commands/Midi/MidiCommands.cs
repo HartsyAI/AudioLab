@@ -10,17 +10,131 @@ internal static class MidiCommands
     public static void Register(CommandRegistryBuilder builder, MidiCommandJsonContext json)
     {
         builder
+            .Add("midi_clip_import", "Adds a MIDI clip with its notes and events in one step.", json.ImportMidiClip, ImportClip)
             .Add("midi_note_add", "Adds a note to a MIDI clip and allocates its note id.", json.AddNote, AddNote)
             .Add("midi_notes_add", "Adds notes to a MIDI clip in one step and allocates their note ids.", json.AddNotes, AddNotes)
             .Add("midi_notes_move", "Puts notes at new starts and pitches.", json.MoveNotes, MoveNotes)
             .Add("midi_notes_resize", "Gives notes new lengths.", json.ResizeNotes, ResizeNotes)
             .Add("midi_notes_set_velocity", "Sets the velocity of notes.", json.SetNoteVelocity, SetVelocity)
+            .Add("midi_notes_adjust_velocity", "Raises or lowers the velocity of notes by an amount.", json.AdjustNoteVelocity, AdjustVelocity)
             .Add("midi_notes_transpose", "Transposes notes by semitones.", json.TransposeNotes, Transpose)
             .Add("midi_notes_quantize", "Snaps notes to the project grid.", json.QuantizeNotes, Quantize)
             .Add("midi_notes_delete", "Removes notes from a MIDI clip.", json.DeleteNotes, DeleteNotes)
             .Add("midi_control_add", "Adds a controller event to a MIDI clip.", json.AddControlChange, AddControl)
             .Add("midi_control_remove", "Removes the events of one controller at one time.", json.RemoveControlChanges, RemoveControl)
             .Add("midi_control_clear", "Removes the controller events of a MIDI clip.", json.ClearControlChanges, ClearControl);
+    }
+
+    private static CommandResult ImportClip(ProjectDocument document, ImportMidiClip command, IIdService ids)
+    {
+        int index = TrackIndexOf(document, command.Track);
+        if (index < 0)
+        {
+            return CommandChecks.NotFound("track", command.Track.Value);
+        }
+        Track track = document.Tracks[index];
+        if (track.Kind != TrackKind.Instrument)
+        {
+            return CommandChecks.Rejected("A MIDI clip goes on an instrument track.");
+        }
+        CommandResult? invalid = CommandChecks.Finite((nameof(command.Start), command.Start), (nameof(command.Length), command.Length))
+            ?? CommandChecks.Range(nameof(command.Start), command.Start, 0, ProjectLimits.MaxSeconds)
+            ?? CommandChecks.Range(nameof(command.Length), command.Length, MidiClip.MinLength, ProjectLimits.MaxSeconds)
+            ?? CommandChecks.TooLong(command.Name)
+            ?? ImportContentProblem(command);
+        if (invalid is not null)
+        {
+            return invalid;
+        }
+        if (track.MidiClips.Count >= ProjectLimits.MaxClips)
+        {
+            return CommandChecks.OutOfRange($"A track has at most {ProjectLimits.MaxClips} MIDI clips.");
+        }
+        MidiNote[] notes = new MidiNote[command.Notes.Count];
+        for (int i = 0; i < notes.Length; i++)
+        {
+            ImportedNote note = command.Notes[i];
+            notes[i] = new MidiNote(new NoteId(i + 1), note.Pitch, note.Start, note.Duration, note.Velocity);
+        }
+        MidiControlChange[] controls = new MidiControlChange[command.ControlChanges.Count];
+        for (int i = 0; i < controls.Length; i++)
+        {
+            ImportedControlChange control = command.ControlChanges[i];
+            controls[i] = new MidiControlChange(control.Time, control.Controller, control.Value);
+        }
+        MidiClip clip = new()
+        {
+            Id = ids.Next<ClipId>(),
+            Name = string.IsNullOrWhiteSpace(command.Name) ? ClipRules.NextName(document, "MIDI") : command.Name.Trim(),
+            Start = command.Start,
+            Length = command.Length,
+            NextNoteId = new NoteId(notes.Length + 1),
+            Notes = new ValueList<MidiNote>(notes),
+            ControlChanges = new ValueList<MidiControlChange>(controls),
+            Muted = false,
+            Color = command.Color,
+        };
+        ProjectDocument edited = ClipEdits.WithTrack(document, index, current => current with { MidiClips = [.. current.MidiClips, clip] });
+        return CommandResult.Ok(edited, clip.Id.Value);
+    }
+
+    // The notes and events of an import, each held to the rules of the command that adds one; the first problem names its place.
+    private static CommandResult? ImportContentProblem(ImportMidiClip command)
+    {
+        if (command.Notes.Count > ProjectLimits.MaxListItems || command.ControlChanges.Count > ProjectLimits.MaxListItems)
+        {
+            return CommandChecks.OutOfRange($"A clip holds at most {ProjectLimits.MaxListItems} notes and as many controller events.");
+        }
+        double latest = NoteRules.LatestStart(command.Length);
+        for (int i = 0; i < command.Notes.Count; i++)
+        {
+            ImportedNote note = command.Notes[i];
+            bool fits = note.Pitch is >= NoteRules.LowestPitch and <= NoteRules.HighestPitch
+                && note.Velocity is >= 1 and <= NoteRules.HighestPitch
+                && double.IsFinite(note.Start) && note.Start >= 0 && NoteRules.StartsInside(note.Start, command.Length)
+                && double.IsFinite(note.Duration) && note.Duration >= NoteRules.MinDuration && note.Duration <= ProjectLimits.MaxSeconds;
+            if (!fits)
+            {
+                return CommandChecks.OutOfRange(
+                    $"Note {i + 1} is not a note of this clip: a pitch from 0 to 127, a velocity from 1 to 127, a start from 0 to "
+                    + $"{latest.ToString(CultureInfo.InvariantCulture)} seconds and a duration of at least {NoteRules.MinDuration} seconds.");
+            }
+        }
+        double previous = 0;
+        HashSet<(double, int)> seen = [];
+        for (int i = 0; i < command.ControlChanges.Count; i++)
+        {
+            ImportedControlChange control = command.ControlChanges[i];
+            bool fits = control.Controller is >= 0 and <= NoteRules.HighestController
+                && control.Value is >= 0 and <= NoteRules.HighestControllerValue
+                && double.IsFinite(control.Time) && control.Time >= 0 && control.Time <= command.Length;
+            if (!fits)
+            {
+                return CommandChecks.OutOfRange($"Controller event {i + 1} is outside the clip, or has a controller or value outside 0 to 127.");
+            }
+            if (control.Time < previous)
+            {
+                return CommandChecks.OutOfRange($"Controller event {i + 1} comes before the one that precedes it; the events are in time order.");
+            }
+            if (!seen.Add((control.Time, control.Controller)))
+            {
+                return CommandChecks.OutOfRange($"Controller event {i + 1} repeats the controller and time of an earlier one.");
+            }
+            previous = control.Time;
+        }
+        return null;
+    }
+
+    private static int TrackIndexOf(ProjectDocument document, TrackId id)
+    {
+        for (int index = 0; index < document.Tracks.Count; index++)
+        {
+            if (document.Tracks[index].Id == id)
+            {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static CommandResult AddNote(ProjectDocument document, AddNote command, IIdService ids)
@@ -144,6 +258,17 @@ internal static class MidiCommands
             command.Notes,
             () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestVelocity),
             (_, note) => note with { Velocity = command.Velocity });
+    }
+
+    private static CommandResult AdjustVelocity(ProjectDocument document, AdjustNoteVelocity command, IIdService ids)
+    {
+        int most = NoteRules.HighestVelocity - 1;
+        return EditNotes(
+            document,
+            command.Clip,
+            command.Notes,
+            () => CommandChecks.Range(nameof(command.Amount), command.Amount, -most, most),
+            (_, note) => note with { Velocity = Math.Clamp(note.Velocity + command.Amount, 1, NoteRules.HighestVelocity) });
     }
 
     private static CommandResult Transpose(ProjectDocument document, TransposeNotes command, IIdService ids)

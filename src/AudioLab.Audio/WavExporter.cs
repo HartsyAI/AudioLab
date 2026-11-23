@@ -13,6 +13,25 @@ public static class WavExporter
 {
     private const int BlockFrames = 4096;
 
+    /// <summary>The size of the file that writing the mix, or the stem named in the render options, would make, with the same lengths.</summary>
+    /// <remarks>Only the lengths are planned, so no effect is built; the media is asked for, and a missing file fails as a write would.</remarks>
+    /// <exception cref="ExportTooLargeException">The file would be more than a WAV file can hold, 4 GiB.</exception>
+    public static ExportSize Measure(ProjectDocument document, IMediaSource media, WavOptions wav, OfflineOptions? render = null)
+    {
+        ArgumentNullException.ThrowIfNull(wav);
+        OfflineOptions settings = OfflineRenderer.Validate(render);
+        RenderPlan plan = RenderPlan.Create(document, media, OfflineRenderer.PlanOptionsOf(settings) with { SizingOnly = true });
+        (_, long frames) = OfflineRenderer.RangeOf(plan, settings);
+        try
+        {
+            return new ExportSize(WavStreamWriter.SizeOf(frames, wav), frames, 1);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new ExportTooLargeException(exception.Message);
+        }
+    }
+
     /// <summary>Writes the mix, or the stem named in the render options, to a stream; returns what was found in the samples.</summary>
     public static WavResult Write(ProjectDocument document, IMediaSource media, Stream output, WavOptions wav, OfflineOptions? render = null)
     {
@@ -32,7 +51,7 @@ public static class WavExporter
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(wav);
-        OfflineOptions settings = OfflineRenderer.Validate(render);
+        OfflineOptions settings = OfflineRenderer.Validate(render) with { CancellationToken = cancellationToken };
         RenderPlan plan = RenderPlan.Create(document, media, OfflineRenderer.PlanOptionsOf(settings));
         return WriteAsync(plan, output, wav, settings, cancellationToken);
     }

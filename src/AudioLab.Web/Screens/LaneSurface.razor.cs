@@ -75,9 +75,6 @@ public sealed partial class LaneSurface
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 
-    [Inject]
-    private WavePathCache Waves { get; set; } = default!;
-
     private double Width => Math.Round(Geometry.Width(Length));
 
     private string StrongPath => GridPath(strong: true);

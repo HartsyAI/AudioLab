@@ -7,8 +7,6 @@ namespace AudioLab.Web.Components.PianoRoll;
 /// <summary>The selected notes drawn over the notes as one path, so a change of selection costs the notes it changes.</summary>
 public sealed partial class RollSelection
 {
-    private const double MinPixels = 2;
-
     private MidiClip? _built;
 
     private int _version = -1;
@@ -26,6 +24,10 @@ public sealed partial class RollSelection
     /// <summary>The scale.</summary>
     [Parameter]
     public RollGeometry Geometry { get; set; }
+
+    /// <summary>The clip's notes laid out by pitch and start.</summary>
+    [Parameter, EditorRequired]
+    public NoteIndex Index { get; set; } = null!;
 
     /// <summary>The selected notes.</summary>
     [Parameter]
@@ -53,7 +55,7 @@ public sealed partial class RollSelection
         _scale = Geometry.PixelsPerSecond;
         _path = Selected.Count == 0
             ? string.Empty
-            : RollNotes.Rectangles(Clip.Notes.Where(note => Selected.Contains(note.Id)), Clip.Length, MinPixels / Geometry.PixelsPerSecond);
+            : RollNotes.Rectangles(Index.ByPitch.Where(note => Selected.Contains(note.Id)), Geometry, sorted: true);
     }
 
     /// <inheritdoc />

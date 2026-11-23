@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The bottom panel: tabs for the selection's tools. The mixer and the piano roll have content; every other tab says so.</summary>
+/// <summary>The bottom panel: tabs for the selection's tools. The mixer, media library and piano roll have content; the rest say so.</summary>
 public sealed partial class BottomPanel : IDisposable
 {
     /// <summary>The document.</summary>
@@ -23,7 +23,10 @@ public sealed partial class BottomPanel : IDisposable
     private BottomPanelState Panel { get; set; } = default!;
 
     private static IReadOnlyList<string> Names { get; } =
-        [BottomPanelState.Mixer, "Clip editor", BottomPanelState.PianoRoll, "Effects", "Instruments", "Stems", "Score", "Lyrics", "Voice agent"];
+        [
+            BottomPanelState.Mixer, "Media", "Clip editor", BottomPanelState.PianoRoll, "Effects", "Instruments", "Stems", "Score", "Lyrics",
+            "Voice agent",
+        ];
 
     /// <inheritdoc />
     public void Dispose()

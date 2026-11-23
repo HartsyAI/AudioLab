@@ -40,14 +40,16 @@
         <div class="board" style="grid-template-columns: var(--roll-keys) @Css.Px(Geometry.Width)">
             <div class="top"><RollRuler Document="Document" Clip="Clip" Geometry="Geometry" /></div>
             <div class="side">
-                <PianoKeys Geometry="Geometry" Reason="@Sound.Unavailable" OnPress="KeyPress" OnRelease="KeyRelease" />
+                <PianoKeys Geometry="Geometry" Reason="@Sound.Unavailable" Pitch="State.InsertPitch" OnPress="KeyPress" OnKeyDown="KeysKeyDown"
+                           OnKeyUp="KeysKeyUp" OnBlur="KeysBlur" />
             </div>
             <div class="surface" id="roll-surface" tabindex="0" role="application" aria-label="@SurfaceLabel" aria-describedby="roll-status"
                  style="width: @Css.Px(Geometry.Width); height: @Css.Px(Geometry.Height)" data-hover="@(_overEdge ? "edge" : "none")"
                  @onpointerdown="NotesPress" @onpointermove="NotesHover" @onpointerleave="NotesLeave">
                 <RollGridLayer Geometry="Geometry" Lines="_lines" />
-                <RollNotes Clip="Clip" Geometry="Geometry" ColorToken="@ColorToken" />
-                <RollSelection Clip="Clip" Geometry="Geometry" Selected="State.Selected" Version="State.Version" ColorToken="@ColorToken" />
+                <RollNotes Clip="Clip" Index="_index" Geometry="Geometry" ColorToken="@ColorToken" />
+                <RollSelection Clip="Clip" Index="_index" Geometry="Geometry" Selected="State.Selected" Version="State.Version"
+                               ColorToken="@ColorToken" />
                 <RollOverlay Geometry="Geometry" Clip="Clip" ColorToken="@ColorToken" />
             </div>
             <div class="lane-cell velocity-cell">

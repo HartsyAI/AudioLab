@@ -36,6 +36,9 @@ public enum IconName
     /// <summary>A triangle pointing forward: play.</summary>
     Play,
 
+    /// <summary>Two bars: pause.</summary>
+    Pause,
+
     /// <summary>A disc: record.</summary>
     Record,
 

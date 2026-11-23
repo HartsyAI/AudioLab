@@ -1,0 +1,61 @@
+@implements IDisposable
+
+@{
+    MediaListView view = View;
+}
+<div id="media-panel" class="media-panel" tabindex="-1">
+    <header class="media-bar">
+        <span class="media-count" role="status">@CountText</span>
+        <span class="media-hint">Drop WAV files anywhere on the page to add them.</span>
+        <Button Variant="AddVariant" OnClick="Choose">
+            <Icon Name="IconName.Plus" Size="10" />
+            <span>Add audio</span>
+        </Button>
+    </header>
+    @if (Loading && Library.Uploads.Count == 0)
+    {
+        <p class="media-note" role="status">Loading media</p>
+    }
+    else if (Library.State == LibraryState.Failed && Empty)
+    {
+        <EmptyState Heading="The media could not be loaded" Message="@Library.Failure">
+            <Button Variant="ButtonVariant.Primary" OnClick="ReloadAsync">Try again</Button>
+        </EmptyState>
+    }
+    else if (Empty)
+    {
+        <EmptyState Heading="No media yet" Message="Add a WAV file to use it in clips. You can also drop files anywhere on this page.">
+            <Button Variant="ButtonVariant.Primary" OnClick="Choose">Add audio</Button>
+        </EmptyState>
+    }
+    else
+    {
+        <ul id="media-list" class="media-list" aria-label="Media files">
+            @foreach (UploadJob job in Library.Uploads)
+            {
+                <MediaItem @key="job.Id" Job="job" Now="Now" OnCancel="CancelUpload" OnRetry="RetryUpload" />
+            }
+            @foreach (MediaSummary file in view.Visible)
+            {
+                <MediaItem @key="file.Id" File="file" Selected="file.Id == _selected" TabStop="file.Id == view.TabStopId" OnSelect="Select"
+                           OnKey="KeyAsync" OnDelete="BeginDelete" OnPointerDown="PressAsync" OnAdd="AddAsync"
+                           Blocked="Blocked" />
+            }
+            @if (view.Hidden > 0)
+            {
+                <li class="media-more">
+                    <Button OnClick="ShowMore">Show @Math.Min(MediaListView.PageSize, view.Hidden) more</Button>
+                    <span class="media-more-count">@view.Hidden not shown</span>
+                </li>
+            }
+        </ul>
+    }
+    @if (Library.Refused > 0)
+    {
+        <p class="media-note">@RefusedText</p>
+    }
+</div>
+
+<Dialog Title="Delete media file" ConfirmText="Delete file" ConfirmVariant="ButtonVariant.Danger" Open="_target is not null" OpenChanged="EndDelete"
+        ConfirmDisabled="_deleting" ConfirmDisabledReason="@(_deleting ? "Waiting for the server." : null)" Error="@_error" OnConfirm="DeleteAsync"
+        OnClosed="AfterDelete" Description="@DeleteText" />

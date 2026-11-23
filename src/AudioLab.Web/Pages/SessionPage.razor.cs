@@ -1,6 +1,7 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
+using AudioLab.Web.Media;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
@@ -57,13 +58,16 @@ public sealed partial class SessionPage
 
     [Inject]
     private ClipDragState Drags { get; set; } = default!;
-    [Inject] private BottomPanelState Panel { get; set; } = default!;
+    [Inject]
+    private BottomPanelState Panel { get; set; } = default!;
 
     [Inject]
     private RollDragState RollDrags { get; set; } = default!;
 
     [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
+    [Inject]
+    private PlaybackService Playback { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
     private StatusDot Dot => _live is { Ready: true } ? StatusDot.Go : StatusDot.Caution;
@@ -116,6 +120,7 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         live.Changed += OnLiveChanged;
+        Playback.Follow(live);
         Rebuild();
         try
         {
@@ -144,6 +149,7 @@ public sealed partial class SessionPage
         if (_live is { } live)
         {
             live.Changed -= OnLiveChanged;
+            Playback.Unfollow();
             _live = null;
             _editor = null;
             _midi = null;
@@ -208,7 +214,9 @@ public sealed partial class SessionPage
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
+                AddClip = AddClipAsync,
                 MoveClip = move => ShowAsync(_editor!.MoveClipAsync(move.Clip, move.Start, move.Track)),
+                SetMetronome = on => ShowAsync(_editor!.SetMetronomeAsync(on)),
                 Undo = () => HistoryAsync(_editor!.UndoAsync(), "undo"),
                 Redo = () => HistoryAsync(_editor!.RedoAsync(), "redo"),
             };
@@ -242,6 +250,16 @@ public sealed partial class SessionPage
         if (result.Succeeded && result.Created.Count > 0)
         {
             Selection.SelectClip(track, ClipId.From(result.Created[0]));
+        }
+    }
+
+    // A file added to the lanes is the selection afterwards, so the keyboard can carry on from it.
+    private async Task AddClipAsync(MediaPlacement placement)
+    {
+        EditResult result = await ShowAsync(_editor!.AddClipAsync(placement));
+        if (result.Succeeded && result.Created.Count > 0)
+        {
+            Selection.SelectClip(placement.Track, ClipId.From(result.Created[0]));
         }
     }
 
@@ -318,9 +336,61 @@ public sealed partial class SessionPage
     }
 
     // A key press from anywhere on the page but a text field or a dialog; true means it was a shortcut and is handled.
+    // Playing does not edit the project, so the transport keys work while the project is read-only too.
+    private bool TransportPress(KeyChord chord)
+    {
+        if (chord.Repeat && IsTransportKey(chord))
+        {
+            // A key held down is one press: the repeats are taken and do nothing.
+            return true;
+        }
+        if (Shortcuts.PlayPause.Matches(chord))
+        {
+            _ = InvokeAsync(Playback.TogglePlayAsync);
+        }
+        else if (Shortcuts.Stop.Matches(chord))
+        {
+            Playback.Stop();
+        }
+        else if (Shortcuts.ToStart.Matches(chord))
+        {
+            Playback.Seek(0);
+        }
+        else if (Shortcuts.ToEnd.Matches(chord))
+        {
+            Playback.Seek(Playback.ContentEnd);
+        }
+        else if (Shortcuts.SeekBack.Matches(chord))
+        {
+            Playback.Seek(Playback.Position - Playback.BarSeconds);
+        }
+        else if (Shortcuts.SeekForward.Matches(chord))
+        {
+            Playback.Seek(Playback.Position + Playback.BarSeconds);
+        }
+        else if (Shortcuts.ToggleLoop.Matches(chord))
+        {
+            Playback.SetLoop(!Playback.Looping);
+        }
+        else if (Shortcuts.ToggleClick.Matches(chord) && _live?.Document is { } document && _actions.CanEdit)
+        {
+            _ = InvokeAsync(() => _actions.SetMetronome(!document.Metronome));
+        }
+        else
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static bool IsTransportKey(KeyChord chord) =>
+        Shortcuts.PlayPause.Matches(chord) || Shortcuts.Stop.Matches(chord) || Shortcuts.ToStart.Matches(chord)
+        || Shortcuts.ToEnd.Matches(chord) || Shortcuts.SeekBack.Matches(chord) || Shortcuts.SeekForward.Matches(chord)
+        || Shortcuts.ToggleLoop.Matches(chord) || Shortcuts.ToggleClick.Matches(chord);
+
     private bool Press(KeyChord chord)
     {
-        if (RollKeys.Handle(chord))
+        if (RollKeys.Route(chord, TransportPress))
         {
             return true;
         }
@@ -329,9 +399,9 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Current is not null))
+        if (history && (Drags.Current is not null || RollDrags.Busy))
         {
-            // A press is down on a clip: undoing now would take back a step under the lifted clip, so history waits for the drop.
+            // A press is down on a clip or an edit of the roll is on its way: undoing now would take back a step under it, so history waits.
             return true;
         }
         if (Shortcuts.Undo.Matches(chord))
@@ -342,14 +412,14 @@ public sealed partial class SessionPage
         {
             _ = InvokeAsync(() => _actions.Redo());
         }
-        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && RollDrags.Current is null
+        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && !RollDrags.Busy
             && Selection.Track is { } target
             && _live?.Document?.Tracks.Any(candidate => candidate.Id == target && candidate.Kind == TrackKind.Instrument) == true)
         {
             _ = InvokeAsync(() => AddMidiClipAsync(target));
         }
         else if ((Shortcuts.MidiClipLonger.Matches(chord) || Shortcuts.MidiClipShorter.Matches(chord))
-            && Drags.Current is null && RollDrags.Current is null && Selection.Clip is { } open
+            && Drags.Current is null && !RollDrags.Busy && Selection.Clip is { } open
             && _live?.Document is { } document && MidiClipPlan.Find(document, open) is not null)
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;

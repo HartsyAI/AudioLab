@@ -29,6 +29,9 @@ public sealed class VelocityDrag : IRollGesture
     /// <summary>The velocity the notes would have if released now.</summary>
     public int Velocity { get; private set; }
 
+    /// <summary>How many of the notes were gone from the clip when it was released.</summary>
+    public int Lost { get; private set; }
+
     /// <summary>The notes that take it.</summary>
     public IReadOnlyList<MidiNote> Notes => _notes;
 
@@ -48,15 +51,18 @@ public sealed class VelocityDrag : IRollGesture
     }
 
     /// <inheritdoc />
-    public RollEdit? Commit()
+    public RollEdit? Commit(MidiClip current)
     {
-        if (_notes.All(note => note.Velocity == Velocity))
+        ArgumentNullException.ThrowIfNull(current);
+        HashSet<NoteId> wanted = [.. _notes.Select(note => note.Id)];
+        NoteId[] ids = [.. current.Notes.Where(note => wanted.Contains(note.Id) && note.Velocity != Velocity).Select(note => note.Id)];
+        Lost = _notes.Length - current.Notes.Count(note => wanted.Contains(note.Id));
+        if (ids.Length == 0)
         {
             return null;
         }
-        ValueList<NoteId> ids = [.. _notes.Select(note => note.Id)];
         int velocity = Velocity;
         ClipId clip = _clip;
-        return RollEdit.Of(project => new SetNoteVelocity { Project = project, Clip = clip, Notes = ids, Velocity = velocity });
+        return RollEdit.Chunked(ids, (project, part) => new SetNoteVelocity { Project = project, Clip = clip, Notes = part, Velocity = velocity });
     }
 }

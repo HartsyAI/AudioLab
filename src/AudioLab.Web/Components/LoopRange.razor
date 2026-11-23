@@ -1,0 +1,5 @@
+@if (_drawn is { } range)
+{
+    <div class="band" data-part="@Part.ToString().ToLowerInvariant()" aria-hidden="true"
+         style="left: @Css.Px(Geometry.X(range.Start)); width: @Css.Px(Geometry.Width(range.End - range.Start))"></div>
+}

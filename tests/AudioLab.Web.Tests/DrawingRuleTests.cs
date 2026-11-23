@@ -58,32 +58,6 @@ public sealed class DrawingRuleTests
         Assert.Equal(text, FaderScale.Text(gain));
     }
 
-    /// <summary>The placeholder waveform is the same for the same clip and different for another.</summary>
-    [Fact]
-    public void ThePlaceholderWaveformIsTheSameForTheSameClipAndDifferentForAnother()
-    {
-        float[] first = PlaceholderWaveform.Peaks("clp_a", 64);
-
-        Assert.Equal(first, PlaceholderWaveform.Peaks("clp_a", 64));
-        Assert.NotEqual(first, PlaceholderWaveform.Peaks("clp_b", 64));
-        Assert.All(first, peak => Assert.InRange(peak, 0.03f, 1f));
-    }
-
-    /// <summary>The path cache builds each clips path once at a given size.</summary>
-    [Fact]
-    public void ThePathCacheBuildsEachClipsPathOnceAtAGivenSize()
-    {
-        WavePathCache cache = new();
-
-        string path = cache.For("clp_a", 200);
-
-        Assert.Same(path, cache.For("clp_a", 200));
-        Assert.Equal(1, cache.Count);
-        cache.For("clp_a", 400);
-        Assert.Equal(2, cache.Count);
-        Assert.StartsWith("M0,50 L0.0,", path, StringComparison.Ordinal);
-    }
-
     /// <summary>Midi notes are lines in one path, within the clip, with the highest pitch at the top.</summary>
     [Fact]
     public void MidiNotesAreOneLineEachInOnePathWithTheHighestPitchAtTheTop()
