@@ -27,6 +27,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private const string PedalId = "roll-pedal";
 
+    private const string KeysId = "roll-keys";
+
     private const double GripPixels = 6;
 
     private const double PickPixels = 6;
@@ -35,7 +37,13 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private const string NoSelection = "Select some notes first.";
 
+    // The roll hears its keys while the focus is on the notes, a lane or the keys: the page offers them to the roll before the transport,
+    // whose Shift with an arrow is the roll's Shift with an arrow (D48).
+    private static readonly string[] _focusIds = [SurfaceId, VelocityId, PedalId, KeysId];
+
     private readonly Dictionary<string, Func<Task>> _keys;
+
+    private Func<KeyChord, bool>? _handler;
 
     private MidiClip? _built;
 
@@ -65,8 +73,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             [Shortcuts.RollEraseTool.Id] = () => UseTool(RollTool.Erase),
             [Shortcuts.RollPrevious.Id] = () => Walk("ArrowLeft", extend: false),
             [Shortcuts.RollNext.Id] = () => Walk("ArrowRight", extend: false),
-            [Shortcuts.RollAbove.Id] = () => Walk("ArrowUp", extend: false),
-            [Shortcuts.RollBelow.Id] = () => Walk("ArrowDown", extend: false),
+            [Shortcuts.RollAbove.Id] = () => OnKeys ? Pitch(1) : Walk("ArrowUp", extend: false),
+            [Shortcuts.RollBelow.Id] = () => OnKeys ? Pitch(-1) : Walk("ArrowDown", extend: false),
             [Shortcuts.RollExtendPrevious.Id] = () => Walk("ArrowLeft", extend: true),
             [Shortcuts.RollExtendNext.Id] = () => Walk("ArrowRight", extend: true),
             [Shortcuts.RollExtendAbove.Id] = () => Walk("ArrowUp", extend: true),
@@ -155,6 +163,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
     }
 
+    private bool OnKeys => View.HasFocusWithin(KeysId);
+
     private string SurfaceLabel => $"Notes of {Clip.Name}. Arrow keys select notes, Alt with an arrow moves them, Enter adds a note.";
 
     private string Status
@@ -202,8 +212,6 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             Keys.Handler = null;
         }
     }
-
-    private Func<KeyChord, bool>? _handler;
 
     /// <inheritdoc />
     protected override void OnInitialized()
@@ -293,9 +301,6 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         return [.. State.Selected.Select(id => _index.Find(id)).OfType<MidiNote>().OrderBy(note => note.Start).ThenBy(note => note.Pitch)];
     }
 
-    // The notes a command acts on: the selection, or every note when none is selected, as the piano roll of the old DAW did.
-    private List<MidiNote> SelectedOrAll() => State.Selected.Count == 0 ? [.. _index.Ordered] : SelectedNotes();
-
     private double SnapLocal(double seconds) => new GridSnap(Document).Snap(Clip.Start + seconds) - Clip.Start;
 
     // ----- pointer: notes
@@ -308,7 +313,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         }
         double seconds = Geometry.Seconds(move.ClientX - box.Left);
         double grip = GripPixels / State.PixelsPerSecond;
-        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), grip, out bool edge) is not null && edge;
+        bool over = _index.HitTest(seconds, Geometry.PitchAt(move.ClientY - box.Top), grip, out bool edge, State.Selected) is not null && edge;
         if (over != _overEdge)
         {
             _overEdge = over;
@@ -331,7 +336,7 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         double y = press.ClientY - box.Top;
         double seconds = Geometry.Seconds(x);
         _additive = press.ShiftKey || press.CtrlKey || press.MetaKey;
-        MidiNote? hit = _index.HitTest(seconds, Geometry.PitchAt(y), GripPixels / State.PixelsPerSecond, out bool edge);
+        MidiNote? hit = _index.HitTest(seconds, Geometry.PitchAt(y), GripPixels / State.PixelsPerSecond, out bool edge, State.Selected);
         if (State.Tool == RollTool.Erase)
         {
             if (Editable())
@@ -471,6 +476,8 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
             () => Drags.End(gesture));
     }
 
+    // The pointer is up: the edit is made again from the clip as the page holds it now (what another client removed is left out and said so),
+    // and the gesture keeps its preview where it landed without holding the pointer, so the next press does not wait for the answer.
     private async Task ReleaseAsync(IRollGesture gesture)
     {
         try
@@ -483,14 +490,29 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
                 }
                 return;
             }
-            // The preview stays where it landed until the revision of the edit has been drawn.
-            Drags.Moved();
-            await SendAsync(gesture.Commit());
+            RollEdit? edit = gesture.Commit(Clip);
+            if (gesture.Lost > 0)
+            {
+                Toasts.Show(ToastKind.Warning, LostText(gesture.Lost, edit is not null));
+            }
+            if (edit is null)
+            {
+                return;
+            }
+            Drags.Land(gesture);
+            await SendAsync(edit);
         }
         finally
         {
             Drags.End(gesture);
         }
+    }
+
+    private static string LostText(int lost, bool restEdited)
+    {
+        return restEdited
+            ? string.Create(CultureInfo.InvariantCulture, $"{lost} of what you dragged was removed by someone else meanwhile; the rest was edited.")
+            : "What you dragged was removed by someone else meanwhile; nothing was changed.";
     }
 
     // ----- sending
@@ -526,24 +548,25 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
 
     private bool Handle(KeyChord chord)
     {
-        if (!View.HasFocusWithin(SurfaceId))
+        if (!_focusIds.Any(View.HasFocusWithin))
         {
             return false;
         }
-        foreach (Shortcut shortcut in Shortcuts.Roll)
+        if (RollKeyPolicy.Find(chord) is not { } shortcut || !_keys.TryGetValue(shortcut.Id, out Func<Task>? run))
         {
-            if (shortcut.Matches(chord) && _keys.TryGetValue(shortcut.Id, out Func<Task>? run))
-            {
-                _ = InvokeAsync(async () =>
-                {
-                    _message = string.Empty;
-                    await run();
-                    StateHasChanged();
-                });
-                return true;
-            }
+            return false;
         }
-        return false;
+        if (RollKeyPolicy.Runs(shortcut, chord, Drags.Current is not null))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                _message = string.Empty;
+                await run();
+                StateHasChanged();
+            });
+        }
+        // The key is the roll's and is taken either way.
+        return true;
     }
 
     private Task UseTool(RollTool tool)
@@ -582,11 +605,27 @@ public sealed partial class RollEditor : IDisposable, IHandleEvent
         return Task.CompletedTask;
     }
 
-    private Task Nudge(int direction) => SendAsync(RollEdits.Nudge(Document, Clip, SelectedNotes(), direction));
+    private Task Nudge(int direction)
+    {
+        List<MidiNote> notes = SelectedNotes();
+        return notes.Count == 0 ? Message(NoSelection) : SendAsync(RollEdits.Nudge(Document, Clip, notes, direction));
+    }
 
-    private Task Stretch(int direction) => SendAsync(RollEdits.Stretch(Document, Clip, SelectedNotes(), direction));
+    private Task Stretch(int direction)
+    {
+        List<MidiNote> notes = SelectedNotes();
+        return notes.Count == 0 ? Message(NoSelection) : SendAsync(RollEdits.Stretch(Document, Clip, notes, direction));
+    }
 
-    private Task Louder(int amount) => SendAsync(RollEdits.Louder(Clip, SelectedOrAll(), amount));
+    private Task Louder(int amount) => SendAsync(RollEdits.Louder(Clip, State.Selected, amount));
+
+    // On the keys, the arrows choose the pitch of the next note typed, and the status line says which.
+    private Task Pitch(int direction)
+    {
+        State.Remember(State.InsertPitch + direction, State.InsertVelocity);
+        Reveal(Geometry.X(State.InsertTime), Geometry.RowTop(State.InsertPitch), Geometry.X(0));
+        return Message($"Next note {NoteRules.Name(State.InsertPitch)}.");
+    }
 
     private Task Transpose(int semitones)
     {

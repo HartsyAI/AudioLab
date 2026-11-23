@@ -17,7 +17,7 @@ public sealed partial class Segmented
     [Parameter]
     public string? Wide { get; set; }
 
-    /// <summary>True for the transport: every item is a raised control.</summary>
+    /// <summary>True for the transport: every item is a raised control; the transport look wins over <see cref="Words"/> when both are set.</summary>
     [Parameter]
     public bool Transport { get; set; }
 

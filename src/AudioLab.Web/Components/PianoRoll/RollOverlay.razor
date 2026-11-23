@@ -1,8 +1,8 @@
 <div class="overlay" aria-hidden="true" style="width: @Css.Px(Geometry.Width); height: @Css.Px(Geometry.Height); --clip: @ColorToken">
     <div class="insert" style="left: @Css.Px(Geometry.X(State.InsertTime))"></div>
-    @if (Drag is { Active: true } drag)
+    @foreach (NoteDrag drag in Shown)
     {
-        <svg class="ghosts" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none"
+        <svg class="ghosts" @key="drag" viewBox="0 0 @Css.Number(Geometry.Length) @RollGeometry.Pitches" preserveAspectRatio="none"
              width="@Css.Number(Geometry.Width)"
              height="@Css.Number(Geometry.Height)" style="@Carried(drag)">
             <path class="ghost" d="@Ghosts(drag)"></path>

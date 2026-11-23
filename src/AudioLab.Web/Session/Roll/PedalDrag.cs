@@ -30,6 +30,9 @@ public sealed class PedalDrag : IRollGesture
         Time = change.Time;
     }
 
+    /// <summary>Whether the event was gone from the clip when it was released: 1 then, else 0.</summary>
+    public int Lost { get; private set; }
+
     /// <summary>Where the event would be if released now, in seconds from the clip start.</summary>
     public double Time { get; private set; }
 
@@ -49,21 +52,34 @@ public sealed class PedalDrag : IRollGesture
     }
 
     /// <inheritdoc />
-    public RollEdit? Commit()
+    public RollEdit? Commit(MidiClip current)
     {
-        bool taken = _clip.ControlChanges.Any(
-            other => other.Controller == _event.Controller && other.Time != _event.Time && Math.Abs(other.Time - Time) < TimelineRules.NoMove);
-        if (!Active || Math.Abs(Time - _event.Time) < TimelineRules.NoMove || taken)
+        ArgumentNullException.ThrowIfNull(current);
+        // The event is found again by its time in the clip as it is now; gone, there is nothing to move.
+        MidiControlChange? moved = null;
+        bool taken = false;
+        foreach (MidiControlChange other in current.ControlChanges.Where(other => other.Controller == _event.Controller))
+        {
+            if (Math.Abs(other.Time - _event.Time) < TimelineRules.NoMove)
+            {
+                moved = other;
+            }
+            else if (Math.Abs(other.Time - Time) < TimelineRules.NoMove)
+            {
+                taken = true;
+            }
+        }
+        Lost = moved is null ? 1 : 0;
+        if (!Active || Math.Abs(Time - _event.Time) < TimelineRules.NoMove || taken || moved is not { } change)
         {
             return null;
         }
-        ClipId clip = _clip.Id;
-        MidiControlChange moved = _event;
+        ClipId clip = current.Id;
         double time = Time;
         return new RollEdit(project =>
         [
-            new RemoveControlChanges { Project = project, Clip = clip, Controller = moved.Controller, Time = moved.Time },
-            new AddControlChange { Project = project, Clip = clip, Controller = moved.Controller, Time = time, Value = moved.Value },
+            new RemoveControlChanges { Project = project, Clip = clip, Controller = change.Controller, Time = change.Time },
+            new AddControlChange { Project = project, Clip = clip, Controller = change.Controller, Time = time, Value = change.Value },
         ]);
     }
 }

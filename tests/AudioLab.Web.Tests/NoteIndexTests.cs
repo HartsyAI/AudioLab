@@ -10,7 +10,7 @@ public sealed class NoteIndexTests
 
     private static NoteIndex Index(params MidiNote[] notes) => NoteIndex.Of(Song.Midi("m", 0, 8, notes));
 
-    /// <summary>A point finds the note under it, the one drawn last when two overlap, and says when it is in the right-hand grip.</summary>
+    /// <summary>A point finds the note under it, the later one of the clip when two overlap, and says when it is in the right-hand grip.</summary>
     [Fact]
     public void APointFindsTheNoteUnderItTheLastDrawnOneAndItsGrip()
     {
@@ -63,5 +63,41 @@ public sealed class NoteIndexTests
         Assert.Equal([new NoteId(2)], index.InRectangle(1.9, 2.1, 62, 66));
         Assert.Equal(3, index.InRectangle(0, 8, 0, 127).Count());
         Assert.Equal([new NoteId(1)], index.InRectangle(1, 1.5, 59, 61));
+    }
+
+    /// <summary>Where notes overlap the pointer takes the one drawn on top: a selected note, then the louder, then the later of the clip.</summary>
+    [Fact]
+    public void WhereNotesOverlapThePointerTakesTheOneDrawnOnTop()
+    {
+        MidiNote early = new(new NoteId(1), 60, 1, 2, 90);
+        MidiNote later = new(new NoteId(2), 60, 1, 2, 90);
+        MidiNote loud = new(new NoteId(3), 60, 1, 2, 120);
+        MidiNote soft = new(new NoteId(4), 60, 1, 2, 20);
+
+        Assert.Equal(new NoteId(2), NoteIndex.Of(Song.Midi("m", 0, 8, early, later)).HitTest(1.5, 60, 0.1, out _)!.Value.Id);
+        Assert.Equal(new NoteId(3), NoteIndex.Of(Song.Midi("m", 0, 8, loud, later, soft)).HitTest(1.5, 60, 0.1, out _)!.Value.Id);
+        NoteIndex all = NoteIndex.Of(Song.Midi("m", 0, 8, early, loud, later, soft));
+        HashSet<NoteId> selected = [new NoteId(4)];
+        Assert.Equal(new NoteId(4), all.HitTest(1.5, 60, 0.1, out _, selected)!.Value.Id);
+        Assert.Equal(new NoteId(3), all.HitTest(1.5, 60, 0.1, out _)!.Value.Id);
+    }
+
+    /// <summary>A point and a span find notes in a row of many notes through the row's longest duration, without reading the whole row.</summary>
+    [Fact]
+    public void ARowOfManyNotesIsSearchedByStartAndLongestDuration()
+    {
+        MidiNote[] row =
+        [
+            Note(1, 60, 0, 90),
+            .. Enumerable.Range(2, 50_000).Select(id => Note(id, 60, id * 0.01, 0.005)),
+        ];
+        NoteIndex index = NoteIndex.Of(Song.Midi("m", 0, 1000, row));
+
+        Assert.Equal(new NoteId(1), index.HitTest(0.003, 60, 0.1, out _)!.Value.Id);
+        Assert.Equal(new NoteId(7), index.HitTest(0.0701, 60, 0.001, out _)!.Value.Id);
+        Assert.Equal(new NoteId(1), index.HitTest(0.0799, 60, 0.001, out _)!.Value.Id);
+        Assert.Equal(
+            [new NoteId(1), new NoteId(10), new NoteId(11)],
+            index.InSpan(60, 0.1, 0.11).Select(note => note.Id).OrderBy(id => id.Value).ToArray());
     }
 }

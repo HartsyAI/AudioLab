@@ -14,9 +14,10 @@ namespace AudioLab.Web.Components.PianoRoll;
 public sealed partial class RollNotes
 {
     /// <summary>How many steps of velocity are drawn as brightness.</summary>
-    public const int Levels = 8;
+    public const int Levels = VelocityLevels.Count;
 
-    private const double MinPixels = 2;
+    /// <summary>The narrowest a note is drawn, in pixels.</summary>
+    public const double MinPixels = 2;
 
     private const double Inset = 0.06;
 
@@ -41,18 +42,21 @@ public sealed partial class RollNotes
     public string ColorToken { get; set; } = string.Empty;
 
     /// <summary>The step of brightness a velocity falls in, 0 for the softest to <see cref="Levels"/> less one.</summary>
-    public static int Level(int velocity) => Math.Clamp((velocity - 1) * Levels / 127, 0, Levels - 1);
+    public static int Level(int velocity) => VelocityLevels.Of(velocity);
 
-    /// <summary>The path data of rectangles for notes: one rectangle each, as wide as the note or at least <paramref name="leastSeconds"/>.</summary>
-    public static string Rectangles(IEnumerable<MidiNote> notes, double clipLength, double leastSeconds)
+    /// <summary>The path data of rectangles for notes: runs that touch at the scale of the pixel are one rectangle, so the path is bounded.</summary>
+    /// <remarks>A note is at least <see cref="MinPixels"/> wide. Notes of one pitch that touch or overlap at that resolution are one run.</remarks>
+    public static string Rectangles(IEnumerable<MidiNote> notes, double clipLength, double pixelsPerSecond)
     {
         ArgumentNullException.ThrowIfNull(notes);
-        StringBuilder path = new();
-        foreach (MidiNote note in notes)
-        {
-            Append(path, note, clipLength, leastSeconds);
-        }
-        return path.ToString();
+        return Runs(notes, clipLength, pixelsPerSecond, 1, _ => 0)[0].ToString();
+    }
+
+    /// <summary>The notes of a clip as one path for each step of velocity, in runs as <see cref="Rectangles"/> makes them.</summary>
+    public static string[] ByLevel(IEnumerable<MidiNote> notes, double clipLength, double pixelsPerSecond)
+    {
+        ArgumentNullException.ThrowIfNull(notes);
+        return [.. Runs(notes, clipLength, pixelsPerSecond, Levels, note => Level(note.Velocity)).Select(path => path.ToString())];
     }
 
     /// <inheritdoc />
@@ -66,22 +70,62 @@ public sealed partial class RollNotes
         _rebuilt = true;
         _built = Clip;
         _scale = Geometry.PixelsPerSecond;
-        StringBuilder[] levels = [.. Enumerable.Range(0, Levels).Select(_ => new StringBuilder())];
-        double least = MinPixels / Geometry.PixelsPerSecond;
-        foreach (MidiNote note in Clip.Notes)
-        {
-            Append(levels[Level(note.Velocity)], note, Clip.Length, least);
-        }
-        _levels = [.. levels.Select(builder => builder.ToString())];
+        _levels = ByLevel(Clip.Notes, Clip.Length, Geometry.PixelsPerSecond);
     }
 
     /// <inheritdoc />
     protected override bool ShouldRender() => _rebuilt;
 
-    private static void Append(StringBuilder path, MidiNote note, double clipLength, double leastSeconds)
+    // Notes of one pitch in order of start, each pixel-snapped; a note that starts inside the run before it of the same level extends the run.
+    private static StringBuilder[] Runs(
+        IEnumerable<MidiNote> notes,
+        double clipLength,
+        double pixelsPerSecond,
+        int levels,
+        Func<MidiNote, int> levelOf)
     {
-        double width = Math.Max(leastSeconds, Math.Min(note.Duration, clipLength - note.Start));
-        path.Append('M').Append(Format(note.Start)).Append(' ').Append(Format(RollGeometry.Pitches - 1 - note.Pitch + Inset))
+        StringBuilder[] paths = [.. Enumerable.Range(0, levels).Select(_ => new StringBuilder())];
+        (double From, double To)?[] open = new (double, double)?[levels];
+        int row = -1;
+        foreach (MidiNote note in notes.OrderBy(note => note.Pitch).ThenBy(note => note.Start))
+        {
+            if (note.Pitch != row)
+            {
+                Flush(paths, open, row, pixelsPerSecond);
+                row = note.Pitch;
+            }
+            int level = levelOf(note);
+            double from = Math.Floor(note.Start * pixelsPerSecond);
+            double to = Math.Max(from + MinPixels, Math.Ceiling(Math.Min(note.Start + note.Duration, clipLength) * pixelsPerSecond));
+            if (open[level] is { } run && from <= run.To)
+            {
+                open[level] = (run.From, Math.Max(run.To, to));
+                continue;
+            }
+            Flush(paths[level], open, level, row, pixelsPerSecond);
+            open[level] = (from, to);
+        }
+        Flush(paths, open, row, pixelsPerSecond);
+        return paths;
+    }
+
+    private static void Flush(StringBuilder[] paths, (double From, double To)?[] open, int row, double pixelsPerSecond)
+    {
+        for (int level = 0; level < open.Length; level++)
+        {
+            Flush(paths[level], open, level, row, pixelsPerSecond);
+        }
+    }
+
+    private static void Flush(StringBuilder path, (double From, double To)?[] open, int level, int row, double pixelsPerSecond)
+    {
+        if (open[level] is not { } run)
+        {
+            return;
+        }
+        open[level] = null;
+        double width = (run.To - run.From) / pixelsPerSecond;
+        path.Append('M').Append(Format(run.From / pixelsPerSecond)).Append(' ').Append(Format(RollGeometry.Pitches - 1 - row + Inset))
             .Append('h').Append(Format(width)).Append('v').Append(Format(1 - (2 * Inset))).Append('h').Append('-').Append(Format(width)).Append('z');
     }
 

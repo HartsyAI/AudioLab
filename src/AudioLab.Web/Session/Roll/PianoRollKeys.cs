@@ -10,4 +10,15 @@ public sealed class PianoRollKeys
 
     /// <summary>Offers a key chord to the roll.</summary>
     public bool Handle(KeyChord chord) => Handler?.Invoke(chord) ?? false;
+
+    /// <summary>Offers a key chord to the roll first and to the page's other keys, the transport's, only when the roll did not take it.</summary>
+    /// <remarks>
+    /// The order matters: the roll's Shift with an arrow and the transport's bar seek are the same chord, and the roll has it while its focus is in
+    /// the roll.
+    /// </remarks>
+    public bool Route(KeyChord chord, Func<KeyChord, bool> page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return Handle(chord) || page(chord);
+    }
 }

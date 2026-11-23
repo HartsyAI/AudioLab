@@ -1,8 +1,8 @@
 using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
-using Microsoft.AspNetCore.SignalR;
 using AudioLab.Web.Session;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Web.Services;
 
@@ -78,6 +78,8 @@ public sealed class MidiEditor(LiveProject live)
         return EditResult.Applied(changed, created);
     }
 
+    private const string Undoable = "Undo takes the applied ones back as one step if no one else has edited meanwhile.";
+
     /// <summary>What a refusal in the middle of a gesture says: the reason, and how much of the edit was applied.</summary>
     public static string Partial(string? reason, int applied, int total)
     {
@@ -86,7 +88,7 @@ public sealed class MidiEditor(LiveProject live)
             ? why
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $"{why} {applied} of {total} commands of this edit were applied and the rest were not; Undo takes the applied ones back as one step if no one else has edited meanwhile.");
+                $"{why} {applied} of {total} commands of this edit were applied and the rest were not; {Undoable}");
     }
 
     private async Task EndAsync(string gesture)

@@ -106,7 +106,7 @@ public sealed class MidiEditorTests
         Assert.Equal(2, _hub.Sent.Count);
     }
 
-    /// <summary>A command refused after another was applied is not rolled back: the result says how many were applied, and nothing is undone.</summary>
+    /// <summary>A command refused after another was applied is not rolled back: the result says how many were applied; nothing is undone.</summary>
     [Fact]
     public async Task ACommandRefusedAfterAnotherWasAppliedIsReportedAndNothingIsUndone()
     {

@@ -197,6 +197,7 @@ public static class Shortcuts
         RollOctaveUp, RollOctaveDown, RollLonger, RollShorter, RollLouder, RollSofter, RollInsertEarlier, RollInsertLater, RollAddNote,
         RollDelete, RollDeleteAlternate, RollCopy, RollCut, RollPaste, RollDuplicate, RollQuantize, RollPedal, RollZoomIn, RollZoomOut,
     ];
+
     /// <summary>Every shortcut, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> All =
     [

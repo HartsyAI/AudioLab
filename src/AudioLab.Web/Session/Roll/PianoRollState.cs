@@ -7,15 +7,18 @@ namespace AudioLab.Web.Session.Roll;
 /// <remarks>A view state, like <see cref="SessionSelection"/>: never in the project, never sent. It follows one clip.</remarks>
 public sealed class PianoRollState
 {
-    private readonly HashSet<NoteId> _selected = [];
-
-    private ClipId? _clip;
+    /// <summary>The controller number of the sustain pedal.</summary>
+    public const int PedalController = 64;
 
     /// <summary>The velocity a note that is drawn or typed takes when no other is asked for.</summary>
     public const int DefaultVelocity = 100;
 
     /// <summary>The pitch a note typed from the keyboard starts at, middle C.</summary>
     public const int DefaultPitch = 60;
+
+    private readonly HashSet<NoteId> _selected = [];
+
+    private ClipId? _clip;
 
     /// <summary>Raised when anything here changed.</summary>
     public event Action? Changed;
@@ -95,9 +98,6 @@ public sealed class PianoRollState
         }
     }
 
-    /// <summary>The controller number of the sustain pedal.</summary>
-    public const int PedalController = 64;
-
     /// <summary>Chooses a tool.</summary>
     public void UseTool(RollTool tool)
     {
@@ -161,6 +161,7 @@ public sealed class PianoRollState
         {
             _selected.Add(note.Id);
         }
+        SelectedPedal = null;
         Version++;
         Changed?.Invoke();
     }

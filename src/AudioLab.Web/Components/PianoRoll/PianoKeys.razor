@@ -1,6 +1,8 @@
-<div class="keys" id="roll-keys" aria-hidden="true" style="height: @Css.Px(Geometry.Height)">
+<div class="keys" id="roll-keys" tabindex="0" role="group" aria-label="Piano keys. Up and Down choose the pitch of the next note."
+     style="height: @Css.Px(Geometry.Height)">
     @for (int pitch = RollGeometry.Pitches - 1; pitch >= 0; pitch--)
     {
-        <div class="key" data-black="@(RollGrid.IsBlack(pitch) ? "true" : "false")" style="height: @Css.Px(Geometry.RowHeight)">@Label(pitch)</div>
+        <div class="key" aria-hidden="true" data-black="@(RollGrid.IsBlack(pitch) ? "true" : "false")"
+             style="height: @Css.Px(Geometry.RowHeight)">@Label(pitch)</div>
     }
 </div>

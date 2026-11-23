@@ -9,7 +9,10 @@ namespace AudioLab.Web.Session.Roll;
 /// <remarks>Bars, beats and grid steps come from the project's tempo map, the same lines the arrangement draws and a drag snaps to.</remarks>
 public static class RollGrid
 {
-    private const int LineLimit = 4000;
+    /// <summary>The most lines of one kind that are drawn.</summary>
+    public const int LineLimit = 4000;
+
+    private const double MinBarPixels = 6;
 
     private const double MinStepPixels = 6;
 
@@ -17,7 +20,11 @@ public static class RollGrid
 
     private static readonly bool[] _black = [false, true, false, true, false, false, true, false, true, false, true, false];
 
-    /// <summary>The vertical lines of the clip at a scale: grid steps (when they are far enough apart to read), beats and bars.</summary>
+    /// <summary>The vertical lines of the clip at a scale: grid steps and beats (when they are far enough apart to read) and bars.</summary>
+    /// <remarks>
+    /// A kind of line that would be more than <see cref="LineLimit"/> is left out, and bar lines then skip bars so they stay far enough apart,
+    /// so a long clip is drawn to its end with a bounded path.
+    /// </remarks>
     public static RollLines Lines(ProjectDocument document, MidiClip clip, double pixelsPerSecond)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -28,33 +35,38 @@ public static class RollGrid
         double to = clip.Start + clip.Length;
         double beatsPerBar = MeterRules.BeatsPerBar(document.TimeSignature);
         double startBeat = tempo.BeatsAt(from);
+        double beatSeconds = 60 / tempo.BpmAt(from);
         StringBuilder steps = new();
         StringBuilder beats = new();
         StringBuilder bars = new();
-        if (snap.Step(from) * pixelsPerSecond >= MinStepPixels)
+        double step = snap.Step(from);
+        if (step * pixelsPerSecond >= MinStepPixels && clip.Length / step <= LineLimit)
         {
             foreach (double time in snap.Lines(from, to, LineLimit))
             {
                 Vertical(steps, time - from);
             }
         }
-        bool drawBeats = 60 / tempo.BpmAt(from) * pixelsPerSecond >= MinBeatPixels;
-        int count = 0;
-        for (double beat = Math.Ceiling(startBeat - 1e-9); count < LineLimit; beat++, count++)
+        bool drawBeats = beatSeconds * pixelsPerSecond >= MinBeatPixels && clip.Length / beatSeconds <= LineLimit;
+        double firstBar = Math.Ceiling((startBeat / beatsPerBar) - 1e-9);
+        double lastBar = Math.Floor((tempo.BeatsAt(to) / beatsPerBar) + 1e-9);
+        double stride = Math.Max(1, Math.Ceiling(MinBarPixels / (beatsPerBar * beatSeconds * pixelsPerSecond)));
+        stride = Math.Max(stride, Math.Ceiling((lastBar - firstBar + 1) / LineLimit));
+        int drawn = 0;
+        for (double bar = firstBar; bar <= lastBar && drawn++ < LineLimit; bar += stride)
         {
-            double time = tempo.TimeAtBeat(beat);
-            if (time > to + 1e-9)
+            Vertical(bars, tempo.TimeAtBeat(bar * beatsPerBar) - from);
+        }
+        if (drawBeats)
+        {
+            drawn = 0;
+            for (double beat = Math.Ceiling(startBeat - 1e-9); tempo.TimeAtBeat(beat) <= to + 1e-9 && drawn++ < LineLimit; beat++)
             {
-                break;
-            }
-            bool bar = Math.Abs((beat / beatsPerBar) - Math.Round(beat / beatsPerBar)) < 1e-9;
-            if (bar)
-            {
-                Vertical(bars, time - from);
-            }
-            else if (drawBeats)
-            {
-                Vertical(beats, time - from);
+                double bar = beat / beatsPerBar;
+                if (Math.Abs(bar - Math.Round(bar)) >= 1e-9)
+                {
+                    Vertical(beats, tempo.TimeAtBeat(beat) - from);
+                }
             }
         }
         return new RollLines(steps.ToString(), beats.ToString(), bars.ToString());
