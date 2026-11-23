@@ -26,6 +26,8 @@ public sealed partial class MediaPanel : IDisposable
 
     private string? _error;
 
+    private bool _adding;
+
     private CancellationTokenSource? _request;
 
     /// <summary>The document, which the lanes a file is dragged onto are laid out from.</summary>
@@ -90,6 +92,7 @@ public sealed partial class MediaPanel : IDisposable
     public void Dispose()
     {
         Library.Changed -= OnChanged;
+        Dragger.Cancel();
         _tick?.Dispose();
         _request?.Cancel();
         _panel.Cancel();
@@ -149,7 +152,25 @@ public sealed partial class MediaPanel : IDisposable
     }
 
     // The keyboard path to the same edit: the selected audio track, at the playhead or after the selected clip.
-    private Task AddAtInsertionPointAsync(MediaSummary file)
+    private async Task AddAtInsertionPointAsync(MediaSummary file)
+    {
+        // A key held down, or a second Enter while the first is on its way, would stack a clip on the first.
+        if (_adding)
+        {
+            return;
+        }
+        _adding = true;
+        try
+        {
+            await AddAsync(file);
+        }
+        finally
+        {
+            _adding = false;
+        }
+    }
+
+    private Task AddAsync(MediaSummary file)
     {
         if (!Actions.CanEdit)
         {
@@ -169,7 +190,7 @@ public sealed partial class MediaPanel : IDisposable
     {
         if (Shortcuts.AddMedia.Matches(press.Key))
         {
-            return AddAtInsertionPointAsync(press.File);
+            return press.Key.Repeat ? Task.CompletedTask : AddAtInsertionPointAsync(press.File);
         }
         if (Shortcuts.DeleteMedia.Matches(press.Key))
         {

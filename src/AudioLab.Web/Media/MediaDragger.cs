@@ -39,6 +39,16 @@ public sealed class MediaDragger(IPointerTracker pointer, IElementMetrics metric
             () => state.End(drag));
     }
 
+    /// <summary>Lets go of a drag in progress without adding anything, for a panel that goes while a file is lifted.</summary>
+    public void Cancel()
+    {
+        if (state.Current is { } drag)
+        {
+            pointer.Stop();
+            state.End(drag);
+        }
+    }
+
     private (double Left, double Top)? LanesAt(double x, double y) => metrics.IsOver(LaneSurfaceId, x, y) ? metrics.Origin(LaneSurfaceId) : null;
 
     private async Task ReleaseAsync(MediaDrag drag, Func<MediaPlacement, Task> add)
