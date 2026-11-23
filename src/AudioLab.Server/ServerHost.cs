@@ -4,6 +4,8 @@ using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
+using AudioLab.Server.Mcp;
+using AudioLab.Server.Media;
 using AudioLab.Server.Realtime;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
@@ -84,7 +86,7 @@ public static class ServerHost
         services.AddSingleton<AtomicFile>();
         services.AddSingleton<StoreRoot>();
         services.AddSingleton<ProjectStore>();
-        services.AddSingleton<MediaStore>();
+        services.AddMedia(options.Media);
         services.AddSingleton(_ => ServerCommands.Create());
         services.AddSingleton<OpenProjects>();
         services.AddHostedService(provider => provider.GetRequiredService<OpenProjects>());
@@ -99,8 +101,13 @@ public static class ServerHost
             hub.MaximumParallelInvocationsPerClient = 1;
             hub.EnableDetailedErrors = false;
         }).AddJsonProtocol(json => json.PayloadSerializerOptions.TypeInfoResolver = HubJsonContext.Default);
+        services.AddAudioLabMcp();
         services.AddProblemDetails();
-        services.ConfigureHttpJsonOptions(json => json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default));
+        services.ConfigureHttpJsonOptions(json =>
+        {
+            json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(1, MediaJsonContext.Default);
+        });
     }
 
     private static void MapPipeline(WebApplication app, AudioLabOptions options)
@@ -116,6 +123,8 @@ public static class ServerHost
         RouteGroupBuilder api = app.MapGroup("/api").WithMetadata(new DoorRequired());
         SessionRoutes.Map(api);
         ProjectRoutes.Map(api);
+        McpEndpoints.Map(api, options);
+        MediaRoutes.Map(api);
         app.MapHub<ProjectHub>("/api/hub", connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());
     }
 }

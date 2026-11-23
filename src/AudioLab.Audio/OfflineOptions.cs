@@ -1,3 +1,5 @@
+using AudioLab.Core.Model;
+
 namespace AudioLab.Audio;
 
 /// <summary>What an offline render covers and how it is cut into blocks.</summary>
@@ -20,6 +22,12 @@ public sealed record OfflineOptions
 
     /// <summary>Builds the sources of instrument tracks; without it those tracks are silent.</summary>
     public ITrackSourceFactory? Sources { get; init; }
+
+    /// <summary>Renders the stem of this track instead of the mix; see <see cref="PlanOptions.StemOf"/>.</summary>
+    public TrackId? StemOf { get; init; }
+
+    /// <summary>Overrides how many frames the render runs on past its end, so that several renders can be the same length.</summary>
+    public long? TailFrames { get; init; }
 
     /// <summary>Keeps decoded and resampled media between renders; its rate must be <see cref="SampleRate"/>.</summary>
     public MediaCache? Cache { get; init; }

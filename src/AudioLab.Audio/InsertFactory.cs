@@ -1,11 +1,31 @@
 using AudioLab.Core.Model;
-using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio;
 
 /// <summary>Builds the insert that runs an effect of the project.</summary>
 internal static class InsertFactory
 {
+    /// <summary>An insert that only reports the tail and latency of an effect, or null when the effect is bypassed; it makes no sound.</summary>
+    public static IInsert? CreateTailOnly(Effect effect, InsertContext context)
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+        ArgumentNullException.ThrowIfNull(context);
+        if (!effect.Enabled)
+        {
+            return null;
+        }
+        return effect switch
+        {
+            ReverbEffect reverb => new TailOnlyInsert(ReverbInsert.TailFor(reverb, context.SampleRate), 0, false),
+            DelayEffect delay => new TailOnlyInsert(
+                DelayInsert.TailFor(delay, context),
+                0,
+                DelayInsert.UncutTailFor(delay, context) > DelayInsert.MaxTailSeconds),
+            SaturationEffect => new TailOnlyInsert((double)SaturationInsert.Latency / context.SampleRate, SaturationInsert.Latency, false),
+            _ => new TailOnlyInsert(0, 0, false),
+        };
+    }
+
     /// <summary>The insert for an effect, or null when the effect is bypassed.</summary>
     public static IInsert? Create(Effect effect, InsertContext context)
     {
@@ -15,7 +35,14 @@ internal static class InsertFactory
         {
             return null;
         }
-        // Refused, not skipped: a render that left out an enabled effect would be silently wrong.
-        throw new NotSupportedException($"The {EffectRules.KindOf(effect)} effect is not rendered yet.");
+        return effect switch
+        {
+            EqEffect eq => new EqInsert(eq, context.SampleRate),
+            CompressorEffect compressor => new CompressorInsert(compressor, context.SampleRate),
+            ReverbEffect reverb => new ReverbInsert(reverb, context.SampleRate),
+            DelayEffect delay => new DelayInsert(delay, context),
+            SaturationEffect saturation => new SaturationInsert(saturation, context.SampleRate),
+            _ => throw new NotSupportedException($"The effect {effect.GetType().Name} has no insert."),
+        };
     }
 }

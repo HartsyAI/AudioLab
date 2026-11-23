@@ -1,6 +1,7 @@
 using System.Text;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Server.Store;
 
@@ -21,6 +22,7 @@ public sealed class ProjectSession
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly CommandRegistry _registry;
+    private readonly IMediaCatalog _media;
     private readonly ReplayableIds _ids;
     private readonly object _state = new();
     private readonly SemaphoreSlim _writes = new(1, 1);
@@ -42,11 +44,13 @@ public sealed class ProjectSession
         StoreOptions options,
         TimeProvider time,
         CommandRegistry registry,
+        IMediaCatalog media,
         IIdService ids,
         ILogger logger)
     {
         _store = store;
         _registry = registry;
+        _media = media;
         _ids = new ReplayableIds(ids);
         _options = options;
         _time = time;
@@ -113,7 +117,10 @@ public sealed class ProjectSession
     }
 
     /// <summary>Replaces the document with the result of <paramref name="change"/>, which runs under the session's lock and must be quick and free of side effects.</summary>
-    /// <remarks>A direct change is not a command, so it drops the undo history: the next command starts a new one.</remarks>
+    /// <remarks>
+    /// A direct change is not a command, so it drops the undo history: the next command starts a new one, and it is not checked
+    /// against the media catalog. It is for the server's own use and tests, never for a document a client sent.
+    /// </remarks>
     /// <returns>The new snapshot, or the current one when the change leaves the document equal to what it was.</returns>
     /// <exception cref="SessionClosedException">The session is closed.</exception>
     /// <exception cref="ProjectFormatException">The result breaks a rule of <see cref="ProjectValidator"/>; the document is left as it was.</exception>
@@ -143,6 +150,17 @@ public sealed class ProjectSession
             }
             _history = null;
             return Commit(next);
+        }
+    }
+
+    /// <summary>Whether the current document or any step of its undo and redo history plays <paramref name="media"/>.</summary>
+    /// <remarks>Taken under the session's lock, so a command that is applying has finished before the answer is made.</remarks>
+    public bool ReferencesMedia(MediaId media)
+    {
+        lock (_state)
+        {
+            IEnumerable<ProjectDocument> held = _history?.HeldDocuments() ?? [_snapshot.Document];
+            return held.Any(document => ProjectContent.ReferencedMedia(document).Contains(media));
         }
     }
 
@@ -176,6 +194,12 @@ public sealed class ProjectSession
             ProjectDocument? previewed = null;
             if (preview.Document is { } document && document != history.Current)
             {
+                // Before anything is applied or any gesture opened: the one place every command that names media is checked (D37).
+                if (MediaRules.VerifyChange(history.Current, document, _media) is { } mediaRefusal)
+                {
+                    CommandResult refused = CommandResult.Refuse(mediaRefusal.Code, mediaRefusal.Message);
+                    return new EditOutcome(refused, _snapshot, false, null);
+                }
                 json = ProjectJson.Write(document);
                 previewed = document;
                 if (Encoding.UTF8.GetByteCount(json) > _options.MaxFileBytes)
@@ -219,6 +243,17 @@ public sealed class ProjectSession
             RequireOpenLocked();
             CommandHistory history = History();
             return history.Redo() is null ? null : Outcome(null, history);
+        }
+    }
+
+    /// <summary>What undo and redo hold now; nothing for a project that no command has changed since it was opened.</summary>
+    public HistoryState HistoryState()
+    {
+        lock (_state)
+        {
+            return _history is { } history
+                ? new HistoryState(_snapshot.Revision, history.UndoCount, history.RedoCount, history.UndoLabel, history.RedoLabel)
+                : new HistoryState(_snapshot.Revision, 0, 0, null, null);
         }
     }
 
