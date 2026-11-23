@@ -1,4 +1,5 @@
 using System.Buffers;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
@@ -13,7 +14,7 @@ public static class PeakComputer
     /// <param name="stream">A seekable stream of the whole file, which <paramref name="format"/> was read from.</param>
     /// <param name="format">The header the file was accepted with.</param>
     /// <param name="cancellationToken">Cancels the scan.</param>
-    public static async Task<PeakData> ComputeAsync(Stream stream, WavFormat format, CancellationToken cancellationToken)
+    public static async Task<PeakData> ComputeAsync(Stream stream, WavHeader format, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(stream);
         PeakBuilder builder = new(format.Channels, format.SampleRate);
