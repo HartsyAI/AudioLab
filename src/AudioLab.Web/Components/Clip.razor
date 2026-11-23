@@ -1,5 +1,5 @@
 <div id="@ElementId" class="clip" role="button" tabindex="@(TabStop ? 0 : -1)" aria-pressed="@(Selected ? "true" : "false")"
-     aria-label="@Description" data-kind="@(Midi is null ? "audio" : "midi")" data-selected="@(Selected ? "true" : "false")"
+     aria-label="@Description" title="@Hint" data-kind="@(Midi is null ? "audio" : "midi")" data-selected="@(Selected ? "true" : "false")"
      data-dimmed="@(Dimmed ? "true" : "false")" style="@PlaceStyle" @onclick="SelectAsync" @onclick:stopPropagation="true" @onkeydown="KeyAsync">
     <div class="head">@Name</div>
     <div class="body">

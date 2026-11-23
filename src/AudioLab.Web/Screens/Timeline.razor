@@ -1,5 +1,5 @@
 <div id="timeline" class="timeline" role="region" aria-label="Arrangement">
-    <div class="grid" style="grid-template-columns: var(--header-column) @(LaneWidth)px; --rows: @Kinds.Count">
+    <div class="grid" style="grid-template-columns: var(--header-column) @Css.Px(LaneWidth); --rows: @Kinds.Count">
         <div class="corner">
             <span class="caption">TRACKS</span>
             <Button Name="Add track" Disabled="@(!CanEdit)" DisabledReason="@AddTrackReason" OnClick="AddTrack">

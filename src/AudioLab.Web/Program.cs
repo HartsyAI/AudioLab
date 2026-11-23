@@ -1,3 +1,4 @@
+using System.Globalization;
 using AudioLab.Core.Commands;
 using AudioLab.Core.Realtime;
 using AudioLab.Web;
@@ -8,6 +9,12 @@ using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
+// The browser hands the runtime the user's language, and a number written in German reads 6,5, which a style attribute drops. Everything
+// the page writes for a machine (a length, a path) is written with the invariant culture, and so, here, is everything else the app formats.
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");

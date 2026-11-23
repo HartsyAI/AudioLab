@@ -1,5 +1,5 @@
 <div class="strip" data-master="@(Master ? "true" : "false")" data-selected="@(Selected ? "true" : "false")" role="group"
-     aria-label="@($"Channel {Name}")" style="width: @(Width)rem">
+     aria-label="@($"Channel {Name}")" style="width: @Css.Rem(Width)">
     <div class="head">
         <span class="dot" style="background: @ColorToken"></span>
         <span class="name">@Name</span>

@@ -1,5 +1,5 @@
-<div class="surface" style="width: @(Width)px; height: @(Layout.Total)px">
-    <svg class="grid" width="@Width" height="@Layout.Total" aria-hidden="true">
+<div class="surface" style="width: @Css.Px(Width); height: @Css.Px(Layout.Total)">
+    <svg class="grid" width="@Css.Number(Width)" height="@Css.Number(Layout.Total)" aria-hidden="true">
         <path class="weak" d="@WeakPath"></path>
         <path class="strong" d="@StrongPath"></path>
     </svg>
@@ -7,7 +7,7 @@
     {
         Track track = Document.Tracks[index];
         <div @key="track.Id" class="lane" data-selected="@(track.Id == SelectedTrack ? "true" : "false")"
-             style="top: @(Layout.Tops[index])px; height: @(Layout.Heights[index])px" @onclick="() => OnSelectTrack.InvokeAsync(track.Id)">
+             style="top: @Css.Px(Layout.Tops[index]); height: @Css.Px(Layout.Heights[index])" @onclick="() => OnSelectTrack.InvokeAsync(track.Id)">
             @foreach (AudioClip clip in track.Clips)
             {
                 <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"

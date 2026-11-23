@@ -1,4 +1,4 @@
-<div class="header" data-selected="@(Selected ? "true" : "false")" style="height: @(Height)px" @onclick="SelectAsync">
+<div class="header" data-selected="@(Selected ? "true" : "false")" style="height: @Css.Px(Height)" @onclick="SelectAsync">
     <div class="strip" style="background: @ColorToken"></div>
     <div class="number">@Number</div>
     <div class="main">
