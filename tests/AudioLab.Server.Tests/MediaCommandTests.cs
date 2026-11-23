@@ -14,7 +14,7 @@ public sealed partial class MediaCommandTests
 {
     // Every command that names a media file, each with its own tests below. A command that is added and names one fails
     // CommandsThatNameMediaAreAllCoveredHere until it has a test here and a place in this list.
-    private static readonly string[] _covered = ["beat_lane_add", "beat_lane_set_media", "clip_add", "instrument_set_sample"];
+    private static readonly string[] _covered = ["beat_lane_add", "beat_lane_set_media", "clip_add", "clip_replace_media", "instrument_set_sample"];
 
     private static readonly CancellationToken _none = CancellationToken.None;
 
@@ -82,6 +82,26 @@ public sealed partial class MediaCommandTests
         Assert.Equal(within.Created.Single(), clip.Id.Value);
         Assert.Equal(own.Duration + 0.00002, clip.Duration);
         Assert.Equal(own.Id, clip.Media);
+    }
+
+    [Fact]
+    public async Task ClipReplaceMediaIsRefusedForMissingAndForeignMediaAndForAWrongDurationBeforeItApplies()
+    {
+        using TempFolder folder = new();
+        (TestStore store, ProjectId project, MediaRecord own, MediaRecord foreign) = await StartAsync(folder);
+        await using TestStore scope = store;
+        MediaRecord other = await store.UploadAsync(Users.Alice, Wav(), "other.wav");
+        string clip = await AddClipAsync(store, Users.Alice, project, own);
+        string Replace(string media, double duration) => $"\"clip\":\"{clip}\",\"media\":\"{media}\",\"duration\":{Seconds(duration)}";
+
+        CommandError missing = await RefusedAsync(store, project, "clip_replace_media", Replace("med_nothing", 0.5), CommandErrorCode.NotFound);
+        CommandError theirs = await RefusedAsync(store, project, "clip_replace_media", Replace(foreign.Id.Value, foreign.Duration), CommandErrorCode.NotFound);
+        Assert.Equal(missing, theirs);
+        await RefusedAsync(store, project, "clip_replace_media", Replace(other.Id.Value, other.Duration + 0.002), CommandErrorCode.Rejected);
+
+        await OkAsync(store, project, "clip_replace_media", Replace(other.Id.Value, other.Duration));
+        AudioClip replaced = (await DocumentAsync(store, project)).Tracks.Single().Clips.Single();
+        Assert.Equal(other.Id, replaced.Media);
     }
 
     [Fact]
