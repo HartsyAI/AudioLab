@@ -29,17 +29,22 @@ Nothing is written to disk on the server.
 
 ## Refusals
 
-A refusal is sent before the first byte, as `application/problem+json` with a `reason`:
+A refusal is sent before the first byte, as `application/problem+json` with a `reason` (except where the table has none).
+`details`, when there is something to list, is always an array of sentences, each naming what it is about (a clip and the
+media id it plays, a track id); it is absent otherwise.
 
 | Status | `reason` | When |
 |--------|----------|------|
-| 400 | `bad_options` | A member is outside the table above, a track is not in the project or is named twice. |
+| 400 | `bad_options` | A body that is not a valid export request (unlisted member, wrong type), a member out of range, an unknown or repeated track. |
 | 404 | | The project is not the user's or does not exist (the same answer). |
-| 422 | `missing_media` | A clip, drum lane or sampler names a file that is missing, of another length or not the user's; `details` lists ids. |
-| 422 | `too_large` | Over `MaxSeconds` of audio in a file, over `MaxBytes` or the 4 GiB a file holds, or a media file too large to decode. |
+| 409 | | The project was closed as the export began, or a media file it plays is being deleted (retry). |
+| 415 | | The body is not `application/json`. |
+| 422 | `missing_media` | A clip, drum lane or sampler names a file that is missing, of another length or not the user's; `details` says which. |
+| 422 | `too_large` | Over `MaxSeconds` (judged first, from the project, before any file is read), over `MaxBytes` or 4 GiB, or media too large to decode. |
 | 422 | `empty` | Nothing sounds in the range, or there is no track to make a stem of. |
 | 422 | `timed_out` | The export took longer than `MaxTime` before its first byte. |
 | 429 | `busy` | As many exports are running as the user or the server allows; `Retry-After` says when to retry. Nothing is queued. |
+| 503, 507 | | The project store or the user's media cannot be read, or the disk is full (no path is in the body). |
 
 ## When an export stops after its first byte
 
