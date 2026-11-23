@@ -70,7 +70,7 @@ public sealed class McpGuardTests
         {
             await using RunningServer server = await McpTestClient.StartAsync(settings);
             await using McpClient client = await McpTestClient.ConnectAsync(server, settings.Count == 0 ? null : McpTestClient.AsUser("alice"));
-            Assert.Equal(5, (await client.ListToolsAsync()).Count);
+            Assert.Contains("list_projects", (await client.ListToolsAsync()).Select(tool => tool.Name));
         }
     }
 

@@ -19,6 +19,7 @@ public static class McpEndpoints
         ArgumentNullException.ThrowIfNull(services);
         services.AddHttpContextAccessor();
         services.AddSingleton(provider => new McpCallLimiter(provider.GetRequiredService<AudioLabOptions>().Mcp.MaxConcurrentCallsPerUser));
+        services.AddSingleton<McpClientIds>();
         services.AddSingleton<McpToolCatalog>();
         services.AddSingleton<McpToolService>();
         services.AddSingleton<McpResourceService>();
