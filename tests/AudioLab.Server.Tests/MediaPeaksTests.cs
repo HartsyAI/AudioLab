@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using AudioLab.Audio.Tests.Support;
+using AudioLab.Audio.Wav;
 using AudioLab.Core.Model;
 using AudioLab.Server.Media;
 using Microsoft.Extensions.DependencyInjection;
