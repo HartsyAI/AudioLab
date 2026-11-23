@@ -42,6 +42,18 @@ public static class Shortcuts
     /// <summary>Move the focused clip to the track below.</summary>
     public static readonly Shortcut NudgeDown = new("clip.nudge.down", "Move clip to the track below", "ArrowDown", Session, Alt: true);
 
+    /// <summary>Open the focused MIDI clip in the piano roll.</summary>
+    public static readonly Shortcut OpenClip = new("clip.open", "Open in the piano roll", "Enter", Session);
+
+    /// <summary>Add a MIDI clip to the selected instrument track.</summary>
+    public static readonly Shortcut AddMidiClip = new("midi.clip.add", "Add MIDI clip", "n", Session);
+
+    /// <summary>Lengthen the selected MIDI clip by one bar.</summary>
+    public static readonly Shortcut MidiClipLonger = new("midi.clip.longer", "Lengthen MIDI clip by a bar", "]", Session);
+
+    /// <summary>Shorten the selected MIDI clip by one bar.</summary>
+    public static readonly Shortcut MidiClipShorter = new("midi.clip.shorter", "Shorten MIDI clip by a bar", "[", Session);
+
     /// <summary>Delete the media file that has the focus in the library.</summary>
     /// <remarks>Only while the focus is on a file of the library: the list's own key handler takes it, so it never reaches the transport.</remarks>
     public static readonly Shortcut DeleteMedia = new("media.delete", "Delete media file", "Delete", Media);
@@ -94,6 +106,7 @@ public static class Shortcuts
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
+        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
         DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast,
     ];

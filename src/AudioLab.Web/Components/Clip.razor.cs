@@ -1,5 +1,6 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
@@ -17,9 +18,11 @@ public sealed partial class Clip : IDisposable
 {
     private AudioClip? _audio;
 
-    private MidiClip? _midi;
+    private readonly MidiPathMemo _notes = new();
 
     private (string, bool, bool, bool, bool, double, double?, double, double?, ClipWave) _shown;
+
+    private bool _midiChanged;
 
     private bool _drawn;
 
@@ -79,6 +82,10 @@ public sealed partial class Clip : IDisposable
     [Parameter]
     public EventCallback<ClipId> OnSelect { get; set; }
 
+    /// <summary>Raised with the clip's id when a MIDI clip is double-clicked or opened with its key, to edit its notes.</summary>
+    [Parameter]
+    public EventCallback<ClipId> OnOpen { get; set; }
+
     /// <summary>Raised with the key and the clip's id for a key the arrangement handles, such as an arrow.</summary>
     [Parameter]
     public EventCallback<(ClipId Clip, KeyboardEventArgs Key)> OnKey { get; set; }
@@ -95,8 +102,6 @@ public sealed partial class Clip : IDisposable
     private string ElementId => IdOf(Id);
 
     private string Name => Audio?.Name ?? Midi!.Name;
-
-    private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
 
     [Inject]
     private WaveformService Waves { get; set; } = default!;
@@ -118,7 +123,7 @@ public sealed partial class Clip : IDisposable
         _ => null,
     };
 
-    private string? Hint => Midi is null ? WaveNote : null;
+    private string? Hint => Midi is null ? WaveNote : $"Double-click or press {Shortcuts.OpenClip.Display} to open the piano roll.";
 
     private string PlaceStyle
     {
@@ -146,6 +151,8 @@ public sealed partial class Clip : IDisposable
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        // The path is built when the notes change, so a lifted copy that follows the pointer does not build it again on every move.
+        _midiChanged = Midi is not null && _notes.Update(Midi);
         if (Audio is null)
         {
             return;
@@ -174,24 +181,23 @@ public sealed partial class Clip : IDisposable
     {
         bool same = _drawn
             && Equals(_audio, Audio)
-            && Equals(_midi, Midi)
+            && !_midiChanged
             && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _audio = Audio;
-        _midi = Midi;
         _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _drawn = true;
         return !same;
-    }
-
-    private static string NoteStyle(NoteBox note)
-    {
-        return string.Create(CultureInfo.InvariantCulture, $"left: {note.X:0.##}%; top: {note.Y:0.##}%; width: {note.Width:0.##}%");
     }
 
     private Task SelectAsync()
     {
         RetryWave();
         return Lifted ? Task.CompletedTask : OnSelect.InvokeAsync(Id);
+    }
+
+    private Task OpenAsync()
+    {
+        return Lifted || Midi is null ? Task.CompletedTask : OnOpen.InvokeAsync(Id);
     }
 
     // Activating a clip whose waveform failed asks again, selected already or not: the label says to select the clip to try again.
@@ -205,6 +211,10 @@ public sealed partial class Clip : IDisposable
 
     private Task KeyAsync(KeyboardEventArgs key)
     {
+        if (Midi is not null && Shortcuts.OpenClip.Matches(key))
+        {
+            return OnOpen.InvokeAsync(Id);
+        }
         if (key.Key is "Enter" or " ")
         {
             RetryWave();

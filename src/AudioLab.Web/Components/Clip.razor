@@ -1,15 +1,15 @@
 <div id="@(Lifted ? null : ElementId)" class="clip" role="button" tabindex="@(TabStop ? 0 : -1)" aria-pressed="@(Selected ? "true" : "false")"
      aria-label="@Description" title="@Hint" aria-hidden="@(Lifted ? "true" : null)" data-kind="@(Midi is null ? "audio" : "midi")"
      data-selected="@(Selected ? "true" : "false")" data-dimmed="@(Dimmed ? "true" : "false")" data-lifted="@(Lifted ? "true" : "false")"
-     style="@PlaceStyle" @onclick="SelectAsync" @onclick:stopPropagation="true" @onkeydown="KeyAsync" @onpointerdown="PressAsync">
+     aria-keyshortcuts="@(Midi is null ? null : Shortcuts.OpenClip.Key)" style="@PlaceStyle" @onclick="SelectAsync"
+     @onclick:stopPropagation="true" @ondblclick="OpenAsync" @ondblclick:stopPropagation="true"
+     @onkeydown="KeyAsync" @onpointerdown="PressAsync">
     <div class="head">@Name</div>
     <div class="body">
         @if (Midi is not null)
         {
-            @foreach (NoteBox note in Notes)
-            {
-                <div class="note" style="@NoteStyle(note)"></div>
-            }
+            <svg class="notes" viewBox="0 0 @Css.Number(MidiPreview.Width) @Css.Number(MidiPreview.Height)" preserveAspectRatio="none"
+                 aria-hidden="true" data-notes="@Midi.Notes.Count"><path d="@_notes.Path"></path></svg>
         }
         else
         {

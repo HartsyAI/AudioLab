@@ -2,15 +2,12 @@ using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Web.Media;
-using Microsoft.AspNetCore.SignalR;
 
 namespace AudioLab.Web.Services;
 
 /// <summary>The edits the session screen makes, each one command sent by wire name; the server decides and its reasons come back as words.</summary>
 public sealed class SessionEditor(LiveProject live)
 {
-    private const string Lost = "The connection to the server was lost, so the edit was not sent.";
-
     /// <summary>Adds an empty track at the bottom; the new track's id is in <see cref="EditResult.Created"/>.</summary>
     public Task<EditResult> AddTrackAsync(TrackKind kind = TrackKind.Audio)
     {
@@ -92,20 +89,5 @@ public sealed class SessionEditor(LiveProject live)
     /// <summary>Goes forward one redo step for everyone in the project.</summary>
     public Task<EditResult> RedoAsync() => RunAsync(_ => live.RedoAsync());
 
-    private async Task<EditResult> RunAsync(Func<ProjectId, Task<CommandReply>> send)
-    {
-        if (live.Document is not { } document)
-        {
-            return EditResult.Refused("The project is not open yet.");
-        }
-        try
-        {
-            CommandReply reply = await send(document.Id);
-            return reply.Succeeded ? EditResult.Applied(reply.Changed, reply.Created) : EditResult.Refused(CommandRefusal.Describe(reply));
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or HubException or OperationCanceledException)
-        {
-            return EditResult.Refused(exception is HubException hub && !string.IsNullOrWhiteSpace(hub.Message) ? hub.Message : Lost);
-        }
-    }
+    private Task<EditResult> RunAsync(Func<ProjectId, Task<CommandReply>> send) => EditRunner.RunAsync(live, send);
 }

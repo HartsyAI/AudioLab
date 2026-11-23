@@ -55,6 +55,7 @@ builder.Services.AddScoped<MediaDragger>();
 builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
+builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddScoped<PeakStore>();
 builder.Services.AddScoped<WaveformService>();

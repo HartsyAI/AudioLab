@@ -34,6 +34,9 @@ internal sealed class FakeProjectHub : IProjectHub
     /// <summary>Throw on join.</summary>
     public Exception? ThrowOnJoin { get; set; }
 
+    /// <summary>Runs after a command is recorded and before its reply is returned, so a test can hold the reply.</summary>
+    public Func<Task>? BeforeApplyReturns { get; set; }
+
     /// <summary>Before join returns.</summary>
     public Func<Task>? BeforeJoinReturns { get; set; }
 
@@ -97,7 +100,7 @@ internal sealed class FakeProjectHub : IProjectHub
     }
 
     /// <summary>Apply async.</summary>
-    public Task<CommandReply> ApplyAsync(
+    public async Task<CommandReply> ApplyAsync(
         string project,
         string command,
         string json,
@@ -110,7 +113,11 @@ internal sealed class FakeProjectHub : IProjectHub
         }
         Sent.Add((command, json, gesture));
         Calls.Add($"apply {project} {command} {json} {gesture}".TrimEnd());
-        return Task.FromResult(Reply);
+        if (BeforeApplyReturns is { } before)
+        {
+            await before();
+        }
+        return Reply;
     }
 
     /// <summary>Undo async.</summary>
