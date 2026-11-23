@@ -14,6 +14,9 @@ internal sealed class FakeProjectHub : IProjectHub
     /// <summary>Reply.</summary>
     public CommandReply Reply { get; set; } = new(true, true, 2, [], []);
 
+    /// <summary>A reply for the nth command applied (counted from 1), or null to use <see cref="Reply"/>.</summary>
+    public Func<int, CommandReply?>? ReplyForApply { get; set; }
+
     /// <summary>Disposed.</summary>
     public bool Disposed { get; private set; }
 
@@ -117,7 +120,7 @@ internal sealed class FakeProjectHub : IProjectHub
         {
             await before();
         }
-        return Reply;
+        return ReplyForApply?.Invoke(Sent.Count) ?? Reply;
     }
 
     /// <summary>Undo async.</summary>

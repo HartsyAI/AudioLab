@@ -40,5 +40,7 @@ public sealed partial class BottomPanel : IDisposable
         Panel.Changed += OnPanelChanged;
     }
 
+    private string Slug => Panel.Active.ToLowerInvariant().Replace(" ", "-", StringComparison.Ordinal);
+
     private void OnPanelChanged() => _ = InvokeAsync(StateHasChanged);
 }

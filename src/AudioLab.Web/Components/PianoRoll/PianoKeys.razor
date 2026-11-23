@@ -1,0 +1,13 @@
+<div class="keys" id="roll-keys" tabindex="0" role="group" aria-label="@KeysLabel" aria-describedby="@(Reason is null ? null : ReasonId)"
+     style="height: @Css.Px(Geometry.Height)" title="@Reason" data-hearable="@(Reason is null ? "true" : "false")"
+     @onpointerdown="OnPress" @onkeydown="OnKeyDown" @onkeyup="OnKeyUp" @onblur="OnBlur">
+    @if (Reason is { } why)
+    {
+        <span class="reason" id="@ReasonId">@why</span>
+    }
+    @for (int pitch = RollGeometry.Pitches - 1; pitch >= 0; pitch--)
+    {
+        <div class="key" aria-hidden="true" data-black="@(RollGrid.IsBlack(pitch) ? "true" : "false")"
+             data-cursor="@(pitch == Pitch ? "true" : "false")" style="height: @Css.Px(Geometry.RowHeight)">@Label(pitch)</div>
+    }
+</div>

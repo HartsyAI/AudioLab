@@ -1,0 +1,22 @@
+.notes {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    pointer-events: none;
+}
+
+.note {
+    fill: var(--clip);
+    vector-effect: non-scaling-stroke;
+}
+
+.note[data-level="0"] { fill-opacity: 0.38; }
+.note[data-level="1"] { fill-opacity: 0.46; }
+.note[data-level="2"] { fill-opacity: 0.54; }
+.note[data-level="3"] { fill-opacity: 0.62; }
+.note[data-level="4"] { fill-opacity: 0.7; }
+.note[data-level="5"] { fill-opacity: 0.78; }
+.note[data-level="6"] { fill-opacity: 0.88; }
+.note[data-level="7"] { fill-opacity: 1; }
+

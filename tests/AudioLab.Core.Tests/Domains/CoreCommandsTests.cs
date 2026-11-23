@@ -77,7 +77,8 @@ public sealed class CoreCommandsTests
     {
         string[] names =
         [
-            "midi_clip_import", "midi_note_add", "midi_notes_move", "midi_notes_resize", "midi_notes_set_velocity", "midi_notes_transpose",
+            "midi_clip_import", "midi_note_add", "midi_notes_add", "midi_notes_move", "midi_notes_resize", "midi_notes_set_velocity",
+            "midi_notes_adjust_velocity", "midi_notes_transpose",
             "midi_notes_quantize", "midi_notes_delete", "midi_control_add", "midi_control_remove", "midi_control_clear",
             "effect_add", "effect_remove", "effect_move", "effect_set_enabled", "effect_set_parameter", "effect_set_delay_sync",
             "effect_apply_preset",

@@ -12,9 +12,11 @@ internal static class MidiCommands
         builder
             .Add("midi_clip_import", "Adds a MIDI clip with its notes and events in one step.", json.ImportMidiClip, ImportClip)
             .Add("midi_note_add", "Adds a note to a MIDI clip and allocates its note id.", json.AddNote, AddNote)
+            .Add("midi_notes_add", "Adds notes to a MIDI clip in one step and allocates their note ids.", json.AddNotes, AddNotes)
             .Add("midi_notes_move", "Puts notes at new starts and pitches.", json.MoveNotes, MoveNotes)
             .Add("midi_notes_resize", "Gives notes new lengths.", json.ResizeNotes, ResizeNotes)
             .Add("midi_notes_set_velocity", "Sets the velocity of notes.", json.SetNoteVelocity, SetVelocity)
+            .Add("midi_notes_adjust_velocity", "Raises or lowers the velocity of notes by an amount.", json.AdjustNoteVelocity, AdjustVelocity)
             .Add("midi_notes_transpose", "Transposes notes by semitones.", json.TransposeNotes, Transpose)
             .Add("midi_notes_quantize", "Snaps notes to the project grid.", json.QuantizeNotes, Quantize)
             .Add("midi_notes_delete", "Removes notes from a MIDI clip.", json.DeleteNotes, DeleteNotes)
@@ -137,32 +139,61 @@ internal static class MidiCommands
 
     private static CommandResult AddNote(ProjectDocument document, AddNote command, IIdService ids)
     {
-        if (Find(document, command.Clip, out ClipEdits.Location at) is { } missing)
+        return AddAll(document, command.Clip, [new NewNote(command.Pitch, command.Start, command.Duration, command.Velocity)]);
+    }
+
+    private static CommandResult AddNotes(ProjectDocument document, AddNotes command, IIdService ids)
+    {
+        return AddAll(document, command.Clip, command.Notes, listed: true);
+    }
+
+    // One rule for one note and many: the first note that is refused refuses them all, and the ids count up in list order. A refusal from a list
+    // names the note by its place in it, from 0; the one note of midi_note_add is not named.
+    private static CommandResult AddAll(ProjectDocument document, ClipId clipId, IReadOnlyList<NewNote> added, bool listed = false)
+    {
+        if (Find(document, clipId, out ClipEdits.Location at) is { } missing)
         {
             return missing;
         }
         MidiClip clip = document.Tracks[at.Track].MidiClips[at.MidiIndex];
-        CommandResult? invalid = CommandChecks.Range(nameof(command.Pitch), command.Pitch, NoteRules.LowestPitch, NoteRules.HighestPitch)
-            ?? CommandChecks.Range(nameof(command.Start), command.Start, 0, ProjectLimits.MaxSeconds);
-        if (invalid is null && command.Start > NoteRules.LatestStart(clip.Length))
+        if (added.Count == 0 || added.Count > NoteRules.MaxAddedNotes)
         {
-            string latest = NoteRules.LatestStart(clip.Length).ToString(CultureInfo.InvariantCulture);
-            invalid = CommandChecks.OutOfRange($"A note starts inside its clip, at {latest} seconds at the latest.");
+            return CommandChecks.OutOfRange($"Add from 1 to {NoteRules.MaxAddedNotes} notes in one command; split a bigger paste into several.");
         }
-        invalid ??= CommandChecks.Range(nameof(command.Duration), command.Duration, NoteRules.MinDuration, ProjectLimits.MaxSeconds)
-            ?? CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch);
-        if (invalid is not null)
+        double latestStart = NoteRules.LatestStart(clip.Length);
+        for (int index = 0; index < added.Count; index++)
         {
-            return invalid;
+            NewNote note = added[index];
+            CommandResult? invalid = CommandChecks.Range(nameof(note.Pitch), note.Pitch, NoteRules.LowestPitch, NoteRules.HighestPitch)
+                ?? CommandChecks.Range(nameof(note.Start), note.Start, 0, ProjectLimits.MaxSeconds);
+            if (invalid is null && note.Start > latestStart)
+            {
+                string latest = latestStart.ToString(CultureInfo.InvariantCulture);
+                invalid = CommandChecks.OutOfRange($"A note starts inside its clip, at {latest} seconds at the latest.");
+            }
+            invalid ??= CommandChecks.Range(nameof(note.Duration), note.Duration, NoteRules.MinDuration, ProjectLimits.MaxSeconds)
+                ?? CommandChecks.Range(nameof(note.Velocity), note.Velocity, 1, NoteRules.HighestVelocity);
+            if (invalid is not null)
+            {
+                return listed ? CommandResult.Refuse(invalid.Errors[0].Code, $"Note {index}: {invalid.Errors[0].Message}") : invalid;
+            }
         }
-        if (clip.Notes.Count >= ProjectLimits.MaxListItems || clip.NextNoteId.Value >= NoteId.Max)
+        if (added.Count > ProjectLimits.MaxListItems - clip.Notes.Count || added.Count > NoteId.Max - clip.NextNoteId.Value)
         {
             return CommandChecks.OutOfRange("The clip holds as many notes as a clip may, or has used every note id.");
         }
-        double duration = command.Duration ?? NoteRules.NewDuration(GridStep(document, clip));
-        MidiNote note = new(clip.NextNoteId, command.Pitch, command.Start, duration, command.Velocity ?? NoteRules.DefaultVelocity);
-        MidiClip edited = clip with { Notes = [.. clip.Notes, note], NextNoteId = clip.NextNoteId.Next() };
-        return CommandResult.Ok(Replace(document, at, edited), note.Id.Value.ToString(CultureInfo.InvariantCulture));
+        double step = NoteRules.NewDuration(GridStep(document, clip));
+        List<MidiNote> notes = [.. clip.Notes];
+        List<string> created = [];
+        NoteId next = clip.NextNoteId;
+        foreach (NewNote note in added)
+        {
+            notes.Add(new MidiNote(next, note.Pitch, note.Start, note.Duration ?? step, note.Velocity ?? NoteRules.DefaultVelocity));
+            created.Add(next.Value.ToString(CultureInfo.InvariantCulture));
+            next = next.Next();
+        }
+        MidiClip edited = clip with { Notes = new ValueList<MidiNote>(notes), NextNoteId = next };
+        return CommandResult.Ok(Replace(document, at, edited), [.. created]);
     }
 
     private static CommandResult MoveNotes(ProjectDocument document, MoveNotes command, IIdService ids)
@@ -225,8 +256,19 @@ internal static class MidiCommands
             document,
             command.Clip,
             command.Notes,
-            () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestPitch),
+            () => CommandChecks.Range(nameof(command.Velocity), command.Velocity, 1, NoteRules.HighestVelocity),
             (_, note) => note with { Velocity = command.Velocity });
+    }
+
+    private static CommandResult AdjustVelocity(ProjectDocument document, AdjustNoteVelocity command, IIdService ids)
+    {
+        int most = NoteRules.HighestVelocity - 1;
+        return EditNotes(
+            document,
+            command.Clip,
+            command.Notes,
+            () => CommandChecks.Range(nameof(command.Amount), command.Amount, -most, most),
+            (_, note) => note with { Velocity = Math.Clamp(note.Velocity + command.Amount, 1, NoteRules.HighestVelocity) });
     }
 
     private static CommandResult Transpose(ProjectDocument document, TransposeNotes command, IIdService ids)

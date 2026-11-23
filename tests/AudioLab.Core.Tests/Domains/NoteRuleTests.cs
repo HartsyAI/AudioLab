@@ -1,3 +1,4 @@
+using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
@@ -98,6 +99,22 @@ public sealed class NoteRuleTests
     public void PitchesHaveNamesWithOctaves(int pitch, string name)
     {
         Assert.Equal(name, NoteRules.Name(pitch));
+    }
+
+    [Fact]
+    public void ANoteNameUsesAnAsciiMinusWhateverTheCulture()
+    {
+        CultureInfo before = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("sv-SE");
+
+            Assert.Equal("C-1", NoteRules.Name(0));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
     }
 
     [Theory]

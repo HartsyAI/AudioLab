@@ -98,6 +98,146 @@ public sealed class MidiCommandTests
         _rig.RefusedWith(new AddNote { Project = _rig.Id, Clip = ClipId.From("clp_none"), Pitch = 60, Start = 0 }, CommandErrorCode.NotFound);
     }
 
+    // ----- add many
+
+    [Fact]
+    public void ManyNotesAreAddedInOneStepWithIdsInListOrderAndTheSameDefaultsAsOne()
+    {
+        IReadOnlyList<string> created = _rig.Created(new AddNotes
+        {
+            Project = _rig.Id,
+            Clip = _clip,
+            Notes = [new NewNote(60, 0), new NewNote(64, 1, 0.25, 80), new NewNote(67, 2, null, 127)],
+        });
+
+        Assert.Equal(["1", "2", "3"], created);
+        Assert.Equal(
+            [
+                new MidiNote(new NoteId(1), 60, 0, 0.5, 100),
+                new MidiNote(new NoteId(2), 64, 1, 0.25, 80),
+                new MidiNote(new NoteId(3), 67, 2, 0.5, 127),
+            ],
+            Clip.Notes);
+        Assert.Equal(new NoteId(4), Clip.NextNoteId);
+        _rig.History.Undo();
+        Assert.Empty(Clip.Notes);
+        Assert.Equal(new NoteId(1), Clip.NextNoteId);
+    }
+
+    [Fact]
+    public void OneRefusedNoteRefusesTheWholeListAndChangesNothing()
+    {
+        _rig.RefusedWith(
+            new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(61, 4)] },
+            CommandErrorCode.Invalid);
+        _rig.RefusedWith(
+            new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(128, 1)] },
+            CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0, null, 0)] }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [] }, CommandErrorCode.Invalid);
+
+        Assert.Empty(Clip.Notes);
+        Assert.Equal(new NoteId(1), Clip.NextNoteId);
+    }
+
+    [Fact]
+    public void ManyNotesGoOnlyIntoAMidiClipThatExists()
+    {
+        ClipId audio = ClipId.From(_rig.Created(new AddClip { Project = _rig.Id, Track = _audio, Media = MediaId.From("med_1"), Duration = 3 })[0]);
+
+        ValueList<NewNote> two = [new NewNote(60, 0), new NewNote(62, 1)];
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = audio, Notes = two }, CommandErrorCode.Rejected);
+        _rig.RefusedWith(new AddNotes { Project = _rig.Id, Clip = ClipId.From("clp_none"), Notes = two }, CommandErrorCode.NotFound);
+    }
+
+    [Fact]
+    public void ARefusalFromAListNamesTheNoteByItsPlaceInTheListAndOneNoteIsNotNamed()
+    {
+        CommandResult second = _rig.Refused(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(128, 1)] });
+        CommandResult velocity = _rig.Refused(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(60, 0, null, 0)] });
+        CommandResult one = _rig.Refused(new AddNote { Project = _rig.Id, Clip = _clip, Pitch = 128, Start = 0 });
+
+        Assert.StartsWith("Note 1: ", second.Errors[0].Message, StringComparison.Ordinal);
+        Assert.StartsWith("Note 0: ", velocity.Errors[0].Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Note ", one.Errors[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AListOfTheMostNotesIsAddedAndOneMoreIsRefusedWithTheLimit()
+    {
+        ValueList<NewNote> most = [.. Enumerable.Range(0, NoteRules.MaxAddedNotes).Select(index => new NewNote(40 + (index % 40), index * 0.0003))];
+        ValueList<NewNote> more = [.. most, new NewNote(60, 0)];
+
+        CommandResult refused = _rig.Refused(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = more });
+        IReadOnlyList<string> created = _rig.Created(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = most });
+
+        Assert.Contains("several", refused.Errors[0].Message, StringComparison.Ordinal);
+        Assert.Equal(NoteRules.MaxAddedNotes, created.Count);
+        Assert.Equal(NoteRules.MaxAddedNotes, Clip.Notes.Count);
+        Assert.Equal(new NoteId(NoteRules.MaxAddedNotes + 1), Clip.NextNoteId);
+    }
+
+    private CommandRig RigWith(MidiClip clip)
+    {
+        return new CommandRig(_rig.Project with
+        {
+            Tracks = [.. _rig.Project.Tracks.Select(track => track.Id == _keys ? track with { MidiClips = [clip] } : track)],
+        });
+    }
+
+    [Fact]
+    public void AClipThatHasUsedItsLastNoteIdsRefusesTwoNotesAndChangesNothingButTakesOne()
+    {
+        CommandRig rig = RigWith(Clip with { NextNoteId = new NoteId(NoteId.Max - 1) });
+
+        rig.RefusedWith(new AddNotes { Project = rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(62, 1)] }, CommandErrorCode.Invalid);
+        IReadOnlyList<string> created = rig.Created(new AddNotes { Project = rig.Id, Clip = _clip, Notes = [new NewNote(60, 0)] });
+
+        Assert.Equal([(NoteId.Max - 1).ToString(System.Globalization.CultureInfo.InvariantCulture)], created);
+    }
+
+    [Fact]
+    public void AClipOneNoteShortOfTheLimitTakesOneNoteAndRefusesTwo()
+    {
+        MidiNote[] held = [.. Enumerable.Range(1, ProjectLimits.MaxListItems - 1).Select(id => new MidiNote(new NoteId(id), 60, 0, 0.5, 90))];
+        CommandRig rig = RigWith(Clip with { Notes = [.. held], NextNoteId = new NoteId(held.Length + 1) });
+
+        rig.RefusedWith(new AddNotes { Project = rig.Id, Clip = _clip, Notes = [new NewNote(60, 0), new NewNote(62, 1)] }, CommandErrorCode.Invalid);
+        rig.Ok(new AddNotes { Project = rig.Id, Clip = _clip, Notes = [new NewNote(60, 0)] });
+
+        Assert.Equal(ProjectLimits.MaxListItems, rig.Project.Tracks.First(track => track.Id == _keys).MidiClips[0].Notes.Count);
+    }
+
+    [Fact]
+    public void AListIsReadFromJsonByTheRegistryWithOptionalMembersAndRefusedWhenMalformed()
+    {
+        CommandRegistry registry = CoreCommands.CreateRegistry();
+        string head = $"\"project\":\"{_rig.Id.Value}\",\"clip\":\"{_clip.Value}\"";
+
+        CommandParseResult ok = registry.Parse(
+            "midi_notes_add",
+            $"{{{head},\"notes\":[{{\"pitch\":60,\"start\":0.5}},{{\"pitch\":62,\"start\":1,\"duration\":0.25,\"velocity\":80}}]}}");
+        CommandParseResult missing = registry.Parse("midi_notes_add", $"{{{head},\"notes\":[{{\"start\":0.5}}]}}");
+        CommandParseResult unknown = registry.Parse("midi_notes_add", $"{{{head},\"notes\":[{{\"pitch\":60,\"start\":0,\"colour\":1}}]}}");
+        CommandParseResult empty = registry.Parse("midi_notes_add", $"{{{head},\"notes\":[]}}");
+
+        AddNotes parsed = Assert.IsType<AddNotes>(ok.Command);
+        Assert.Equal([new NewNote(60, 0.5), new NewNote(62, 1, 0.25, 80)], parsed.Notes);
+        Assert.False(missing.Succeeded);
+        Assert.False(unknown.Succeeded);
+        Assert.True(empty.Succeeded);
+        _rig.RefusedWith(Assert.IsType<AddNotes>(empty.Command), CommandErrorCode.Invalid);
+    }
+
+    [Fact]
+    public void ManyNotesMayRepeatAndKeepTheOrderTheyWereSentIn()
+    {
+        _rig.Created(new AddNotes { Project = _rig.Id, Clip = _clip, Notes = [new NewNote(64, 2), new NewNote(60, 0), new NewNote(60, 0)] });
+
+        Assert.Equal([64, 60, 60], Clip.Notes.Select(note => note.Pitch).ToArray());
+        Assert.Equal([1, 2, 3], Clip.Notes.Select(note => note.Id.Value).ToArray());
+    }
+
     // ----- move, resize, velocity, transpose
 
     [Fact]
@@ -203,6 +343,23 @@ public sealed class MidiCommandTests
         Assert.Equal((100, 30), (Note(a).Velocity, Note(b).Velocity));
         _rig.RefusedWith(new SetNoteVelocity { Project = _rig.Id, Clip = _clip, Velocity = 0 }, CommandErrorCode.Invalid);
         _rig.RefusedWith(new SetNoteVelocity { Project = _rig.Id, Clip = _clip, Velocity = 128 }, CommandErrorCode.Invalid);
+    }
+
+    [Fact]
+    public void VelocityIsAdjustedByAnAmountAndStopsAtTheEnds()
+    {
+        NoteId soft = Add(60, 0, velocity: 5);
+        NoteId middle = Add(62, 1, velocity: 100);
+        NoteId loud = Add(64, 2, velocity: 125);
+
+        _rig.Ok(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = 8 });
+        Assert.Equal([13, 108, 127], new[] { Note(soft).Velocity, Note(middle).Velocity, Note(loud).Velocity });
+        _rig.Ok(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [soft, loud], Amount = -126 });
+
+        Assert.Equal([1, 108, 1], new[] { Note(soft).Velocity, Note(middle).Velocity, Note(loud).Velocity });
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = 127 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Amount = -127 }, CommandErrorCode.Invalid);
+        _rig.RefusedWith(new AdjustNoteVelocity { Project = _rig.Id, Clip = _clip, Notes = [new NoteId(99)], Amount = 1 }, CommandErrorCode.NotFound);
     }
 
     [Fact]

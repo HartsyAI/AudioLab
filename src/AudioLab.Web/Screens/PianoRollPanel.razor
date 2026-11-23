@@ -1,18 +1,7 @@
 <div class="piano-roll" role="region" aria-label="Piano roll">
     @if (Open is { } open)
     {
-        <div class="bar">
-            <span class="title">@open.Clip.Name</span>
-            <span class="meta">@NotesText(open.Clip) · @LengthText(open.Clip)</span>
-            <span class="length">
-                <Button Name="Shorten clip by a bar" Shortcut="@Shortcuts.MidiClipShorter.Display" Disabled="@(!Actions.CanEdit)"
-                        DisabledReason="@Actions.Reason" OnClick="() => StepAsync(open.Clip, -1)">Shorter</Button>
-                <Button Name="Lengthen clip by a bar" Shortcut="@Shortcuts.MidiClipLonger.Display" Disabled="@(!Actions.CanEdit)"
-                        DisabledReason="@Actions.Reason" OnClick="() => StepAsync(open.Clip, 1)">Longer</Button>
-            </span>
-        </div>
-        <EmptyState Heading="Notes"
-                    Message="The notes are drawn in the clip in the arrangement." />
+        <RollEditor Document="Document" Track="open.Track" Clip="open.Clip" Actions="Actions" />
     }
     else
     {

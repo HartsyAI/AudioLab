@@ -1,4 +1,4 @@
-<div class="segmented" data-variant="@(Transport ? "transport" : "choice")" role="group" aria-label="@Label">
+<div class="segmented" data-variant="@Variant" role="group" aria-label="@Label">
     @foreach (SegmentItem item in Items)
     {
         <TitledButton @key="item.Id" Reason="@item.Reason" Name="@item.Name" Shortcut="@item.Shortcut" Disabled="@(item.Reason is not null)"

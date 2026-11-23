@@ -1,4 +1,3 @@
-using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
@@ -50,17 +49,6 @@ public sealed partial class PianoRollPanel : IDisposable
         Selection.Changed += OnSelectionChanged;
     }
 
-    private static string NotesText(MidiClip clip)
-    {
-        return clip.Notes.Count == 1 ? "1 note" : $"{clip.Notes.Count.ToString(CultureInfo.InvariantCulture)} notes";
-    }
-
-    private string LengthText(MidiClip clip)
-    {
-        double bars = Math.Round(MidiClipPlan.Bars(Document, clip), 2);
-        return bars == 1 ? "1 bar" : $"{bars.ToString("0.##", CultureInfo.InvariantCulture)} bars";
-    }
-
     // The buttons of the empty state go when they are used, and the focus would go with them: it moves to the clip that was made, or to the
     // button that replaces them.
     private const string AddId = "piano-roll-add";
@@ -84,8 +72,6 @@ public sealed partial class PianoRollPanel : IDisposable
     }
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
-
-    private Task StepAsync(MidiClip clip, int bars) => Actions.Midi.StepLength(clip.Id, bars);
 
     private async Task AddAsync(Track track)
     {

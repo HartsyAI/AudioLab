@@ -1,0 +1,13 @@
+<div class="lane" id="roll-velocity" tabindex="0" role="group" aria-label="@Label"
+     style="width: @Css.Px(Geometry.Width); --clip: @ColorToken"
+     @onpointerdown="OnPress">
+    <svg class="bars" viewBox="0 0 @Css.Number(Geometry.Length) 127" preserveAspectRatio="none" width="@Css.Number(Geometry.Width)" height="100%"
+         aria-hidden="true">
+        <path class="bar" d="@_bars"></path>
+        <path class="bar selected" d="@_selected"></path>
+        @if (Drag is { } drag)
+        {
+            <path class="bar preview" d="@Preview(drag)"></path>
+        }
+    </svg>
+</div>

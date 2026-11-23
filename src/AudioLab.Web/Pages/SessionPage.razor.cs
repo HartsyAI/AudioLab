@@ -5,6 +5,7 @@ using AudioLab.Web.Media;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Pages;
@@ -57,8 +58,14 @@ public sealed partial class SessionPage
 
     [Inject]
     private ClipDragState Drags { get; set; } = default!;
-    [Inject] private BottomPanelState Panel { get; set; } = default!;
+    [Inject]
+    private BottomPanelState Panel { get; set; } = default!;
 
+    [Inject]
+    private RollDragState RollDrags { get; set; } = default!;
+
+    [Inject]
+    private PianoRollKeys RollKeys { get; set; } = default!;
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
 
@@ -383,7 +390,7 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
-        if (TransportPress(chord))
+        if (RollKeys.Route(chord, TransportPress))
         {
             return true;
         }
@@ -392,9 +399,9 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && Drags.Current is not null)
+        if (history && (Drags.Current is not null || RollDrags.Busy))
         {
-            // A press is down on a clip: undoing now would take back a step under the lifted clip, so history waits for the drop.
+            // A press is down on a clip or an edit of the roll is on its way: undoing now would take back a step under it, so history waits.
             return true;
         }
         if (Shortcuts.Undo.Matches(chord))
@@ -405,13 +412,14 @@ public sealed partial class SessionPage
         {
             _ = InvokeAsync(() => _actions.Redo());
         }
-        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && Selection.Track is { } target
+        else if (Shortcuts.AddMidiClip.Matches(chord) && Drags.Current is null && !RollDrags.Busy
+            && Selection.Track is { } target
             && _live?.Document?.Tracks.Any(candidate => candidate.Id == target && candidate.Kind == TrackKind.Instrument) == true)
         {
             _ = InvokeAsync(() => AddMidiClipAsync(target));
         }
         else if ((Shortcuts.MidiClipLonger.Matches(chord) || Shortcuts.MidiClipShorter.Matches(chord))
-            && Drags.Current is null && Selection.Clip is { } open
+            && Drags.Current is null && !RollDrags.Busy && Selection.Clip is { } open
             && _live?.Document is { } document && MidiClipPlan.Find(document, open) is not null)
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;

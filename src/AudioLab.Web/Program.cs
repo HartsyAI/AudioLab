@@ -7,6 +7,7 @@ using AudioLab.Web.Interop;
 using AudioLab.Web.Media;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Roll;
 using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -33,6 +34,7 @@ if (OperatingSystem.IsBrowser())
     builder.Services.AddSingleton<IPointerTracker, PointerTracker>();
     builder.Services.AddSingleton<IShortcutListener, ShortcutListener>();
     builder.Services.AddSingleton<IElementMetrics, ElementMetrics>();
+    builder.Services.AddSingleton<IElementView, ElementView>();
     builder.Services.AddSingleton<IAudioHost, AudioHost>();
     builder.Services.AddSingleton<PlaybackService>();
 }
@@ -56,6 +58,11 @@ builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddScoped<BottomPanelState>();
+builder.Services.AddScoped<PianoRollState>();
+builder.Services.AddScoped<RollDragState>();
+builder.Services.AddScoped<PianoRollKeys>();
+builder.Services.AddSingleton<IAuditionSink, UnavailableAudition>();
+builder.Services.AddScoped<NoteAudition>();
 builder.Services.AddSingleton<LiveProjectFactory>();
 builder.Services.AddScoped<PeakStore>();
 builder.Services.AddScoped<WaveformService>();

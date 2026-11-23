@@ -17,9 +17,13 @@ public sealed partial class Segmented
     [Parameter]
     public string? Wide { get; set; }
 
-    /// <summary>True for the transport: every item is a raised control.</summary>
+    /// <summary>True for the transport: every item is a raised control; the transport look wins over <see cref="Words"/> when both are set.</summary>
     [Parameter]
     public bool Transport { get; set; }
+
+    /// <summary>True when the items are words, not glyphs: each is as wide as its word and the group looks as a well of choices.</summary>
+    [Parameter]
+    public bool Words { get; set; }
 
     /// <summary>What the group is for, as a screen reader says it.</summary>
     [Parameter, EditorRequired]
@@ -29,6 +33,7 @@ public sealed partial class Segmented
     [Parameter]
     public EventCallback<string> ValueChanged { get; set; }
 
+    private string Variant => Transport ? "transport" : Words ? "words" : "choice";
     // A choice of a set is pressed when it is the chosen one; in the transport only the wide item, play, is a toggle, and the rest are plain buttons.
     private string? Pressed(SegmentItem item) =>
         Transport && item.Id != Wide ? null : item.Id == Value ? "true" : "false";

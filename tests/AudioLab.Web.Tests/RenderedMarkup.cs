@@ -61,7 +61,7 @@ internal sealed class RenderedMarkup : Renderer
     }
 
     /// <inheritdoc />
-    protected override void HandleException(Exception exception) => throw exception;
+    protected override void HandleException(Exception exception) => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(exception);
 
     /// <inheritdoc />
     protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
