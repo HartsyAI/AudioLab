@@ -29,6 +29,7 @@ public sealed class UserMediaSource(
     private const int BlockFrames = 8192;
     private const int KeptChannels = 2;
 
+    // Not thread-safe, by design: the engine asks while one thread prepares one plan, and the source is made for that render alone.
     private readonly Dictionary<MediaId, PcmAudio> _supplied = [];
     private long _held;
 
@@ -78,8 +79,8 @@ public sealed class UserMediaSource(
         }
         catch (MediaNotFoundException)
         {
-            // Bytes that are not there while the record is, and no delete under way, are a damaged file; a delete is not.
-            return store.IsDeleting(user, id) ? null : Refuse(id, "its bytes are missing");
+            // Bytes that are not there while the record is, and no delete under way, are a damaged file; a delete, begun or finished, is not.
+            return store.IsDeleting(user, id) || store.FindIncludingPendingDelete(user, id) is null ? null : Refuse(id, "its bytes are missing");
         }
         catch (Exception exception) when (exception is WavFormatException or EndOfStreamException)
         {
@@ -138,6 +139,23 @@ public sealed class UserMediaSource(
         }
     }
 
+    // The upload refused a float file with a sample that is not a number; one that is found now was changed on disk since, and would
+    // make the engine's cache copy the audio outside the budget.
+    private static void RequireFinite(ReadOnlySpan<float> samples, SampleEncoding encoding)
+    {
+        if (encoding != SampleEncoding.Float32)
+        {
+            return;
+        }
+        foreach (float sample in samples)
+        {
+            if (!float.IsFinite(sample))
+            {
+                throw new WavFormatException("a sample is not a finite number");
+            }
+        }
+    }
+
     private PcmAudio Decode(FileStream stream, WavHeader format, int kept)
     {
         long frames = format.Frames;
@@ -157,6 +175,7 @@ public sealed class UserMediaSource(
                 int count = (int)Math.Min(BlockFrames, frames - done);
                 stream.ReadExactly(bytes.AsSpan(0, count * format.BlockAlign));
                 WavSamples.ToFloat(bytes.AsSpan(0, count * format.BlockAlign), format.Encoding, samples);
+                RequireFinite(samples.AsSpan(0, count * format.Channels), format.Encoding);
                 for (int channel = 0; channel < kept; channel++)
                 {
                     float[] target = channels[channel];
