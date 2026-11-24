@@ -68,6 +68,6 @@ public sealed partial class Button
 
     private Task ClickAsync()
     {
-        return Disabled ? Task.CompletedTask : OnClick.InvokeAsync();
+        return Activation.RunAsync(Disabled, OnClick);
     }
 }

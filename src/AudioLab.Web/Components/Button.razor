@@ -6,6 +6,6 @@
     else
     {
         <button type="@ButtonType" class="button" data-variant="@VariantName" disabled="@NativelyDisabled" aria-disabled="@AriaDisabled"
-                aria-label="@Name" title="@Hint" @onclick="ClickAsync" @attributes="Attributes">@ChildContent</button>
+                aria-label="@Name" title="@Hint" @onclick="ClickAsync" @onclick:preventDefault="Disabled" @attributes="Attributes">@ChildContent</button>
     }
 </span>
