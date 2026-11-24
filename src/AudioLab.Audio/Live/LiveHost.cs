@@ -14,8 +14,9 @@ namespace AudioLab.Audio.Live;
 /// One thread: every member is called from the worker's event loop, so a call is never interrupted except at an await. The newest document
 /// wins: one that arrives while an older one is still preparing replaces it, and a failed build leaves the plan that was playing. Fetching,
 /// decoding and resampling a clip run in slices with a pause between them; what does not (reading the document, building a plan from clips
-/// that are held, the header check of a file) is a single step of some milliseconds that can make a chunk late. Every failure of a build is
-/// a problem the status reports, and none of them touches the transport.
+/// that are held, the header check of a file) is a single step of some milliseconds that can make a chunk late. A plan is built a track at
+/// a time with a pause between the tracks, so what a chunk can wait for is the dearest track (a reverb), not the whole plan. Every failure
+/// of a build is a problem the status reports, and none of them touches the transport.
 /// </remarks>
 public sealed class LiveHost
 {
@@ -65,6 +66,9 @@ public sealed class LiveHost
 
     /// <summary>The engine this host drives.</summary>
     public LiveEngine Engine => _engine;
+
+    /// <summary>Replaces how effects become inserts, so a test can make building a plan cost what it chooses.</summary>
+    internal Func<Effect, InsertContext, IInsert?>? InsertBuilder { get; set; }
 
     /// <summary>Makes the project at <paramref name="revision"/> the one to play; the task ends when the newest is in place or failed.</summary>
     /// <remarks>A revision not above the newest seen is ignored. A document or a clip that cannot be played is a problem in the status.</remarks>
@@ -206,12 +210,13 @@ public sealed class LiveHost
     private async Task<bool> BuildAsync(ProjectDocument document, long revision)
     {
         _names = ClipNames(document);
-        PlanOptions options = new() { SampleRate = _rate, Cache = _cache, Sources = _instruments };
+        PlanOptions options = new() { SampleRate = _rate, Cache = _cache, Sources = _instruments, InsertBuilder = InsertBuilder };
         for (int attempt = 0; attempt < LoadAttempts; attempt++)
         {
             try
             {
-                RenderPlan plan = RenderPlan.Create(document, NoMedia.Instance, options);
+                // The old plan plays on while the new one is built a track at a time, with the worker's loop free in between to render chunks.
+                RenderPlan plan = await RenderPlan.CreateAsync(document, NoMedia.Instance, options, _pause);
                 _engine.Install(plan, revision, new ClickGenerator(document, _rate));
                 _problem = null;
                 return true;

@@ -57,6 +57,39 @@ public sealed class RenderPlan
     /// <summary>Prepares a document to render. Throws <see cref="MissingMediaException"/> when an audible clip's media is not available.</summary>
     public static RenderPlan Create(ProjectDocument document, IMediaSource media, PlanOptions options)
     {
+        Preparation preparation = Prepare(document, media, options);
+        foreach (Track track in preparation.Ordered)
+        {
+            preparation.Add(track);
+        }
+        return preparation.Finish();
+    }
+
+    /// <summary>Prepares a document to render as <see cref="Create"/> does, but waits on <paramref name="pause"/> between tracks.</summary>
+    /// <remarks>
+    /// A track is the largest step that is not interrupted: its effects are built in one go (a reverb makes its impulse responses and their
+    /// spectra, the dearest of them), so a caller that has work to keep up with, such as the chunks of a live engine, gets the chance to do
+    /// it between any two tracks. The plan is the same as <see cref="Create"/> makes, and it ends early, with an
+    /// <see cref="OperationCanceledException"/>, when the token of the options is cancelled.
+    /// </remarks>
+    public static async Task<RenderPlan> CreateAsync(
+        ProjectDocument document, IMediaSource media, PlanOptions options, Func<CancellationToken, Task> pause)
+    {
+        ArgumentNullException.ThrowIfNull(pause);
+        Preparation preparation = Prepare(document, media, options);
+        foreach (Track track in preparation.Ordered)
+        {
+            options.CancellationToken.ThrowIfCancellationRequested();
+            if (preparation.Add(track))
+            {
+                await pause(options.CancellationToken);
+            }
+        }
+        return preparation.Finish();
+    }
+
+    private static Preparation Prepare(ProjectDocument document, IMediaSource media, PlanOptions options)
+    {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(options);
@@ -74,33 +107,57 @@ public sealed class RenderPlan
         }
         PlanMedia cache = new(shared, options.CancellationToken);
         Track? target = options.StemOf is { } stem ? FindStemTrack(document, stem) : null;
-        List<PlannedTrack> planned = [];
         // Tracks first, then buses, so a send always finds the bus it feeds after the audio has been mixed into it.
-        IEnumerable<Track> ordered = document.Tracks.OrderBy(track => track.Kind == TrackKind.Bus);
-        foreach (Track track in ordered)
+        Track[] ordered = [.. document.Tracks.OrderBy(track => track.Kind == TrackKind.Bus)];
+        return new Preparation(document, options, format, context, busSlots, cache, target, ordered);
+    }
+
+    // A plan on its way: the tracks planned so far, and what it takes to plan the next and to finish.
+    private sealed class Preparation(
+        ProjectDocument document,
+        PlanOptions options,
+        AudioFormat format,
+        InsertContext context,
+        Dictionary<TrackId, int> busSlots,
+        PlanMedia cache,
+        Track? target,
+        Track[] ordered)
+    {
+        private readonly List<PlannedTrack> _planned = [];
+
+        public Track[] Ordered => ordered;
+
+        // Plans a track; false when the track is not part of the plan, so there was nothing to wait for.
+        public bool Add(Track track)
         {
             StemRole role = RoleOf(track, target);
             if (role == StemRole.Left)
             {
-                continue;
+                return false;
             }
             PlannedTrack? plan = PlanTrack(document, track, busSlots, cache, context, options, role, target);
-            if (plan is not null)
+            if (plan is null)
             {
-                planned.Add(plan);
+                return false;
             }
+            _planned.Add(plan);
+            return true;
         }
-        cache.ThrowIfMissing();
-        double contentEnd = ProjectContent.End(document, audibleOnly: true, ignoreSolo: target is not null);
-        return new RenderPlan(
-            format,
-            [.. planned],
-            target is null ? document.MasterVolume : 1,
-            target is null && document.MasterLimiter,
-            Frames(contentEnd, format.SampleRate),
-            Frames(TailSeconds(planned, busSlots.Count), format.SampleRate),
-            busSlots.Count,
-            planned.Any(track => track.Inserts.Any(insert => insert.TailIsCut)));
+
+        public RenderPlan Finish()
+        {
+            cache.ThrowIfMissing();
+            double contentEnd = ProjectContent.End(document, audibleOnly: true, ignoreSolo: target is not null);
+            return new RenderPlan(
+                format,
+                [.. _planned],
+                target is null ? document.MasterVolume : 1,
+                target is null && document.MasterLimiter,
+                Frames(contentEnd, format.SampleRate),
+                Frames(TailSeconds(_planned, busSlots.Count), format.SampleRate),
+                busSlots.Count,
+                _planned.Any(track => track.Inserts.Any(insert => insert.TailIsCut)));
+        }
     }
 
     // The tempo in force from each frame a tempo change falls on, so an effect can follow it without a search of the map.
