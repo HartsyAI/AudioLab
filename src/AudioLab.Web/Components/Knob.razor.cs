@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue knob: a disc with a pointer and its value; with <see cref="OnCommit"/> it is a slider that drags, steps and resets.</summary>
+/// <summary>The catalogue knob: a disc with a pointer and its value; with <see cref="OnCommit"/> it is a slider you drag, step and reset.</summary>
 public sealed partial class Knob : IDisposable
 {
     private const double SweepDegrees = 135;
@@ -41,6 +41,10 @@ public sealed partial class Knob : IDisposable
     /// <summary>Raised on release or after a key, with the new setting from -1 to 1; with it the knob is a slider that can be changed.</summary>
     [Parameter]
     public EventCallback<double> OnCommit { get; set; }
+
+    /// <summary>Raised when the knob goes away while a drag on it was still going on, so that what the drag would have set is not sent.</summary>
+    [Parameter]
+    public EventCallback OnAbandon { get; set; }
 
     /// <summary>The setting a double-click or the reset key puts the knob back to, from -1 to 1.</summary>
     [Parameter]
@@ -93,9 +97,13 @@ public sealed partial class Knob : IDisposable
     {
         _settle?.Cancel();
         _settle?.Dispose();
-        if (_gesture is not null)
+        if (_gesture is { } gesture)
         {
             Pointer.Stop();
+            if (gesture.Active)
+            {
+                _ = OnAbandon.InvokeAsync();
+            }
         }
     }
 
@@ -175,6 +183,11 @@ public sealed partial class Knob : IDisposable
     // The preview stays until the setting that answers it is drawn; keys that arrive while one is on its way are folded into the next send.
     private async Task CommitAsync(double target)
     {
+        if (!_sending && Math.Abs(target - Travel) < 1e-9)
+        {
+            // Home at the lowest value, End at the highest, Backspace at the default: nothing changes, so nothing is sent and undo is left alone.
+            return;
+        }
         _held = target;
         _wanted = target;
         StateHasChanged();

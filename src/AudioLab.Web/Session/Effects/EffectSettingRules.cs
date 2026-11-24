@@ -22,6 +22,6 @@ public static class EffectSettingRules
         {
             return reason ?? "Not available.";
         }
-        return effect is DelayEffect { Sync: true } && setting.Name == "time" ? FollowsTempo : null;
+        return effect is DelayEffect { Sync: true } && setting.FollowsTempo ? FollowsTempo : null;
     }
 }

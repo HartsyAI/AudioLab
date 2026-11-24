@@ -150,6 +150,7 @@ public sealed class EffectsPanelMarkupTests
         RenderedMarkup panel = await PanelAsync(WithEffects(ProjectLimits.MaxEffects), false);
 
         Assert.Contains($"{ProjectLimits.MaxEffects} of {ProjectLimits.MaxEffects}", panel.Texts);
+        Assert.Contains(EffectRules.AddRefusal(ProjectLimits.MaxEffects), panel.Values("title"));
         Assert.Equal(ProjectLimits.MaxEffects, panel.Values("role").Count(role => role == "group"));
     }
 

@@ -15,7 +15,7 @@
     {
         <header class="effects-bar">
             <span class="effects-title">@track.Name</span>
-            <span class="effects-count" title="A track has at most @MaxEffects effects.">@EffectChainRules.Count(track)</span>
+            <span class="effects-count" title="@FullText">@EffectChainRules.Count(track)</span>
             <span class="effects-gap"></span>
             @if (AddBlock is { } block)
             {
@@ -26,7 +26,7 @@
             }
             else
             {
-                <Menu Label="Add effect" Items="KindItems" OnSelect="AddAsync" />
+                <Menu ButtonId="@AddButtonId" Label="Add effect" Items="KindItems" OnSelect="AddAsync" />
             }
         </header>
         @if (track.Effects.Count == 0)
@@ -34,8 +34,8 @@
             <EmptyState Heading="No effects" Message="@($"{track.Name} has no effects. Add one to shape its sound before the fader.")">
                 @foreach (EffectKind kind in EffectText.Kinds.Take(3))
                 {
-                    <Button Name="@($"Add {EffectText.Name(kind)}")" Shortcut="@Shortcuts.EffectAdd[kind].Display" Disabled="AddBlock is not null"
-                            DisabledReason="@AddBlock" OnClick="() => AddKindAsync(kind)">
+                    <Button Name="@($"Add {EffectText.Name(kind)}")" Disabled="AddBlock is not null" DisabledReason="@AddBlock"
+                            OnClick="() => AddKindAsync(kind)">
                         <span>@EffectText.Name(kind)</span>
                     </Button>
                 }
@@ -56,8 +56,9 @@
                 </ul>
                 @if (shown is { } selected)
                 {
-                    <EffectSettings Effect="selected" Index="IndexOf(track, selected.Id)" Editable="Actions.CanEdit" Reason="@Actions.Reason"
-                                    OnSetting="SetSettingAsync" OnSync="SetSyncAsync" OnPreset="ApplyPresetAsync" />
+                    <EffectSettings @key="selected.Id" Effect="selected" Index="IndexOf(track, selected.Id)" Editable="Actions.CanEdit"
+                                    Reason="@Actions.Reason"
+                                    OnSetting="SetSettingAsync" OnSync="SetSyncAsync" OnPreset="ApplyPresetAsync" OnAbandon="AbandonedAsync" />
                 }
             </div>
         }

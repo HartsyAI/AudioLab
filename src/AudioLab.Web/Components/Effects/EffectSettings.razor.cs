@@ -41,6 +41,10 @@ public sealed partial class EffectSettings
     [Parameter]
     public EventCallback<(EffectId Effect, string Preset)> OnPreset { get; set; }
 
+    /// <summary>Raised when a knob goes away in the middle of a drag, as when the effect it belongs to is gone.</summary>
+    [Parameter]
+    public EventCallback OnAbandon { get; set; }
+
     private static IReadOnlyList<SegmentItem> DivisionItems { get; } =
         [.. EffectRules.Divisions.Select(division => new SegmentItem(division, $"Note division {division}", Label: division))];
 

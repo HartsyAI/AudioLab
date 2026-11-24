@@ -31,6 +31,15 @@ public static class EffectChainRules
         return string.Create(CultureInfo.InvariantCulture, $"{track.Effects.Count} of {ProjectLimits.MaxEffects}");
     }
 
+    /// <summary>The places an effect must move from where it is now to reach <paramref name="target"/>, or null when it is gone.</summary>
+    /// <remarks>A drag measures its target in the chain as it is when released, which another client may have changed since the press.</remarks>
+    public static int? StepsTo(Track track, EffectId effect, int target)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        int at = track.Effects.ToList().FindIndex(candidate => candidate.Id == effect);
+        return at < 0 ? null : target - at;
+    }
+
     /// <summary>Where an effect sits in its chain, such as "2 of 3", as a screen reader says it.</summary>
     public static string Position(int index, int count)
     {

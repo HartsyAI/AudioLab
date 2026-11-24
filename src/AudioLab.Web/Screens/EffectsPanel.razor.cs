@@ -17,8 +17,14 @@ public sealed partial class EffectsPanel : IDisposable
 
     private const string PanelId = "effects-panel";
 
+    private const string AddButtonId = "effects-add";
+
+    private const string Busy = "The last change is still being sent; try again in a moment.";
+
+    private const string Gone = "That effect is no longer in the chain.";
+
     private static readonly IReadOnlyList<MenuItem> _kindItems =
-        [.. EffectText.Kinds.Select(kind => new MenuItem(kind.ToString(), EffectText.Name(kind), Shortcuts.EffectAdd[kind].Display))];
+        [.. EffectText.Kinds.Select(kind => new MenuItem(kind.ToString(), EffectText.Name(kind), string.Empty))];
 
     private EffectDrag? _drag;
 
@@ -60,7 +66,8 @@ public sealed partial class EffectsPanel : IDisposable
 
     private static IReadOnlyList<MenuItem> KindItems => _kindItems;
 
-    private static int MaxEffects => ProjectLimits.MaxEffects;
+    // Core's words for a chain that takes no more, for the count's title.
+    private static string FullText => EffectRules.AddRefusal(ProjectLimits.MaxEffects) ?? string.Empty;
 
     private Track? Current => Selected is { } id ? Document.Tracks.FirstOrDefault(track => track.Id == id) : null;
 
@@ -118,8 +125,18 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task AddKindAsync(EffectKind kind)
     {
-        if (Current is not { } track || AddBlock is not null || _editing)
+        if (Current is not { } track)
         {
+            return;
+        }
+        if (AddBlock is { } block)
+        {
+            Say(block);
+            return;
+        }
+        if (_editing)
+        {
+            Say(Busy);
             return;
         }
         _editing = true;
@@ -140,8 +157,13 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task SetEnabledAsync((EffectId Effect, bool Enabled) change)
     {
-        if (Current is not { } track || _editing)
+        if (Current is not { } track)
         {
+            return;
+        }
+        if (_editing)
+        {
+            Say(Busy);
             return;
         }
         _editing = true;
@@ -161,14 +183,25 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task MoveAsync((EffectId Effect, int Places) move)
     {
-        if (Current is not { } track || _editing)
+        if (Current is not { } track)
         {
             return;
         }
         int from = IndexOf(track, move.Effect);
-        int to = Math.Clamp(from + move.Places, 0, track.Effects.Count - 1);
-        if (from < 0 || to == from)
+        if (from < 0)
         {
+            Say(Gone);
+            return;
+        }
+        int to = Math.Clamp(from + move.Places, 0, track.Effects.Count - 1);
+        if (to == from)
+        {
+            Say(EffectChainRules.MoveBlock(from, track.Effects.Count, move.Places < 0 ? MoveDirection.Up : MoveDirection.Down) ?? string.Empty);
+            return;
+        }
+        if (_editing)
+        {
+            Say(Busy);
             return;
         }
         _editing = true;
@@ -189,13 +222,19 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task RemoveAsync(EffectId effect)
     {
-        if (Current is not { } track || _editing)
+        if (Current is not { } track)
         {
             return;
         }
         int index = IndexOf(track, effect);
         if (index < 0)
         {
+            Say(Gone);
+            return;
+        }
+        if (_editing)
+        {
+            Say(Busy);
             return;
         }
         string name = NameAt(track, index);
@@ -207,6 +246,7 @@ public sealed partial class EffectsPanel : IDisposable
             if (result.Succeeded)
             {
                 Say($"{name} removed.");
+                Toasts.Show(ToastKind.Info, $"{name} removed.", Actions.Undo);
                 // The row that took its place keeps the keyboard's place; with none left the panel does.
                 Follow(next is { } neighbour ? EffectRow.IdOf(neighbour) : PanelId);
             }
@@ -220,8 +260,16 @@ public sealed partial class EffectsPanel : IDisposable
     private Task KeyAsync((EffectId Effect, KeyboardEventArgs Key) press)
     {
         KeyboardEventArgs key = press.Key;
-        if (key.Repeat || !Actions.CanEdit)
+        bool ours = Shortcuts.EffectRemove.Matches(key) || Shortcuts.EffectBypass.Matches(key) || Shortcuts.EffectEarlier.Matches(key)
+            || Shortcuts.EffectLater.Matches(key);
+        if (key.Repeat || !ours)
         {
+            return Task.CompletedTask;
+        }
+        if (!Actions.CanEdit)
+        {
+            // A key that does nothing says why, as a disabled button does in its title.
+            Say(Actions.Reason ?? "The project cannot be edited now.");
             return Task.CompletedTask;
         }
         if (Shortcuts.EffectRemove.Matches(key))
@@ -241,33 +289,88 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task SetSettingAsync((EffectId Effect, string Name, double Value) change)
     {
-        if (Current is { } track && Actions.CanEdit)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
-            await Actions.Effects.SetParameter(track.Id, change.Effect, change.Name, change.Value);
+            return;
+        }
+        EditResult result = await Actions.Effects.SetParameter(track!.Id, change.Effect, change.Name, change.Value);
+        if (result.Succeeded && EffectRules.Find(track.Effects[index], change.Name) is { } setting)
+        {
+            Say($"{Subject(track, index)} {setting.Label} {EffectValueText.Of(setting, change.Value)}.");
         }
     }
 
     private async Task SetSyncAsync((EffectId Effect, bool Sync, string? Division) change)
     {
-        if (Current is { } track && Actions.CanEdit)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
-            await Actions.Effects.SetDelaySync(track.Id, change.Effect, change.Sync, change.Division);
+            return;
+        }
+        EditResult result = await Actions.Effects.SetDelaySync(track!.Id, change.Effect, change.Sync, change.Division);
+        if (result.Succeeded)
+        {
+            Say(change.Sync
+                ? $"{Subject(track, index)} follows the tempo{(change.Division is null ? string.Empty : $", {change.Division}")}."
+                : $"{Subject(track, index)} keeps its own time.");
         }
     }
 
     private async Task ApplyPresetAsync((EffectId Effect, string Preset) change)
     {
-        if (Current is not { } track || !Actions.CanEdit || _editing)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
             return;
         }
-        int index = IndexOf(track, change.Effect);
-        EditResult result = await Actions.Effects.ApplyPreset(track.Id, change.Effect, change.Preset);
-        if (result.Succeeded && index >= 0)
+        if (_editing)
         {
-            Say($"{change.Preset} applied to {NameAt(track, index)} {EffectChainRules.Position(index, track.Effects.Count)}.");
+            Say(Busy);
+            return;
+        }
+        _editing = true;
+        try
+        {
+            EditResult result = await Actions.Effects.ApplyPreset(track!.Id, change.Effect, change.Preset);
+            if (result.Succeeded)
+            {
+                Say($"{change.Preset} applied to {Subject(track, index)}.");
+            }
+        }
+        finally
+        {
+            _editing = false;
         }
     }
+
+    // A knob that was dragged on an effect that is gone must not set the effect that took its place: the edit is dropped, and the user is told.
+    private Task AbandonedAsync()
+    {
+        Toasts.Show(ToastKind.Warning, "The effect changed while a knob was being dragged, so that edit was not sent.");
+        return Task.CompletedTask;
+    }
+
+    // Whether an edit of an effect can be sent now: the project can be edited and the effect is still in the chain; if not, it says why.
+    private bool TryHold(EffectId effect, out Track? track, out int index)
+    {
+        track = Current;
+        index = track is null ? -1 : IndexOf(track, effect);
+        if (track is null)
+        {
+            return false;
+        }
+        if (!Actions.CanEdit)
+        {
+            Say(Actions.Reason ?? "The project cannot be edited now.");
+            return false;
+        }
+        if (index < 0)
+        {
+            Toasts.Show(ToastKind.Warning, "That effect is no longer in the chain, so the change was not sent.");
+            return false;
+        }
+        return true;
+    }
+
+    private static string Subject(Track track, int index) => $"{NameAt(track, index)} {index + 1}";
 
     private Task PanelKeyAsync(KeyboardEventArgs key)
     {
@@ -280,11 +383,15 @@ public sealed partial class EffectsPanel : IDisposable
         {
             return Task.CompletedTask;
         }
-        foreach (EffectKind kind in EffectText.Kinds)
+        if (Shortcuts.EffectAddMenu.Matches(key) && Current is not null)
         {
-            if (Shortcuts.EffectAdd[kind].Matches(key))
+            if (AddBlock is { } block)
             {
-                return AddKindAsync(kind);
+                Say(block);
+            }
+            else
+            {
+                Focus.Focus(AddButtonId);
             }
         }
         return Task.CompletedTask;
@@ -293,8 +400,13 @@ public sealed partial class EffectsPanel : IDisposable
     // A press on a handle may become a drag; nothing is sent until the release, and only a drag that ends elsewhere sends anything.
     private Task GrabAsync((EffectId Effect, PointerEventArgs Press) grab)
     {
-        if (!Actions.CanEdit || Current is not { } track || _drag is not null || _editing)
+        if (!Actions.CanEdit || Current is not { } track || _drag is not null)
         {
+            return Task.CompletedTask;
+        }
+        if (_editing)
+        {
+            Say(Busy);
             return Task.CompletedTask;
         }
         int from = IndexOf(track, grab.Effect);
@@ -354,8 +466,20 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task ReleaseAsync(TrackId track, EffectDrag drag)
     {
-        int? places = drag.Commit();
-        if (places is not { } steps)
+        if (drag.Commit() is null)
+        {
+            Finish(drag);
+            return;
+        }
+        // The chain may have changed since the press (another client): the target is a place in the chain as it is now.
+        Track? now = Document.Tracks.FirstOrDefault(candidate => candidate.Id == track);
+        if (now is null || EffectChainRules.StepsTo(now, EffectId.From(drag.Effect), drag.Target) is not { } steps)
+        {
+            Toasts.Show(ToastKind.Warning, "The effect was removed while it was being dragged, so nothing was moved.");
+            Finish(drag);
+            return;
+        }
+        if (steps == 0)
         {
             Finish(drag);
             return;
