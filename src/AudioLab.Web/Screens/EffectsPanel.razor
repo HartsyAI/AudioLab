@@ -26,7 +26,7 @@
             }
             else
             {
-                <Menu ButtonId="@AddButtonId" Label="Add effect" Items="KindItems" OnSelect="AddAsync" />
+                <Menu Id="@AddMenuId" Label="Add effect" Items="KindItems" OnSelect="AddAsync" />
             }
         </header>
         @if (track.Effects.Count == 0)
