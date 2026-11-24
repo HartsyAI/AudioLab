@@ -17,7 +17,7 @@ public sealed partial class EffectsPanel : IDisposable
 
     private const string PanelId = "effects-panel";
 
-    private const string AddButtonId = "effects-add";
+    private const string AddMenuId = "effects-add";
 
     private const string Busy = "The last change is still being sent; try again in a moment.";
 
@@ -276,7 +276,7 @@ public sealed partial class EffectsPanel : IDisposable
             }
             else
             {
-                Focus.Focus(AddButtonId);
+                Focus.FocusIn(AddMenuId, "button");
             }
         }
         return Task.CompletedTask;

@@ -14,9 +14,9 @@ public sealed partial class Menu
     [Parameter]
     public bool Icon { get; set; }
 
-    /// <summary>The id of the button, so a shortcut can move the focus to it; none when absent.</summary>
+    /// <summary>The id of the menu's wrapper, so that a shortcut can move the focus to its button; the library chooses the button's own id.</summary>
     [Parameter]
-    public string? ButtonId { get; set; }
+    public string? Id { get; set; }
 
     /// <summary>The commands.</summary>
     [Parameter, EditorRequired]

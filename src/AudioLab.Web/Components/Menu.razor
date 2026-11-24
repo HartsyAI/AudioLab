@@ -1,6 +1,6 @@
-<div class="menu-root" @onkeydown:stopPropagation="_open">
+<div id="@Id" class="menu-root" @onkeydown:stopPropagation="_open">
     <BitBhMenu OnOpenChange="OpenChangedAsync">
-        <BitBhMenuButton id="@ButtonId" class="menu-button" data-variant="@(Icon ? "icon" : "default")" aria-label="@ButtonName">
+        <BitBhMenuButton class="menu-button" data-variant="@(Icon ? "icon" : "default")" aria-label="@ButtonName">
             @if (Icon)
             {
                 <Icon Name="IconName.More" />
