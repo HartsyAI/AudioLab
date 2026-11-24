@@ -371,7 +371,7 @@ public sealed partial class EffectsPanel : IDisposable
     {
         if (Shortcuts.EffectPresets.Matches(key) && Current is { } selected && Selection.Of(selected) is not null && Actions.CanEdit)
         {
-            Focus.Focus(EffectSettings.PresetButtonId);
+            Focus.FocusIn(EffectSettings.PresetMenuId, "button");
             return Task.CompletedTask;
         }
         if (key.Repeat)
