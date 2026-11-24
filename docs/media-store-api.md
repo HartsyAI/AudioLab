@@ -20,7 +20,7 @@ Accepted: RIFF WAVE, 16/24/32-bit integer PCM or 32-bit float (plain or extensib
 ## What a client must do
 
 - **Send the summary's `duration` verbatim in `clip_add`.** The server refuses (`rejected`) a clip whose duration differs from the file's by more than one sample period at the file's own rate (1/sampleRate), and `not_found` for a file that is missing or another user's (one message for both). The clip keeps the value you send.
-- **Check size and quota before a large upload.** A refusal sent before the body is read (a full quota, an announced length over the limit, a door refusal) can reach a client as a connection reset instead of a 4xx.
+- **Check size and quota before a large upload** with [`GET /api/media/limits`](media-limits.md) (the page reads it as the tab opens and after each upload and delete). A refusal sent before the body is read (a full quota, an announced length over the limit, a door refusal) can reach a client as a connection reset instead of a 4xx.
 - A project whose clips name media the user does not have, or at another length, is refused when opened (422 with problems).
 - Fetch audio with `HttpClient` from `/content` (D24); peaks from `/peaks`.
 

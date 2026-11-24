@@ -138,7 +138,7 @@ public sealed class DenormalTailTests
     public void ADelayThatHasEchoedDownHoldsNothingButZeroOrAnOrdinaryNumber()
     {
         DelayEffect effect = (DelayEffect)EffectRules.Create(EffectKind.Delay, EffectId.From("d"));
-        effect = effect with { Time = 0.05, Feedback = 0.9, Tone = 15000, Mix = 1 };
+        effect = effect with { Time = 0.05, Feedback = 0.9, Tone = 20000, Mix = 1 };
         IInsert delay = InsertFactoryFor(effect);
 
         Burst(delay);

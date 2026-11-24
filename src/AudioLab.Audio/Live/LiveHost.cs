@@ -37,6 +37,7 @@ public sealed class LiveHost
     private readonly MediaCache _cache;
     private CancellationTokenSource? _loadCancellation;
     private CancellationTokenSource? _buildCancellation;
+    private ProjectDocument? _buildingKey;
     private MediaId? _loadingClip;
     private Dictionary<MediaId, string> _names = [];
     private TrackLevel[] _trackLevels = [];
@@ -97,8 +98,12 @@ public sealed class LiveHost
         _wanted = document;
         _wantedRevision = revision;
         _engine.SetClick(document.Metronome);
-        // A plan that is being built from an older document is of no use once a newer one has come.
-        _buildCancellation?.Cancel();
+        // A plan that is being built is of no use once a document it would not sound like has come; one that differs only in what a plan
+        // does not read (a name, the click, a view) changes nothing, so the build goes on.
+        if (_buildingKey is { } building && !PlanKey.Of(document).Equals(building))
+        {
+            _buildCancellation?.Cancel();
+        }
         if (_loadingClip is { } loading && !ClipNames(document).ContainsKey(loading))
         {
             // The clip being fetched is not in the newer document: no reason to wait for it.
@@ -197,6 +202,7 @@ public sealed class LiveHost
             {
                 continue;
             }
+            _buildingKey = key;
             try
             {
                 if (await BuildAsync(document, revision).ConfigureAwait(false))
@@ -209,6 +215,10 @@ public sealed class LiveHost
                 // The edge of what the worker does for the page: whatever a build throws becomes a problem, and the old plan keeps playing.
                 _problem = $"The project could not be played: {exception.Message}";
                 _loading = 0;
+            }
+            finally
+            {
+                _buildingKey = null;
             }
         }
     }
@@ -279,8 +289,8 @@ public sealed class LiveHost
                 using CancellationTokenSource cancellation = new();
                 _loadCancellation = cancellation;
                 _loadingClip = id;
-                PcmAudio decoded = await _clips.LoadAsync(id, _pause, cancellation.Token);
-                await _cache.AddAsync(id, decoded, _pause, cancellation.Token);
+                PcmAudio decoded = await _clips.LoadAsync(id, _pause, cancellation.Token).ConfigureAwait(false);
+                await _cache.AddAsync(id, decoded, _pause, cancellation.Token).ConfigureAwait(false);
                 _loading--;
             }
             return true;
