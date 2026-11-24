@@ -36,6 +36,23 @@ public sealed class MediaApiTests
         Assert.Equal(3, listing.Refused);
     }
 
+    /// <summary>The limits are read from their route, and a member this client does not know is refused like any other answer.</summary>
+    [Fact]
+    public async Task TheLimitsAreReadFromTheirRouteAndStrictly()
+    {
+        const string Limits = "{\"maxUploadBytes\":536870912,\"maxFiles\":5000,\"maxBytes\":21474836480,\"maxConcurrentUploads\":4,"
+            + "\"files\":12,\"bytes\":83886080,\"filesRemaining\":4988,\"bytesRemaining\":21390950400,\"uploadsRunning\":1}";
+        StubHandler handler = new(HttpStatusCode.OK, Limits);
+
+        MediaLimits limits = await Api(handler).LimitsAsync();
+
+        Assert.Equal("/audiolab/api/media/limits", handler.Requests.Single().Path);
+        Assert.Equal((536870912L, 4988, 21390950400L), (limits.MaxUploadBytes, limits.FilesRemaining, limits.BytesRemaining));
+        Assert.Equal(1, limits.UploadsRunning);
+        StubHandler extra = new(HttpStatusCode.OK, Limits.Replace("{", "{\"owner\":\"u1\",", StringComparison.Ordinal));
+        await Assert.ThrowsAnyAsync<Exception>(() => Api(extra).LimitsAsync());
+    }
+
     /// <summary>A summary keeps the duration the server measured exactly, since a clip must send it back verbatim.</summary>
     [Fact]
     public async Task ASummaryKeepsTheDurationExactly()

@@ -40,6 +40,20 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
             cancellationToken);
     }
 
+    /// <summary>What the user may upload and how much of it they have used, to check a file before it is read.</summary>
+    /// <remarks>The numbers are advice: another upload can finish first, and the upload route still judges the file on its bytes.</remarks>
+    public Task<MediaLimits> LimitsAsync(CancellationToken cancellationToken = default)
+    {
+        return RunAsync(
+            async () =>
+            {
+                using HttpResponseMessage response = await http.GetAsync($"{Media}/limits", cancellationToken);
+                await ApiAnswers.EnsureAsync(response, cancellationToken);
+                return await ApiAnswers.ReadAsync(response, MediaJsonContext.Default.MediaLimits, cancellationToken);
+            },
+            cancellationToken);
+    }
+
     /// <summary>One media file's summary.</summary>
     public Task<MediaSummary> GetAsync(string id, CancellationToken cancellationToken = default)
     {

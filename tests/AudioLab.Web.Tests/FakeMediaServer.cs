@@ -50,6 +50,21 @@ internal sealed class FakeMediaServer : HttpMessageHandler
     /// <summary>Files that are no longer there when a delete asks.</summary>
     public HashSet<string> Gone { get; set; } = [];
 
+    /// <summary>What the limits route answers with.</summary>
+    public HttpStatusCode LimitsStatus { get; set; } = HttpStatusCode.OK;
+
+    /// <summary>The largest file one upload may carry, as the limits route says.</summary>
+    public long MaxUploadBytes { get; set; } = 512L * 1024 * 1024;
+
+    /// <summary>The most files the user may keep, as the limits route says.</summary>
+    public int MaxFiles { get; set; } = 5000;
+
+    /// <summary>The most bytes of media the user may keep, as the limits route says.</summary>
+    public long MaxBytes { get; set; } = 20L * 1024 * 1024 * 1024;
+
+    /// <summary>How many times the limits were asked for.</summary>
+    public int LimitReads { get; private set; }
+
     /// <summary>How many list reads were asked.</summary>
     public int Reads { get; private set; }
 
@@ -92,6 +107,10 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         {
             throw new TaskCanceledException("The request timed out.");
         }
+        if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/limits", StringComparison.Ordinal))
+        {
+            return Limits();
+        }
         if (request.Method == HttpMethod.Get)
         {
             return await ListAsync(cancellationToken);
@@ -118,6 +137,26 @@ internal sealed class FakeMediaServer : HttpMessageHandler
             _files.RemoveAll(file => file.Id == id);
         }
         return new HttpResponseMessage(HttpStatusCode.NoContent);
+    }
+
+    private HttpResponseMessage Limits()
+    {
+        int files;
+        long bytes;
+        lock (_gate)
+        {
+            LimitReads++;
+            files = _files.Count;
+            bytes = Uploads.Sum(upload => (long)upload.Body.Length);
+        }
+        if (LimitsStatus != HttpStatusCode.OK)
+        {
+            return Problem(LimitsStatus, "There is no such route.");
+        }
+        string json = $"{{\"maxUploadBytes\":{MaxUploadBytes},\"maxFiles\":{MaxFiles},\"maxBytes\":{MaxBytes},\"maxConcurrentUploads\":4,"
+            + $"\"files\":{files},\"bytes\":{bytes},\"filesRemaining\":{Math.Max(0, MaxFiles - files)},"
+            + $"\"bytesRemaining\":{Math.Max(0, MaxBytes - bytes)},\"uploadsRunning\":0}}";
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
     private async Task<HttpResponseMessage> ListAsync(CancellationToken cancellationToken)

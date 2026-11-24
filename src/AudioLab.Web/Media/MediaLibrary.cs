@@ -33,6 +33,11 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
 
     private bool _refreshing;
 
+    // The limits are read once for any number of askers; a change that came while a read was running asks for one more read after it.
+    private Task? _readingLimits;
+
+    private bool _limitsAgain;
+
     private bool _refreshAgain;
 
     private readonly List<(string Name, string Reason)> _failed = [];
@@ -52,6 +57,9 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
 
     /// <summary>The files, newest first.</summary>
     public IReadOnlyList<MediaSummary> Files => _files;
+
+    /// <summary>What the user may upload and what they have used, as the server last said; null until it has, or when it cannot say.</summary>
+    public MediaLimits? Limits { get; private set; }
 
     /// <summary>How many stored records the server left out as invalid.</summary>
     public int Refused { get; private set; }
@@ -166,6 +174,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
     private async Task KeepFreshAsync(CancellationToken cancellationToken)
     {
         _refreshing = true;
+        _ = ReadLimitsAsync(cancellationToken);
         try
         {
             do
@@ -195,6 +204,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         State = LibraryState.Loading;
         Failure = null;
         Changed?.Invoke();
+        _ = ReadLimitsAsync(cancellationToken);
         try
         {
             await ApplyAsync(cancellationToken);
@@ -255,6 +265,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             job.State = UploadState.Reading;
             job.Fraction = 0;
             Changed?.Invoke();
+            await LimitsReadyAsync();
             string? problem = await CheckAsync(job.Source);
             if (problem is not null)
             {
@@ -308,11 +319,55 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         return await api.UploadAsync(job.Name, job.Source.Open(), job.Length, progress, cancellationToken);
     }
 
+    // A file is judged on limits that are as new as the last upload or delete: one that comes while a read is on its way waits for it,
+    // and the first of all starts it.
+    private Task LimitsReadyAsync()
+    {
+        return _readingLimits is null ? ReadLimitsAsync(CancellationToken.None) : _readingLimits;
+    }
+
+    private Task ReadLimitsAsync(CancellationToken cancellationToken)
+    {
+        if (_readingLimits is { IsCompleted: false } running)
+        {
+            _limitsAgain = true;
+            return running;
+        }
+        return _readingLimits = KeepLimitsAsync(cancellationToken);
+    }
+
+    // The limits are advice and the upload route judges the file anyway, so a read that fails (an older server, a timeout) keeps what was known.
+    private async Task KeepLimitsAsync(CancellationToken cancellationToken)
+    {
+        do
+        {
+            _limitsAgain = false;
+            try
+            {
+                MediaLimits limits = await api.LimitsAsync(cancellationToken);
+                Limits = limits;
+                if (limits.MaxUploadBytes > 0)
+                {
+                    api.MaxUploadBytes = limits.MaxUploadBytes;
+                }
+            }
+            catch (Exception exception)
+            {
+                MediaLog.LimitsFailed(log, exception);
+            }
+        }
+        while (_limitsAgain && !cancellationToken.IsCancellationRequested);
+    }
+
     private async Task<string?> CheckAsync(IUploadSource source)
     {
         if (source.Length > api.MaxUploadBytes)
         {
             return UploadChecks.TooLarge(source.Length, api.MaxUploadBytes);
+        }
+        if (Limits is { } limits && UploadChecks.AgainstQuota(limits, source.Length) is { } full)
+        {
+            return full;
         }
         IReadOnlyList<string> name = MediaValidator.ValidateName(source.Name);
         if (name.Count > 0)

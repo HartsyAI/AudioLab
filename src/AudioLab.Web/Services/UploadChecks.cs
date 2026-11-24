@@ -1,4 +1,5 @@
 using System.Globalization;
+using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
@@ -9,6 +10,22 @@ public static class UploadChecks
     public static string TooLarge(long length, long limit)
     {
         return $"The file is too large: it is {Size(length)} and the server accepts at most {Size(limit)}.";
+    }
+
+    /// <summary>The first reason the user's limits refuse a file of this length, in the server's own words where it has them, or null.</summary>
+    /// <remarks>The size limit of one file is judged separately (<see cref="TooLarge"/>); this is the quota.</remarks>
+    public static string? AgainstQuota(MediaLimits limits, long length)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        if (limits.FilesRemaining <= 0)
+        {
+            return $"You already have {limits.MaxFiles} media files, the most allowed; delete one first.";
+        }
+        if (length > limits.BytesRemaining)
+        {
+            return $"There is room for {Size(limits.BytesRemaining)} more of media and this file is {Size(length)}; delete some files first.";
+        }
+        return null;
     }
 
     /// <summary>A size with a binary unit, such as 258 KiB or 12.4 MiB.</summary>
