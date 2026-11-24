@@ -8,6 +8,7 @@
 
   1. Records the hardware and refuses to go on unless the machine is quiet (mean CPU under -QuietPercent for -QuietSeconds), or -Force.
   2. Publishes the server with the ahead-of-time engine (-p:AudioLabWorkerAot=true; needs the wasm-tools workload), or uses -PublishDir.
+     -Interpreted publishes the interpreted engine instead, for the comparison, and skips the check of step 3.
   3. Checks that the worker's runtime in the publish is the ahead-of-time one (its native module is several times the page's).
   4. Starts the published server on a scratch folder and makes the project: -Tracks audio tracks, one 30 s stereo 44.1 kHz clip each (8 different),
      the effects of -Mode (dry, fx = EQ and compressor, heavy = fx plus a reverb, a delay and a saturator on a quarter of the tracks each).
@@ -27,7 +28,8 @@ param(
   [string]$PublishDir,
   [string]$OutputDir = (Join-Path ([IO.Path]::GetTempPath()) 'audiolab-measure'),
   [switch]$Force,
-  [switch]$NoWait
+  [switch]$NoWait,
+  [switch]$Interpreted
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -58,12 +60,13 @@ if (-not $PublishDir) {
   $PublishDir = Join-Path $OutputDir 'publish'
   if (Test-Path $PublishDir) { Remove-Item $PublishDir -Recurse -Force }
   Write-Host "Publishing the server with the ahead-of-time engine to $PublishDir (several minutes)..."
-  dotnet publish (Join-Path $root 'src/AudioLab.Server') -c Release -p:AudioLabWorkerAot=true -o $PublishDir | Out-Null
+  $aot = if ($Interpreted) { 'false' } else { 'true' }
+  dotnet publish (Join-Path $root 'src/AudioLab.Server') -c Release "-p:AudioLabWorkerAot=$aot" -o $PublishDir | Out-Null
 }
 $workerNative = Get-ChildItem (Join-Path $PublishDir 'wwwroot/worker/_framework') -Filter 'dotnet.native*.wasm' | Select-Object -First 1
 $pageNative = Get-ChildItem (Join-Path $PublishDir 'wwwroot/_framework') -Filter 'dotnet.native*.wasm' | Select-Object -First 1
 Write-Host ("Worker runtime {0:0.0} MB, page runtime {1:0.0} MB" -f ($workerNative.Length / 1MB), ($pageNative.Length / 1MB))
-if ($workerNative.Length -lt 2 * $pageNative.Length) {
+if (-not $Interpreted -and $workerNative.Length -lt 2 * $pageNative.Length) {
   throw 'The worker runtime is not much larger than the page runtime: this publish is not ahead of time (is the wasm-tools workload installed?).'
 }
 
