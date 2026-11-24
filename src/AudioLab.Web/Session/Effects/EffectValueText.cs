@@ -13,9 +13,11 @@ public static class EffectValueText
         CultureInfo culture = CultureInfo.InvariantCulture;
         return setting.Unit switch
         {
-            EffectUnit.Hertz => value >= 1000 ? $"{Trim(value / 1000, 2).ToString(culture)} kHz" : $"{Trim(value, 1).ToString(culture)} Hz",
+            EffectUnit.Hertz => Trim(value, 1) >= 1000 ? $"{Trim(value / 1000, 2).ToString(culture)} kHz" : $"{Trim(value, 1).ToString(culture)} Hz",
             EffectUnit.Decibel => $"{Signed(Trim(value, 1), setting.Min < 0, culture)} dB",
-            EffectUnit.Seconds => value < 1 ? $"{Trim(value * 1000, 1).ToString(culture)} ms" : $"{Trim(value, 2).ToString(culture)} s",
+            EffectUnit.Seconds => Trim(value * 1000, 1) >= 1000
+                ? $"{Trim(value, 2).ToString(culture)} s"
+                : $"{Trim(value * 1000, 1).ToString(culture)} ms",
             EffectUnit.Ratio => $"{Trim(value, 1).ToString(culture)}:1",
             EffectUnit.Fraction => $"{Trim(value * 100, 0).ToString(culture)}%",
             _ => Trim(value, 2).ToString(culture),

@@ -34,6 +34,15 @@ public sealed partial class Menu
 
     private string? ButtonName => Icon ? Label : null;
 
+    // While the menu is open its keys are the menu's: typing a letter finds an item, and no shortcut of the screen behind it hears the letter.
+    private bool _open;
+
+    private Task OpenChangedAsync(bool open)
+    {
+        _open = open;
+        return Task.CompletedTask;
+    }
+
     /// <summary>The commands in the order the menu shows them: the others as given, then the destructive ones as given.</summary>
     /// <param name="items">The commands as the caller listed them.</param>
     /// <returns>The same commands, destructive ones last.</returns>

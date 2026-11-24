@@ -1,5 +1,3 @@
-using AudioLab.Core.Rules;
-
 namespace AudioLab.Web.Services;
 
 /// <summary>The one registry of shortcuts. A shortcut is never written into a component: menus, tooltips and key handlers read it here.</summary>
@@ -231,20 +229,8 @@ public static class Shortcuts
     /// <summary>Zoom the time axis out.</summary>
     public static readonly Shortcut RollZoomOut = new("roll.zoom.out", "Zoom out", "-", PianoRoll);
 
-    /// <summary>Add an EQ at the end of the chain.</summary>
-    public static readonly Shortcut EffectAddEq = new("effect.add.eq", "Add EQ", "1", Effects, Alt: true);
-
-    /// <summary>Add a compressor at the end of the chain.</summary>
-    public static readonly Shortcut EffectAddCompressor = new("effect.add.compressor", "Add compressor", "2", Effects, Alt: true);
-
-    /// <summary>Add a reverb at the end of the chain.</summary>
-    public static readonly Shortcut EffectAddReverb = new("effect.add.reverb", "Add reverb", "3", Effects, Alt: true);
-
-    /// <summary>Add a delay at the end of the chain.</summary>
-    public static readonly Shortcut EffectAddDelay = new("effect.add.delay", "Add delay", "4", Effects, Alt: true);
-
-    /// <summary>Add a saturation at the end of the chain.</summary>
-    public static readonly Shortcut EffectAddSaturation = new("effect.add.saturation", "Add saturation", "5", Effects, Alt: true);
+    /// <summary>Move the focus to the Add effect menu, whose items are the kinds of effect.</summary>
+    public static readonly Shortcut EffectAddMenu = new("effect.add", "Add effect", "a", Effects);
 
     /// <summary>Remove the effect that has the focus.</summary>
     public static readonly Shortcut EffectRemove = new("effect.remove", "Remove effect", "Delete", Effects);
@@ -258,16 +244,6 @@ public static class Shortcuts
     /// <summary>Move the effect that has the focus one place later in the chain.</summary>
     public static readonly Shortcut EffectLater = new("effect.move.later", "Move effect later", "ArrowDown", Effects, Alt: true);
 
-    /// <summary>The shortcut that adds each kind of effect.</summary>
-    public static readonly IReadOnlyDictionary<EffectKind, Shortcut> EffectAdd = new Dictionary<EffectKind, Shortcut>
-    {
-        [EffectKind.Eq] = EffectAddEq,
-        [EffectKind.Compressor] = EffectAddCompressor,
-        [EffectKind.Reverb] = EffectAddReverb,
-        [EffectKind.Delay] = EffectAddDelay,
-        [EffectKind.Saturation] = EffectAddSaturation,
-    };
-
     /// <summary>Put the knob that has the focus back to its default.</summary>
     public static readonly Shortcut ControlReset = new("control.reset", "Reset to default", "Backspace", Controls);
 
@@ -277,8 +253,7 @@ public static class Shortcuts
     /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> EffectChain =
     [
-        EffectAddEq, EffectAddCompressor, EffectAddReverb, EffectAddDelay, EffectAddSaturation, EffectRemove, EffectBypass, EffectEarlier,
-        EffectLater, EffectPresets,
+        EffectAddMenu, EffectRemove, EffectBypass, EffectEarlier, EffectLater, EffectPresets,
     ];
 
     /// <summary>Every shortcut of the piano roll, in the order they are listed.</summary>

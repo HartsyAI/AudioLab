@@ -31,7 +31,7 @@
         @foreach (EffectParameter setting in Settings)
         {
             <EffectParameterControl @key="setting.Name" Setting="setting" Effect="Effect" Subject="@Subject"
-                                    Disabled="@(BlockOf(setting) is not null)" Reason="@BlockOf(setting)" OnSet="SetAsync" />
+                                    Disabled="@(BlockOf(setting) is not null)" Reason="@BlockOf(setting)" OnSet="SetAsync" OnAbandon="OnAbandon" />
         }
     </div>
 </section>

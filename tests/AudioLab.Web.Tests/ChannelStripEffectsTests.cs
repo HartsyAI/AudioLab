@@ -1,5 +1,7 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
@@ -50,6 +52,21 @@ public sealed class ChannelStripEffectsTests
         Assert.Contains("2 more effects", strip.Texts);
         Assert.Contains("EQ, on", strip.Values("aria-label"));
         Assert.Contains($"EQ, on. Open in the Effects tab ({Shortcuts.OpenEffects.Display})", strip.Values("title"));
+    }
+
+    /// <summary>The slot that counts the rest says what it stands for: on while any of them is, "all off" when none is.</summary>
+    [Fact]
+    public async Task TheSlotThatCountsTheRestSaysWhatItStandsFor()
+    {
+        StripEffect[] some = [_three[0], _three[1], _three[2]];
+        StripEffect[] none = [_three[0], _three[1] with { Enabled = false }, _three[2] with { Enabled = false }];
+
+        RenderedMarkup on = await StripAsync(some);
+        RenderedMarkup off = await StripAsync(none);
+
+        Assert.Contains("2 more effects", on.Values("aria-label"));
+        Assert.DoesNotContain("2 more effects, on", on.Values("aria-label"));
+        Assert.Contains("2 more effects, all off", off.Values("aria-label"));
     }
 
     /// <summary>A bypassed effect says "off" in words, not by dimming alone, and its description says so.</summary>
@@ -112,6 +129,33 @@ public sealed class ChannelStripEffectsTests
         Assert.False(effects.TakeFocusRequest());
     }
 
+    /// <summary>Opening the chain of the track that is already selected keeps the selected clip.</summary>
+    [Fact]
+    public void OpeningTheChainOfTheSelectedTrackKeepsTheClip()
+    {
+        SessionSelection selection = new();
+        selection.SelectClip(TrackId.From("t1"), ClipId.From("c1"));
+        EffectsNavigator navigator = new(selection, new EffectSelection(), new BottomPanelState());
+
+        navigator.Open(TrackId.From("t1"), null);
+
+        Assert.Equal(ClipId.From("c1"), selection.Clip);
+    }
+
+    /// <summary>Asking for the focus tells an open panel at once, so it does not wait for an unrelated draw to spend the request.</summary>
+    [Fact]
+    public void AskingForTheFocusTellsAnOpenPanelAtOnce()
+    {
+        EffectSelection effects = new();
+        int told = 0;
+        effects.Changed += () => told++;
+
+        effects.RequestFocus();
+
+        Assert.Equal(1, told);
+        Assert.True(effects.TakeFocusRequest());
+    }
+
     /// <summary>Opening a track's chain with no effect named leaves the chosen effect as it was.</summary>
     [Fact]
     public void OpeningAChainWithNoEffectLeavesTheChoiceAlone()
@@ -132,7 +176,7 @@ public sealed class ChannelStripEffectsTests
         EffectSelection effects = new();
         Track track = Song.NewTrack("t1") with
         {
-            Effects = [.. _three.Select(effect => AudioLab.Core.Rules.EffectRules.Create(AudioLab.Core.Rules.EffectKind.Eq, effect.Id!.Value))],
+            Effects = [.. _three.Select(effect => EffectRules.Create(EffectKind.Eq, effect.Id!.Value))],
         };
 
         Assert.Equal(EffectId.From("e1"), effects.Of(track)!.Id);
@@ -153,7 +197,7 @@ public sealed class ChannelStripEffectsTests
         effects.RequestFocus();
         Track track = Song.NewTrack("t1") with
         {
-            Effects = [.. _three.Select(effect => AudioLab.Core.Rules.EffectRules.Create(AudioLab.Core.Rules.EffectKind.Eq, effect.Id!.Value))],
+            Effects = [.. _three.Select(effect => EffectRules.Create(EffectKind.Eq, effect.Id!.Value))],
         };
 
         await RenderedMarkup.OfAsync<EffectsPanel>(
@@ -165,9 +209,9 @@ public sealed class ChannelStripEffectsTests
             },
             services =>
             {
-                services.AddSingleton<AudioLab.Web.Interop.IKeyGuard, NoGuard>();
-                services.AddSingleton<AudioLab.Web.Interop.IElementView, NoView>();
-                services.AddSingleton<AudioLab.Web.Interop.IElementFocus>(focus);
+                services.AddSingleton<IKeyGuard, NoGuard>();
+                services.AddSingleton<IElementView, NoView>();
+                services.AddSingleton<IElementFocus>(focus);
                 services.AddSingleton(effects);
                 services.AddScoped(_ => new ToastService(TimeProvider.System));
             });
@@ -176,21 +220,21 @@ public sealed class ChannelStripEffectsTests
         Assert.False(effects.TakeFocusRequest());
     }
 
-    private sealed class RecordingFocus : AudioLab.Web.Interop.IElementFocus
+    private sealed class RecordingFocus : IElementFocus
     {
         public List<string> Asked { get; } = [];
 
         public void Focus(string elementId) => Asked.Add(elementId);
     }
 
-    private sealed class NoGuard : AudioLab.Web.Interop.IKeyGuard
+    private sealed class NoGuard : IKeyGuard
     {
         public void PreventNavigationKeys(string containerId, string targetRole)
         {
         }
     }
 
-    private sealed class NoView : AudioLab.Web.Interop.IElementView
+    private sealed class NoView : IElementView
     {
         public (double Left, double Top, double Width, double Height)? Bounds(string elementId) => null;
 

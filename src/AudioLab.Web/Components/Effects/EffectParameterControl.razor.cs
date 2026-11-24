@@ -42,6 +42,10 @@ public sealed partial class EffectParameterControl
     [Parameter]
     public EventCallback<(string Name, double Value)> OnSet { get; set; }
 
+    /// <summary>Raised when the knob goes away in the middle of a drag.</summary>
+    [Parameter]
+    public EventCallback OnAbandon { get; set; }
+
     private double Value => Setting.Get(Effect);
 
     // The knob's place from -1 to 1.

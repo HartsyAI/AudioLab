@@ -11,6 +11,7 @@ namespace AudioLab.Core.Rules;
 /// <param name="Get">Reads the setting from an effect of the right kind.</param>
 /// <param name="Set">Returns a copy of an effect of the right kind with the setting changed.</param>
 /// <param name="Scale">How a control spreads the range along its travel.</param>
+/// <param name="FollowsTempo">Whether a delay that follows the tempo sets this setting itself, so it cannot be set by hand then.</param>
 public sealed record EffectParameter(
     string Name,
     string Label,
@@ -19,7 +20,8 @@ public sealed record EffectParameter(
     double Max,
     Func<Effect, double> Get,
     Func<Effect, double, Effect> Set,
-    EffectScale Scale = EffectScale.Linear)
+    EffectScale Scale = EffectScale.Linear,
+    bool FollowsTempo = false)
 {
     /// <summary>Where a value sits along a control's travel, 0 at the lowest value to 1 at the highest; a value outside is held in it.</summary>
     public double ToPosition(double value)

@@ -68,7 +68,8 @@ public static class EffectRules
     private static readonly IReadOnlyList<EffectParameter> _delay =
     [
         Setting<DelayEffect>(
-            "time", "Time", EffectUnit.Seconds, 0.02, 2, e => e.Time, (e, v) => e with { Time = v }, EffectScale.Logarithmic),
+            "time", "Time", EffectUnit.Seconds, 0.02, 2, e => e.Time, (e, v) => e with { Time = v }, EffectScale.Logarithmic,
+            followsTempo: true),
         Setting<DelayEffect>(
             "feedback", "Feedback", EffectUnit.Fraction, 0, 0.9, e => e.Feedback, (e, v) => e with { Feedback = v }),
         Setting<DelayEffect>(
@@ -204,7 +205,8 @@ public static class EffectRules
         double max,
         Func<TEffect, double> get,
         Func<TEffect, double, TEffect> set,
-        EffectScale scale = EffectScale.Linear)
+        EffectScale scale = EffectScale.Linear,
+        bool followsTempo = false)
         where TEffect : Effect
     {
         return new EffectParameter(
@@ -215,6 +217,7 @@ public static class EffectRules
             max,
             effect => get((TEffect)effect),
             (effect, value) => set((TEffect)effect, value),
-            scale);
+            scale,
+            followsTempo);
     }
 }
