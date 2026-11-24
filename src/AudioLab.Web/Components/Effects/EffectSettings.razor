@@ -1,0 +1,37 @@
+@using AudioLab.Core.Rules
+@using AudioLab.Web.Session.Effects
+
+<section class="settings" aria-label="@($"Settings of {Subject}")">
+    <header class="settings-bar">
+        <span class="settings-title">@Subject</span>
+        @if (Delay is { } delay)
+        {
+            <Toggle Label="Sync" Name="@($"{Subject} follows the tempo")" On="delay.Sync" Disabled="!Editable" Reason="@(Editable ? null : Reason)"
+                    OnClick="ToggleSyncAsync" />
+            @if (delay.Sync)
+            {
+                <Segmented Words="true" Label="@($"Note division of {Subject}")" Items="DivisionItems" Value="@delay.Division"
+                           ValueChanged="DivisionAsync" />
+            }
+        }
+        <span class="settings-gap"></span>
+        @if (Editable)
+        {
+            <Menu ButtonId="@PresetButtonId" Label="Presets" Items="PresetItems" OnSelect="PresetAsync" />
+        }
+        else
+        {
+            <Button Name="Presets" Disabled="true" DisabledReason="@Reason">
+                <span>Presets</span>
+                <Icon Name="IconName.Chevron" Size="9" />
+            </Button>
+        }
+    </header>
+    <div class="settings-grid">
+        @foreach (EffectParameter setting in Settings)
+        {
+            <EffectParameterControl @key="setting.Name" Setting="setting" Effect="Effect" Subject="@Subject"
+                                    Disabled="@(BlockOf(setting) is not null)" Reason="@BlockOf(setting)" OnSet="SetAsync" />
+        }
+    </div>
+</section>

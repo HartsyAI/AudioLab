@@ -117,4 +117,42 @@ public sealed class EffectEditorTests
         Assert.Contains("1 of 3 commands", result.Refusal, StringComparison.Ordinal);
         Assert.Equal(2, _hub.Sent.Count);
     }
+
+    /// <summary>A setting is sent as the absolute value, inside one gesture that is closed, so a drag is one undo step.</summary>
+    [Fact]
+    public async Task ASettingIsSentAsAnAbsoluteValueInOneGesture()
+    {
+        await using LiveProject live = await OpenAsync();
+        EffectEditor editor = EditorFor(live);
+
+        await editor.SetParameterAsync(TrackId.From("t1"), EffectId.From("e1"), "midFreq", 1264.9);
+
+        (string command, string json, string? gesture) = Assert.Single(_hub.Sent);
+        Assert.Equal("effect_set_parameter", command);
+        Assert.NotNull(gesture);
+        SetEffectParameter sent = Parsed<SetEffectParameter>((command, json, gesture));
+        Assert.Equal("midFreq", sent.Parameter);
+        Assert.Equal(1264.9, sent.Value);
+        Assert.Contains(_hub.Calls, call => call.StartsWith("end", StringComparison.Ordinal));
+    }
+
+    /// <summary>The delay's tempo follow and a preset are one command each, by name.</summary>
+    [Fact]
+    public async Task SyncAndPresetAreOneCommandEach()
+    {
+        await using LiveProject live = await OpenAsync();
+        EffectEditor editor = EditorFor(live);
+
+        await editor.SetDelaySyncAsync(TrackId.From("t1"), EffectId.From("e1"), true, "1/8.");
+        await editor.SetDelaySyncAsync(TrackId.From("t1"), EffectId.From("e1"), false, null);
+        await editor.ApplyPresetAsync(TrackId.From("t1"), EffectId.From("e1"), "Slap");
+
+        SetDelaySync on = Parsed<SetDelaySync>(_hub.Sent[0]);
+        Assert.True(on.Sync);
+        Assert.Equal("1/8.", on.Division);
+        SetDelaySync off = Parsed<SetDelaySync>(_hub.Sent[1]);
+        Assert.False(off.Sync);
+        Assert.Null(off.Division);
+        Assert.Equal("Slap", Parsed<ApplyEffectPreset>(_hub.Sent[2]).Preset);
+    }
 }

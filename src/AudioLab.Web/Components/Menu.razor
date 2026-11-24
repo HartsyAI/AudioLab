@@ -1,6 +1,6 @@
 <div class="menu-root">
     <BitBhMenu>
-        <BitBhMenuButton class="menu-button" data-variant="@(Icon ? "icon" : "default")" aria-label="@ButtonName">
+        <BitBhMenuButton id="@ButtonId" class="menu-button" data-variant="@(Icon ? "icon" : "default")" aria-label="@ButtonName">
             @if (Icon)
             {
                 <Icon Name="IconName.More" />
@@ -16,7 +16,10 @@
             {
                 <BitBhMenuItem class="menu-item" data-destructive="@item.Destructive" Disabled="item.Disabled" OnClick="() => SelectAsync(item)">
                     <span>@item.Label</span>
-                    <kbd class="menu-shortcut">@item.Shortcut</kbd>
+                    @if (item.Shortcut.Length > 0)
+                    {
+                        <kbd class="menu-shortcut">@item.Shortcut</kbd>
+                    }
                 </BitBhMenuItem>
             }
         </BitBhMenuItems>

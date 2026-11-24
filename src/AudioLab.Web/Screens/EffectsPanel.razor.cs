@@ -41,6 +41,12 @@ public sealed partial class EffectsPanel : IDisposable
     public TrackId? Selected { get; set; }
 
     [Inject]
+    private EffectSelection Selection { get; set; } = default!;
+
+    [Inject]
+    private IKeyGuard Guard { get; set; } = default!;
+
+    [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
 
     [Inject]
@@ -64,18 +70,32 @@ public sealed partial class EffectsPanel : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        Selection.Changed -= OnSelectionChanged;
         Pointer.Stop();
+    }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        Selection.Changed += OnSelectionChanged;
     }
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
+        if (firstRender && OperatingSystem.IsBrowser())
+        {
+            // A knob takes the arrow keys, Home and End; without this the page would also seek with them.
+            Guard.PreventNavigationKeys(PanelId, "slider");
+        }
         if (_focus is not null)
         {
             Focus.Focus(_focus);
             _focus = null;
         }
     }
+
+    private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
 
     private string? DropOf(int index)
     {
@@ -214,8 +234,43 @@ public sealed partial class EffectsPanel : IDisposable
         return Shortcuts.EffectLater.Matches(key) ? MoveAsync((press.Effect, 1)) : Task.CompletedTask;
     }
 
+    private async Task SetSettingAsync((EffectId Effect, string Name, double Value) change)
+    {
+        if (Current is { } track && Actions.CanEdit)
+        {
+            await Actions.Effects.SetParameter(track.Id, change.Effect, change.Name, change.Value);
+        }
+    }
+
+    private async Task SetSyncAsync((EffectId Effect, bool Sync, string? Division) change)
+    {
+        if (Current is { } track && Actions.CanEdit)
+        {
+            await Actions.Effects.SetDelaySync(track.Id, change.Effect, change.Sync, change.Division);
+        }
+    }
+
+    private async Task ApplyPresetAsync((EffectId Effect, string Preset) change)
+    {
+        if (Current is not { } track || !Actions.CanEdit || _editing)
+        {
+            return;
+        }
+        int index = IndexOf(track, change.Effect);
+        EditResult result = await Actions.Effects.ApplyPreset(track.Id, change.Effect, change.Preset);
+        if (result.Succeeded && index >= 0)
+        {
+            Say($"{change.Preset} applied to {NameAt(track, index)} {EffectChainRules.Position(index, track.Effects.Count)}.");
+        }
+    }
+
     private Task PanelKeyAsync(KeyboardEventArgs key)
     {
+        if (Shortcuts.EffectPresets.Matches(key) && Current is { } selected && Selection.Of(selected) is not null && Actions.CanEdit)
+        {
+            Focus.Focus(EffectSettings.PresetButtonId);
+            return Task.CompletedTask;
+        }
         if (key.Repeat)
         {
             return Task.CompletedTask;

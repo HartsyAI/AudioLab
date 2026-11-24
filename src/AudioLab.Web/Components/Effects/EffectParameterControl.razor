@@ -1,0 +1,5 @@
+<div class="param">
+    <span class="param-label">@Setting.Label</span>
+    <Knob Label="@($"{Setting.Label} of {Subject}")" Position="Position" Text="@ValueText" Format="_format" DefaultPosition="DefaultPosition"
+          Disabled="Disabled" Reason="@Reason" ResetShortcut="@Shortcuts.ControlReset.Display" OnCommit="CommitAsync" />
+</div>

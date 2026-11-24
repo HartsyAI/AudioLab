@@ -1,0 +1,14 @@
+.param {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.param-label {
+    overflow: hidden;
+    color: var(--text-faint);
+    font-size: var(--font-size-micro);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

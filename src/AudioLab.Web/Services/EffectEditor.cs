@@ -43,6 +43,41 @@ public sealed class EffectEditor(
         });
     }
 
+    /// <summary>Sets one numeric setting to an absolute value: one gesture, one command, one undo step.</summary>
+    public Task<EditResult> SetParameterAsync(TrackId track, EffectId effect, string parameter, double value)
+    {
+        return EditRunner.RunAsync(live, async project =>
+        {
+            string gesture = live.NewGesture();
+            try
+            {
+                return await live.SendAsync(
+                    new SetEffectParameter { Project = project, Track = track, Effect = effect, Parameter = parameter, Value = value },
+                    gesture);
+            }
+            finally
+            {
+                await live.EndGestureAsync(gesture);
+            }
+        });
+    }
+
+    /// <summary>Sets whether a delay follows the tempo, and its note division when one is given.</summary>
+    public Task<EditResult> SetDelaySyncAsync(TrackId track, EffectId effect, bool sync, string? division)
+    {
+        return EditRunner.RunAsync(
+            live,
+            project => live.SendAsync(new SetDelaySync { Project = project, Track = track, Effect = effect, Sync = sync, Division = division }));
+    }
+
+    /// <summary>Replaces an effect's settings with a preset's; its place and bypass stay.</summary>
+    public Task<EditResult> ApplyPresetAsync(TrackId track, EffectId effect, string preset)
+    {
+        return EditRunner.RunAsync(
+            live,
+            project => live.SendAsync(new ApplyEffectPreset { Project = project, Track = track, Effect = effect, Preset = preset }));
+    }
+
     private static MoveEffect Step(ProjectId project, TrackId track, EffectId effect, MoveDirection direction)
     {
         return new MoveEffect { Project = project, Track = track, Effect = effect, Direction = direction };

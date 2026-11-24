@@ -3,6 +3,10 @@
     border-bottom: 1px solid var(--lane-line);
 }
 
+.effect-item[data-selected="true"] {
+    background: var(--surface-selected);
+}
+
 .effect-item[data-dragging="true"] {
     opacity: 0.5;
 }

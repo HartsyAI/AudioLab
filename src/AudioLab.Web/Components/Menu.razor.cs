@@ -14,6 +14,10 @@ public sealed partial class Menu
     [Parameter]
     public bool Icon { get; set; }
 
+    /// <summary>The id of the button, so a shortcut can move the focus to it; none when absent.</summary>
+    [Parameter]
+    public string? ButtonId { get; set; }
+
     /// <summary>The commands.</summary>
     [Parameter, EditorRequired]
     public IReadOnlyList<MenuItem> Items { get; set; } = [];

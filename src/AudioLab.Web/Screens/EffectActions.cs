@@ -22,6 +22,18 @@ public sealed class EffectActions
     /// <summary>Moves an effect by places in its chain, negative for earlier, as one gesture.</summary>
     public Func<TrackId, EffectId, int, Task<EditResult>> Move { get; init; } = (_, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Sets one numeric setting of an effect to an absolute value.</summary>
+    public Func<TrackId, EffectId, string, double, Task<EditResult>> SetParameter { get; init; } =
+        (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
+    /// <summary>Sets whether a delay follows the tempo, and its division when one is given.</summary>
+    public Func<TrackId, EffectId, bool, string?, Task<EditResult>> SetDelaySync { get; init; } =
+        (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
+    /// <summary>Replaces an effect's settings with a preset's.</summary>
+    public Func<TrackId, EffectId, string, Task<EditResult>> ApplyPreset { get; init; } =
+        (_, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
     public static EffectActions For(EffectEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
     {
@@ -33,6 +45,9 @@ public sealed class EffectActions
             Remove = (track, effect) => show(editor.RemoveAsync(track, effect)),
             SetEnabled = (track, effect, enabled) => show(editor.SetEnabledAsync(track, effect, enabled)),
             Move = (track, effect, places) => show(editor.MoveAsync(track, effect, places)),
+            SetParameter = (track, effect, name, value) => show(editor.SetParameterAsync(track, effect, name, value)),
+            SetDelaySync = (track, effect, sync, division) => show(editor.SetDelaySyncAsync(track, effect, sync, division)),
+            ApplyPreset = (track, effect, preset) => show(editor.ApplyPresetAsync(track, effect, preset)),
         };
     }
 }

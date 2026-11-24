@@ -22,6 +22,9 @@ public sealed partial class PointerTracker : IPointerTracker
     private JSObject? _document;
 
     /// <inheritdoc />
+    public bool Shift { get; private set; }
+
+    /// <inheritdoc />
     public void Begin(Action<double, double> move, Action<double, double> end, Action cancel)
     {
         ArgumentNullException.ThrowIfNull(move);
@@ -34,10 +37,15 @@ public sealed partial class PointerTracker : IPointerTracker
         _document = Query("html");
         Add("pointermove", press =>
         {
+            Shift = press.GetPropertyAsBoolean("shiftKey");
             Action<double, double>? call = _move;
             call?.Invoke(press.GetPropertyAsDouble("clientX"), press.GetPropertyAsDouble("clientY"));
         });
-        Add("pointerup", press => Finish(_end, press));
+        Add("pointerup", press =>
+        {
+            Shift = press.GetPropertyAsBoolean("shiftKey");
+            Finish(_end, press);
+        });
         Add("pointercancel", _ => Finish(_cancel));
         Add("keydown", press =>
         {

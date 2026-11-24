@@ -5,6 +5,7 @@ using AudioLab.Web.Components.Effects;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session.Effects;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AudioLab.Web.Tests;
@@ -46,7 +47,8 @@ public sealed class EffectsPanelMarkupTests
             },
             services =>
             {
-                services.AddSingleton<IPointerTracker, NoPointer>();
+                services.AddSingleton<IKeyGuard, NoGuard>();
+                services.AddScoped<EffectSelection>();
                 services.AddSingleton<IElementView, NoView>();
                 services.AddSingleton<IElementFocus, NoFocus>();
                 services.AddScoped(_ => new ToastService(TimeProvider.System));
@@ -141,13 +143,12 @@ public sealed class EffectsPanelMarkupTests
         Assert.Equal(4, panel.Values("title").Count(title => title == Offline));
     }
 
-    /// <summary>A full chain disables adding and says why in the server's words, and the count shows the limit.</summary>
+    /// <summary>A full chain shows the count against the limit and a row for every effect; the words of its refusal are Core's.</summary>
     [Fact]
-    public async Task AFullChainDisablesAddingAndSaysWhy()
+    public async Task AFullChainShowsTheCountAgainstTheLimit()
     {
-        RenderedMarkup panel = await PanelAsync(WithEffects(ProjectLimits.MaxEffects), true);
+        RenderedMarkup panel = await PanelAsync(WithEffects(ProjectLimits.MaxEffects), false);
 
-        Assert.Contains($"A track has at most {ProjectLimits.MaxEffects} effects.", panel.Values("title"));
         Assert.Contains($"{ProjectLimits.MaxEffects} of {ProjectLimits.MaxEffects}", panel.Texts);
         Assert.Equal(ProjectLimits.MaxEffects, panel.Values("role").Count(role => role == "group"));
     }
@@ -192,13 +193,9 @@ public sealed class EffectsPanelMarkupTests
         public bool HasFocusWithin(string elementId) => false;
     }
 
-    private sealed class NoPointer : IPointerTracker
+    private sealed class NoGuard : IKeyGuard
     {
-        public void Begin(Action<double, double> move, Action<double, double> end, Action cancel)
-        {
-        }
-
-        public void Stop()
+        public void PreventNavigationKeys(string containerId, string targetRole)
         {
         }
     }
