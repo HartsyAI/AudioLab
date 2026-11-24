@@ -1,12 +1,15 @@
+using System.Reflection;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Tests;
 
-/// <summary>A tail that decays for long must not hand denormal numbers, which are slow to compute with, to the next insert (D60).</summary>
+/// <summary>Holds the tests that a long decaying tail ends in no denormal numbers, between inserts or inside one (D60).</summary>
 public sealed class DenormalTailTests
 {
+    private const int Rate = 48000;
+
     private sealed class SlowDecay : IInsert
     {
         private float _state;
@@ -49,15 +52,39 @@ public sealed class DenormalTailTests
         }
     }
 
+    private static Effect Eq(string id) => EffectRules.Create(EffectKind.Eq, EffectId.From(id));
+
+    private static T Field<T>(object owner, string name) =>
+        (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
+
+    // A state is either nothing or a number that arithmetic is not slow on.
+    private static bool Settled(double value) => value == 0 || double.IsNormal(value);
+
+    private static void Silence(IInsert insert, int seconds)
+    {
+        float[] left = new float[Rate];
+        float[] right = new float[Rate];
+        for (int second = 0; second < seconds; second++)
+        {
+            left.AsSpan().Clear();
+            right.AsSpan().Clear();
+            insert.Process(left, right, (long)second * Rate);
+        }
+    }
+
+    private static void Burst(IInsert insert)
+    {
+        float[] left = Enumerable.Range(0, Rate / 2).Select(i => 0.9f * MathF.Sin(i * 0.05f)).ToArray();
+        float[] right = [.. left];
+        insert.Process(left, right, 0);
+    }
+
     [Fact]
     public void ADecayingTailIsMadeSilenceBeforeItReachesTheNextInsert()
     {
         Probe probe = new();
         ProjectDocument document = TestProject.Create(
-            TestProject.Track("a", TrackKind.Audio, TestProject.Clip("c", "m", 0, 0.5)) with
-            {
-                Effects = [EffectRulesFor("e1"), EffectRulesFor("e2")],
-            });
+            TestProject.Track("a", TrackKind.Audio, TestProject.Clip("c", "m", 0, 0.5)) with { Effects = [Eq("e1"), Eq("e2")] });
         int built = 0;
         RenderPlan plan = RenderPlan.Create(
             document,
@@ -79,5 +106,49 @@ public sealed class DenormalTailTests
         Assert.Equal(0, probe.Subnormal);
     }
 
-    private static Effect EffectRulesFor(string id) => EffectRules.Create(EffectKind.Eq, EffectId.From(id));
+    [Fact]
+    public void AFilterThatHasRungDownHoldsNothingButZeroOrAnOrdinaryNumber()
+    {
+        Biquad filter = new(BiquadCoefficients.HighPass(20, 0, Rate));
+        float[] impulse = new float[Rate];
+        impulse[0] = 1;
+
+        filter.Process(impulse);
+        for (int second = 0; second < 60; second++)
+        {
+            filter.Process(new float[Rate]);
+        }
+
+        Assert.True(Settled(Field<double>(filter, "_s1")));
+        Assert.True(Settled(Field<double>(filter, "_s2")));
+    }
+
+    [Fact]
+    public void ACompressorThatHasReleasedHoldsNothingButZeroOrAnOrdinaryNumber()
+    {
+        IInsert compressor = InsertFactoryFor(EffectRules.Create(EffectKind.Compressor, EffectId.From("c")));
+
+        Burst(compressor);
+        Silence(compressor, 600);
+
+        Assert.True(Settled(Field<double>(compressor, "_reduction")));
+    }
+
+    [Fact]
+    public void ADelayThatHasEchoedDownHoldsNothingButZeroOrAnOrdinaryNumber()
+    {
+        DelayEffect effect = (DelayEffect)EffectRules.Create(EffectKind.Delay, EffectId.From("d"));
+        effect = effect with { Time = 0.05, Feedback = 0.9, Tone = 15000, Mix = 1 };
+        IInsert delay = InsertFactoryFor(effect);
+
+        Burst(delay);
+        Silence(delay, 120);
+
+        float[] lineLeft = Field<float[]>(delay, "_lineLeft");
+        float[] lineRight = Field<float[]>(delay, "_lineRight");
+        Assert.All([.. lineLeft, .. lineRight], sample => Assert.True(sample == 0 || float.IsNormal(sample)));
+    }
+
+    private static IInsert InsertFactoryFor(Effect effect) =>
+        InsertFactory.Create(effect, new InsertContext(Rate, [new TempoStep(0, 120)]))!;
 }

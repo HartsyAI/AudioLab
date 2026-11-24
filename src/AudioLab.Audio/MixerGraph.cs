@@ -16,9 +16,6 @@ public sealed class MixerGraph
     // How often automation lanes are read, in frames: 0.7 ms at 48 kHz.
     private const int ControlFrames = 32;
 
-    // -360 dBFS: far below anything that is heard, and high enough that the square of a level (a detector's work) is still a normal number.
-    private const float TinyLevel = 1e-18f;
-
     private readonly RenderPlan _plan;
     private readonly MasterLimiter _limiter;
     private readonly int _blockFrames;
@@ -154,8 +151,9 @@ public sealed class MixerGraph
         foreach (IInsert insert in track.Inserts)
         {
             insert.Process(left, right, Position);
-            FlushTiny(left);
-            FlushTiny(right);
+            // A tail that has decayed far enough must not reach the next insert as a denormal number (Denormals).
+            Denormals.Flush(left);
+            Denormals.Flush(right);
         }
         SendInto(track, pre: true, left, right);
         FaderAndPan(track, left, right);
@@ -182,20 +180,6 @@ public sealed class MixerGraph
         }
         _peaks[slot] = peakLeft;
         _peaks[slot + 1] = peakRight;
-    }
-
-    // A tail that decays for long enough reaches numbers so small that a processor does arithmetic on them hundreds of times slower than
-    // on other numbers (denormals), and hands them on to the next insert. On WebAssembly, in the page, that is a block that takes tens of
-    // milliseconds a second or two after the content ends. Anything under -360 dBFS is silence, so it is made silence.
-    private static void FlushTiny(Span<float> samples)
-    {
-        for (int i = 0; i < samples.Length; i++)
-        {
-            if (MathF.Abs(samples[i]) < TinyLevel)
-            {
-                samples[i] = 0;
-            }
-        }
     }
 
     private static void ReplaceNonFinite(Span<float> samples)

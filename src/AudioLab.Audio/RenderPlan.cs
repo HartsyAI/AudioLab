@@ -69,24 +69,33 @@ public sealed class RenderPlan
     /// <remarks>
     /// A track is the largest step that is not interrupted: its effects are built in one go (a reverb makes its impulse responses and their
     /// spectra, the dearest of them), so a caller that has work to keep up with, such as the chunks of a live engine, gets the chance to do
-    /// it between any two tracks. The plan is the same as <see cref="Create"/> makes, and it ends early, with an
-    /// <see cref="OperationCanceledException"/>, when the token of the options is cancelled.
+    /// it between tracks, once <see cref="SliceTime"/> has passed since the last time it did. The plan is the same as <see cref="Create"/>
+    /// makes. The build ends with an <see cref="OperationCanceledException"/> when the token of the options is cancelled, before any track
+    /// and after every pause, so no plan comes of a build that was cancelled.
     /// </remarks>
     public static async Task<RenderPlan> CreateAsync(
-        ProjectDocument document, IMediaSource media, PlanOptions options, Func<CancellationToken, Task> pause)
+        ProjectDocument document, IMediaSource media, PlanOptions options, Func<CancellationToken, Task> pause, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(pause);
+        TimeProvider clock = time ?? TimeProvider.System;
         Preparation preparation = Prepare(document, media, options);
+        long sliceStart = clock.GetTimestamp();
         foreach (Track track in preparation.Ordered)
         {
             options.CancellationToken.ThrowIfCancellationRequested();
-            if (preparation.Add(track))
+            if (preparation.Add(track) && clock.GetElapsedTime(sliceStart) >= SliceTime)
             {
-                await pause(options.CancellationToken);
+                await pause(options.CancellationToken).ConfigureAwait(false);
+                options.CancellationToken.ThrowIfCancellationRequested();
+                sliceStart = clock.GetTimestamp();
             }
         }
+        options.CancellationToken.ThrowIfCancellationRequested();
         return preparation.Finish();
     }
+
+    /// <summary>How long a build may go on before it gives the caller a turn, between two tracks.</summary>
+    public static TimeSpan SliceTime { get; } = TimeSpan.FromMilliseconds(4);
 
     private static Preparation Prepare(ProjectDocument document, IMediaSource media, PlanOptions options)
     {

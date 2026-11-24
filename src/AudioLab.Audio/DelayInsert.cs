@@ -92,8 +92,8 @@ internal sealed class DelayInsert : IInsert
             _delay += (_targetFrames[_step] - _delay) * _glide;
             float echoLeft = _toneLeft.Process(Read(_lineLeft, _delay));
             float echoRight = _toneRight.Process(Read(_lineRight, _delay));
-            _lineLeft[_write] = left[i] + (echoLeft * _feedback);
-            _lineRight[_write] = right[i] + (echoRight * _feedback);
+            _lineLeft[_write] = Denormals.Flush(left[i] + (echoLeft * _feedback));
+            _lineRight[_write] = Denormals.Flush(right[i] + (echoRight * _feedback));
             _write = _write + 1 == _lineLeft.Length ? 0 : _write + 1;
             left[i] = (left[i] * _dry) + (echoLeft * _wet);
             right[i] = (right[i] * _dry) + (echoRight * _wet);

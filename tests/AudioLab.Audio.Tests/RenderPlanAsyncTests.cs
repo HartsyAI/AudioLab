@@ -3,8 +3,11 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Audio.Tests;
 
+/// <summary>Holds the tests of the plan that is built in slices, with a pause between tracks for a caller that has work of its own (D60).</summary>
 public sealed class RenderPlanAsyncTests
 {
+    private static readonly SteppingTime _slow = new(TimeSpan.FromSeconds(1));
+
     private static float[] Mix(RenderPlan plan)
     {
         MixerGraph graph = new(plan);
@@ -21,11 +24,16 @@ public sealed class RenderPlanAsyncTests
         PlanOptions options = new() { SampleRate = BusyProject.Rate };
         int pauses = 0;
 
-        RenderPlan sliced = await RenderPlan.CreateAsync(document, BusyProject.Media(), options, _ =>
-        {
-            pauses++;
-            return Task.CompletedTask;
-        });
+        RenderPlan sliced = await RenderPlan.CreateAsync(
+            document,
+            BusyProject.Media(),
+            options,
+            _ =>
+            {
+                pauses++;
+                return Task.CompletedTask;
+            },
+            _slow);
         RenderPlan whole = RenderPlan.Create(document, BusyProject.Media(), options);
 
         Assert.True(pauses >= 1);
@@ -33,16 +41,66 @@ public sealed class RenderPlanAsyncTests
     }
 
     [Fact]
-    public async Task ACancelledSliceStopsTheBuild()
+    public async Task ABuildThatIsFasterThanASliceDoesNotWaitAtAll()
+    {
+        int pauses = 0;
+
+        await RenderPlan.CreateAsync(
+            BusyProject.Create(),
+            BusyProject.Media(),
+            new PlanOptions { SampleRate = BusyProject.Rate },
+            _ =>
+            {
+                pauses++;
+                return Task.CompletedTask;
+            },
+            new SteppingTime(TimeSpan.Zero));
+
+        Assert.Equal(0, pauses);
+    }
+
+    [Fact]
+    public async Task ABuildCancelledInItsOnlyPauseEndsWithoutAPlan()
+    {
+        using CancellationTokenSource cancellation = new();
+        ProjectDocument document = TestProject.Create(TestProject.Track("a", TrackKind.Audio, TestProject.Clip("c", "m", 0, 1)));
+        PlanOptions options = new() { SampleRate = BusyProject.Rate, CancellationToken = cancellation.Token };
+        int pauses = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RenderPlan.CreateAsync(
+            document,
+            new MemoryMedia().Add("m", Signals.Constant(0.5f, 1, BusyProject.Rate)),
+            options,
+            _ =>
+            {
+                pauses++;
+                cancellation.Cancel();
+                return Task.CompletedTask;
+            },
+            _slow));
+
+        Assert.Equal(1, pauses);
+    }
+
+    [Fact]
+    public async Task ABuildCancelledBetweenTracksStopsBeforeTheNextOne()
     {
         using CancellationTokenSource cancellation = new();
         PlanOptions options = new() { SampleRate = BusyProject.Rate, CancellationToken = cancellation.Token };
+        int pauses = 0;
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RenderPlan.CreateAsync(
-            BusyProject.Create(), BusyProject.Media(), options, _ =>
+            BusyProject.Create(),
+            BusyProject.Media(),
+            options,
+            _ =>
             {
+                pauses++;
                 cancellation.Cancel();
                 return Task.CompletedTask;
-            }));
+            },
+            _slow));
+
+        Assert.Equal(1, pauses);
     }
 }

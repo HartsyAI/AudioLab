@@ -6,7 +6,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Audio.Tests;
 
-/// <summary>What a chunk waits for when the plan is swapped, on a clock the test owns: building a plan must not stop the chunks (D60).</summary>
+/// <summary>Holds the tests of what a chunk waits for when the plan is swapped, on a clock the test owns: a build must not stop them (D60).</summary>
 public sealed class LiveHostBuildTimingTests
 {
     private const int Rate = 8000;
@@ -22,47 +22,58 @@ public sealed class LiveHostBuildTimingTests
     }
 
     // The worker's loop as the test models it: time moves only when something is built, and a chunk is made when the loop gets control at or
-    // after the time it is due, which is at an await of the build or after it.
+    // after the time it is due, which is at a pause of the build or after it.
     private sealed class Worker
     {
-        private readonly LiveHost _host;
+        private readonly SteppingTime _clock = new(TimeSpan.Zero);
         private double _now;
         private double _due;
 
         public Worker()
         {
-            _host = new LiveHost(new Clips(), Rate, Chunk, _ =>
+            Host = new LiveHost(new Clips(), Rate, Chunk, _ =>
             {
+                OnPause?.Invoke();
                 Serve();
                 return Task.CompletedTask;
-            });
-            _host.InsertBuilder = (effect, context) =>
+            })
             {
-                _now += Cost;
-                return InsertFactory.Create(effect, context);
+                InsertBuilder = (effect, context) =>
+                {
+                    double cost = Cost;
+                    _now += cost;
+                    _clock.Advance(TimeSpan.FromMilliseconds(cost));
+                    Built += cost > 0 ? 1 : 0;
+                    return InsertFactory.Create(effect, context);
+                },
+                Time = _clock,
             };
         }
 
+        public LiveHost Host { get; }
+
         public double Cost { get; set; }
+
+        public Action? OnPause { get; set; }
+
+        public int Built { get; private set; }
 
         public double Late { get; private set; }
 
-        public List<(bool Audible, long Revision)> Chunks { get; } = [];
+        public double Now => _now;
 
-        public LiveHost Host => _host;
+        public List<(bool Audible, long Revision)> Chunks { get; } = [];
 
         public void Serve()
         {
             while (_due <= _now)
             {
                 Late = Math.Max(Late, _now - _due);
-                byte[] chunk = _host.RenderChunk();
-                Chunks.Add((BinaryPrimitives.ReadDoubleLittleEndian(chunk.AsSpan(8)) == 1, _host.Engine.Revision));
+                byte[] chunk = Host.RenderChunk();
+                Chunks.Add((BinaryPrimitives.ReadDoubleLittleEndian(chunk.AsSpan(8)) == 1, Host.Engine.Revision));
                 _due += ChunkMilliseconds;
             }
         }
-
-        public double Now => _now;
     }
 
     private static ProjectDocument Document(double pan)
@@ -82,18 +93,26 @@ public sealed class LiveHostBuildTimingTests
         return TestProject.Create(tracks);
     }
 
-    [Fact]
-    public async Task AChunkWaitsForTheDearestTrackOfANewPlanNotForAllOfIt()
+    private static Task Send(Worker worker, double pan, long revision) => worker.Host.SetDocumentAsync(ProjectJson.Write(Document(pan)), revision);
+
+    private static async Task<Worker> PlayingAsync()
     {
         Worker worker = new();
-        await worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0)), 1);
+        await Send(worker, 0, 1);
         worker.Host.Play();
         worker.Serve();
         worker.Cost = InsertMilliseconds;
+        return worker;
+    }
+
+    [Fact]
+    public async Task AChunkWaitsForTheDearestTrackOfANewPlanNotForAllOfIt()
+    {
+        Worker worker = await PlayingAsync();
         double before = worker.Now;
         int chunksBefore = worker.Chunks.Count;
 
-        await worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0.5)), 2);
+        await Send(worker, 0.5, 2);
         worker.Serve();
 
         double build = worker.Now - before;
@@ -107,18 +126,14 @@ public sealed class LiveHostBuildTimingTests
     [Fact]
     public async Task TheOldPlanKeepsSoundingWhileTheNewOneIsBuiltAndTheSwapIsOneStep()
     {
-        Worker worker = new();
-        await worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0)), 1);
-        worker.Host.Play();
-        worker.Serve();
-        worker.Cost = InsertMilliseconds;
+        Worker worker = await PlayingAsync();
         int from = worker.Chunks.Count;
 
-        await worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0.5)), 2);
+        await Send(worker, 0.5, 2);
         worker.Serve();
         worker.Host.RenderChunk();
 
-        List<(bool Audible, long Revision)> during = worker.Chunks.Skip(from).ToList();
+        List<(bool Audible, long Revision)> during = [.. worker.Chunks.Skip(from)];
         Assert.All(during, chunk => Assert.True(chunk.Audible));
         Assert.True(during.Count(chunk => chunk.Revision == 1) >= 6, "the old plan keeps playing while the new one is built");
         long[] revisions = [.. during.Select(chunk => chunk.Revision)];
@@ -127,19 +142,23 @@ public sealed class LiveHostBuildTimingTests
     }
 
     [Fact]
-    public async Task TheNewestOfSeveralDocumentsSentDuringABuildIsTheOneThatPlays()
+    public async Task ABuildOfADocumentThatANewerOneHasReplacedIsAbandonedAndNeverPlays()
     {
-        Worker worker = new();
-        await worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0)), 1);
-        worker.Host.Play();
-        worker.Serve();
-        worker.Cost = InsertMilliseconds;
+        Worker worker = await PlayingAsync();
+        Task? third = null;
+        worker.OnPause = () =>
+        {
+            worker.OnPause = null;
+            third = Send(worker, -0.5, 3);
+        };
 
-        Task second = worker.Host.SetDocumentAsync(ProjectJson.Write(Document(0.5)), 2);
-        Task third = worker.Host.SetDocumentAsync(ProjectJson.Write(Document(-0.5)), 3);
-        await Task.WhenAll(second, third);
+        await Send(worker, 0.5, 2);
+        await third!;
+        worker.Serve();
         worker.Host.RenderChunk();
 
         Assert.Equal(3, worker.Host.Engine.Revision);
+        Assert.DoesNotContain(worker.Chunks, chunk => chunk.Revision == 2);
+        Assert.Equal(2 + (Tracks * 2), worker.Built);
     }
 }

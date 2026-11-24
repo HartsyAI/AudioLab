@@ -42,7 +42,7 @@ internal sealed class CompressorInsert : IInsert
             }
             double target = ReductionFor(DbPerNeper * Math.Log(peak));
             double coefficient = target < _reduction ? _attack : _release;
-            _reduction = target + ((_reduction - target) * coefficient);
+            _reduction = Denormals.Flush(target + ((_reduction - target) * coefficient));
             float gain = (float)Math.Exp((_reduction + _makeup) / DbPerNeper);
             left[i] *= gain;
             right[i] *= gain;
