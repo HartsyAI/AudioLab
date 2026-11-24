@@ -5,9 +5,10 @@
         <span class="name">@Name</span>
     </div>
     <div class="slots">
-        @foreach ((string? name, bool enabled) in Slots)
+        @foreach (StripSlot slot in Slots)
         {
-            <EffectSlot Name="@name" Enabled="enabled" />
+            <EffectSlot Name="@slot.Text" Enabled="slot.Enabled" Description="@Describe(slot)" Hint="@HintOf(slot)"
+                        OnOpen="@(slot.Opens ? EventCallback.Factory.Create(this, () => OpenAsync(slot)) : default)" />
         }
     </div>
     <Knob Label="@($"Pan of {Name}")" Position="Pan" Text="@PanText" />

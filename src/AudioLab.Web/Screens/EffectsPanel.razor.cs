@@ -93,6 +93,11 @@ public sealed partial class EffectsPanel : IDisposable
             Focus.Focus(_focus);
             _focus = null;
         }
+        else if (Selection.TakeFocusRequest())
+        {
+            // Opened from a channel strip or by key: the keyboard goes to the effect that was asked for, or to the panel when it has none.
+            Focus.Focus(Current is { } track && Selection.Of(track) is { } shown ? EffectRow.IdOf(shown.Id) : PanelId);
+        }
     }
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);

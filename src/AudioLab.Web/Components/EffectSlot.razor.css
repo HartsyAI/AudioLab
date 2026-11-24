@@ -1,21 +1,54 @@
 .effect-slot {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    width: 100%;
     height: 1.0625rem;
     padding: 0 var(--space-6);
     overflow: hidden;
+    border: 0;
     border-radius: var(--radius-sm);
     background: var(--surface-lane);
     box-shadow: var(--shadow-well);
     color: var(--text-soft);
+    font-family: var(--font-ui);
     font-size: var(--font-size-label);
     font-weight: var(--font-weight-medium);
     line-height: 1.0625rem;
+    text-align: left;
     white-space: nowrap;
+}
+
+button.effect-slot {
+    cursor: pointer;
+}
+
+button.effect-slot:hover {
+    background: var(--surface-selected);
+}
+
+button.effect-slot:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 .effect-slot[data-empty="true"] {
     color: var(--text-faint);
 }
 
-.effect-slot[data-bypassed="true"] {
+.effect-slot[data-bypassed="true"] .effect-slot-name {
     opacity: 0.5;
+}
+
+.effect-slot-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.effect-slot-off {
+    flex: none;
+    color: var(--text-faint);
+    font-size: var(--font-size-micro);
 }

@@ -41,6 +41,9 @@ public static class Shortcuts
     /// <summary>Rename the selected track.</summary>
     public static readonly Shortcut RenameTrack = new("track.rename", "Rename track", "F2", Session);
 
+    /// <summary>Open the effects of the selected track.</summary>
+    public static readonly Shortcut OpenEffects = new("effects.open", "Open effects", "e", Session, Shift: true);
+
     /// <summary>Move the focused clip one grid step earlier.</summary>
     public static readonly Shortcut NudgeLeft = new("clip.nudge.left", "Move clip earlier", "ArrowLeft", Session, Alt: true);
 
@@ -292,7 +295,7 @@ public static class Shortcuts
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
-        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter,
+        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
         DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset,
     ];

@@ -18,6 +18,8 @@ internal sealed class RenderedMarkup : Renderer
 
     private readonly List<string> _texts = [];
 
+    private readonly List<string> _markup = [];
+
     private RenderedMarkup(IServiceProvider services)
         : base(services, NullLoggerFactory.Instance)
     {
@@ -33,6 +35,9 @@ internal sealed class RenderedMarkup : Renderer
     /// <param name="name">The attribute's name.</param>
     /// <returns>The values, in the order they were written.</returns>
     public string[] Values(string name) => [.. _attributes.Where(attribute => attribute.Name == name).Select(attribute => attribute.Value)];
+
+    /// <summary>Every piece of static markup that was written, which the compiler writes in one frame, such as a span with a literal.</summary>
+    public IReadOnlyList<string> Markup => _markup;
 
     /// <summary>Every text that was written.</summary>
     public IReadOnlyList<string> Texts => _texts;
@@ -78,6 +83,10 @@ internal sealed class RenderedMarkup : Renderer
             else if (frame.FrameType == RenderTreeFrameType.Text)
             {
                 _texts.Add(frame.TextContent);
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Markup)
+            {
+                _markup.Add(frame.MarkupContent);
             }
         }
         return Task.CompletedTask;

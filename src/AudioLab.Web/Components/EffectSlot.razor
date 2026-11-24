@@ -1,1 +1,21 @@
-<div class="effect-slot" data-empty="@(Name is null ? "true" : "false")" data-bypassed="@(Enabled ? "false" : "true")">@(Name ?? "Add effect")</div>
+@if (OnOpen.HasDelegate)
+{
+    <button type="button" class="effect-slot" data-empty="@(Name is null ? "true" : "false")" data-bypassed="@(Enabled ? "false" : "true")"
+            aria-label="@Description" title="@Hint" @onclick="OpenAsync">
+        <span class="effect-slot-name">@(Name ?? "Add effect")</span>
+        @if (!Enabled)
+        {
+            <span class="effect-slot-off">off</span>
+        }
+    </button>
+}
+else
+{
+    <div class="effect-slot" data-empty="@(Name is null ? "true" : "false")" data-bypassed="@(Enabled ? "false" : "true")" title="@Hint">
+        <span class="effect-slot-name">@(Name ?? "Add effect")</span>
+        @if (!Enabled)
+        {
+            <span class="effect-slot-off">off</span>
+        }
+    </div>
+}

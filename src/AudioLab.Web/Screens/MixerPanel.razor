@@ -4,7 +4,9 @@
         Track track = Document.Tracks[index];
         <ChannelStrip @key="track.Id" Name="@track.Name" ColorToken="@Colors.Token(track.Color)" Effects="Effects(track)" Pan="track.Pan"
                       Volume="track.Volume" Muted="track.Muted" Soloed="track.Soloed" Selected="@(track.Id == Selected)" Track="track.Id"
-                      Editable="Actions.CanEdit" Reason="@Actions.Reason" OnMute="Actions.ToggleMute" OnSolo="Actions.ToggleSolo" />
+                      Editable="Actions.CanEdit" Reason="@Actions.Reason" OnMute="Actions.ToggleMute" OnSolo="Actions.ToggleSolo"
+                      OnOpenEffects="OpenEffects" />
     }
-    <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true" />
+    <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true"
+                  MasterNote="The master limiter is a project setting; the master has no effect chain." />
 </div>
