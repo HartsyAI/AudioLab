@@ -243,7 +243,8 @@ public sealed class AudioHost : IAudioHost
             (int)data.GetPropertyAsDouble("2"),
             (long)data.GetPropertyAsDouble("3"),
             (long)data.GetPropertyAsDouble("4"),
-            data.GetPropertyAsDouble("5") == 1));
+            data.GetPropertyAsDouble("5") == 1,
+            data.GetPropertyAsDouble("6")));
     }
 
     private void OnWorkerMessage(JSObject message)

@@ -11,4 +11,7 @@ public enum PlaybackHealth
 
     /// <summary>The audio thread ran out of audio and played silence in its place.</summary>
     Dropping,
+
+    /// <summary>The audio context runs faster or slower than the clock, so playback is at the wrong speed; no dropout shows it.</summary>
+    Drifting,
 }

@@ -10,8 +10,8 @@ if (typeof AudioWorkletProcessor === 'function') {
       this.starts = new Float64Array(this.slots); this.live = new Uint8Array(this.slots); this.wasLive = false;
       this.wr = 0; this.rd = 0; this.fill = 0; this.consumed = 0; this.primed = false; this.inRun = false;
       this.events = 0; this.missed = 0; this.minFill = capacity; this.overflow = 0;
-      // [position, fill, minFill, events, missed, primed]: one array, reused, so a report allocates only what the message clone does.
-      this.stats = new Float64Array(6); this.next = 0; this.every = 0; this.tx = null;
+      // [position, fill, minFill, events, missed, primed, frames]: one array, reused, so a report allocates only what the message clone does.
+      this.stats = new Float64Array(7); this.next = 0; this.every = 0; this.tx = null;
       this.port.onmessage = ({ data }) => {
         this.tx = data;
         data.onmessage = (e) => this.push(e.data);
@@ -46,7 +46,7 @@ if (typeof AudioWorkletProcessor === 'function') {
         this.next = currentFrame + this.every;
         const s = this.stats;
         s[0] = this.starts[Math.floor(this.rd / this.chunk)] + (this.rd % this.chunk); s[1] = this.fill; s[2] = this.minFill;
-        s[3] = this.events; s[4] = this.missed; s[5] = this.primed ? 1 : 0;
+        s[3] = this.events; s[4] = this.missed; s[5] = this.primed ? 1 : 0; s[6] = currentFrame;
         this.port.postMessage(s);
       }
       return true;

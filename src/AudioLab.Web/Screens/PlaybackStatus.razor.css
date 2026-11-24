@@ -1,0 +1,4 @@
+/* The wrapper of the live region takes no place of its own in the bar. */
+.live {
+    display: contents;
+}
