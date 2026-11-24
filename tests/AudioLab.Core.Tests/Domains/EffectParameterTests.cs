@@ -51,6 +51,18 @@ public sealed class EffectParameterTests
     }
 
     [Fact]
+    public void OnlyTheTimeOfADelayFollowsTheTempo()
+    {
+        string[] following =
+        [
+            .. Enum.GetValues<EffectKind>()
+                .SelectMany(kind => EffectRules.Parameters(kind).Where(setting => setting.FollowsTempo).Select(setting => $"{kind}.{setting.Name}")),
+        ];
+
+        Assert.Equal(["Delay.time"], following);
+    }
+
+    [Fact]
     public void APlaceOutsideTheTravelIsHeldAtTheEndsAndAValueOutsideTheRangeToo()
     {
         EffectParameter threshold = EffectRules.Parameters(EffectKind.Compressor).Single(setting => setting.Name == "threshold");

@@ -284,33 +284,88 @@ public sealed partial class EffectsPanel : IDisposable
 
     private async Task SetSettingAsync((EffectId Effect, string Name, double Value) change)
     {
-        if (Current is { } track && Actions.CanEdit)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
-            await Actions.Effects.SetParameter(track.Id, change.Effect, change.Name, change.Value);
+            return;
+        }
+        EditResult result = await Actions.Effects.SetParameter(track!.Id, change.Effect, change.Name, change.Value);
+        if (result.Succeeded && EffectRules.Find(track.Effects[index], change.Name) is { } setting)
+        {
+            Say($"{Subject(track, index)} {setting.Label} {EffectValueText.Of(setting, change.Value)}.");
         }
     }
 
     private async Task SetSyncAsync((EffectId Effect, bool Sync, string? Division) change)
     {
-        if (Current is { } track && Actions.CanEdit)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
-            await Actions.Effects.SetDelaySync(track.Id, change.Effect, change.Sync, change.Division);
+            return;
+        }
+        EditResult result = await Actions.Effects.SetDelaySync(track!.Id, change.Effect, change.Sync, change.Division);
+        if (result.Succeeded)
+        {
+            Say(change.Sync
+                ? $"{Subject(track, index)} follows the tempo{(change.Division is null ? string.Empty : $", {change.Division}")}."
+                : $"{Subject(track, index)} keeps its own time.");
         }
     }
 
     private async Task ApplyPresetAsync((EffectId Effect, string Preset) change)
     {
-        if (Current is not { } track || !Actions.CanEdit || _editing)
+        if (!TryHold(change.Effect, out Track? track, out int index))
         {
             return;
         }
-        int index = IndexOf(track, change.Effect);
-        EditResult result = await Actions.Effects.ApplyPreset(track.Id, change.Effect, change.Preset);
-        if (result.Succeeded && index >= 0)
+        if (_editing)
         {
-            Say($"{change.Preset} applied to {NameAt(track, index)} {EffectChainRules.Position(index, track.Effects.Count)}.");
+            Say(Busy);
+            return;
+        }
+        _editing = true;
+        try
+        {
+            EditResult result = await Actions.Effects.ApplyPreset(track!.Id, change.Effect, change.Preset);
+            if (result.Succeeded)
+            {
+                Say($"{change.Preset} applied to {Subject(track, index)}.");
+            }
+        }
+        finally
+        {
+            _editing = false;
         }
     }
+
+    // A knob that was dragged on an effect that is gone must not set the effect that took its place: the edit is dropped, and the user is told.
+    private Task AbandonedAsync()
+    {
+        Toasts.Show(ToastKind.Warning, "The effect changed while a knob was being dragged, so that edit was not sent.");
+        return Task.CompletedTask;
+    }
+
+    // Whether an edit of an effect can be sent now: the project can be edited and the effect is still in the chain; if not, it says why.
+    private bool TryHold(EffectId effect, out Track? track, out int index)
+    {
+        track = Current;
+        index = track is null ? -1 : IndexOf(track, effect);
+        if (track is null)
+        {
+            return false;
+        }
+        if (!Actions.CanEdit)
+        {
+            Say(Actions.Reason ?? "The project cannot be edited now.");
+            return false;
+        }
+        if (index < 0)
+        {
+            Toasts.Show(ToastKind.Warning, "That effect is no longer in the chain, so the change was not sent.");
+            return false;
+        }
+        return true;
+    }
+
+    private static string Subject(Track track, int index) => $"{NameAt(track, index)} {index + 1}";
 
     private Task PanelKeyAsync(KeyboardEventArgs key)
     {

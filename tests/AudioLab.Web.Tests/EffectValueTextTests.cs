@@ -29,6 +29,16 @@ public sealed class EffectValueTextTests
         Assert.Equal("1.5", EffectValueText.Of(Setting(EffectKind.Eq, "midQ"), 1.5));
     }
 
+    /// <summary>The unit is chosen after rounding, so a value that rounds up to a thousand is written in the larger unit.</summary>
+    [Fact]
+    public void TheUnitIsChosenAfterRounding()
+    {
+        Assert.Equal("1 kHz", EffectValueText.Of(Setting(EffectKind.Eq, "midFreq"), 999.96));
+        Assert.Equal("999.9 Hz", EffectValueText.Of(Setting(EffectKind.Eq, "midFreq"), 999.94));
+        Assert.Equal("1 s", EffectValueText.Of(Setting(EffectKind.Compressor, "release"), 0.99996));
+        Assert.Equal("999.9 ms", EffectValueText.Of(Setting(EffectKind.Compressor, "release"), 0.99994));
+    }
+
     /// <summary>A value that rounds to nothing is written as 0, never -0.</summary>
     [Fact]
     public void AValueThatRoundsToNothingIsNeverMinusZero()

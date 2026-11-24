@@ -56,8 +56,9 @@
                 </ul>
                 @if (shown is { } selected)
                 {
-                    <EffectSettings Effect="selected" Index="IndexOf(track, selected.Id)" Editable="Actions.CanEdit" Reason="@Actions.Reason"
-                                    OnSetting="SetSettingAsync" OnSync="SetSyncAsync" OnPreset="ApplyPresetAsync" />
+                    <EffectSettings @key="selected.Id" Effect="selected" Index="IndexOf(track, selected.Id)" Editable="Actions.CanEdit"
+                                    Reason="@Actions.Reason"
+                                    OnSetting="SetSettingAsync" OnSync="SetSyncAsync" OnPreset="ApplyPresetAsync" OnAbandon="AbandonedAsync" />
                 }
             </div>
         }
