@@ -6,7 +6,8 @@ namespace AudioLab.Audio.Tests;
 /// <summary>Holds the tests of the plan that is built in slices, with a pause between tracks for a caller that has work of its own (D60).</summary>
 public sealed class RenderPlanAsyncTests
 {
-    private static readonly SteppingTime _slow = new(TimeSpan.FromSeconds(1));
+    // A clock that moves a second at each reading, so every track is a slice long.
+    private static SteppingTime Slow() => new(TimeSpan.FromSeconds(1));
 
     private static float[] Mix(RenderPlan plan)
     {
@@ -33,7 +34,7 @@ public sealed class RenderPlanAsyncTests
                 pauses++;
                 return Task.CompletedTask;
             },
-            _slow);
+            Slow());
         RenderPlan whole = RenderPlan.Create(document, BusyProject.Media(), options);
 
         Assert.True(pauses >= 1);
@@ -77,7 +78,7 @@ public sealed class RenderPlanAsyncTests
                 cancellation.Cancel();
                 return Task.CompletedTask;
             },
-            _slow));
+            Slow()));
 
         Assert.Equal(1, pauses);
     }
@@ -99,7 +100,7 @@ public sealed class RenderPlanAsyncTests
                 cancellation.Cancel();
                 return Task.CompletedTask;
             },
-            _slow));
+            Slow()));
 
         Assert.Equal(1, pauses);
     }

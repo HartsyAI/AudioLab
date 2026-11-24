@@ -142,6 +142,27 @@ public sealed class LiveHostBuildTimingTests
     }
 
     [Fact]
+    public async Task ABuildIsNotCancelledByADocumentThatDiffersOnlyInWhatAPlanDoesNotRead()
+    {
+        Worker worker = await PlayingAsync();
+        Task? third = null;
+        worker.OnPause = () =>
+        {
+            worker.OnPause = null;
+            ProjectDocument renamed = Document(0.5) with { Name = "renamed", Metronome = true };
+            third = worker.Host.SetDocumentAsync(ProjectJson.Write(renamed), 3);
+        };
+
+        await Send(worker, 0.5, 2);
+        await third!;
+        worker.Serve();
+        worker.Host.RenderChunk();
+
+        Assert.Equal(2, worker.Host.Engine.Revision);
+        Assert.Equal(Tracks * 2, worker.Built);
+    }
+
+    [Fact]
     public async Task ABuildOfADocumentThatANewerOneHasReplacedIsAbandonedAndNeverPlays()
     {
         Worker worker = await PlayingAsync();
