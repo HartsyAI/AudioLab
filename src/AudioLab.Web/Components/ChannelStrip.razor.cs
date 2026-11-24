@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
@@ -39,9 +40,17 @@ public sealed partial class ChannelStrip
     [Parameter, EditorRequired]
     public string ColorToken { get; set; } = string.Empty;
 
-    /// <summary>The effect names and whether each is in the signal path, in chain order.</summary>
+    /// <summary>The effects in chain order, each with its name and whether it is in the signal path.</summary>
     [Parameter]
-    public IReadOnlyList<(string Name, bool Enabled)> Effects { get; set; } = [];
+    public IReadOnlyList<StripEffect> Effects { get; set; } = [];
+
+    /// <summary>Raised with the track and the effect (or null for the chain as it is) when a slot is pressed; the master has none to open.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, EffectId? Effect)> OnOpenEffects { get; set; }
+
+    /// <summary>The note under the master's slot: it is a project setting, and the master has no effect chain.</summary>
+    [Parameter]
+    public string? MasterNote { get; set; }
 
     /// <summary>The pan from -1 to 1; the master has none and stays at the centre.</summary>
     [Parameter]
@@ -75,34 +84,81 @@ public sealed partial class ChannelStrip
 
     private string VolumeText => FaderScale.Text(Volume);
 
-    private IReadOnlyList<(string? Name, bool Enabled)> Slots
+    private IReadOnlyList<StripSlot> Slots
     {
         get
         {
-            List<(string? Name, bool Enabled)> slots = [.. Effects.Take(VisibleSlots).Select(effect => ((string?)effect.Name, effect.Enabled))];
+            List<StripSlot> slots = [.. Effects.Take(VisibleSlots).Select(Shown)];
             if (Effects.Count > VisibleSlots)
             {
-                slots[^1] = ($"{Effects.Count - VisibleSlots + 1} more effects", true);
+                // The last slot stands for the effects that do not fit, and opens the first of them.
+                IEnumerable<StripEffect> rest = Effects.Skip(VisibleSlots - 1);
+                string text = $"{Effects.Count - VisibleSlots + 1} more effects";
+                slots[^1] = new StripSlot(text, rest.Any(effect => effect.Enabled), Effects[VisibleSlots - 1].Id, Opens, Overflow: true);
             }
             while (slots.Count < VisibleSlots)
             {
-                slots.Add((null, true));
+                slots.Add(new StripSlot(null, true, null, Opens));
             }
             return slots;
         }
     }
+
+    // Only a track has a chain to open; the master's limiter is a project setting.
+    private bool Opens => Track is not null && OnOpenEffects.HasDelegate;
+
+    private StripSlot Shown(StripEffect effect) => new(effect.Name, effect.Enabled, effect.Id, Opens && effect.Id is not null);
+
+    private string Describe(StripSlot slot)
+    {
+        if (slot.Text is null)
+        {
+            return $"Add an effect to {Name}";
+        }
+        if (slot.Overflow)
+        {
+            return slot.Enabled ? slot.Text : $"{slot.Text}, all off";
+        }
+        return slot.Effect is null ? slot.Text : $"{slot.Text}, {(slot.Enabled ? "on" : "off")}";
+    }
+
+    private string HintOf(StripSlot slot)
+    {
+        if (!slot.Opens)
+        {
+            return Master ? MasterNote ?? string.Empty : Describe(slot);
+        }
+        return $"{Describe(slot)}. Open in the Effects tab ({Shortcuts.OpenEffects.Display})";
+    }
+
+    private Task OpenAsync(StripSlot slot) => Track is { } track ? OnOpenEffects.InvokeAsync((track, slot.Effect)) : Task.CompletedTask;
 
     private Task MuteAsync() => Track is { } track ? OnMute.InvokeAsync(track) : Task.CompletedTask;
 
     private Task SoloAsync() => Track is { } track ? OnSolo.InvokeAsync(track) : Task.CompletedTask;
 
     /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
+        if (firstRender)
+        {
+            _shown = Key();
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        string effects = string.Join(',', Effects.Select(effect => $"{effect.Name}:{effect.Enabled}"));
-        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Editable}";
+        string now = Key();
         bool same = now == _shown;
         _shown = now;
         return !same;
+    }
+
+    private string Key()
+    {
+        string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}";
     }
 }

@@ -60,13 +60,25 @@ public sealed partial class EffectSettings
         [.. EffectPresets.For(Kind).Select(preset => new MenuItem(preset.Name, preset.Name, string.Empty))];
 
     /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
+        if (firstRender)
+        {
+            _shown = Snapshot();
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (Effect?, int, bool, string?) now = (Effect, Index, Editable, Reason);
+        (Effect?, int, bool, string?) now = Snapshot();
         bool same = _shown == now;
         _shown = now;
         return !same;
     }
+
+    private (Effect?, int, bool, string?) Snapshot() => (Effect, Index, Editable, Reason);
 
     private string? BlockOf(EffectParameter setting) => EffectSettingRules.Block(Effect, setting, Editable, Reason);
 

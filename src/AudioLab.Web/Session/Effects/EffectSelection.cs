@@ -8,8 +8,25 @@ public sealed class EffectSelection
     /// <summary>Raised when the selection changed.</summary>
     public event Action? Changed;
 
+    private bool _focusRequested;
+
     /// <summary>The selected effect, or null for the first of the chain.</summary>
     public EffectId? Effect { get; private set; }
+
+    /// <summary>Asks the effects tab to move the keyboard focus to the selected effect: now when it is open, else when it is drawn.</summary>
+    public void RequestFocus()
+    {
+        _focusRequested = true;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Whether focus was asked for since the last call; asking is spent by answering.</summary>
+    public bool TakeFocusRequest()
+    {
+        bool asked = _focusRequested;
+        _focusRequested = false;
+        return asked;
+    }
 
     /// <summary>Selects an effect.</summary>
     public void Select(EffectId effect)

@@ -1,5 +1,7 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Components;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Effects;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
@@ -22,10 +24,15 @@ public sealed partial class MixerPanel
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 
-    private IReadOnlyList<(string Name, bool Enabled)> MasterEffects => Document.MasterLimiter ? [("Limiter", true)] : [];
+    [Inject]
+    private EffectsNavigator Navigator { get; set; } = default!;
 
-    private static IReadOnlyList<(string Name, bool Enabled)> Effects(Track track)
+    private IReadOnlyList<StripEffect> MasterEffects => Document.MasterLimiter ? [new StripEffect(null, "Limiter", true)] : [];
+
+    private static IReadOnlyList<StripEffect> Effects(Track track)
     {
-        return [.. track.Effects.Select(effect => (TrackText.Effect(effect), effect.Enabled))];
+        return [.. track.Effects.Select(effect => new StripEffect(effect.Id, TrackText.Effect(effect), effect.Enabled))];
     }
+
+    private void OpenEffects((TrackId Track, EffectId? Effect) target) => Navigator.Open(target.Track, target.Effect);
 }

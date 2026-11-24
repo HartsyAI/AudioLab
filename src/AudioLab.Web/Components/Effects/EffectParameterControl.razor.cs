@@ -10,7 +10,7 @@ public sealed partial class EffectParameterControl
 {
     private readonly Func<double, string> _format;
 
-    private (Effect? Effect, EffectParameter? Setting, string? Subject, bool Disabled, string? Reason) _shown;
+    private (double Value, EffectParameter? Setting, string? Subject, bool Disabled, string? Reason) _shown;
 
     /// <summary>Creates the control.</summary>
     public EffectParameterControl()
@@ -56,13 +56,26 @@ public sealed partial class EffectParameterControl
     private string ValueText => EffectValueText.Of(Setting, Value);
 
     /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
+        if (firstRender)
+        {
+            _shown = Snapshot();
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (Effect?, EffectParameter?, string?, bool, string?) now = (Effect, Setting, Subject, Disabled, Reason);
+        (double, EffectParameter?, string?, bool, string?) now = Snapshot();
         bool same = _shown == now;
         _shown = now;
         return !same;
     }
+
+    // Its own value, not the whole effect: another setting of the effect that changed leaves this knob as it is.
+    private (double, EffectParameter?, string?, bool, string?) Snapshot() => (Value, Setting, Subject, Disabled, Reason);
 
     private Task CommitAsync(double position) => OnSet.InvokeAsync((Setting.Name, Setting.FromPosition((position + 1) / 2)));
 }

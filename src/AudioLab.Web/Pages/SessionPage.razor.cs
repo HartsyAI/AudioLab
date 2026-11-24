@@ -5,6 +5,7 @@ using AudioLab.Web.Media;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Session.Effects;
 using AudioLab.Web.Session.Roll;
 using Microsoft.AspNetCore.Components;
 
@@ -70,6 +71,9 @@ public sealed partial class SessionPage
     private PianoRollKeys RollKeys { get; set; } = default!;
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
+
+    [Inject]
+    private EffectsNavigator Effects { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
     private StatusDot Dot => _live is { Ready: true } ? StatusDot.Go : StatusDot.Caution;
@@ -429,6 +433,10 @@ public sealed partial class SessionPage
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;
             _ = InvokeAsync(() => _actions.Midi.StepLength(open, bars));
+        }
+        else if (Shortcuts.OpenEffects.Matches(chord) && Selection.Track is { } selected)
+        {
+            _ = InvokeAsync(() => Effects.Open(selected, null));
         }
         else if (Shortcuts.RenameTrack.Matches(chord) && Selection.Track is { } track)
         {
