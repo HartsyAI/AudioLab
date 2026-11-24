@@ -13,8 +13,12 @@ public sealed class EffectSelection
     /// <summary>The selected effect, or null for the first of the chain.</summary>
     public EffectId? Effect { get; private set; }
 
-    /// <summary>Asks the effects tab to move the keyboard focus to the selected effect when it is drawn.</summary>
-    public void RequestFocus() => _focusRequested = true;
+    /// <summary>Asks the effects tab to move the keyboard focus to the selected effect: now when it is open, else when it is drawn.</summary>
+    public void RequestFocus()
+    {
+        _focusRequested = true;
+        Changed?.Invoke();
+    }
 
     /// <summary>Whether focus was asked for since the last call; asking is spent by answering.</summary>
     public bool TakeFocusRequest()

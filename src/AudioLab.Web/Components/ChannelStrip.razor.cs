@@ -92,7 +92,9 @@ public sealed partial class ChannelStrip
             if (Effects.Count > VisibleSlots)
             {
                 // The last slot stands for the effects that do not fit, and opens the first of them.
-                slots[^1] = new StripSlot($"{Effects.Count - VisibleSlots + 1} more effects", true, Effects[VisibleSlots - 1].Id, Opens);
+                IEnumerable<StripEffect> rest = Effects.Skip(VisibleSlots - 1);
+                string text = $"{Effects.Count - VisibleSlots + 1} more effects";
+                slots[^1] = new StripSlot(text, rest.Any(effect => effect.Enabled), Effects[VisibleSlots - 1].Id, Opens, Overflow: true);
             }
             while (slots.Count < VisibleSlots)
             {
@@ -112,6 +114,10 @@ public sealed partial class ChannelStrip
         if (slot.Text is null)
         {
             return $"Add an effect to {Name}";
+        }
+        if (slot.Overflow)
+        {
+            return slot.Enabled ? slot.Text : $"{slot.Text}, all off";
         }
         return slot.Effect is null ? slot.Text : $"{slot.Text}, {(slot.Enabled ? "on" : "off")}";
     }

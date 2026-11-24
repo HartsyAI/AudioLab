@@ -8,7 +8,10 @@ public sealed class EffectsNavigator(SessionSelection selection, EffectSelection
     /// <summary>Selects the track, selects the effect when one is given, asks for the keyboard focus to follow, and shows the effects tab.</summary>
     public void Open(TrackId track, EffectId? effect)
     {
-        selection.SelectTrack(track);
+        if (selection.Track != track)
+        {
+            selection.SelectTrack(track);
+        }
         if (effect is { } chosen)
         {
             effects.Select(chosen);
