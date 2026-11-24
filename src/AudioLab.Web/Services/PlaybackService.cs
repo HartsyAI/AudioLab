@@ -99,8 +99,12 @@ public sealed class PlaybackService : IDisposable
 
     /// <summary>A sentence about a miss for the person at the controls, or null.</summary>
     public string? HealthMessage => _health.Message is { } message && !CompiledAhead && _status is not null
+        && Health is PlaybackHealth.Dropping or PlaybackHealth.Strained
         ? message + " The engine in this page is not compiled ahead of time (docs/engine-aot.md)."
         : _health.Message;
+
+    /// <summary>How fast the audio context ran against the wall clock over the last ten seconds (1 is right), or null before the first.</summary>
+    public double? ClockRatio => _health.ClockRatio;
 
     /// <summary>How many times the audio thread ran out of audio since the engine started: a run of quanta without audio is one.</summary>
     public long Dropouts => _worklet?.Events ?? 0;

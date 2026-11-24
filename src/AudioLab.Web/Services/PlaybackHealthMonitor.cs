@@ -10,11 +10,21 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
     // A chunk that takes more of its time than this leaves too little for the next one to be late.
     private const double StrainedShare = 0.75;
 
+    // A window of this long is compared with the wall clock; a report that comes later than the gap after the one before it (the page
+    // was suspended, or the context was) starts the window again. 2% of ten seconds is 200 ms, more than the jitter of a report arriving.
+    private static readonly TimeSpan _clockWindow = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan _clockGap = TimeSpan.FromSeconds(1);
+    private const double ClockTolerance = 0.02;
+
     private DateTimeOffset? _dropped;
     private DateTimeOffset? _strained;
     private long _events;
     private long _overruns;
     private bool _seen;
+    private int _rate;
+    private DateTimeOffset? _windowStart;
+    private DateTimeOffset _lastReport;
+    private double _windowFrames;
 
     /// <summary>Whether the engine keeps up now, counting a dropout or a strained chunk of the last ten seconds.</summary>
     public PlaybackHealth Health
@@ -22,9 +32,17 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
         get
         {
             DateTimeOffset now = time.GetUtcNow();
-            return Recent(_dropped, now) ? PlaybackHealth.Dropping : Recent(_strained, now) ? PlaybackHealth.Strained : PlaybackHealth.Steady;
+            return Recent(_dropped, now) ? PlaybackHealth.Dropping
+                : Recent(_strained, now) ? PlaybackHealth.Strained
+                : Drifting ? PlaybackHealth.Drifting : PlaybackHealth.Steady;
         }
     }
+
+    /// <summary>How fast the audio context ran against the wall clock over the last window (1 is right); null until one has passed.</summary>
+    public double? ClockRatio { get; private set; }
+
+    /// <summary>Whether the audio context ran more than 2% off the wall clock over the last window.</summary>
+    public bool Drifting => ClockRatio is { } ratio && Math.Abs(ratio - 1) > ClockTolerance;
 
     /// <summary>A sentence for the person at the controls, or null while all is well.</summary>
     public string? Message => Health switch
@@ -32,6 +50,9 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
         PlaybackHealth.Dropping => "Playback is dropping out: the audio engine in this page could not keep up with this project. "
             + "Mixing on the server instead is not built yet, so try fewer effects or tracks.",
         PlaybackHealth.Strained => "Playback is close to dropping out: the engine is using most of the time it has for each chunk of audio.",
+        PlaybackHealth.Drifting => "Playback is at the wrong speed: the audio device runs at "
+            + Math.Round((ClockRatio ?? 1) * 100).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%"
+            + " of real time. Nothing in the engine causes this and no dropout shows it; reload the page, or try another output device.",
         _ => null,
     };
 
@@ -45,6 +66,7 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
         }
         _events = stats.Events;
         _seen = true;
+        ObserveClock(stats);
     }
 
     /// <summary>Notes how long the engine took over its chunks: close to the time a chunk has, or over it, is strain.</summary>
@@ -57,6 +79,7 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
             _strained = time.GetUtcNow();
         }
         _overruns = status.Overruns;
+        _rate = status.SampleRate;
     }
 
     /// <summary>Forgets everything, for an engine that starts again.</summary>
@@ -67,6 +90,33 @@ public sealed class PlaybackHealthMonitor(TimeProvider time)
         _events = 0;
         _overruns = 0;
         _seen = false;
+        _windowStart = null;
+        ClockRatio = null;
+    }
+
+    // The worklet counts the frames it has played; over a window those are compared with the time the page saw pass.
+    private void ObserveClock(WorkletStats stats)
+    {
+        DateTimeOffset now = time.GetUtcNow();
+        bool gap = now - _lastReport > _clockGap;
+        _lastReport = now;
+        if (_rate <= 0 || stats.Frames <= 0)
+        {
+            return;
+        }
+        if (_windowStart is not { } start || gap || stats.Frames < _windowFrames)
+        {
+            _windowStart = now;
+            _windowFrames = stats.Frames;
+            return;
+        }
+        TimeSpan elapsed = now - start;
+        if (elapsed >= _clockWindow)
+        {
+            ClockRatio = (stats.Frames - _windowFrames) / (_rate * elapsed.TotalSeconds);
+            _windowStart = now;
+            _windowFrames = stats.Frames;
+        }
     }
 
     private static bool Recent(DateTimeOffset? at, DateTimeOffset now) => at is { } moment && now - moment < _memory;

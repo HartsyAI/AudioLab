@@ -63,4 +63,53 @@ public sealed class PlaybackHealthMonitorTests
 
         Assert.Equal(PlaybackHealth.Steady, monitor.Health);
     }
+
+    // Reports of the worklet every 40 ms for the seconds given, with the context running at the speed given against the wall clock.
+    private static void Run(PlaybackHealthMonitor monitor, FakeTime time, double seconds, double speed, ref double frames)
+    {
+        for (int i = 0; i < seconds * 25; i++)
+        {
+            time.Now += TimeSpan.FromMilliseconds(40);
+            frames += 48000 * 0.04 * speed;
+            monitor.Observe(new WorkletStats(0, 2048, 2048, 0, 0, true, frames));
+        }
+    }
+
+    /// <summary>A context that runs at 64% of real time is reported after ten seconds, though no dropout is counted.</summary>
+    [Fact]
+    public void AContextRunningSlowIsReportedAfterTenSecondsThoughNoDropoutIsCounted()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 9, 0.64, ref frames);
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+        Run(monitor, time, 3, 0.64, ref frames);
+
+        Assert.Equal(PlaybackHealth.Drifting, monitor.Health);
+        Assert.InRange(monitor.ClockRatio!.Value, 0.63, 0.65);
+        Assert.Contains("64%", monitor.Message);
+        Run(monitor, time, 21, 1, ref frames);
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+    }
+
+    /// <summary>A context within 2% of the clock is not reported, and neither is a page that was suspended for a while.</summary>
+    [Fact]
+    public void AContextWithinTwoPercentIsNotReportedAndNeitherIsAPageThatWasSuspended()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 12, 0.985, ref frames);
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+        time.Now += TimeSpan.FromSeconds(30);
+        Run(monitor, time, 12, 1, ref frames);
+
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+        Assert.InRange(monitor.ClockRatio!.Value, 0.99, 1.01);
+    }
 }

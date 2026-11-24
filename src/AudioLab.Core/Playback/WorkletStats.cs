@@ -8,4 +8,5 @@ namespace AudioLab.Core.Playback;
 /// <param name="Events">Dropout events: runs of quanta that found less than a quantum of audio in the ring.</param>
 /// <param name="Missed">Frames of silence played in place of audio.</param>
 /// <param name="Primed">Whether the ring has filled once; nothing is counted before.</param>
-public sealed record WorkletStats(double Position, int Fill, int MinFill, long Events, long Missed, bool Primed);
+/// <param name="Frames">The frames the audio thread has played since the context started (its <c>currentFrame</c>), whatever the ring held.</param>
+public sealed record WorkletStats(double Position, int Fill, int MinFill, long Events, long Missed, bool Primed, double Frames = 0);

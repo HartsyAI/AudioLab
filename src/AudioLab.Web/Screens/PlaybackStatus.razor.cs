@@ -49,8 +49,13 @@ public sealed partial class PlaybackStatus : IDisposable
             CultureInfo.InvariantCulture,
             $"Engine {(Playback.CompiledAhead ? "ahead-of-time" : "interpreted")}, {Playback.SampleRate / 1000.0:0.#} kHz, "
             + $"{Playback.BufferMilliseconds:0} ms buffer, {Playback.Dropouts} dropouts, "
-            + $"render {Playback.LongestRenderMilliseconds:0.#} ms, gap {Playback.LongestGapMilliseconds:0} ms")
+            + $"render {Playback.LongestRenderMilliseconds:0.#} ms, gap {Playback.LongestGapMilliseconds:0} ms{Clock()}")
         : null;
+
+    // The audio clock against the wall clock, once ten seconds have been compared; 100% is right.
+    private string Clock() => Playback.ClockRatio is { } ratio
+        ? ", clock " + Math.Round(ratio * 100).ToString(CultureInfo.InvariantCulture) + "%"
+        : string.Empty;
 
     private string Interpreted() => Playback.CompiledAhead ? string.Empty : " (the engine is interpreted: docs/engine-aot.md)";
 
@@ -68,6 +73,10 @@ public sealed partial class PlaybackStatus : IDisposable
         if (Playback.Health == PlaybackHealth.Strained)
         {
             return ($"Playback is close to dropping out{Interpreted()}", StatusDot.Caution);
+        }
+        if (Playback.Health == PlaybackHealth.Drifting)
+        {
+            return (Playback.HealthMessage ?? "Playback is at the wrong speed", StatusDot.Caution);
         }
         if (Playback.LoadWarning is { } warning)
         {
