@@ -8,8 +8,8 @@ namespace AudioLab.Web.Components.Effects;
 /// <summary>The settings of one effect: a knob for each numeric setting, a sync toggle and divisions for a delay, and its kind's presets.</summary>
 public sealed partial class EffectSettings
 {
-    /// <summary>The id of the preset menu's button, which a shortcut moves the focus to.</summary>
-    public const string PresetButtonId = "effect-presets";
+    /// <summary>The id of the preset menu, whose button a shortcut moves the focus to.</summary>
+    public const string PresetMenuId = "effect-presets";
 
     private (Effect? Effect, int Index, bool Editable, string? Reason) _shown;
 

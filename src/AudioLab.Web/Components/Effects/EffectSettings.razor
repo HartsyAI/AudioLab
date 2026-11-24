@@ -17,7 +17,7 @@
         <span class="settings-gap"></span>
         @if (Editable)
         {
-            <Menu ButtonId="@PresetButtonId" Label="Presets" Items="PresetItems" OnSelect="PresetAsync" />
+            <Menu Id="@PresetMenuId" Label="Presets" Items="PresetItems" OnSelect="PresetAsync" />
         }
         else
         {
