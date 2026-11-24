@@ -23,8 +23,8 @@ internal sealed class Biquad
         BiquadCoefficients c = _coefficients;
         double x = input;
         double y = (c.B0 * x) + _s1;
-        _s1 = (c.B1 * x) - (c.A1 * y) + _s2;
-        _s2 = (c.B2 * x) - (c.A2 * y);
+        _s1 = Denormals.Flush((c.B1 * x) - (c.A1 * y) + _s2);
+        _s2 = Denormals.Flush((c.B2 * x) - (c.A2 * y));
         return (float)y;
     }
 
