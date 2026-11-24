@@ -29,10 +29,10 @@ public static class ScriptAllowlist
         new("Microsoft.AspNetCore.Components.WebAssembly", "10.0.14", "build/net10.0/blazor.webassembly.js",
             "A byte for byte copy of blazor.webassembly.js that the package keeps for its build targets. The app serves the pack's copy, not this."),
         new(Bit, "11.0.0-pre-23", "staticwebassets/Bit.Bheadless.4mg12f5a83.lib.module.js",
-            "D14 (Decided 2026-11-23, pre-release exception). Blazor loads it by itself at start and installs the key handling and dismissable layers of the menu and tooltip."),
+            "D14 (Decided). Blazor loads it by itself at start and installs the key handling and dismissable layers of the menu and tooltip."),
         new(Bit, "11.0.0-pre-23", "staticwebassets/bit-bheadless.js",
-            "D14 (Decided 2026-11-23, pre-release exception). The behaviour the menu and tooltip call: focus, key handling and positioning. The file name carries no hash."),
+            "D14 (Decided). The behaviour the menu and tooltip call: focus, key handling and positioning. The file name carries no hash."),
         new(Bit, "11.0.0-pre-23", "staticwebassets/bit-bheadless-csp.js",
-            "D14 (Decided 2026-11-23, pre-release exception). Applies the positions the library computes through the style object, for a page under a strict content policy."),
+            "D14 (Decided). Applies the positions the library computes through the style object, for a page under a strict content policy."),
     ];
 }
