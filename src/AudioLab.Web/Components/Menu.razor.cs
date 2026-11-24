@@ -14,6 +14,10 @@ public sealed partial class Menu
     [Parameter]
     public bool Icon { get; set; }
 
+    /// <summary>The id of the menu's wrapper, so that a shortcut can move the focus to its button; the library chooses the button's own id.</summary>
+    [Parameter]
+    public string? Id { get; set; }
+
     /// <summary>The commands.</summary>
     [Parameter, EditorRequired]
     public IReadOnlyList<MenuItem> Items { get; set; } = [];
@@ -29,6 +33,15 @@ public sealed partial class Menu
     private const int ChevronSize = 9;
 
     private string? ButtonName => Icon ? Label : null;
+
+    // While the menu is open its keys are the menu's: typing a letter finds an item, and no shortcut of the screen behind it hears the letter.
+    private bool _open;
+
+    private Task OpenChangedAsync(bool open)
+    {
+        _open = open;
+        return Task.CompletedTask;
+    }
 
     /// <summary>The commands in the order the menu shows them: the others as given, then the destructive ones as given.</summary>
     /// <param name="items">The commands as the caller listed them.</param>

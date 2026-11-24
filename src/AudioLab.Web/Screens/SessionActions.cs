@@ -31,6 +31,9 @@ public sealed class SessionActions
     /// <summary>What can be done to MIDI clips.</summary>
     public MidiActions Midi { get; init; } = new();
 
+    /// <summary>What can be done to a track's effect chain.</summary>
+    public EffectActions Effects { get; init; } = new();
+
     /// <summary>Asks for the new name of a track.</summary>
     public Func<TrackId, Task> RenameTrack { get; init; } = _ => Task.CompletedTask;
 

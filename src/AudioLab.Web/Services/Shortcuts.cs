@@ -15,6 +15,9 @@ public static class Shortcuts
     /// <summary>The scope of the media library panel.</summary>
     public const string Media = "media";
 
+    /// <summary>The scope of the effects panel: keys heard while the focus is inside it, so they never meet the keys of the arrangement.</summary>
+    public const string Effects = "effects";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
@@ -220,6 +223,28 @@ public static class Shortcuts
     /// <summary>Zoom the time axis out.</summary>
     public static readonly Shortcut RollZoomOut = new("roll.zoom.out", "Zoom out", "-", PianoRoll);
 
+    /// <summary>Move the focus to the Add effect menu, whose items are the kinds of effect.</summary>
+    public static readonly Shortcut EffectAddMenu = new("effect.add", "Add effect", "a", Effects);
+
+    /// <summary>Remove the effect that has the focus.</summary>
+    public static readonly Shortcut EffectRemove = new("effect.remove", "Remove effect", "Delete", Effects);
+
+    /// <summary>Put the effect that has the focus in the signal path, or bypass it.</summary>
+    public static readonly Shortcut EffectBypass = new("effect.bypass", "Bypass effect", "b", Effects);
+
+    /// <summary>Move the effect that has the focus one place earlier in the chain.</summary>
+    public static readonly Shortcut EffectEarlier = new("effect.move.earlier", "Move effect earlier", "ArrowUp", Effects, Alt: true);
+
+    /// <summary>Move the effect that has the focus one place later in the chain.</summary>
+    public static readonly Shortcut EffectLater = new("effect.move.later", "Move effect later", "ArrowDown", Effects, Alt: true);
+
+    /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> EffectChain =
+    [
+        EffectAddMenu, EffectRemove, EffectBypass, EffectEarlier,
+        EffectLater,
+    ];
+
     /// <summary>Every shortcut of the piano roll, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> Roll =
     [
@@ -236,6 +261,6 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain,
     ];
 }

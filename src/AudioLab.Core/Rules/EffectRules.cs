@@ -61,6 +61,12 @@ public static class EffectRules
         Setting<SaturationEffect>("mix", 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
     ];
 
+    /// <summary>The reason a chain of <paramref name="count"/> effects takes no more, or null when it takes one more.</summary>
+    public static string? AddRefusal(int count)
+    {
+        return count >= ProjectLimits.MaxEffects ? $"A track has at most {ProjectLimits.MaxEffects} effects." : null;
+    }
+
     /// <summary>The delay divisions a synced delay may use, longest first.</summary>
     public static IReadOnlyList<string> Divisions => DelayEffect.Divisions;
 

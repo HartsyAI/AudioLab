@@ -1,0 +1,70 @@
+.effect-item {
+    list-style: none;
+    border-bottom: 1px solid var(--lane-line);
+}
+
+.effect-item[data-dragging="true"] {
+    opacity: 0.5;
+}
+
+.effect-item[data-drop="before"] {
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.effect-item[data-drop="after"] {
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.effect-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-height: var(--control-lg);
+    padding: var(--space-4) var(--space-12);
+}
+
+.effect-row:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+}
+
+.effect-grip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--text-faint);
+    cursor: default;
+    touch-action: none;
+    user-select: none;
+}
+
+.effect-grip[data-editable="true"] {
+    cursor: grab;
+}
+
+.effect-index {
+    flex: none;
+    min-width: var(--space-16);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+    font-variant-numeric: tabular-nums;
+}
+
+.effect-name {
+    flex: none;
+    min-width: var(--strip-width);
+    color: var(--text);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-strong);
+}
+
+.effect-state {
+    flex: 1;
+    min-width: var(--space-24);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
+.effect-row[data-bypassed="true"] .effect-name {
+    color: var(--text-dim);
+}

@@ -1,0 +1,56 @@
+@using AudioLab.Core.Rules
+@using AudioLab.Web.Components.Effects
+@using AudioLab.Web.Session.Effects
+@implements IDisposable
+
+<div id="@PanelId" class="effects" role="region" aria-label="Effects" tabindex="-1" @onkeydown="PanelKeyAsync">
+    @if (Current is not { } track)
+    {
+        <EmptyState Heading="No track selected" Message="Select a track to see and edit its effects." />
+    }
+    else
+    {
+        <header class="effects-bar">
+            <span class="effects-title">@track.Name</span>
+            <span class="effects-count" title="@FullText">@EffectChainRules.Count(track)</span>
+            <span class="effects-gap"></span>
+            @if (AddBlock is { } block)
+            {
+                <Button Name="Add effect" Disabled="true" DisabledReason="@block">
+                    <span>Add effect</span>
+                    <Icon Name="IconName.Chevron" Size="9" />
+                </Button>
+            }
+            else
+            {
+                <Menu Id="@AddMenuId" Label="Add effect" Items="KindItems" OnSelect="AddAsync" />
+            }
+        </header>
+        @if (track.Effects.Count == 0)
+        {
+            <EmptyState Heading="No effects" Message="@($"{track.Name} has no effects. Add one to shape its sound before the fader.")">
+                @foreach (EffectKind kind in EffectText.Kinds.Take(3))
+                {
+                    <Button Name="@($"Add {EffectText.Name(kind)}")" Disabled="AddBlock is not null" DisabledReason="@AddBlock"
+                            OnClick="() => AddKindAsync(kind)">
+                        <span>@EffectText.Name(kind)</span>
+                    </Button>
+                }
+            </EmptyState>
+        }
+        else
+        {
+            <ul id="@ListId" class="effects-list" aria-label="@($"Effects of {track.Name}, in signal order")">
+                @for (int index = 0; index < track.Effects.Count; index++)
+                {
+                    Effect effect = track.Effects[index];
+                    <EffectRow @key="effect.Id" Effect="effect" Index="index" Count="track.Effects.Count" Editable="Actions.CanEdit"
+                               Reason="@Actions.Reason"
+                               Dragging="@(_drag is { Active: true } drag && drag.Effect == effect.Id.Value)" Drop="@DropOf(index)"
+                               OnEnabled="SetEnabledAsync" OnMove="MoveAsync" OnRemove="RemoveAsync" OnGrab="GrabAsync" OnKey="KeyAsync" />
+                }
+            </ul>
+        }
+        <p class="effects-status" role="status">@_announcement</p>
+    }
+</div>
