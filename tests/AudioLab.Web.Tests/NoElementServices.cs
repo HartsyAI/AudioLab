@@ -39,5 +39,9 @@ internal static class NoElementServices
         public void Focus(string elementId)
         {
         }
+
+        public void FocusIn(string containerId, string selector)
+        {
+        }
     }
 }

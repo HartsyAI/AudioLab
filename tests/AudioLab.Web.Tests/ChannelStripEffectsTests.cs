@@ -225,6 +225,8 @@ public sealed class ChannelStripEffectsTests
         public List<string> Asked { get; } = [];
 
         public void Focus(string elementId) => Asked.Add(elementId);
+
+        public void FocusIn(string containerId, string selector) => Asked.Add($"{containerId} {selector}");
     }
 
     private sealed class NoGuard : IKeyGuard
