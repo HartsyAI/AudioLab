@@ -10,10 +10,14 @@ public sealed class PlaybackHealthMonitorTests
     {
         public DateTimeOffset Now { get; set; } = new(2026, 11, 23, 12, 0, 0, TimeSpan.Zero);
 
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
         public override DateTimeOffset GetUtcNow() => Now;
+
+        public override long GetTimestamp() => Now.UtcTicks;
     }
 
-    private static WorkletStats Stats(long events) => new(0, 2048, 2048, events, events * 128, true);
+    private static WorkletStats Stats(long events) => new(0, 2048, 2048, events, events * 128, true, 0);
 
     private static HostStatus Status(double maxRenderMs, long overruns = 0) =>
         new(TransportState.Playing, 0, 48000, 1, 0, null, 100, overruns, maxRenderMs, 1, default, []);
@@ -75,41 +79,101 @@ public sealed class PlaybackHealthMonitorTests
         }
     }
 
-    /// <summary>A context that runs at 64% of real time is reported after ten seconds, though no dropout is counted.</summary>
+    /// <summary>A context that runs at 64% of real time is reported once two windows have said so, though no dropout is counted.</summary>
     [Fact]
-    public void AContextRunningSlowIsReportedAfterTenSecondsThoughNoDropoutIsCounted()
+    public void AContextRunningSlowIsReportedOnceTwoWindowsHaveSaidSoThoughNoDropoutIsCounted()
     {
         FakeTime time = new();
         PlaybackHealthMonitor monitor = new(time);
         monitor.Observe(Status(2));
         double frames = 1000;
 
-        Run(monitor, time, 9, 0.64, ref frames);
+        Run(monitor, time, 12, 0.64, ref frames);
         Assert.Equal(PlaybackHealth.Steady, monitor.Health);
-        Run(monitor, time, 3, 0.64, ref frames);
+        Assert.InRange(monitor.ClockRatio!.Value, 0.63, 0.65);
+        Run(monitor, time, 10, 0.64, ref frames);
 
         Assert.Equal(PlaybackHealth.Drifting, monitor.Health);
-        Assert.InRange(monitor.ClockRatio!.Value, 0.63, 0.65);
         Assert.Contains("64%", monitor.Message);
-        Run(monitor, time, 21, 1, ref frames);
+        Run(monitor, time, 25, 1, ref frames);
         Assert.Equal(PlaybackHealth.Steady, monitor.Health);
     }
 
-    /// <summary>A context within 2% of the clock is not reported, and neither is a page that was suspended for a while.</summary>
+    /// <summary>A context within 2% of the clock is not reported, and a window that is off once is not enough.</summary>
     [Fact]
-    public void AContextWithinTwoPercentIsNotReportedAndNeitherIsAPageThatWasSuspended()
+    public void AContextWithinTwoPercentIsNotReportedAndOneWindowThatIsOffIsNotEnough()
     {
         FakeTime time = new();
         PlaybackHealthMonitor monitor = new(time);
         monitor.Observe(Status(2));
         double frames = 1000;
 
-        Run(monitor, time, 12, 0.985, ref frames);
-        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
-        time.Now += TimeSpan.FromSeconds(30);
-        Run(monitor, time, 12, 1, ref frames);
+        Run(monitor, time, 22, 0.985, ref frames);
+        Run(monitor, time, 10, 0.9, ref frames);
+        Run(monitor, time, 10, 1, ref frames);
+        Run(monitor, time, 10, 0.9, ref frames);
+        Run(monitor, time, 10, 1, ref frames);
 
         Assert.Equal(PlaybackHealth.Steady, monitor.Health);
-        Assert.InRange(monitor.ClockRatio!.Value, 0.99, 1.01);
+    }
+
+    /// <summary>A report that comes late because the page was busy moves a window by a few per cent and no more.</summary>
+    [Fact]
+    public void AReportThatComesLateBecauseThePageWasBusyIsNotAFaultOfTheClock()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 9.9, 1, ref frames);
+        time.Now += TimeSpan.FromMilliseconds(300);
+        monitor.Observe(new WorkletStats(0, 2048, 2048, 0, 0, true, frames));
+        Run(monitor, time, 20, 1, ref frames);
+
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+        Assert.Contains(monitor.ClockRatio!.Value, [0.97, 0.99, 1.0, 1.01, 1.03], new Near());
+    }
+
+    /// <summary>A window that straddles a suspended page or context is dropped, not read as a clock that stopped.</summary>
+    [Fact]
+    public void AWindowThatStraddlesASuspendedPageIsDroppedNotReadAsAClockThatStopped()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 5, 1, ref frames);
+        time.Now += TimeSpan.FromSeconds(30);
+        frames += 48000 * 0.04;
+        monitor.Observe(new WorkletStats(0, 2048, 2048, 0, 0, true, frames));
+
+        Assert.Null(monitor.ClockRatio);
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+    }
+
+    /// <summary>A ratio that sits near the line does not make the warning flicker.</summary>
+    [Fact]
+    public void ARatioThatSitsNearTheLineDoesNotMakeTheWarningFlicker()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 21, 0.97, ref frames);
+        Assert.Equal(PlaybackHealth.Drifting, monitor.Health);
+        Run(monitor, time, 10, 0.985, ref frames);
+        Assert.Equal(PlaybackHealth.Drifting, monitor.Health);
+        Run(monitor, time, 10, 0.995, ref frames);
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+    }
+
+    private sealed class Near : IEqualityComparer<double>
+    {
+        public bool Equals(double x, double y) => Math.Abs(x - y) < 0.0105;
+
+        public int GetHashCode(double obj) => 0;
     }
 }

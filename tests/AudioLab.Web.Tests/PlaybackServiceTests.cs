@@ -125,7 +125,7 @@ public sealed class PlaybackServiceTests
         await playback.PlayAsync();
 
         _host.Report(Status(TransportState.Playing, 96000));
-        _host.Report(new WorkletStats(72000, 2048, 2000, 0, 0, true));
+        _host.Report(new WorkletStats(72000, 2048, 2000, 0, 0, true, 0));
         Assert.Equal(TransportState.Playing, playback.Transport);
         Assert.Equal(1.5, playback.Position);
 

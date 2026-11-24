@@ -1,4 +1,4 @@
-<span class="status-item">
+<span class="status-item" role="@(Live ? "status" : null)">
     @if (Dot is StatusDot dot)
     {
         <span class="dot" data-dot="@dot.ToString().ToLowerInvariant()"></span>
