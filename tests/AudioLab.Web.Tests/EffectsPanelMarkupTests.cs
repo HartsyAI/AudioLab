@@ -179,6 +179,10 @@ public sealed class EffectsPanelMarkupTests
         public void Focus(string elementId)
         {
         }
+
+        public void FocusIn(string containerId, string selector)
+        {
+        }
     }
 
     private sealed class NoView : IElementView

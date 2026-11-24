@@ -34,5 +34,9 @@ public sealed class TabsMarkupTests
         public void Focus(string elementId)
         {
         }
+
+        public void FocusIn(string containerId, string selector)
+        {
+        }
     }
 }
