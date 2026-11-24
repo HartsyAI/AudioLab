@@ -50,6 +50,9 @@ internal sealed class RenderedMarkup : Renderer
     /// <summary>Every text that was written.</summary>
     public IReadOnlyList<string> Texts => _texts;
 
+    /// <summary>How many components of a type were ever made: a component that is kept is made once, one that is replaced is made again.</summary>
+    public int Made(Type type) => _types.Values.Count(candidate => candidate == type);
+
     /// <summary>The types of the components drawn in the latest batch, one for each draw: what a change cost.</summary>
     public IReadOnlyList<Type> Drawn { get; private set; } = [];
 
@@ -105,6 +108,9 @@ internal sealed class RenderedMarkup : Renderer
 
     /// <summary>Runs work on the renderer's own context, as a callback from the browser does.</summary>
     public Task RunAsync(Action work) => Dispatcher.InvokeAsync(work);
+
+    /// <summary>Takes the components down, as the page does when it leaves, so that what they do on the way out can be seen.</summary>
+    public void TakeDown() => Dispose();
 
     /// <summary>Lets go of the services of a render kept by <see cref="StartAsync{T}"/>.</summary>
     public async Task DisposeServicesAsync()
