@@ -13,6 +13,8 @@ public sealed partial class TrackHeader
 
     private bool _editable;
 
+    private string? _reason;
+
     private double _height;
 
     private string? _color;
@@ -43,6 +45,10 @@ public sealed partial class TrackHeader
     [Parameter]
     public bool Editable { get; set; }
 
+    /// <summary>Why the toggles do nothing now, for their titles; null when they act.</summary>
+    [Parameter]
+    public string? Reason { get; set; }
+
     /// <summary>Raised with the track when its mute toggle is pressed.</summary>
     [Parameter]
     public EventCallback<TrackId> OnMute { get; set; }
@@ -59,6 +65,10 @@ public sealed partial class TrackHeader
     [Parameter]
     public EventCallback<TrackId> OnSelect { get; set; }
 
+    private const string RecordingReason = "Recording and input monitoring arrive with the audio engine.";
+
+    private string NameHint => $"Select {Track.Name}. Double-click to rename.";
+
     private string Number => TrackText.Number(Index);
 
     private string Source => TrackText.Source(Track);
@@ -71,10 +81,12 @@ public sealed partial class TrackHeader
     protected override bool ShouldRender()
     {
         bool changed = !ReferenceEquals(_drawn, Track) && !Equals(_drawn, Track);
-        changed |= Editable != _editable || Selected != _selected || Height != _height || ColorToken != _color || Index != _index;
+        changed |= Editable != _editable || Reason != _reason || Selected != _selected;
+        changed |= Height != _height || ColorToken != _color || Index != _index;
         _drawn = Track;
         _selected = Selected;
         _editable = Editable;
+        _reason = Reason;
         _height = Height;
         _color = ColorToken;
         _index = Index;

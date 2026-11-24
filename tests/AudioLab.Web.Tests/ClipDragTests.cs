@@ -18,6 +18,54 @@ public sealed class ClipDragTests
         return new ClipDrag(_song, ClipId.From(clip), geometry, layout, geometry.X(seconds) + 1, (row * 64) + 30);
     }
 
+    /// <summary>After a tempo change the clip snaps to the lines the lanes draw, counted in beats, not to multiples of a step from zero.</summary>
+    [Fact]
+    public void AfterATempoChangeTheClipSnapsToTheDrawnGridLines()
+    {
+        ProjectDocument slowing = Song.Empty(120, [new TempoChange(TempoChangeId.From("t1"), 4.25, 60)])
+            .With(Song.NewTrack("t1", 64, Song.Audio("a", 0, 1)));
+        slowing = slowing with { View = slowing.View with { Grid = "1/4" } };
+        TimelineGeometry geometry = TimelineGeometry.Default;
+        ClipDrag drag = new(slowing, ClipId.From("a"), geometry, TrackLayout.Of(slowing), geometry.X(0) + 1, 30);
+
+        drag.Move(geometry.X(5.7) + 1, 30);
+
+        // 4.25 s is beat 8.5, and a quarter-note line at 60 beats a minute follows each second after it: 4.75, 5.75 and 6.75. The
+        // multiples of a second that counting from zero would give (5 and 6) are not lines.
+        Assert.Equal(5.75, drag.TargetStart, 6);
+    }
+
+    /// <summary>A released drag settles on the place it lands and keeps the landing until it is ended.</summary>
+    [Fact]
+    public void AReleasedDragSettlesOnItsLandingPlace()
+    {
+        ClipDrag drag = Press("a", 9, 0);
+        drag.Move((34 * 12.1) + 1, 30);
+
+        drag.Settle();
+
+        Assert.True(drag.Landing);
+        Assert.Equal(drag.LandingLeft, drag.Left);
+        Assert.Equal(drag.LandingTop, drag.Top);
+    }
+
+    /// <summary>Ending a drag that another drag has replaced leaves the newer one going.</summary>
+    [Fact]
+    public void EndingADragThatAnotherHasReplacedLeavesTheNewerOneGoing()
+    {
+        ClipDragState state = new();
+        ClipDrag first = Press("a", 9, 0);
+        ClipDrag second = Press("m", 1, 1);
+        state.Begin(first);
+        state.Begin(second);
+
+        state.End(first);
+        Assert.Same(second, state.Current);
+
+        state.End(second);
+        Assert.Null(state.Current);
+    }
+
     /// <summary>A press that never travels is a click and sends nothing.</summary>
     [Fact]
     public void APressThatNeverTravelsIsAClickAndSendsNothing()

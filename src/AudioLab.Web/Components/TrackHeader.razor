@@ -1,16 +1,19 @@
-<div class="header" data-selected="@(Selected ? "true" : "false")" style="height: @(Height)px" @onclick="SelectAsync">
+<div class="header" role="listitem" data-selected="@(Selected ? "true" : "false")" style="height: @Css.Px(Height)" @onclick="SelectAsync">
     <div class="strip" style="background: @ColorToken"></div>
     <div class="number">@Number</div>
     <div class="main">
         <div class="row">
-            <span class="name" @ondblclick="RenameAsync">@Track.Name</span>
+            <button type="button" class="name" aria-pressed="@(Selected ? "true" : "false")" title="@NameHint" @onclick="SelectAsync"
+                    @onclick:stopPropagation="true" @ondblclick="RenameAsync">@Track.Name</button>
             <div class="toggles">
                 <Toggle Track="true" Label="M" Name="@($"Mute {Track.Name}")" Tone="ToggleTone.Mute" On="Track.Muted"
-                        Disabled="!Editable" OnClick="MuteAsync" />
+                        Disabled="!Editable" Reason="@(Editable ? null : Reason)" OnClick="MuteAsync" />
                 <Toggle Track="true" Label="S" Name="@($"Solo {Track.Name}")" Tone="ToggleTone.Caution" On="Track.Soloed"
-                        Disabled="!Editable" OnClick="SoloAsync" />
-                <Toggle Track="true" Label="R" Name="@($"Record arm {Track.Name}")" Tone="ToggleTone.Record" On="Track.Armed" />
-                <Toggle Track="true" Label="I" Name="@($"Input monitor {Track.Name}")" Tone="ToggleTone.Go" On="Track.Monitor" />
+                        Disabled="!Editable" Reason="@(Editable ? null : Reason)" OnClick="SoloAsync" />
+                <Toggle Track="true" Label="R" Name="@($"Record arm {Track.Name}")" Tone="ToggleTone.Record" On="Track.Armed"
+                        Disabled="true" Reason="@RecordingReason" />
+                <Toggle Track="true" Label="I" Name="@($"Input monitor {Track.Name}")" Tone="ToggleTone.Go" On="Track.Monitor"
+                        Disabled="true" Reason="@RecordingReason" />
             </div>
         </div>
         <div class="row">
@@ -19,6 +22,6 @@
         </div>
     </div>
     <div class="meter">
-        <Meter />
+        <LiveMeter Track="Track.Id" />
     </div>
 </div>

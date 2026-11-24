@@ -133,6 +133,8 @@ public sealed class CommandSchemaContractTests
 
         Assert.Equal(InstrumentPresets.Names, preset.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(["up", "down"], direction.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
+        JsonElement laneDirection = Property("beat_lane_move", "direction");
+        Assert.Equal(["up", "down"], laneDirection.GetProperty("enum").EnumerateArray().Select(item => item.GetString()));
     }
 
     [Fact]
@@ -198,6 +200,33 @@ public sealed class CommandSchemaContractTests
         Assert.Equal(["note", "pitch", "start"], target.GetProperty("required").EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal));
         Assert.True(target.GetProperty("properties").GetProperty("start").TryGetProperty("description", out _));
         Assert.True(optional.TryGetProperty("description", out _));
+    }
+
+    [Fact]
+    public void ManyNotesStateTheirListAndEachNoteItsRangesAndDescriptions()
+    {
+        JsonElement notes = Property("midi_notes_add", "notes");
+        JsonElement item = notes.GetProperty("items");
+        JsonElement properties = item.GetProperty("properties");
+        (double Min, double Max) Bounds(string member)
+        {
+            JsonElement property = properties.GetProperty(member);
+            return (property.GetProperty("minimum").GetDouble(), property.GetProperty("maximum").GetDouble());
+        }
+
+        Assert.Equal(["clip", "notes", "project"], Required("midi_notes_add"));
+        Assert.Equal((1, NoteRules.MaxAddedNotes), (notes.GetProperty("minItems").GetInt32(), notes.GetProperty("maxItems").GetInt32()));
+        string[] required = [.. item.GetProperty("required").EnumerateArray().Select(value => value.GetString()!)];
+        Assert.Equal(["pitch", "start"], required.Order(StringComparer.Ordinal));
+        Assert.Equal((0.0, 127.0), Bounds("pitch"));
+        Assert.Equal((0.0, ProjectLimits.MaxSeconds), Bounds("start"));
+        Assert.Equal((NoteRules.MinDuration, ProjectLimits.MaxSeconds), Bounds("duration"));
+        Assert.Equal((1.0, 127.0), Bounds("velocity"));
+        foreach (string member in new[] { "pitch", "start", "duration", "velocity" })
+        {
+            Assert.True(properties.GetProperty(member).TryGetProperty("description", out _), $"{member} has no description.");
+        }
+        Assert.True(notes.TryGetProperty("description", out _));
     }
 
     [Fact]
@@ -295,6 +324,7 @@ public sealed class CommandSchemaContractTests
         Assert.Equal((0.0, ProjectLimits.MaxBeatSteps - 1.0), (item.GetProperty("minimum").GetDouble(), item.GetProperty("maximum").GetDouble()));
         Assert.False(list.TryGetProperty("minimum", out _));
         Assert.Equal(["lane", "on", "project", "steps"], Required("beat_lane_set_steps"));
+        Assert.Equal(["direction", "lane", "project"], Required("beat_lane_move"));
         Assert.DoesNotContain("media", Required("beat_lane_add"));
         Assert.DoesNotContain("name", Required("beat_lane_add"));
         Assert.Equal(ProjectLimits.MaxName, Property("beat_lane_add", "name").GetProperty("maxLength").GetInt32());
@@ -388,6 +418,28 @@ public sealed class CommandSchemaContractTests
         double[] channels = [channel.GetProperty("minimum").GetDouble(), channel.GetProperty("maximum").GetDouble()];
         Assert.Equal([(double)TrackRules.MinChannel, TrackRules.MaxChannel], channels);
         Assert.Contains("at least one", _registry.Find("project_set_view")!.Description);
+    }
+
+    [Fact]
+    public void TheRangeCommandsBoundTheirTimesAndTracksAndTheNamingCommandNeedsNoSection()
+    {
+        foreach (string command in new[] { "range_delete", "range_split" })
+        {
+            JsonElement start = Property(command, "start");
+            JsonElement end = Property(command, "end");
+            JsonElement tracks = Property(command, "tracks");
+
+            Assert.Equal([0.0, ProjectLimits.MaxSeconds], [start.GetProperty("minimum").GetDouble(), start.GetProperty("maximum").GetDouble()]);
+            Assert.Equal(ProjectLimits.MaxSeconds, end.GetProperty("maximum").GetDouble());
+            Assert.Equal([1, ProjectLimits.MaxTracks], [tracks.GetProperty("minItems").GetInt32(), tracks.GetProperty("maxItems").GetInt32()]);
+            Assert.Equal(["end", "project", "start", "tracks"], Required(command));
+        }
+        Assert.Equal(["project"], Required("section_name_clips"));
+        JsonElement duration = Property("clip_replace_media", "duration");
+        double[] limits = [duration.GetProperty("minimum").GetDouble(), duration.GetProperty("maximum").GetDouble()];
+        Assert.Equal([ProjectLimits.Tolerance, ProjectLimits.MaxSeconds], limits);
+        Assert.Equal(["clip", "duration", "media", "project"], Required("clip_replace_media"));
+        Assert.True(Property("section_name_clips", "section").TryGetProperty("description", out _));
     }
 
     private string[] Required(string command)

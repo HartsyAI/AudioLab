@@ -8,3 +8,8 @@
     background: var(--surface-panel);
     box-shadow: var(--shadow-raised);
 }
+
+/* The roll needs room for a few octaves, the ruler, the velocity lane and the pedal lane. */
+.bottom-panel[data-tab="piano-roll"] {
+    height: 30rem;
+}

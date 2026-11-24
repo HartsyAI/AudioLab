@@ -1,6 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Services;
@@ -74,7 +75,9 @@ public sealed class ProjectService(ProjectStore store, OpenProjects open, IIdSer
     public async Task<ProjectSummary> DuplicateAsync(UserId user, ProjectId id, string? name, CancellationToken cancellationToken)
     {
         ProjectDocument original = open.SnapshotIfOpen(user, id)?.Document ?? await store.ReadAsync(user, id, cancellationToken);
-        ProjectDocument copy = original with { Id = ids.Next<ProjectId>(), Name = name ?? CopyName(original.Name) };
+        await open.RequireMediaAsync(original, cancellationToken);
+        // The copy is a new project, so it starts with nothing armed or monitored, as any project opens (D27).
+        ProjectDocument copy = LiveState.Reset(original) with { Id = ids.Next<ProjectId>(), Name = name ?? CopyName(original.Name) };
         await WriteNewAsync(copy, cancellationToken);
         return new ProjectSummary(copy.Id.Value, copy.Name, time.GetUtcNow());
     }

@@ -24,6 +24,10 @@ public sealed partial class StatusBar
     [Parameter]
     public string State { get; set; } = string.Empty;
 
+    /// <summary>What "Try again" does when the connection gave up, or null when there is nothing to try.</summary>
+    [Parameter]
+    public Func<Task>? Retry { get; set; }
+
     private string Counts
     {
         get

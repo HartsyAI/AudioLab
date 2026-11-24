@@ -1,0 +1,41 @@
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.insert {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--accent);
+}
+
+.ghosts {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+}
+
+.ghost {
+    fill: color-mix(in srgb, var(--clip) 55%, transparent);
+    stroke: var(--playhead);
+    stroke-width: 1.5px;
+    vector-effect: non-scaling-stroke;
+}
+
+.erased {
+    fill: var(--record);
+    fill-opacity: 0.7;
+}
+
+.marquee {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+}

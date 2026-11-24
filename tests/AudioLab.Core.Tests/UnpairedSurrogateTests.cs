@@ -51,14 +51,8 @@ public sealed class UnpairedSurrogateTests
     [Fact]
     public void AnUnpairedSurrogateInAMediaRecordIsRefusedWithAProjectFormatError()
     {
-        MediaRecord record = new()
-        {
-            Id = MediaId.From("med_1"),
-            Owner = UserId.Local,
-            ContentType = "audio/wav",
-            Length = 10,
-        };
-        string json = MediaJson.Write(record).Replace("audio/wav", "audio/" + _lone, StringComparison.Ordinal);
+        MediaRecord record = TestMedia.Record();
+        string json = MediaJson.Write(record).Replace("kick.wav", "kick" + _lone, StringComparison.Ordinal);
         Assert.Throws<ProjectFormatException>(() => MediaJson.Read(json));
     }
 
@@ -113,14 +107,8 @@ public sealed class UnpairedSurrogateTests
     [Fact]
     public void ARawUnpairedSurrogateCharacterInAMediaRecordIsRefusedWithAProjectFormatError()
     {
-        MediaRecord record = new()
-        {
-            Id = MediaId.From("med_1"),
-            Owner = UserId.Local,
-            ContentType = "audio/wav",
-            Length = 10,
-        };
-        string json = MediaJson.Write(record).Replace("audio/wav", "audio/" + (char)0xD800, StringComparison.Ordinal);
+        MediaRecord record = TestMedia.Record();
+        string json = MediaJson.Write(record).Replace("kick.wav", "kick" + (char)0xD800, StringComparison.Ordinal);
         Assert.Throws<ProjectFormatException>(() => MediaJson.Read(json));
     }
 

@@ -1,5 +1,5 @@
-<div id="lane-surface" class="surface" style="width: @(Width)px; height: @(Layout.Total)px">
-    <svg class="grid" width="@Width" height="@Layout.Total" aria-hidden="true">
+<div id="lane-surface" class="surface" style="width: @Css.Px(Width); height: @Css.Px(Layout.Total)">
+    <svg class="grid" width="@Css.Number(Width)" height="@Css.Number(Layout.Total)" aria-hidden="true">
         <path class="weak" d="@WeakPath"></path>
         <path class="strong" d="@StrongPath"></path>
     </svg>
@@ -7,22 +7,24 @@
     {
         Track track = Document.Tracks[index];
         <div @key="track.Id" class="lane" data-selected="@(track.Id == SelectedTrack ? "true" : "false")"
-             style="top: @(Layout.Tops[index])px; height: @(Layout.Heights[index])px" @onclick="() => OnSelectTrack.InvokeAsync(track.Id)">
+             style="top: @Css.Px(Layout.Tops[index]); height: @Css.Px(Layout.Heights[index])" @onclick="() => OnSelectTrack.InvokeAsync(track.Id)"
+             @ondblclick="press => OnLaneDoubleClick.InvokeAsync((track.Id, press.OffsetX))">
             @foreach (AudioClip clip in track.Clips)
             {
                 <Clip @key="clip.Id" Audio="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@AudioWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" Waveform="@Waves.For(clip.Id.Value, AudioWidth(clip))"
+                      TabStop="@(clip.Id == TabStop)" PixelsPerSecond="Geometry.PixelsPerSecond"
                       OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
             }
             @foreach (MidiClip clip in track.MidiClips)
             {
                 <Clip @key="clip.Id" Midi="clip" ColorToken="@Colors.Token(clip.Color ?? track.Color)" Left="@(Geometry.X(clip.Start) + 1)"
                       Width="@MidiWidth(clip)" Selected="@(clip.Id == SelectedClip)" Dimmed="@(clip.Muted || track.Muted)"
-                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnKey="OnClipKey" OnPointerDown="OnClipPointerDown" />
+                      TabStop="@(clip.Id == TabStop)" OnSelect="OnSelectClip" OnOpen="OnOpenClip" OnKey="OnClipKey"
+                      OnPointerDown="OnClipPointerDown" />
             }
         </div>
     }
-    <DragLayer Document="Document" />
+    <DragLayer Document="Document" PixelsPerSecond="Geometry.PixelsPerSecond" />
     <div class="playhead" style="left: 0"></div>
 </div>

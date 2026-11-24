@@ -1,0 +1,14 @@
+<div class="lane" id="roll-pedal" tabindex="0" role="group" aria-label="@Label"
+     style="width: @Css.Px(Geometry.Width)"
+     @onpointerdown="OnPress">
+    <svg class="pedal" viewBox="0 0 @Css.Number(Geometry.Length) 1" preserveAspectRatio="none" width="@Css.Number(Geometry.Width)" height="100%"
+         aria-hidden="true">
+        <path class="down" d="@_down"></path>
+        <path class="event on" d="@_on"></path>
+        <path class="event off" d="@_off"></path>
+        @if (SelectedTime is double time)
+        {
+            <path class="event selected" d="@Line(Drag?.Time ?? time)"></path>
+        }
+    </svg>
+</div>

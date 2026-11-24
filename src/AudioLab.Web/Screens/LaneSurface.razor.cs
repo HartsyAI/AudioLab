@@ -56,6 +56,14 @@ public sealed partial class LaneSurface
     [Parameter]
     public EventCallback<ClipId> OnSelectClip { get; set; }
 
+    /// <summary>Raised with a MIDI clip when it is double-clicked or opened with its key.</summary>
+    [Parameter]
+    public EventCallback<ClipId> OnOpenClip { get; set; }
+
+    /// <summary>Raised with a track and the pixel from the start of the lane when an empty part of its lane is double-clicked.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, double X)> OnLaneDoubleClick { get; set; }
+
     /// <summary>Raised for a key a clip hands up, such as an arrow.</summary>
     [Parameter]
     public EventCallback<(ClipId Clip, KeyboardEventArgs Key)> OnClipKey { get; set; }
@@ -66,9 +74,6 @@ public sealed partial class LaneSurface
 
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
-
-    [Inject]
-    private WavePathCache Waves { get; set; } = default!;
 
     private double Width => Math.Round(Geometry.Width(Length));
 

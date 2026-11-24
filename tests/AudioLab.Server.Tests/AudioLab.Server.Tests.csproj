@@ -10,9 +10,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="ModelContextProtocol" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AudioLab.Audio.Tests\Support\TestWav.cs" Link="TestWav.cs" />
   </ItemGroup>
 
   <ItemGroup>

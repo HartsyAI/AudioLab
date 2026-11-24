@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Server.Media;
 using AudioLab.Server.Store;
 
 namespace AudioLab.Server.Routes;
@@ -21,6 +22,10 @@ public sealed class StoreErrorFilter(ILogger<StoreErrorFilter> logger) : IEndpoi
         {
             return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
         }
+        catch (MediaDeleteInProgressException exception)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
+        }
         catch (QuotaExceededException exception)
         {
             return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
@@ -28,7 +33,7 @@ public sealed class StoreErrorFilter(ILogger<StoreErrorFilter> logger) : IEndpoi
         catch (ProjectFormatException exception)
         {
             Dictionary<string, object?> extensions = new() { ["problems"] = exception.Problems.ToArray() };
-            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "The project is not valid.", extensions: extensions);
+            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: exception.Message, extensions: extensions);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

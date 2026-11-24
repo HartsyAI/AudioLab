@@ -13,10 +13,13 @@ namespace AudioLab.Web.Services;
 /// <param name="Alt">Whether Alt is held.</param>
 public sealed record Shortcut(string Id, string Name, string Key, string Scope, bool Ctrl = false, bool Shift = false, bool Alt = false)
 {
-    /// <summary>The chord as a person reads it, such as Ctrl+Shift+Z.</summary>
+    /// <summary>What the command key is called here: Ctrl, or Cmd on an Apple system. The page sets it once at start.</summary>
+    public static string CommandKey { get; set; } = "Ctrl";
+
+    /// <summary>The chord as a person reads it, such as Ctrl+Shift+Z (Cmd+Shift+Z on an Apple system).</summary>
     public string Display =>
-        (Ctrl ? "Ctrl+" : string.Empty) + (Alt ? "Alt+" : string.Empty) + (Shift ? "Shift+" : string.Empty)
-        + (Key.Length == 1 ? Key.ToUpperInvariant() : Key);
+        (Ctrl ? CommandKey + "+" : string.Empty) + (Alt ? "Alt+" : string.Empty) + (Shift ? "Shift+" : string.Empty)
+        + (Key == " " ? "Space" : Key.Length == 1 ? Key.ToUpperInvariant() : Key);
 
     /// <summary>Whether a key press is this chord.</summary>
     public bool Matches(KeyboardEventArgs press)

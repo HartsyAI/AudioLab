@@ -1,6 +1,8 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
+using AudioLab.Web.Waveforms;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -12,15 +14,21 @@ namespace AudioLab.Web.Components;
 /// Every clip stays in the page (D17). The lifted copy that follows the pointer carries the overlay shadow and moves by
 /// <c>left</c> and <c>top</c>; the clip it was lifted from is left as it was.
 /// </remarks>
-public sealed partial class Clip
+public sealed partial class Clip : IDisposable
 {
     private AudioClip? _audio;
 
-    private MidiClip? _midi;
+    private readonly MidiPathMemo _notes = new();
 
-    private (string, bool, bool, bool, bool, double, double?, double, double?, string?) _shown;
+    private (string, bool, bool, bool, bool, double, double?, double, double?, ClipWave) _shown;
+
+    private bool _midiChanged;
 
     private bool _drawn;
+
+    private ClipWave _wave = ClipWave.Loading;
+
+    private bool _wasSelected;
 
     /// <summary>The clip, when it is an audio clip.</summary>
     [Parameter]
@@ -66,13 +74,17 @@ public sealed partial class Clip
     [Parameter]
     public bool TabStop { get; set; }
 
-    /// <summary>The path of the waveform stand-in of an audio clip; see <see cref="PlaceholderWaveform"/>.</summary>
+    /// <summary>How many pixels a second of the timeline takes, which picks the level of peaks an audio clip draws its waveform from.</summary>
     [Parameter]
-    public string? Waveform { get; set; }
+    public double PixelsPerSecond { get; set; } = TimelineGeometry.Default.PixelsPerSecond;
 
     /// <summary>Raised with the clip's id when it is pressed or activated.</summary>
     [Parameter]
     public EventCallback<ClipId> OnSelect { get; set; }
+
+    /// <summary>Raised with the clip's id when a MIDI clip is double-clicked or opened with its key, to edit its notes.</summary>
+    [Parameter]
+    public EventCallback<ClipId> OnOpen { get; set; }
 
     /// <summary>Raised with the key and the clip's id for a key the arrangement handles, such as an arrow.</summary>
     [Parameter]
@@ -91,9 +103,27 @@ public sealed partial class Clip
 
     private string Name => Audio?.Name ?? Midi!.Name;
 
-    private NoteBox[] Notes => Midi is null ? [] : MidiNoteLayout.Boxes(Midi);
+    [Inject]
+    private WaveformService Waves { get; set; } = default!;
 
-    private string Description => string.Create(CultureInfo.InvariantCulture, $"{Name}, {(Midi is null ? "audio" : "MIDI")} clip");
+    // What an audio clip draws for its waveform: nothing while the peaks load, a path from them, or why there is none.
+    private ClipWave Wave => _wave;
+
+    private string PeaksName => Wave.Phase.ToString().ToLowerInvariant();
+
+    private string Description => Midi is null
+        ? WaveNote is null ? $"{Name}, audio clip" : $"{Name}, audio clip. {WaveNote}"
+        : $"{Name}, MIDI clip";
+
+    // Only a waveform that is not drawn from the file's peaks says anything about itself.
+    private string? WaveNote => Wave.Phase switch
+    {
+        WavePhase.Loading => "The waveform is loading.",
+        WavePhase.Failed => $"The waveform could not be loaded: {Wave.Reason} Select the clip to try again.",
+        _ => null,
+    };
+
+    private string? Hint => Midi is null ? WaveNote : $"Double-click or press {Shortcuts.OpenClip.Display} to open the piano roll.";
 
     private string PlaceStyle
     {
@@ -107,32 +137,90 @@ public sealed partial class Clip
     }
 
     /// <inheritdoc />
+    public void Dispose()
+    {
+        Waves.Arrived -= OnPeaksArrived;
+    }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        Waves.Arrived += OnPeaksArrived;
+    }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        // The path is built when the notes change, so a lifted copy that follows the pointer does not build it again on every move.
+        _midiChanged = Midi is not null && _notes.Update(Midi);
+        if (Audio is null)
+        {
+            return;
+        }
+        _wave = Waves.For(Audio, Width, PixelsPerSecond);
+        // A clip that is selected while its waveform has failed asks for the peaks again, however it was selected.
+        if (Selected && !_wasSelected && _wave.Phase == WavePhase.Failed)
+        {
+            Waves.RetryIfFailed(Audio);
+        }
+        _wasSelected = Selected;
+    }
+
+    // Only a clip of the file whose peaks came, or failed, draws again; the lanes around it are left as they are.
+    private void OnPeaksArrived(string media)
+    {
+        if (Audio is { } audio && audio.Media.Value == media)
+        {
+            _wave = Waves.For(audio, Width, PixelsPerSecond);
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
         bool same = _drawn
             && Equals(_audio, Audio)
-            && Equals(_midi, Midi)
-            && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
+            && !_midiChanged
+            && _shown == (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _audio = Audio;
-        _midi = Midi;
-        _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Waveform);
+        _shown = (ColorToken, Selected, Dimmed, TabStop, Lifted, Left, Top, Width, Height, Wave);
         _drawn = true;
         return !same;
     }
 
-    private static string NoteStyle(NoteBox note)
-    {
-        return string.Create(CultureInfo.InvariantCulture, $"left: {note.X:0.##}%; top: {note.Y:0.##}%; width: {note.Width:0.##}%");
-    }
-
     private Task SelectAsync()
     {
+        RetryWave();
         return Lifted ? Task.CompletedTask : OnSelect.InvokeAsync(Id);
+    }
+
+    private Task OpenAsync()
+    {
+        return Lifted || Midi is null ? Task.CompletedTask : OnOpen.InvokeAsync(Id);
+    }
+
+    // Activating a clip whose waveform failed asks again, selected already or not: the label says to select the clip to try again.
+    private void RetryWave()
+    {
+        if (!Lifted && Audio is not null && _wave.Phase == WavePhase.Failed)
+        {
+            Waves.RetryIfFailed(Audio);
+        }
     }
 
     private Task KeyAsync(KeyboardEventArgs key)
     {
-        return key.Key is "Enter" or " " ? OnSelect.InvokeAsync(Id) : OnKey.InvokeAsync((Id, key));
+        if (Midi is not null && Shortcuts.OpenClip.Matches(key))
+        {
+            return OnOpen.InvokeAsync(Id);
+        }
+        if (key.Key is "Enter" or " ")
+        {
+            RetryWave();
+            return OnSelect.InvokeAsync(Id);
+        }
+        return OnKey.InvokeAsync((Id, key));
     }
 
     private Task PressAsync(PointerEventArgs press)

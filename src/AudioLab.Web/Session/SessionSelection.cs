@@ -27,13 +27,23 @@ public sealed class SessionSelection
     public void Prune(ProjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
+        if (Clip is { } clip)
+        {
+            // A clip that moved to another track is still the selection, now on its new track.
+            Track? owner = document.Tracks.FirstOrDefault(
+                candidate => candidate.Clips.Any(c => c.Id == clip) || candidate.MidiClips.Any(c => c.Id == clip));
+            if (owner is not null)
+            {
+                Set(owner.Id, clip);
+                return;
+            }
+        }
         Track? track = document.Tracks.FirstOrDefault(candidate => candidate.Id == Track);
-        bool clipExists = track is not null && Clip is { } clip && (track.Clips.Any(c => c.Id == clip) || track.MidiClips.Any(c => c.Id == clip));
         if (track is null)
         {
             Clear();
         }
-        else if (Clip is not null && !clipExists)
+        else if (Clip is not null)
         {
             Set(track.Id, null);
         }

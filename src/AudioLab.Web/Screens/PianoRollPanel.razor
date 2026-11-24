@@ -1,0 +1,21 @@
+<div class="piano-roll" role="region" aria-label="Piano roll">
+    @if (Open is { } open)
+    {
+        <RollEditor Document="Document" Track="open.Track" Clip="open.Clip" Actions="Actions" />
+    }
+    else
+    {
+        <EmptyState Heading="No MIDI clip selected" Message="@EmptyMessage">
+            @if (Target is { } track)
+            {
+                <Button Variant="ButtonVariant.Primary" Name="Add MIDI clip" Shortcut="@Shortcuts.AddMidiClip.Display" Disabled="@(!Actions.CanEdit)"
+                        DisabledReason="@Actions.Reason" OnClick="() => AddAsync(track)" id="@AddId">Add MIDI clip</Button>
+            }
+            else if (!HasInstrument)
+            {
+                <Button Name="Add instrument track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" id="@AddId"
+                        OnClick="AddInstrumentAsync">Add instrument track</Button>
+            }
+        </EmptyState>
+    }
+</div>

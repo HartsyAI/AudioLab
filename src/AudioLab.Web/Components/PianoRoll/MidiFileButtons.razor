@@ -1,0 +1,10 @@
+<span class="group">
+    @if (Transfer.Unavailable is null)
+    {
+        <InputFile id="@ChooserId" accept=".mid,.midi,audio/midi,audio/x-midi,audio/mid" OnChange="OnChosen" hidden tabindex="-1"
+                   aria-label="Choose a .mid file to import" />
+    }
+    <Button Name="Import MIDI file" Disabled="@(Transfer.Unavailable is not null || !CanEdit)"
+            DisabledReason="@(Transfer.Unavailable ?? Reason)" OnClick="Choose">Import .mid</Button>
+    <MidiExportButton Project="Project" Clip="Clip" />
+</span>

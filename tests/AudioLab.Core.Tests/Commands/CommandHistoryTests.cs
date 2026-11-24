@@ -36,6 +36,27 @@ public sealed class CommandHistoryTests
     }
 
     [Fact]
+    public void HeldDocumentsAreEveryDocumentUndoRedoOrAnOpenGestureCouldShowAgain()
+    {
+        Assert.Equal([_initial], _history.HeldDocuments());
+        _history.Apply(Bpm(130), _a);
+        _history.Apply(Bpm(140), _a);
+        ProjectDocument second = _history.Current;
+        _history.Undo();
+        ProjectDocument first = _history.Current;
+        _history.Apply(Bpm(150), _b, GestureId.From("drag"));
+        ProjectDocument dragging = _history.Current;
+
+        List<ProjectDocument> held = [.. _history.HeldDocuments()];
+
+        Assert.Contains(_initial, held);
+        Assert.Contains(first, held);
+        Assert.Contains(dragging, held);
+        Assert.Contains(second, held);
+        Assert.Equal(dragging, held[0]);
+    }
+
+    [Fact]
     public void UndoRestoresTheWholeDocument()
     {
         _history.Apply(Bpm(140), _a);

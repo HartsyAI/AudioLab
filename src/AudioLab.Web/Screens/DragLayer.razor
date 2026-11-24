@@ -1,7 +1,12 @@
+@if (MediaDrags.Current is { Active: true, Target: { } target })
+{
+    <div class="landing" aria-hidden="true"
+         style="left: @Css.Px(target.Left); top: @Css.Px(target.Top); width: @Css.Px(target.Width); height: @Css.Px(target.Height)"></div>
+}
 @if (Drag is { Active: true } drag && Found(drag.Clip) is { } found)
 {
     <div class="landing" aria-hidden="true"
-         style="left: @(drag.LandingLeft)px; top: @(drag.LandingTop)px; width: @(drag.Width)px; height: @(drag.Height)px"></div>
+         style="left: @Css.Px(drag.LandingLeft); top: @Css.Px(drag.LandingTop); width: @Css.Px(drag.Width); height: @Css.Px(drag.Height)"></div>
     <Clip Lifted="true" Audio="found.Audio" Midi="found.Midi" ColorToken="@Colors.Token(found.Color)" Left="drag.Left" Top="drag.Top"
-          Width="drag.Width" Height="drag.Height" Selected="true" Waveform="@Waveform(found.Audio, drag.Width)" />
+          Width="drag.Width" Height="drag.Height" Selected="true" PixelsPerSecond="PixelsPerSecond" />
 }

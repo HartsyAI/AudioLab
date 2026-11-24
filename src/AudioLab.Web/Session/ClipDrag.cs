@@ -19,11 +19,7 @@ public sealed class ClipDrag
 
     private readonly TrackLayout _layout;
 
-    private readonly TempoMap _tempo;
-
-    private readonly TimeSignature _signature;
-
-    private readonly string _grid;
+    private readonly GridSnap _grid;
 
     private readonly double _grabX;
 
@@ -57,9 +53,7 @@ public sealed class ClipDrag
         Clip = clip;
         _geometry = geometry;
         _layout = layout;
-        _tempo = TempoMap.From(document);
-        _signature = document.TimeSignature;
-        _grid = document.View.Grid;
+        _grid = new GridSnap(document);
         _kinds = [.. document.Tracks.Select(candidate => candidate.Kind)];
         _tracks = [.. document.Tracks.Select(candidate => candidate.Id)];
         OriginRow = row;
@@ -129,14 +123,23 @@ public sealed class ClipDrag
         Active = true;
         Left = Math.Max(0, laneX - _grabX);
         Top = Math.Clamp(laneY - _grabY, 0, Math.Max(0, _layout.Total - Height));
-        double raw = Math.Max(0, _geometry.Seconds(Left - 1));
-        double step = GridRules.StepSeconds(_grid, _tempo, _signature, raw);
-        TargetStart = step > 0 ? Math.Round(raw / step) * step : raw;
+        TargetStart = _grid.Snap(Math.Max(0, _geometry.Seconds(Left - 1)));
         int hovered = RowAt(laneY);
         if (KindFits(_kinds[hovered]))
         {
             TargetRow = hovered;
         }
+    }
+
+    /// <summary>Whether the drag was released and its move is on its way: the lifted clip then sits where it will land.</summary>
+    public bool Landing { get; private set; }
+
+    /// <summary>Puts the lifted clip on the place it lands, and keeps it there until the move is answered.</summary>
+    public void Settle()
+    {
+        Landing = true;
+        Left = LandingLeft;
+        Top = LandingTop;
     }
 
     /// <summary>Releases the clip: the move to send, or null when it is a click or ended where it began.</summary>

@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Web.Media;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Screens;
@@ -7,7 +8,10 @@ namespace AudioLab.Web.Screens;
 public sealed class SessionActions
 {
     /// <summary>A set of actions that does nothing, with the reason; what the screen shows before the project is live.</summary>
-    public static SessionActions ReadOnly(string reason) => new() { CanEdit = false, Reason = reason };
+    public static SessionActions ReadOnly(string reason, Func<Task>? reconnect = null)
+    {
+        return new SessionActions { CanEdit = false, Reason = reason, Reconnect = reconnect };
+    }
 
     /// <summary>Whether the project may be edited from here now.</summary>
     public bool CanEdit { get; init; }
@@ -15,8 +19,17 @@ public sealed class SessionActions
     /// <summary>Why it may not, for the tooltip of a control that would edit it; null when it may.</summary>
     public string? Reason { get; init; }
 
+    /// <summary>Connects again and rejoins the project, or null when that cannot help (it is connected, or the project is gone).</summary>
+    public Func<Task>? Reconnect { get; init; }
+
     /// <summary>Adds a track.</summary>
     public Func<Task> AddTrack { get; init; } = () => Task.CompletedTask;
+
+    /// <summary>Adds an instrument track, which holds MIDI clips.</summary>
+    public Func<Task> AddInstrumentTrack { get; init; } = () => Task.CompletedTask;
+
+    /// <summary>What can be done to MIDI clips.</summary>
+    public MidiActions Midi { get; init; } = new();
 
     /// <summary>Asks for the new name of a track.</summary>
     public Func<TrackId, Task> RenameTrack { get; init; } = _ => Task.CompletedTask;
@@ -29,6 +42,12 @@ public sealed class SessionActions
 
     /// <summary>Moves a clip.</summary>
     public Func<ClipMove, Task> MoveClip { get; init; } = _ => Task.CompletedTask;
+
+    /// <summary>Adds a media file as a clip at a place on an audio track.</summary>
+    public Func<MediaPlacement, Task> AddClip { get; init; } = _ => Task.CompletedTask;
+
+    /// <summary>Turns the metronome on or off.</summary>
+    public Func<bool, Task> SetMetronome { get; init; } = _ => Task.CompletedTask;
 
     /// <summary>Goes back one undo step.</summary>
     public Func<Task> Undo { get; init; } = () => Task.CompletedTask;

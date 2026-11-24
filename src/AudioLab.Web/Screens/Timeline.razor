@@ -1,16 +1,22 @@
 <div id="timeline" class="timeline" role="region" aria-label="Arrangement">
-    <div class="grid" style="grid-template-columns: var(--header-column) @(LaneWidth)px; --rows: @Kinds.Count">
+    <div class="grid" style="grid-template-columns: var(--header-column) @Css.Px(LaneWidth); --rows: @Kinds.Count">
         <div class="corner">
             <span class="caption">TRACKS</span>
-            <Button Name="Add track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddTrack">
-                <Icon Name="IconName.Plus" Size="10" />
-                <span>Add track</span>
-            </Button>
+            <span class="corner-actions">
+                <Button Name="Add track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddTrack">
+                    <Icon Name="IconName.Plus" Size="10" />
+                    <span>Add track</span>
+                </Button>
+                <Button Name="Add instrument track" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="AddInstrument">
+                    <span>Instrument</span>
+                </Button>
+            </span>
         </div>
         <div class="ruler">
             @foreach (RulerRowKind kind in Kinds)
             {
-                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors" />
+                <RulerRow @key="kind" Kind="kind" Document="Document" Geometry="Geometry" Bars="Bars" Length="Length" Colors="Colors"
+                          OnSeek="RulerSeek" />
             }
         </div>
         <div class="headers" role="list" aria-label="Tracks">
@@ -18,7 +24,8 @@
             {
                 Track track = Document.Tracks[index];
                 <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.Heights[index]" Selected="@(track.Id == Selection.Track)"
-                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" OnMute="Actions.ToggleMute"
+                             ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" Reason="@Actions.Reason"
+                             OnMute="Actions.ToggleMute"
                              OnSolo="Actions.ToggleSolo" OnRename="Actions.RenameTrack" />
             }
         </div>
@@ -34,7 +41,10 @@
             {
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
-                             OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" />
+                             OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" OnOpenClip="OpenClip"
+                             OnLaneDoubleClick="LaneDoubleClickAsync" />
+                <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
+                <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />
             }
         </div>
     </div>

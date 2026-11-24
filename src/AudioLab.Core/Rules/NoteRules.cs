@@ -1,3 +1,4 @@
+using System.Globalization;
 using AudioLab.Core.Model;
 
 namespace AudioLab.Core.Rules;
@@ -17,11 +18,33 @@ public static class NoteRules
     /// <summary>The lowest pitch.</summary>
     public const int LowestPitch = 0;
 
+    /// <summary>The most notes one command adds; a bigger paste is several commands, which one gesture keeps as one undo step.</summary>
+    public const int MaxAddedNotes = 10_000;
+
+    /// <summary>The highest velocity.</summary>
+    public const int HighestVelocity = 127;
+
     /// <summary>The highest pitch.</summary>
     public const int HighestPitch = 127;
 
+    /// <summary>The highest controller number.</summary>
+    public const int HighestController = 127;
+
+    /// <summary>The highest controller value.</summary>
+    public const int HighestControllerValue = 127;
+
+    /// <summary>Whether a note that long is kept when an edit cuts a note down to it: <see cref="MinDuration"/> or more, within a billionth.</summary>
+    public static bool FitsNote(double duration) => duration >= MinDuration - ProjectLimits.Tolerance;
+
     /// <summary>The length of a new note: one grid step, and never under <see cref="MinNewDuration"/>.</summary>
     public static double NewDuration(double gridStep) => Math.Max(MinNewDuration, gridStep);
+
+    /// <summary>Whether a note starting at <paramref name="start"/> starts inside a clip of this length, within a billionth of a second.</summary>
+    /// <remarks>
+    /// A note that ends where its clip ends has a start of <c>(start + duration) - duration</c> in floating point, which can be a little
+    /// under the start itself, so the exact comparison would refuse a clip made of the file's own times.
+    /// </remarks>
+    public static bool StartsInside(double start, double clipLength) => start <= LatestStart(clipLength) + ProjectLimits.Tolerance;
 
     /// <summary>The latest a note may start in a clip of this length, a little before the end, for add, move and quantize alike.</summary>
     public static double LatestStart(double clipLength) => Math.Max(0, clipLength - MinDuration);
@@ -62,6 +85,6 @@ public static class NoteRules
     public static string Name(int pitch)
     {
         string[] names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-        return $"{names[pitch % 12]}{(pitch / 12) - 1}";
+        return string.Create(CultureInfo.InvariantCulture, $"{names[pitch % 12]}{(pitch / 12) - 1}");
     }
 }

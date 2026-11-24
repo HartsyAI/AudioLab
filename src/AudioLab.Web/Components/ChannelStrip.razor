@@ -1,5 +1,5 @@
 <div class="strip" data-master="@(Master ? "true" : "false")" data-selected="@(Selected ? "true" : "false")" role="group"
-     aria-label="@($"Channel {Name}")" style="width: @(Width)rem">
+     aria-label="@($"Channel {Name}")" style="width: @Css.Rem(Width)">
     <div class="head">
         <span class="dot" style="background: @ColorToken"></span>
         <span class="name">@Name</span>
@@ -13,13 +13,15 @@
     <Knob Label="@($"Pan of {Name}")" Position="Pan" Text="@PanText" />
     <div class="fader-row">
         <Fader Label="@($"Volume of {Name}")" Position="VolumePosition" Text="@VolumeText" />
-        <div class="meter"><Meter /></div>
+        <div class="meter"><LiveMeter Track="Track" /></div>
     </div>
     <div class="foot">
         @if (!Master)
         {
-            <Toggle Track="true" Label="M" Name="@($"Mute {Name}")" Tone="ToggleTone.Mute" On="Muted" Disabled="!Editable" OnClick="MuteAsync" />
-            <Toggle Track="true" Label="S" Name="@($"Solo {Name}")" Tone="ToggleTone.Caution" On="Soloed" Disabled="!Editable" OnClick="SoloAsync" />
+            <Toggle Track="true" Label="M" Name="@($"Mute {Name}")" Tone="ToggleTone.Mute" On="Muted" Disabled="!Editable"
+                    Reason="@(Editable ? null : Reason)" OnClick="MuteAsync" />
+            <Toggle Track="true" Label="S" Name="@($"Solo {Name}")" Tone="ToggleTone.Caution" On="Soloed" Disabled="!Editable"
+                    Reason="@(Editable ? null : Reason)" OnClick="SoloAsync" />
         }
         <span class="db">@VolumeText</span>
     </div>

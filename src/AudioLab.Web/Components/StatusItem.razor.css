@@ -24,10 +24,6 @@
     background: var(--caution);
 }
 
-.dot[data-dot="record"] {
-    background: var(--record);
-}
-
 .dot[data-dot="agent"] {
     background: var(--track-10);
 }

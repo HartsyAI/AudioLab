@@ -1,9 +1,17 @@
-<div class="bottom-panel">
-    <Tabs Names="Names" Label="Tools for the selection">
+<div class="bottom-panel" data-tab="@Slug">
+    <Tabs Names="Names" Label="Tools for the selection" Selected="@Panel.Active" SelectedChanged="Panel.Show">
         <TabContent Context="tab">
-            @if (tab == "Mixer")
+            @if (tab == BottomPanelState.Mixer)
             {
                 <MixerPanel Document="Document" Selected="Selected" Actions="Actions" />
+            }
+            else if (tab == BottomPanelState.PianoRoll)
+            {
+                <PianoRollPanel Document="Document" Actions="Actions" />
+            }
+            else if (tab == "Media")
+            {
+                <MediaPanel Document="Document" Actions="Actions" />
             }
             else
             {

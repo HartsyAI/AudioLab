@@ -1,4 +1,7 @@
 .clip {
+    /* The clip's outline and its selected outline, as the session mock draws them; a hairline and a line and a half. */
+    --ring: 1px;
+    --ring-selected: 1.5px;
     position: absolute;
     top: var(--space-4);
     bottom: var(--space-4);
@@ -7,15 +10,16 @@
     overflow: hidden;
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--clip) 17%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--clip) 50%, transparent);
+    box-shadow: inset 0 0 0 var(--ring) color-mix(in srgb, var(--clip) 50%, transparent);
     outline: none;
     /* Selected text under the pointer makes the browser start a native drag, which cancels the pointer and so a clip drag. */
     user-select: none;
+    touch-action: none;
 }
 
 .clip[data-selected="true"] {
     background: color-mix(in srgb, var(--clip) 30%, transparent);
-    box-shadow: inset 0 0 0 1.5px var(--playhead);
+    box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead);
 }
 
 .clip:focus-visible {
@@ -46,6 +50,29 @@
     min-height: 0;
 }
 
+/* While the peaks load there is nothing to draw, so the clip keeps a quiet line where the silence of the waveform will be. */
+svg[data-peaks="loading"] {
+    top: 50%;
+    height: 0;
+    border-top: 1px solid color-mix(in srgb, var(--clip) 40%, transparent);
+}
+
+.wave-note {
+    position: absolute;
+    left: var(--space-4);
+    top: var(--space-4);
+    max-width: calc(100% - var(--space-8));
+    padding: 0 var(--space-6);
+    overflow: hidden;
+    border-radius: var(--radius-xs);
+    background: var(--clip);
+    color: var(--ink);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 svg {
     position: absolute;
     left: 0;
@@ -59,16 +86,18 @@ path {
     fill: var(--clip);
 }
 
-.note {
-    position: absolute;
-    height: 3px;
-    border-radius: var(--radius-xs);
-    background: var(--clip);
-}
-
 .clip[data-lifted="true"] {
     z-index: var(--z-lane-overlay);
-    box-shadow: inset 0 0 0 1.5px var(--playhead), var(--shadow-overlay);
+    box-shadow: inset 0 0 0 var(--ring-selected) var(--playhead), var(--shadow-overlay);
     cursor: grabbing;
     pointer-events: none;
+}
+
+/* One line for each run of notes, three pixels thick and at least three pixels long whatever size the clip is stretched to. */
+svg.notes path {
+    fill: none;
+    stroke: var(--clip);
+    stroke-width: 3px;
+    stroke-linecap: square;
+    vector-effect: non-scaling-stroke;
 }

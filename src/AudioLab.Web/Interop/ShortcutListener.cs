@@ -3,31 +3,56 @@ using System.Runtime.Versioning;
 
 namespace AudioLab.Web.Interop;
 
-/// <summary>Listens for key presses on the document through <c>addEventListener</c>, a browser built-in, once.</summary>
+/// <summary>Listens for key presses on the document through <c>addEventListener</c>, a browser built-in, while a handler is set.</summary>
+/// <remarks>The listener is added by <see cref="Listen"/> and removed by <see cref="Stop"/>; each event is released once it has been read.</remarks>
 [SupportedOSPlatform("browser")]
 public sealed partial class ShortcutListener : IShortcutListener
 {
     private static readonly string[] _editable = ["INPUT", "TEXTAREA", "SELECT"];
 
+    // The space bar presses a focused button or link, as the page has always taught it; a shortcut on it would press that and play as well.
+    private static readonly string[] _activates = ["BUTTON", "A", "SUMMARY"];
+
     private Func<KeyChord, bool>? _handler;
 
-    private bool _installed;
+    private JSObject? _document;
+
+    private JSObject? _function;
 
     /// <inheritdoc />
     public void Listen(Func<KeyChord, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
-        if (_installed)
+        if (_function is not null)
         {
             return;
         }
-        _installed = true;
-        AddListener(Query("html"), "keydown", press => Route(press));
+        _document = Query("html");
+        _function = Bind(
+            press =>
+            {
+                using JSObject released = press;
+                Route(press);
+            },
+            null);
+        AddListener(_document, "keydown", _function);
     }
 
     /// <inheritdoc />
-    public void Stop() => _handler = null;
+    public void Stop()
+    {
+        _handler = null;
+        if (_function is null || _document is null)
+        {
+            return;
+        }
+        Remove(_document, "keydown", _function);
+        _function.Dispose();
+        _document.Dispose();
+        _function = null;
+        _document = null;
+    }
 
     private bool Route(JSObject press)
     {
@@ -39,7 +64,8 @@ public sealed partial class ShortcutListener : IShortcutListener
             press.GetPropertyAsString("key") ?? string.Empty,
             press.GetPropertyAsBoolean("ctrlKey") || press.GetPropertyAsBoolean("metaKey"),
             press.GetPropertyAsBoolean("shiftKey"),
-            press.GetPropertyAsBoolean("altKey"));
+            press.GetPropertyAsBoolean("altKey"),
+            press.GetPropertyAsBoolean("repeat"));
         bool handled = _handler(chord);
         if (handled)
         {
@@ -57,7 +83,8 @@ public sealed partial class ShortcutListener : IShortcutListener
         }
         string tag = target.GetPropertyAsString("tagName") ?? string.Empty;
         using JSObject? dialog = Closest(target, "dialog");
-        return _editable.Contains(tag, StringComparer.OrdinalIgnoreCase) || target.GetPropertyAsBoolean("isContentEditable") || dialog is not null;
+        return _editable.Contains(tag, StringComparer.OrdinalIgnoreCase) || target.GetPropertyAsBoolean("isContentEditable") || dialog is not null
+            || (press.GetPropertyAsString("key") == " " && _activates.Contains(tag, StringComparer.OrdinalIgnoreCase));
     }
 
     [JSImport("globalThis.document.querySelector")]
@@ -69,6 +96,14 @@ public sealed partial class ShortcutListener : IShortcutListener
     [JSImport("globalThis.Event.prototype.preventDefault.call")]
     private static partial void PreventDefault(JSObject press);
 
+    // Function.prototype.bind.call(f) is a plain JavaScript function that calls f: the one that can be handed back to removeEventListener,
+    // which the function the marshaller makes for a callback cannot.
+    [JSImport("globalThis.Function.prototype.bind.call")]
+    private static partial JSObject Bind([JSMarshalAs<JSType.Function<JSType.Object>>] Action<JSObject> callback, JSObject? thisArgument);
+
     [JSImport("globalThis.EventTarget.prototype.addEventListener.call")]
-    private static partial void AddListener(JSObject target, string type, [JSMarshalAs<JSType.Function<JSType.Object>>] Action<JSObject> callback);
+    private static partial void AddListener(JSObject target, string type, JSObject listener);
+
+    [JSImport("globalThis.EventTarget.prototype.removeEventListener.call")]
+    private static partial void Remove(JSObject target, string type, JSObject listener);
 }

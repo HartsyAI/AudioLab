@@ -14,6 +14,9 @@ internal sealed class FakeProjectHub : IProjectHub
     /// <summary>Reply.</summary>
     public CommandReply Reply { get; set; } = new(true, true, 2, [], []);
 
+    /// <summary>A reply for the nth command applied (counted from 1), or null to use <see cref="Reply"/>.</summary>
+    public Func<int, CommandReply?>? ReplyForApply { get; set; }
+
     /// <summary>Disposed.</summary>
     public bool Disposed { get; private set; }
 
@@ -27,6 +30,15 @@ internal sealed class FakeProjectHub : IProjectHub
 
     /// <summary>Join revision.</summary>
     public long JoinRevision { get; set; } = 1;
+
+    /// <summary>Throw on connect.</summary>
+    public Exception? ThrowOnConnect { get; set; }
+
+    /// <summary>Throw on join.</summary>
+    public Exception? ThrowOnJoin { get; set; }
+
+    /// <summary>Runs after a command is recorded and before its reply is returned, so a test can hold the reply.</summary>
+    public Func<Task>? BeforeApplyReturns { get; set; }
 
     /// <summary>Before join returns.</summary>
     public Func<Task>? BeforeJoinReturns { get; set; }
@@ -60,6 +72,10 @@ internal sealed class FakeProjectHub : IProjectHub
     public Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         Calls.Add("connect");
+        if (ThrowOnConnect is { } failure)
+        {
+            throw failure;
+        }
         Move(HubState.Connected);
         return Task.CompletedTask;
     }
@@ -68,6 +84,10 @@ internal sealed class FakeProjectHub : IProjectHub
     public async Task<JoinReply> JoinAsync(string project, CancellationToken cancellationToken = default)
     {
         Calls.Add($"join {project}");
+        if (ThrowOnJoin is { } failure)
+        {
+            throw failure;
+        }
         if (BeforeJoinReturns is { } before)
         {
             await before();
@@ -83,7 +103,7 @@ internal sealed class FakeProjectHub : IProjectHub
     }
 
     /// <summary>Apply async.</summary>
-    public Task<CommandReply> ApplyAsync(
+    public async Task<CommandReply> ApplyAsync(
         string project,
         string command,
         string json,
@@ -96,7 +116,11 @@ internal sealed class FakeProjectHub : IProjectHub
         }
         Sent.Add((command, json, gesture));
         Calls.Add($"apply {project} {command} {json} {gesture}".TrimEnd());
-        return Task.FromResult(Reply);
+        if (BeforeApplyReturns is { } before)
+        {
+            await before();
+        }
+        return ReplyForApply?.Invoke(Sent.Count) ?? Reply;
     }
 
     /// <summary>Undo async.</summary>

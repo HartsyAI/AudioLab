@@ -11,6 +11,15 @@ public sealed partial class StorePaths
     /// <summary>The extension of a stored project or media record.</summary>
     public const string RecordExtension = ".json";
 
+    /// <summary>The extension of the stored bytes of a media file.</summary>
+    public const string DataExtension = ".wav";
+
+    /// <summary>The extension of the stored peaks of a media file.</summary>
+    public const string PeaksExtension = ".peaks";
+
+    /// <summary>What is added to a media record's file name when the file is refused for good, so it is no longer read.</summary>
+    public const string RefusedSuffix = ".refused";
+
     private const int NameHexLength = 32;
 
     private readonly string _root;
@@ -47,14 +56,44 @@ public sealed partial class StorePaths
     /// <summary>The file a media record is kept in.</summary>
     public string MediaRecordFile(UserId user, MediaId id) => Inside(MediaDirectory(user), MediaFileName(id));
 
+    /// <summary>The file a media file's bytes are kept in, beside its record.</summary>
+    public string MediaDataFile(UserId user, MediaId id) => Inside(MediaDirectory(user), MediaDataFileName(id));
+
+    /// <summary>The file a media file's peaks are kept in, beside its record.</summary>
+    public string MediaPeaksFile(UserId user, MediaId id) => Inside(MediaDirectory(user), MediaPeaksFileName(id));
+
+    /// <summary>A new temporary file beside the media file's peaks, which they are written to before it is renamed into place.</summary>
+    public string MediaPeaksTempFile(UserId user, MediaId id) => $"{MediaPeaksFile(user, id)}.{Guid.NewGuid():N}.tmp";
+
+    /// <summary>A new temporary file beside the media file's bytes, which the upload is written to before it is renamed into place.</summary>
+    public string MediaTempFile(UserId user, MediaId id) => $"{MediaDataFile(user, id)}.{Guid.NewGuid():N}.tmp";
+
     /// <summary>The name of the file a project is kept in, without its folder.</summary>
     public static string ProjectFileName(ProjectId id) => Name('p', id.Value) + RecordExtension;
 
     /// <summary>The name of the file a media record is kept in, without its folder.</summary>
     public static string MediaFileName(MediaId id) => Name('m', id.Value) + RecordExtension;
 
+    /// <summary>The name of the file a media file's bytes are kept in, without its folder.</summary>
+    public static string MediaDataFileName(MediaId id) => Name('m', id.Value) + DataExtension;
+
+    /// <summary>The name of the file a media file's peaks are kept in, without its folder.</summary>
+    public static string MediaPeaksFileName(MediaId id) => Name('m', id.Value) + PeaksExtension;
+
+    /// <summary>Whether a file name is one the store could have written for a media file's bytes or peaks.</summary>
+    public static bool IsDataFileName(string fileName) => DataNamePattern().IsMatch(fileName);
+
+    /// <summary>The name of the media record a bytes or peaks file belongs to, or null when the name is not one.</summary>
+    public static string? RecordNameOfData(string fileName)
+    {
+        return IsDataFileName(fileName) ? fileName[..fileName.IndexOf('.', StringComparison.Ordinal)] + RecordExtension : null;
+    }
+
     /// <summary>Whether a file name is one the store could have written for a project or media record.</summary>
     public static bool IsRecordFileName(string fileName) => RecordNamePattern().IsMatch(fileName);
+
+    /// <summary>Whether a file name is a media record that was refused for good.</summary>
+    public static bool IsRefusedFileName(string fileName) => RefusedNamePattern().IsMatch(fileName);
 
     /// <summary>Whether a file name is a temporary file an interrupted write left behind.</summary>
     public static bool IsLeftoverTemp(string fileName) => TempNamePattern().IsMatch(fileName);
@@ -81,6 +120,12 @@ public sealed partial class StorePaths
     [GeneratedRegex(@"\A[pm][0-9a-f]{32}\.json\z", RegexOptions.CultureInvariant)]
     private static partial Regex RecordNamePattern();
 
-    [GeneratedRegex(@"\A[pm][0-9a-f]{32}\.json\.[0-9a-f]{32}\.tmp\z", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\A[pm][0-9a-f]{32}\.(json|wav|peaks)\.[0-9a-f]{32}\.tmp\z", RegexOptions.CultureInvariant)]
     private static partial Regex TempNamePattern();
+
+    [GeneratedRegex(@"\Am[0-9a-f]{32}\.(wav|peaks)\z", RegexOptions.CultureInvariant)]
+    private static partial Regex DataNamePattern();
+
+    [GeneratedRegex(@"\Am[0-9a-f]{32}\.json\.refused\z", RegexOptions.CultureInvariant)]
+    private static partial Regex RefusedNamePattern();
 }

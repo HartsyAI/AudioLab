@@ -37,6 +37,13 @@
 .name {
     flex: 1;
     min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
     overflow: hidden;
     font-size: var(--font-size-body);
     font-weight: var(--font-weight-strong);
@@ -66,4 +73,10 @@
 .meter {
     display: flex;
     padding: var(--space-8) var(--space-6) var(--space-8) 0;
+}
+
+.name:focus-visible {
+    outline: none;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--focus-ring);
 }

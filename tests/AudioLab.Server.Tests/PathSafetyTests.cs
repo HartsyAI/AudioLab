@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Api;
 using AudioLab.Core.Model;
 using AudioLab.Server.Store;
@@ -72,7 +73,7 @@ public sealed partial class PathSafetyTests
                 (await store.Open.OpenAsync(user, id, _none)).Update(document => document with { Name = "..\\..\\escape2" });
                 await store.Service.SaveAsync(user, id, _none);
                 await store.Service.DuplicateAsync(user, id, "..", _none);
-                await store.Media.CreateAsync(user, "audio/wav", 5, _none);
+                await store.UploadAsync(user, TestWav.Build(SampleEncoding.Pcm16, 1, 48000, 100), "../../escape.wav");
             }
         }
 
@@ -95,6 +96,6 @@ public sealed partial class PathSafetyTests
     [GeneratedRegex(@"\Ap[0-9a-f]{32}\.json\z")]
     private static partial Regex ProjectFileName();
 
-    [GeneratedRegex(@"\Ausers/u[0-9a-f]{32}/(projects|media)/[pm][0-9a-f]{32}\.json\z")]
+    [GeneratedRegex(@"\Ausers/u[0-9a-f]{32}/(projects|media)/[pm][0-9a-f]{32}\.(json|wav|peaks)\z")]
     private static partial Regex RelativeLayout();
 }
