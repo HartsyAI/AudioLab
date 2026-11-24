@@ -238,11 +238,11 @@ public sealed partial class EffectsPanel : IDisposable
             return Task.CompletedTask;
         }
         int from = IndexOf(track, grab.Effect);
-        if (from < 0 || View.Bounds(ListId) is not { } bounds)
+        if (from < 0 || Rows(track) is not { } rows)
         {
             return Task.CompletedTask;
         }
-        EffectDrag drag = new(grab.Effect.Value, from, track.Effects.Count, grab.Press.ClientY - bounds.Top);
+        EffectDrag drag = new(grab.Effect.Value, from, track.Effects.Count, grab.Press.ClientY - rows.Top);
         _drag = drag;
         // The list scrolls under the pointer, so where it is in the list is read again on every move and on the release.
         Pointer.Begin(
@@ -259,16 +259,28 @@ public sealed partial class EffectsPanel : IDisposable
     private void DragMoved(TrackId trackId, EffectDrag drag, double y)
     {
         Track? track = Document.Tracks.FirstOrDefault(candidate => candidate.Id == trackId);
-        if (track is null || View.Bounds(ListId) is not { } bounds)
+        if (track is null || Rows(track) is not { } rows)
         {
             return;
         }
         (int target, bool active) = (drag.Target, drag.Active);
-        drag.Move(y - bounds.Top, bounds.Height / Math.Max(1, track.Effects.Count));
+        drag.Move(y - rows.Top, rows.Pitch);
         if (drag.Target != target || drag.Active != active)
         {
             _ = InvokeAsync(StateHasChanged);
         }
+    }
+
+    // Where the first row is and how far apart the rows are, read from the rows themselves: the list may be taller than its rows.
+    private (double Top, double Pitch)? Rows(Track track)
+    {
+        if (track.Effects.Count < 2
+            || View.Bounds(EffectRow.IdOf(track.Effects[0].Id)) is not { } first
+            || View.Bounds(EffectRow.IdOf(track.Effects[1].Id)) is not { } second)
+        {
+            return null;
+        }
+        return (first.Top, second.Top - first.Top);
     }
 
     private void Finish(EffectDrag drag)
