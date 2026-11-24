@@ -1,6 +1,13 @@
-@if (_text is not null)
+@* The live region is always there and only what is in it changes, or a screen reader would not announce it. *@
+<span class="live" role="status">
+    @if (_text is not null && _alert)
+    {
+        <StatusItem Dot="_dot">@_text</StatusItem>
+    }
+</span>
+@if (_text is not null && !_alert)
 {
-    <StatusItem Dot="_dot" Live="true">@_text</StatusItem>
+    <StatusItem Dot="_dot">@_text</StatusItem>
 }
 @if (_engine is not null)
 {

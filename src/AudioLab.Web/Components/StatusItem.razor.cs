@@ -13,10 +13,6 @@ public sealed partial class StatusItem
     [Parameter]
     public bool Soft { get; set; }
 
-    /// <summary>Whether a change of the text is announced to a screen reader, as a warning that no sound reveals must be.</summary>
-    [Parameter]
-    public bool Live { get; set; }
-
     /// <summary>The text.</summary>
     [Parameter]
     public RenderFragment? ChildContent { get; set; }

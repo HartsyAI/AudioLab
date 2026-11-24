@@ -9,6 +9,7 @@ namespace AudioLab.Web.Screens;
 public sealed partial class PlaybackStatus : IDisposable
 {
     private string? _text;
+    private bool _alert;
     private string? _engine;
     private StatusDot _dot = StatusDot.Caution;
 
@@ -29,13 +30,14 @@ public sealed partial class PlaybackStatus : IDisposable
 
     private void OnChanged()
     {
-        (string? text, StatusDot dot) = Describe();
+        (string? text, StatusDot dot, bool alert) = Describe();
         string? engine = Engine();
-        if (text != _text || dot != _dot || engine != _engine)
+        if (text != _text || dot != _dot || alert != _alert || engine != _engine)
         {
             _ = InvokeAsync(() =>
             {
                 _text = text;
+                _alert = alert;
                 _dot = dot;
                 _engine = engine;
                 StateHasChanged();
@@ -59,34 +61,35 @@ public sealed partial class PlaybackStatus : IDisposable
 
     private string Interpreted() => Playback.CompiledAhead ? string.Empty : " (the engine is interpreted: docs/engine-aot.md)";
 
-    // A miss is a caution, never red: red means recording or destroying.
-    private (string? Text, StatusDot Dot) Describe()
+    // A miss is a caution, never red: red means recording or destroying. An alert is what a screen reader is told about as it comes;
+    // the progress of loading and starting is not, which would be too much.
+    private (string? Text, StatusDot Dot, bool Alert) Describe()
     {
         if (Playback.Problem is { } problem)
         {
-            return (problem, StatusDot.Caution);
+            return (problem, StatusDot.Caution, true);
         }
         if (Playback.Health == PlaybackHealth.Dropping)
         {
-            return ($"Playback is dropping out: the audio engine could not keep up{Interpreted()}", StatusDot.Caution);
+            return ($"Playback is dropping out: the audio engine could not keep up{Interpreted()}", StatusDot.Caution, true);
         }
         if (Playback.Health == PlaybackHealth.Strained)
         {
-            return ($"Playback is close to dropping out{Interpreted()}", StatusDot.Caution);
+            return ($"Playback is close to dropping out{Interpreted()}", StatusDot.Caution, true);
         }
         if (Playback.Health == PlaybackHealth.Drifting)
         {
-            return (Playback.HealthMessage ?? "Playback is at the wrong speed", StatusDot.Caution);
+            return (Playback.HealthMessage ?? "Playback is at the wrong speed", StatusDot.Caution, true);
         }
         if (Playback.LoadWarning is { } warning)
         {
-            return (warning, StatusDot.Caution);
+            return (warning, StatusDot.Caution, false);
         }
         if (Playback.Phase == PlaybackPhase.Starting)
         {
-            return ("Starting the audio engine", StatusDot.Caution);
+            return ("Starting the audio engine", StatusDot.Caution, false);
         }
         string plural = Playback.Loading == 1 ? string.Empty : "s";
-        return Playback.Loading > 0 ? ($"Loading {Playback.Loading} clip{plural}", StatusDot.Caution) : (null, StatusDot.Go);
+        return Playback.Loading > 0 ? ($"Loading {Playback.Loading} clip{plural}", StatusDot.Caution, false) : (null, StatusDot.Go, false);
     }
 }

@@ -117,9 +117,33 @@ public sealed class PlaybackHealthMonitorTests
         Assert.Equal(PlaybackHealth.Steady, monitor.Health);
     }
 
-    /// <summary>A report that comes late because the page was busy moves a window by a few per cent and no more.</summary>
+    /// <summary>A page that was busy for 300 ms while the audio went on is not a clock at fault: one window reads low and the next high.</summary>
     [Fact]
-    public void AReportThatComesLateBecauseThePageWasBusyIsNotAFaultOfTheClock()
+    public void APageThatWasBusyWhileTheAudioWentOnIsNotAFaultOfTheClock()
+    {
+        FakeTime time = new();
+        PlaybackHealthMonitor monitor = new(time);
+        monitor.Observe(Status(2));
+        double frames = 1000;
+
+        Run(monitor, time, 9.9, 1, ref frames);
+        time.Now += TimeSpan.FromMilliseconds(300);
+        monitor.Observe(new WorkletStats(0, 2048, 2048, 0, 0, true, frames));
+        frames += 0.3 * 48000;
+        bool warned = false;
+        for (int i = 0; i < 20 * 25; i++)
+        {
+            Run(monitor, time, 0.04, 1, ref frames);
+            warned |= monitor.Health == PlaybackHealth.Drifting;
+        }
+
+        Assert.False(warned, "the warning must not show even for a moment");
+        Assert.Equal(PlaybackHealth.Steady, monitor.Health);
+    }
+
+    /// <summary>A context that was interrupted for 300 ms and never caught up moves one window by a few per cent and no more.</summary>
+    [Fact]
+    public void AContextThatWasInterruptedForAMomentIsNotAFaultOfTheClock()
     {
         FakeTime time = new();
         PlaybackHealthMonitor monitor = new(time);
