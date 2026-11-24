@@ -13,9 +13,11 @@ namespace AudioLab.Audio.Live;
 /// <remarks>
 /// One thread: every member is called from the worker's event loop, so a call is never interrupted except at an await. The newest document
 /// wins: one that arrives while an older one is still preparing replaces it, and a failed build leaves the plan that was playing. Fetching,
-/// decoding and resampling a clip run in slices with a pause between them; what does not (reading the document, building a plan from clips
-/// that are held, the header check of a file) is a single step of some milliseconds that can make a chunk late. Every failure of a build is
-/// a problem the status reports, and none of them touches the transport.
+/// decoding and resampling a clip run in slices with a pause between them; what does not (reading the document, the header check of a
+/// file) is a single step of some milliseconds that can make a chunk late. A plan is built a track at a time with a pause between tracks
+/// (<see cref="RenderPlan.CreateAsync"/>), so what a chunk can wait for is the dearest track (a reverb), not the whole plan; a build whose
+/// document a newer one has replaced is abandoned at the next pause. Every failure of a build is a problem the status reports, and none of
+/// them touches the transport.
 /// </remarks>
 public sealed class LiveHost
 {
@@ -34,6 +36,7 @@ public sealed class LiveHost
     private readonly bool _compiledAhead;
     private readonly MediaCache _cache;
     private CancellationTokenSource? _loadCancellation;
+    private CancellationTokenSource? _buildCancellation;
     private MediaId? _loadingClip;
     private Dictionary<MediaId, string> _names = [];
     private TrackLevel[] _trackLevels = [];
@@ -66,6 +69,12 @@ public sealed class LiveHost
     /// <summary>The engine this host drives.</summary>
     public LiveEngine Engine => _engine;
 
+    /// <summary>Replaces how effects become inserts, so a test can make building a plan cost what it chooses.</summary>
+    internal Func<Effect, InsertContext, IInsert?>? InsertBuilder { get; init; }
+
+    /// <summary>The clock that tells a build when to give the worker a turn; a test supplies its own.</summary>
+    internal TimeProvider Time { get; init; } = TimeProvider.System;
+
     /// <summary>Makes the project at <paramref name="revision"/> the one to play; the task ends when the newest is in place or failed.</summary>
     /// <remarks>A revision not above the newest seen is ignored. A document or a clip that cannot be played is a problem in the status.</remarks>
     public async Task SetDocumentAsync(string json, long revision)
@@ -88,6 +97,8 @@ public sealed class LiveHost
         _wanted = document;
         _wantedRevision = revision;
         _engine.SetClick(document.Metronome);
+        // A plan that is being built from an older document is of no use once a newer one has come.
+        _buildCancellation?.Cancel();
         if (_loadingClip is { } loading && !ClipNames(document).ContainsKey(loading))
         {
             // The clip being fetched is not in the newer document: no reason to wait for it.
@@ -100,7 +111,7 @@ public sealed class LiveHost
         _pumping = true;
         try
         {
-            await PumpAsync();
+            await PumpAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -188,7 +199,7 @@ public sealed class LiveHost
             }
             try
             {
-                if (await BuildAsync(document, revision))
+                if (await BuildAsync(document, revision).ConfigureAwait(false))
                 {
                     _built = key;
                 }
@@ -206,19 +217,34 @@ public sealed class LiveHost
     private async Task<bool> BuildAsync(ProjectDocument document, long revision)
     {
         _names = ClipNames(document);
-        PlanOptions options = new() { SampleRate = _rate, Cache = _cache, Sources = _instruments };
         for (int attempt = 0; attempt < LoadAttempts; attempt++)
         {
+            using CancellationTokenSource cancellation = new();
+            _buildCancellation = cancellation;
+            PlanOptions options = new()
+            {
+                SampleRate = _rate,
+                Cache = _cache,
+                Sources = _instruments,
+                InsertBuilder = InsertBuilder,
+                CancellationToken = cancellation.Token,
+            };
             try
             {
-                RenderPlan plan = RenderPlan.Create(document, NoMedia.Instance, options);
+                // The old plan plays on while the new one is built a track at a time, with the worker's loop free in between to render chunks.
+                RenderPlan plan = await RenderPlan.CreateAsync(document, NoMedia.Instance, options, _pause, Time).ConfigureAwait(false);
                 _engine.Install(plan, revision, new ClickGenerator(document, _rate));
                 _problem = null;
                 return true;
             }
+            catch (OperationCanceledException) when (_wanted is not null)
+            {
+                // A newer document came during the build: the old plan plays on until the build of that one is done.
+                return false;
+            }
             catch (MissingMediaException missing)
             {
-                if (!await LoadAsync(missing.Missing) || _wanted is not null)
+                if (!await LoadAsync(missing.Missing).ConfigureAwait(false) || _wanted is not null)
                 {
                     return false;
                 }
@@ -227,6 +253,10 @@ public sealed class LiveHost
             {
                 _problem = $"The project cannot be played: {exception.Message}";
                 return false;
+            }
+            finally
+            {
+                _buildCancellation = null;
             }
         }
         _problem = "The clips could not all be held in memory at once.";

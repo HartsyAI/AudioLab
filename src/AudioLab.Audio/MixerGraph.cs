@@ -151,6 +151,9 @@ public sealed class MixerGraph
         foreach (IInsert insert in track.Inserts)
         {
             insert.Process(left, right, Position);
+            // A tail that has decayed far enough must not reach the next insert as a denormal number (Denormals).
+            Denormals.Flush(left);
+            Denormals.Flush(right);
         }
         SendInto(track, pre: true, left, right);
         FaderAndPan(track, left, right);
