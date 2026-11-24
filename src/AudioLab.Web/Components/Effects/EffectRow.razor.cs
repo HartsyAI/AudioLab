@@ -85,13 +85,25 @@ public sealed partial class EffectRow
     public static string IdOf(EffectId effect) => $"effect-row-{effect.Value}";
 
     /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
+        if (firstRender)
+        {
+            _shown = Snapshot();
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (Effect?, int, int, bool, string?, bool, string?, bool) now = (Effect, Index, Count, Editable, Reason, Dragging, Drop, Selected);
+        (Effect?, int, int, bool, string?, bool, string?, bool) now = Snapshot();
         bool same = _shown == now;
         _shown = now;
         return !same;
     }
+
+    private (Effect?, int, int, bool, string?, bool, string?, bool) Snapshot() => (Effect, Index, Count, Editable, Reason, Dragging, Drop, Selected);
 
     private static string Flag(bool on) => on ? "true" : "false";
 

@@ -132,12 +132,27 @@ public sealed partial class ChannelStrip
     private Task SoloAsync() => Track is { } track ? OnSolo.InvokeAsync(track) : Task.CompletedTask;
 
     /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
+        if (firstRender)
+        {
+            _shown = Key();
+        }
+    }
+
+    /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
-        string now = $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Editable}";
+        string now = Key();
         bool same = now == _shown;
         _shown = now;
         return !same;
+    }
+
+    private string Key()
+    {
+        string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}";
     }
 }
