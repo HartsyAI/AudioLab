@@ -1,2 +1,2 @@
-<button type="@(Submit ? "submit" : "button")" aria-label="@Name" aria-disabled="@(Disabled ? "true" : null)" title="@Hint" @onclick="ClickAsync"
+<button type="@(Submit ? "submit" : "button")" aria-label="@Name" aria-disabled="@(Disabled ? "true" : null)" title="@Hint" @onclick="ClickAsync" @onclick:preventDefault="Disabled"
         @attributes="Attributes">@ChildContent</button>

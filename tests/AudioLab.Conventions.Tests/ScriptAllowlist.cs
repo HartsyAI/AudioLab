@@ -5,6 +5,8 @@ public static class ScriptAllowlist
 {
     private const string Pack = "Microsoft.AspNetCore.App.Internal.Assets";
 
+    private const string Bit = "Bit.Bheadless";
+
     /// <summary>Approved script files in the repository. Adding one needs the owner's approval in the pull request that adds the file.</summary>
     public static readonly ScriptAllowance[] Entries =
     [
@@ -26,5 +28,11 @@ public static class ScriptAllowlist
             "The client of a Blazor Web App, shipped in the same package. This app is not one; UiRouteTests check the server does not serve it."),
         new("Microsoft.AspNetCore.Components.WebAssembly", "10.0.14", "build/net10.0/blazor.webassembly.js",
             "A byte for byte copy of blazor.webassembly.js that the package keeps for its build targets. The app serves the pack's copy, not this."),
+        new(Bit, "11.0.0-pre-23", "staticwebassets/Bit.Bheadless.4mg12f5a83.lib.module.js",
+            "D14 (Decided). Blazor loads it by itself at start and installs the key handling and dismissable layers of the menu and tooltip."),
+        new(Bit, "11.0.0-pre-23", "staticwebassets/bit-bheadless.js",
+            "D14 (Decided). The behaviour the menu and tooltip call: focus, key handling and positioning. The file name carries no hash."),
+        new(Bit, "11.0.0-pre-23", "staticwebassets/bit-bheadless-csp.js",
+            "D14 (Decided). Applies the positions the library computes through the style object, for a page under a strict content policy."),
     ];
 }
