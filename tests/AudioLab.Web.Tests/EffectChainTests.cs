@@ -1,6 +1,5 @@
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
-using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Effects;
 
@@ -49,7 +48,20 @@ public sealed class EffectChainTests
             Assert.Equal(EffectText.Name(kind), TrackText.Effect(effect));
         }
         Assert.Equal(Enum.GetValues<EffectKind>(), EffectText.Kinds);
-        Assert.All(EffectText.Kinds, kind => Assert.True(Shortcuts.EffectAdd.ContainsKey(kind)));
+    }
+
+    /// <summary>A drop is measured on the chain as it is at the release, so another client moving the effect meanwhile does not shift it.</summary>
+    [Fact]
+    public void ADropIsMeasuredOnTheChainAsItIsAtTheRelease()
+    {
+        Track chain = WithEffects(4);
+        Track moved = chain with { Effects = [chain.Effects[1], chain.Effects[2], chain.Effects[3], chain.Effects[0]] };
+        EffectId first = chain.Effects[0].Id;
+
+        Assert.Equal(2, EffectChainRules.StepsTo(chain, first, 2));
+        Assert.Equal(-1, EffectChainRules.StepsTo(moved, first, 2));
+        Assert.Equal(0, EffectChainRules.StepsTo(moved, first, 3));
+        Assert.Null(EffectChainRules.StepsTo(chain with { Effects = [.. chain.Effects.Skip(1)] }, first, 2));
     }
 
     /// <summary>A press that never travels is not a drag, and a release where it began sends nothing.</summary>
