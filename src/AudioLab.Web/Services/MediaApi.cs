@@ -13,8 +13,11 @@ namespace AudioLab.Web.Services;
 /// <param name="uploads">The client of the upload, which has no timeout: a large file takes as long as it takes, and only the user stops it.</param>
 public sealed class MediaApi(HttpClient http, HttpClient uploads)
 {
+    /// <summary>The most one upload may carry whatever the server allows: the browser holds the whole body first, in 32-bit memory.</summary>
+    public const long MemoryCeilingBytes = 512L * 1024 * 1024;
+
     /// <summary>The largest file the server accepts by default (<c>AudioLab:Media:MaxUploadBytes</c>), until it says what its own limit is.</summary>
-    public const long DefaultMaxUploadBytes = 512L * 1024 * 1024;
+    public const long DefaultMaxUploadBytes = MemoryCeilingBytes;
 
     private const string Media = "api/media";
 

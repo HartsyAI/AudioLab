@@ -10,9 +10,9 @@ namespace AudioLab.Web.Media;
 public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider clock, ILogger<MediaLibrary> log)
 {
     // The server takes four uploads of a user at once (D37); the page keeps one free for another tab or window.
-    private const int ParallelUploads = 3;
+    internal const int ParallelUploads = 3;
 
-    private readonly SemaphoreSlim _slots = new(ParallelUploads);
+    private readonly UploadLimits _limits = new(api, clock, log);
 
     // The page runs on one thread; the lock keeps the lists whole for a host that does not.
     private readonly Lock _gate = new();
@@ -33,10 +33,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
 
     private bool _refreshing;
 
-    // The limits are read once for any number of askers; a change that came while a read was running asks for one more read after it.
-    private Task? _readingLimits;
-
-    private bool _limitsAgain;
+    private Task? _refresh;
 
     private bool _refreshAgain;
 
@@ -59,7 +56,8 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
     public IReadOnlyList<MediaSummary> Files => _files;
 
     /// <summary>What the user may upload and what they have used, as the server last said; null until it has, or when it cannot say.</summary>
-    public MediaLimits? Limits { get; private set; }
+    public MediaLimits? Limits => _limits.Current;
+
 
     /// <summary>How many stored records the server left out as invalid.</summary>
     public int Refused { get; private set; }
@@ -70,10 +68,12 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
     /// <summary>The file with this id, or null.</summary>
     public MediaSummary? Find(string id) => _files.FirstOrDefault(file => file.Id == id);
 
-    /// <summary>Reads the list from the server; a read that is already running is the one awaited.</summary>
+    /// <summary>Reads the list and the user's limits from the server; a list read that is already running is the one awaited.</summary>
     public Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        return _loading is { IsCompleted: false } running ? running : _loading = ReadAsync(cancellationToken);
+        Task limits = _limits.ReadAsync();
+        Task list = _loading is { IsCompleted: false } running ? running : _loading = ReadAsync(cancellationToken);
+        return Task.WhenAll(limits, list);
     }
 
     /// <summary>Starts uploading the chosen files, a few at a time, and returns their jobs; each outcome shows in <see cref="Uploads"/>.</summary>
@@ -115,6 +115,8 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             failed.Failure = null;
             failed.Fraction = 0;
             failed.SendingSince = null;
+            failed.Retried = true;
+            failed.Restart();
             Changed?.Invoke();
             _ = RunAsync(failed);
         }
@@ -156,25 +158,26 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         _ = RefreshAsync();
     }
 
-    /// <summary>Reads the list again without showing a load, as the tab opens and after an upload or delete; a failure keeps the list.</summary>
+    /// <summary>Reads the list and the limits again without a load shown, after an upload or delete; a failure keeps the list.</summary>
+    /// <remarks>Every call reads the limits: one that comes while a read is on its way is read once more after it.</remarks>
     public Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         if (State != LibraryState.Ready)
         {
             return LoadAsync(cancellationToken);
         }
+        Task limits = _limits.ReadAsync();
         if (_refreshing)
         {
             _refreshAgain = true;
-            return Task.CompletedTask;
+            return Task.WhenAll(limits, _refresh!);
         }
-        return KeepFreshAsync(cancellationToken);
+        return Task.WhenAll(limits, _refresh = KeepFreshAsync(cancellationToken));
     }
 
     private async Task KeepFreshAsync(CancellationToken cancellationToken)
     {
         _refreshing = true;
-        _ = ReadLimitsAsync(cancellationToken);
         try
         {
             do
@@ -204,7 +207,6 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         State = LibraryState.Loading;
         Failure = null;
         Changed?.Invoke();
-        _ = ReadLimitsAsync(cancellationToken);
         try
         {
             await ApplyAsync(cancellationToken);
@@ -250,14 +252,17 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
     {
         using CancellationTokenSource cancellation = new();
         job.Cancellation = cancellation;
+        // Before the first place is taken, so that the number of places is the server's; a few seconds at most.
+        await _limits.FirstAsync();
         try
         {
-            await _slots.WaitAsync(cancellation.Token);
+            await _limits.Slots.AcquireAsync(cancellation.Token);
         }
         catch (OperationCanceledException)
         {
             Remove(job);
             Settle();
+            job.End();
             return;
         }
         try
@@ -265,8 +270,8 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             job.State = UploadState.Reading;
             job.Fraction = 0;
             Changed?.Invoke();
-            await LimitsReadyAsync();
-            string? problem = await CheckAsync(job.Source);
+            bool known = await _limits.ReadyAsync(job.Retried);
+            string? problem = await CheckAsync(job, known);
             if (problem is not null)
             {
                 Fail(job, problem);
@@ -298,9 +303,11 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         }
         finally
         {
+            _limits.Release(job);
             job.Cancellation = null;
-            _slots.Release();
+            _limits.Slots.Release();
             Settle();
+            job.End();
         }
     }
 
@@ -313,59 +320,23 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             {
                 job.State = UploadState.Sending;
                 job.SendingSince = clock.GetUtcNow();
+                _limits.Sending(job);
             }
             Changed?.Invoke();
         });
         return await api.UploadAsync(job.Name, job.Source.Open(), job.Length, progress, cancellationToken);
     }
 
-    // A file is judged on limits that are as new as the last upload or delete: one that comes while a read is on its way waits for it,
-    // and the first of all starts it.
-    private Task LimitsReadyAsync()
+    // A file is judged on limits that are as new as the last upload, delete or Try again; `known` is false when they could not be had in time,
+    // and the server then judges the quota.
+    private async Task<string?> CheckAsync(UploadJob job, bool known)
     {
-        return _readingLimits is null ? ReadLimitsAsync(CancellationToken.None) : _readingLimits;
-    }
-
-    private Task ReadLimitsAsync(CancellationToken cancellationToken)
-    {
-        if (_readingLimits is { IsCompleted: false } running)
+        IUploadSource source = job.Source;
+        if (_limits.TooLarge(source.Length) is { } tooLarge)
         {
-            _limitsAgain = true;
-            return running;
+            return tooLarge;
         }
-        return _readingLimits = KeepLimitsAsync(cancellationToken);
-    }
-
-    // The limits are advice and the upload route judges the file anyway, so a read that fails (an older server, a timeout) keeps what was known.
-    private async Task KeepLimitsAsync(CancellationToken cancellationToken)
-    {
-        do
-        {
-            _limitsAgain = false;
-            try
-            {
-                MediaLimits limits = await api.LimitsAsync(cancellationToken);
-                Limits = limits;
-                if (limits.MaxUploadBytes > 0)
-                {
-                    api.MaxUploadBytes = limits.MaxUploadBytes;
-                }
-            }
-            catch (Exception exception)
-            {
-                MediaLog.LimitsFailed(log, exception);
-            }
-        }
-        while (_limitsAgain && !cancellationToken.IsCancellationRequested);
-    }
-
-    private async Task<string?> CheckAsync(IUploadSource source)
-    {
-        if (source.Length > api.MaxUploadBytes)
-        {
-            return UploadChecks.TooLarge(source.Length, api.MaxUploadBytes);
-        }
-        if (Limits is { } limits && UploadChecks.AgainstQuota(limits, source.Length) is { } full)
+        if (known && _limits.Promise(job) is { } full)
         {
             return full;
         }

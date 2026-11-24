@@ -11,4 +11,7 @@ internal static partial class MediaLog
 
     [LoggerMessage(EventId = 302, Level = LogLevel.Information, Message = "The media limits could not be read; the server will judge each file.")]
     public static partial void LimitsFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 303, Level = LogLevel.Warning, Message = "The media limits were refused or the server failed; the server will judge.")]
+    public static partial void LimitsUnavailable(ILogger logger, Exception exception);
 }

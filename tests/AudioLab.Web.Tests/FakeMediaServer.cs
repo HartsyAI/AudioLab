@@ -1,12 +1,16 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>A media store in memory behind a handler: it lists, takes uploads, deletes, and can be told to refuse, stall or time out.</summary>
+/// <summary>A media store in memory behind a handler: it lists, takes uploads, deletes, enforces its limits, and can refuse or stall.</summary>
 internal sealed class FakeMediaServer : HttpMessageHandler
 {
-    private readonly List<(string Id, string Name)> _files = [];
+    /// <summary>What a file that was there from the start weighs.</summary>
+    public const long SeedBytes = 264644;
+
+    private readonly List<(string Id, string Name, long Bytes)> _files = [];
 
     private readonly Lock _gate = new();
 
@@ -14,12 +18,14 @@ internal sealed class FakeMediaServer : HttpMessageHandler
 
     private int _running;
 
+    private long _runningBytes;
+
     public FakeMediaServer(IEnumerable<string> ids)
     {
         foreach (string id in ids)
         {
-            _files.Add((id, "a.wav"));
-            _next = Math.Max(_next, int.Parse(id[1..], System.Globalization.CultureInfo.InvariantCulture));
+            _files.Add((id, "a.wav", SeedBytes));
+            _next = Math.Max(_next, int.Parse(id[1..], CultureInfo.InvariantCulture));
         }
     }
 
@@ -53,14 +59,23 @@ internal sealed class FakeMediaServer : HttpMessageHandler
     /// <summary>What the limits route answers with.</summary>
     public HttpStatusCode LimitsStatus { get; set; } = HttpStatusCode.OK;
 
-    /// <summary>The largest file one upload may carry, as the limits route says.</summary>
+    /// <summary>Whether a request for the limits ends in the client timeout.</summary>
+    public bool LimitsTimeOut { get; set; }
+
+    /// <summary>Called with the number of each limits request once its answer is worked out; the answer is sent when the task ends.</summary>
+    public Func<int, Task>? BeforeLimitsAnswer { get; set; }
+
+    /// <summary>The largest file one upload may carry; the limits route says it and an upload over it is refused.</summary>
     public long MaxUploadBytes { get; set; } = 512L * 1024 * 1024;
 
-    /// <summary>The most files the user may keep, as the limits route says.</summary>
+    /// <summary>The most files the user may keep; the limits route says it and an upload that would pass it is refused.</summary>
     public int MaxFiles { get; set; } = 5000;
 
-    /// <summary>The most bytes of media the user may keep, as the limits route says.</summary>
+    /// <summary>The most bytes of media the user may keep; the limits route says it and an upload that would pass it is refused.</summary>
     public long MaxBytes { get; set; } = 20L * 1024 * 1024 * 1024;
+
+    /// <summary>The most uploads the user may have running; the limits route says it and one more is refused with a 429.</summary>
+    public int MaxConcurrentUploads { get; set; } = 4;
 
     /// <summary>How many times the limits were asked for.</summary>
     public int LimitReads { get; private set; }
@@ -74,11 +89,23 @@ internal sealed class FakeMediaServer : HttpMessageHandler
     /// <summary>The uploads that arrived, with their address and bytes.</summary>
     public List<(string Path, byte[] Body)> Uploads { get; } = [];
 
-    public void Add(string id, string name)
+    /// <summary>How many files the user has now, which a limits answer counts.</summary>
+    public int FileCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _files.Count;
+            }
+        }
+    }
+
+    public void Add(string id, string name, long bytes = SeedBytes)
     {
         lock (_gate)
         {
-            _files.Add((id, name));
+            _files.Add((id, name, bytes));
         }
     }
 
@@ -94,10 +121,11 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         };
     }
 
-    private static string Summary(string id, string name)
+    private static string Summary(string id, string name, long bytes)
     {
         return $"{{\"id\":\"{id}\",\"name\":\"{name}\",\"kind\":\"audio\",\"format\":\"wav\",\"encoding\":\"pcm16\",\"duration\":1.5,"
-            + "\"sampleRate\":44100,\"channels\":2,\"bytes\":264644,\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\","
+            + $"\"sampleRate\":44100,\"channels\":2,\"bytes\":{bytes},"
+            + "\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\","
             + "\"created\":\"2026-11-22T10:00:00+00:00\"}";
     }
 
@@ -109,7 +137,7 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         }
         if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/limits", StringComparison.Ordinal))
         {
-            return Limits();
+            return await LimitsAsync(cancellationToken);
         }
         if (request.Method == HttpMethod.Get)
         {
@@ -139,23 +167,35 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         return new HttpResponseMessage(HttpStatusCode.NoContent);
     }
 
-    private HttpResponseMessage Limits()
+    private async Task<HttpResponseMessage> LimitsAsync(CancellationToken cancellationToken)
     {
+        int read;
         int files;
         long bytes;
+        int running;
         lock (_gate)
         {
-            LimitReads++;
-            files = _files.Count;
-            bytes = Uploads.Sum(upload => (long)upload.Body.Length);
+            read = ++LimitReads;
+            files = _files.Count + _running;
+            bytes = _files.Sum(file => file.Bytes) + _runningBytes;
+            running = _running;
+        }
+        if (LimitsTimeOut)
+        {
+            throw new TaskCanceledException("The request timed out.");
+        }
+        if (BeforeLimitsAnswer is { } gate)
+        {
+            await gate(read).WaitAsync(cancellationToken);
         }
         if (LimitsStatus != HttpStatusCode.OK)
         {
             return Problem(LimitsStatus, "There is no such route.");
         }
-        string json = $"{{\"maxUploadBytes\":{MaxUploadBytes},\"maxFiles\":{MaxFiles},\"maxBytes\":{MaxBytes},\"maxConcurrentUploads\":4,"
-            + $"\"files\":{files},\"bytes\":{bytes},\"filesRemaining\":{Math.Max(0, MaxFiles - files)},"
-            + $"\"bytesRemaining\":{Math.Max(0, MaxBytes - bytes)},\"uploadsRunning\":0}}";
+        string json = $"{{\"maxUploadBytes\":{MaxUploadBytes},\"maxFiles\":{MaxFiles},\"maxBytes\":{MaxBytes},"
+            + $"\"maxConcurrentUploads\":{MaxConcurrentUploads},\"files\":{files},\"bytes\":{bytes},"
+            + $"\"filesRemaining\":{Math.Max(0, MaxFiles - files)},\"bytesRemaining\":{Math.Max(0L, MaxBytes - bytes)},"
+            + $"\"uploadsRunning\":{running}}}";
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
@@ -173,7 +213,7 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         string[] files;
         lock (_gate)
         {
-            files = [.. Enumerable.Reverse(_files).Select(file => Summary(file.Id, file.Name))];
+            files = [.. Enumerable.Reverse(_files).Select(file => Summary(file.Id, file.Name, file.Bytes))];
         }
         if (read == 1 && HoldFirstList is { } hold)
         {
@@ -185,14 +225,51 @@ internal sealed class FakeMediaServer : HttpMessageHandler
         };
     }
 
+    // The limits are enforced as the real server does, before the body is read, from the length that was announced.
+    private HttpResponseMessage? Refusal(long length)
+    {
+        lock (_gate)
+        {
+            if (_running > MaxConcurrentUploads)
+            {
+                return Problem(HttpStatusCode.TooManyRequests, "You have too many uploads running; try again in a moment.");
+            }
+            if (length > MaxUploadBytes)
+            {
+                return Problem(HttpStatusCode.RequestEntityTooLarge, "The file is larger than the server accepts.");
+            }
+            if (_files.Count + _running > MaxFiles)
+            {
+                return Problem(HttpStatusCode.InsufficientStorage, $"You already have {MaxFiles} media files, the most allowed; delete one first.");
+            }
+            if (_files.Sum(file => file.Bytes) + _runningBytes + length > MaxBytes)
+            {
+                return Problem(HttpStatusCode.InsufficientStorage, "This file would take your media past what is allowed; delete some first.");
+            }
+            return null;
+        }
+    }
+
     private async Task<HttpResponseMessage> UploadAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        int now = Interlocked.Increment(ref _running);
+        long length = request.Content!.Headers.ContentLength ?? 0;
+        int now;
+        HttpResponseMessage? refused;
+        lock (_gate)
+        {
+            now = ++_running;
+            MostAtOnce = Math.Max(MostAtOnce, now);
+            refused = Refusal(length);
+            if (refused is null)
+            {
+                _runningBytes += length;
+            }
+        }
         try
         {
-            lock (_gate)
+            if (refused is not null)
             {
-                MostAtOnce = Math.Max(MostAtOnce, now);
+                return refused;
             }
             byte[] body = await request.Content!.ReadAsByteArrayAsync(cancellationToken);
             if (Stall)
@@ -215,16 +292,23 @@ internal sealed class FakeMediaServer : HttpMessageHandler
                 }
                 string name = Uri.UnescapeDataString(request.RequestUri.Query.Split('=')[1]);
                 string id = $"m{++_next}";
-                _files.Add((id, name));
+                _files.Add((id, name, body.Length));
                 return new HttpResponseMessage(HttpStatusCode.Created)
                 {
-                    Content = new StringContent(Summary(id, name), Encoding.UTF8, "application/json"),
+                    Content = new StringContent(Summary(id, name, body.Length), Encoding.UTF8, "application/json"),
                 };
             }
         }
         finally
         {
-            Interlocked.Decrement(ref _running);
+            lock (_gate)
+            {
+                _running--;
+                if (refused is null)
+                {
+                    _runningBytes -= length;
+                }
+            }
         }
     }
 }

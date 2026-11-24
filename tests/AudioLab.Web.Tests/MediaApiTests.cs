@@ -50,7 +50,8 @@ public sealed class MediaApiTests
         Assert.Equal((536870912L, 4988, 21390950400L), (limits.MaxUploadBytes, limits.FilesRemaining, limits.BytesRemaining));
         Assert.Equal(1, limits.UploadsRunning);
         StubHandler extra = new(HttpStatusCode.OK, Limits.Replace("{", "{\"owner\":\"u1\",", StringComparison.Ordinal));
-        await Assert.ThrowsAnyAsync<Exception>(() => Api(extra).LimitsAsync());
+        ApiException failure = await Assert.ThrowsAsync<ApiException>(() => Api(extra).LimitsAsync());
+        Assert.Equal("The server answered with something this page cannot read.", failure.Message);
     }
 
     /// <summary>A summary keeps the duration the server measured exactly, since a clip must send it back verbatim.</summary>
