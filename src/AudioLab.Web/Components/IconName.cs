@@ -53,4 +53,10 @@ public enum IconName
 
     /// <summary>An arrow curving forward: redo.</summary>
     Redo,
+
+    /// <summary>A column of dots: the handle an item is dragged by.</summary>
+    Grip,
+
+    /// <summary>A chevron pointing up.</summary>
+    ChevronUp,
 }

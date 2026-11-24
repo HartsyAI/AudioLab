@@ -31,9 +31,9 @@ internal static class EffectCommands
             string known = string.Join(", ", EffectPresets.For(command.Kind).Select(candidate => candidate.Name));
             return CommandChecks.Rejected($"There is no {command.Kind.ToString().ToLowerInvariant()} preset of that name; the presets are: {known}.");
         }
-        if (track.Effects.Count >= ProjectLimits.MaxEffects)
+        if (EffectRules.AddRefusal(track.Effects.Count) is { } full)
         {
-            return CommandChecks.OutOfRange($"A track has at most {ProjectLimits.MaxEffects} effects.");
+            return CommandChecks.OutOfRange(full);
         }
         Effect added = EffectRules.Create(command.Kind, ids.Next<EffectId>());
         if (preset is not null)

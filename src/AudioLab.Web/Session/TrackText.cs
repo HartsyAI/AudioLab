@@ -1,5 +1,7 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
+using AudioLab.Web.Session.Effects;
 
 namespace AudioLab.Web.Session;
 
@@ -32,15 +34,7 @@ public static class TrackText
     public static string Effect(Effect effect)
     {
         ArgumentNullException.ThrowIfNull(effect);
-        return effect switch
-        {
-            EqEffect => "EQ",
-            CompressorEffect => "Compressor",
-            ReverbEffect => "Reverb",
-            DelayEffect => "Delay",
-            SaturationEffect => "Saturation",
-            _ => "Effect",
-        };
+        return EffectText.Name(EffectRules.KindOf(effect));
     }
 
     /// <summary>The pan as a strip writes it: C at the centre, otherwise L or R and the percent.</summary>

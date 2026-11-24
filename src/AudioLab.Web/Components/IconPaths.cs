@@ -1,10 +1,17 @@
+using System.Globalization;
+
 namespace AudioLab.Web.Components;
 
 /// <summary>The outline of each icon on a 24 by 24 grid, drawn as a stroke in the current text colour.</summary>
 /// <remarks>The paths are Lucide's, except the logo (ISC licence; the notice is wwwroot/icons/LICENSE.txt).</remarks>
 internal static class IconPaths
 {
-    private static string Dot(int x) => $"M{x} 10.6a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z";
+    private static string Dot(int x) => Dot(x, 12);
+
+    private static string Dot(int x, int y)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"M{x} {y - 1.4}a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z");
+    }
 
     /// <summary>Whether an icon is filled, as the transport glyphs and the pointer are; every other icon is a stroke.</summary>
     public static bool IsFilled(IconName name) =>
@@ -31,6 +38,8 @@ internal static class IconPaths
             IconName.Pointer => "M5.4 3 19 13.6l-5.6.8 3.2 6.2-2.1 1-3.1-6.3-5.6 4.4Z",
             IconName.Undo => "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
             IconName.Redo => "m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13",
+            IconName.Grip => Dot(8, 6) + Dot(8, 12) + Dot(8, 18) + Dot(16, 6) + Dot(16, 12) + Dot(16, 18),
+            IconName.ChevronUp => "m18 15-6-6-6 6",
             IconName.Range => "M7.7 3.4h8.6M12 3.4v17.2M7.7 20.6h8.6",
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, "That icon is not in the set."),
         };

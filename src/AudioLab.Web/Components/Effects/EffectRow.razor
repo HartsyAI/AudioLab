@@ -1,0 +1,25 @@
+<li class="effect-item" data-dragging="@Flag(Dragging)" data-drop="@Drop">
+    <div id="@ElementId" class="effect-row" role="group" tabindex="0" aria-label="@Description" data-bypassed="@Flag(!Effect.Enabled)"
+         @onkeydown="KeyAsync">
+        <span class="effect-grip" data-editable="@Flag(Editable)" title="@GripHint" @onpointerdown="GrabAsync">
+            <Icon Name="IconName.Grip" />
+        </span>
+        <span class="effect-index">@Place</span>
+        <span class="effect-name">@Name</span>
+        <span class="effect-state">@(Effect.Enabled ? string.Empty : "Bypassed")</span>
+        <Toggle Label="On" Name="@($"{Name} {Place} on")" On="Effect.Enabled" Disabled="!Editable" Reason="@(Editable ? null : Reason)"
+                OnClick="ToggleAsync" />
+        <Button Variant="ButtonVariant.Icon" Name="@($"Move {Name} {Place} earlier")" Shortcut="@Shortcuts.EffectEarlier.Display"
+                Disabled="EarlierReason is not null" DisabledReason="@EarlierReason" OnClick="EarlierAsync">
+            <Icon Name="IconName.ChevronUp" />
+        </Button>
+        <Button Variant="ButtonVariant.Icon" Name="@($"Move {Name} {Place} later")" Shortcut="@Shortcuts.EffectLater.Display"
+                Disabled="LaterReason is not null" DisabledReason="@LaterReason" OnClick="LaterAsync">
+            <Icon Name="IconName.Chevron" />
+        </Button>
+        <Button Variant="ButtonVariant.Icon" Name="@($"Remove {Name} {Place}")" Shortcut="@Shortcuts.EffectRemove.Display"
+                Disabled="!Editable" DisabledReason="@Reason" OnClick="RemoveAsync">
+            <Icon Name="IconName.Trash" />
+        </Button>
+    </div>
+</li>
