@@ -18,6 +18,9 @@ public static class Shortcuts
     /// <summary>The scope of the effects panel: keys heard while the focus is inside it, so they never meet the keys of the arrangement.</summary>
     public const string Effects = "effects";
 
+    /// <summary>The scope of a control that takes a value, such as a knob: keys heard while the focus is on the control itself.</summary>
+    public const string Controls = "controls";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
@@ -238,11 +241,16 @@ public static class Shortcuts
     /// <summary>Move the effect that has the focus one place later in the chain.</summary>
     public static readonly Shortcut EffectLater = new("effect.move.later", "Move effect later", "ArrowDown", Effects, Alt: true);
 
+    /// <summary>Put the knob that has the focus back to its default.</summary>
+    public static readonly Shortcut ControlReset = new("control.reset", "Reset to default", "Backspace", Controls);
+
+    /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
+    public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
+
     /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> EffectChain =
     [
-        EffectAddMenu, EffectRemove, EffectBypass, EffectEarlier,
-        EffectLater,
+        EffectAddMenu, EffectRemove, EffectBypass, EffectEarlier, EffectLater, EffectPresets,
     ];
 
     /// <summary>Every shortcut of the piano roll, in the order they are listed.</summary>
@@ -261,6 +269,6 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset,
     ];
 }

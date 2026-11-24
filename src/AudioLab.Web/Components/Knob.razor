@@ -1,8 +1,26 @@
-<div class="knob" role="img" aria-label="@($"{Label} {Text}")">
-    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" class="disc"></circle>
-        <circle cx="12" cy="12" r="9" class="rim"></circle>
-        <line x1="12" y1="12" x2="12" y2="4.5" class="pointer" transform="@Transform"></line>
-    </svg>
-    <span class="value">@Text</span>
-</div>
+@if (Interactive)
+{
+    <div class="knob" data-interactive="true" data-dragging="@(_gesture is { Active: true } ? "true" : "false")">
+        <button type="button" class="knob-control" role="slider" aria-label="@Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Now"
+                aria-valuetext="@Shown" aria-disabled="@(Disabled ? "true" : null)" title="@Hint" @onpointerdown="PressAsync"
+                @onkeydown="KeyAsync" @ondblclick="ResetAsync">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" class="disc"></circle>
+                <circle cx="12" cy="12" r="9" class="rim"></circle>
+                <line x1="12" y1="12" x2="12" y2="4.5" class="pointer" transform="@Transform"></line>
+            </svg>
+        </button>
+        <span class="value">@Shown</span>
+    </div>
+}
+else
+{
+    <div class="knob" role="img" aria-label="@($"{Label} {Text}")">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" class="disc"></circle>
+            <circle cx="12" cy="12" r="9" class="rim"></circle>
+            <line x1="12" y1="12" x2="12" y2="4.5" class="pointer" transform="@Transform"></line>
+        </svg>
+        <span class="value">@Text</span>
+    </div>
+}

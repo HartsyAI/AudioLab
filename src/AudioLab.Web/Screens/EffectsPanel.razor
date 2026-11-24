@@ -4,6 +4,9 @@
 @implements IDisposable
 
 <div id="@PanelId" class="effects" role="region" aria-label="Effects" tabindex="-1" @onkeydown="PanelKeyAsync">
+    @{
+        Effect? shown = Current is { } current ? Selection.Of(current) : null;
+    }
     @if (Current is not { } track)
     {
         <EmptyState Heading="No track selected" Message="Select a track to see and edit its effects." />
@@ -40,16 +43,24 @@
         }
         else
         {
-            <ul id="@ListId" class="effects-list" aria-label="@($"Effects of {track.Name}, in signal order")">
-                @for (int index = 0; index < track.Effects.Count; index++)
+            <div class="effects-body">
+                <ul id="@ListId" class="effects-list" aria-label="@($"Effects of {track.Name}, in signal order")">
+                    @for (int index = 0; index < track.Effects.Count; index++)
+                    {
+                        Effect effect = track.Effects[index];
+                        <EffectRow @key="effect.Id" Effect="effect" Index="index" Count="track.Effects.Count" Editable="Actions.CanEdit"
+                                   Reason="@Actions.Reason" Selected="@(effect.Id == shown?.Id)" OnSelect="Selection.Select"
+                                   Dragging="@(_drag is { Active: true } drag && drag.Effect == effect.Id.Value)" Drop="@DropOf(index)"
+                                   OnEnabled="SetEnabledAsync" OnMove="MoveAsync" OnRemove="RemoveAsync" OnGrab="GrabAsync" OnKey="KeyAsync" />
+                    }
+                </ul>
+                @if (shown is { } selected)
                 {
-                    Effect effect = track.Effects[index];
-                    <EffectRow @key="effect.Id" Effect="effect" Index="index" Count="track.Effects.Count" Editable="Actions.CanEdit"
-                               Reason="@Actions.Reason"
-                               Dragging="@(_drag is { Active: true } drag && drag.Effect == effect.Id.Value)" Drop="@DropOf(index)"
-                               OnEnabled="SetEnabledAsync" OnMove="MoveAsync" OnRemove="RemoveAsync" OnGrab="GrabAsync" OnKey="KeyAsync" />
+                    <EffectSettings @key="selected.Id" Effect="selected" Index="IndexOf(track, selected.Id)" Editable="Actions.CanEdit"
+                                    Reason="@Actions.Reason"
+                                    OnSetting="SetSettingAsync" OnSync="SetSyncAsync" OnPreset="ApplyPresetAsync" OnAbandon="AbandonedAsync" />
                 }
-            </ul>
+            </div>
         }
         <p class="effects-status" role="status">@_announcement</p>
     }

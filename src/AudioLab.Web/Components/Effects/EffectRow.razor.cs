@@ -9,7 +9,7 @@ namespace AudioLab.Web.Components.Effects;
 /// <summary>The catalogue effect row: one effect of a chain with its place, name and bypass, and the buttons that move or remove it.</summary>
 public sealed partial class EffectRow
 {
-    private (Effect? Effect, int Index, int Count, bool Editable, string? Reason, bool Dragging, string? Drop) _shown;
+    private (Effect? Effect, int Index, int Count, bool Editable, string? Reason, bool Dragging, string? Drop, bool Selected) _shown;
 
     /// <summary>The effect.</summary>
     [Parameter, EditorRequired]
@@ -55,6 +55,14 @@ public sealed partial class EffectRow
     [Parameter]
     public EventCallback<(EffectId Effect, PointerEventArgs Press)> OnGrab { get; set; }
 
+    /// <summary>Whether the settings shown are this effect's.</summary>
+    [Parameter]
+    public bool Selected { get; set; }
+
+    /// <summary>Raised with the effect when the row or anything in it takes the focus or a click, so its settings are shown.</summary>
+    [Parameter]
+    public EventCallback<EffectId> OnSelect { get; set; }
+
     /// <summary>Raised with the effect and the key when a key is pressed in the row.</summary>
     [Parameter]
     public EventCallback<(EffectId Effect, KeyboardEventArgs Key)> OnKey { get; set; }
@@ -79,13 +87,15 @@ public sealed partial class EffectRow
     /// <inheritdoc />
     protected override bool ShouldRender()
     {
-        (Effect?, int, int, bool, string?, bool, string?) now = (Effect, Index, Count, Editable, Reason, Dragging, Drop);
+        (Effect?, int, int, bool, string?, bool, string?, bool) now = (Effect, Index, Count, Editable, Reason, Dragging, Drop, Selected);
         bool same = _shown == now;
         _shown = now;
         return !same;
     }
 
     private static string Flag(bool on) => on ? "true" : "false";
+
+    private Task SelectAsync() => Selected ? Task.CompletedTask : OnSelect.InvokeAsync(Effect.Id);
 
     private Task ToggleAsync() => OnEnabled.InvokeAsync((Effect.Id, !Effect.Enabled));
 

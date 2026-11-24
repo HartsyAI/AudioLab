@@ -49,6 +49,7 @@ internal sealed class RenderedMarkup : Renderer
         services?.Invoke(collection);
         // The live meters and the playhead read the playback service, which here has an engine that makes no sound.
         collection.TryAddSingleton<IAudioHost, FakeAudioHost>();
+        collection.TryAddSingleton<IPointerTracker, NoPointerTracker>();
         collection.TryAddSingleton(new HttpClient { BaseAddress = new Uri("http://example.test/") });
         collection.TryAddSingleton(TimeProvider.System);
         collection.TryAddSingleton<PlaybackService>();

@@ -47,6 +47,12 @@ public sealed partial class EffectsPanel : IDisposable
     public TrackId? Selected { get; set; }
 
     [Inject]
+    private EffectSelection Selection { get; set; } = default!;
+
+    [Inject]
+    private IKeyGuard Guard { get; set; } = default!;
+
+    [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
 
     [Inject]
@@ -71,18 +77,32 @@ public sealed partial class EffectsPanel : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        Selection.Changed -= OnSelectionChanged;
         Pointer.Stop();
+    }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        Selection.Changed += OnSelectionChanged;
     }
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
+        if (firstRender && OperatingSystem.IsBrowser())
+        {
+            // A knob takes the arrow keys, Home and End; without this the page would also seek with them.
+            Guard.PreventNavigationKeys(PanelId, "slider");
+        }
         if (_focus is not null)
         {
             Focus.Focus(_focus);
             _focus = null;
         }
     }
+
+    private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
 
     private string? DropOf(int index)
     {
@@ -262,8 +282,98 @@ public sealed partial class EffectsPanel : IDisposable
         return Shortcuts.EffectLater.Matches(key) ? MoveAsync((press.Effect, 1)) : Task.CompletedTask;
     }
 
+    private async Task SetSettingAsync((EffectId Effect, string Name, double Value) change)
+    {
+        if (!TryHold(change.Effect, out Track? track, out int index))
+        {
+            return;
+        }
+        EditResult result = await Actions.Effects.SetParameter(track!.Id, change.Effect, change.Name, change.Value);
+        if (result.Succeeded && EffectRules.Find(track.Effects[index], change.Name) is { } setting)
+        {
+            Say($"{Subject(track, index)} {setting.Label} {EffectValueText.Of(setting, change.Value)}.");
+        }
+    }
+
+    private async Task SetSyncAsync((EffectId Effect, bool Sync, string? Division) change)
+    {
+        if (!TryHold(change.Effect, out Track? track, out int index))
+        {
+            return;
+        }
+        EditResult result = await Actions.Effects.SetDelaySync(track!.Id, change.Effect, change.Sync, change.Division);
+        if (result.Succeeded)
+        {
+            Say(change.Sync
+                ? $"{Subject(track, index)} follows the tempo{(change.Division is null ? string.Empty : $", {change.Division}")}."
+                : $"{Subject(track, index)} keeps its own time.");
+        }
+    }
+
+    private async Task ApplyPresetAsync((EffectId Effect, string Preset) change)
+    {
+        if (!TryHold(change.Effect, out Track? track, out int index))
+        {
+            return;
+        }
+        if (_editing)
+        {
+            Say(Busy);
+            return;
+        }
+        _editing = true;
+        try
+        {
+            EditResult result = await Actions.Effects.ApplyPreset(track!.Id, change.Effect, change.Preset);
+            if (result.Succeeded)
+            {
+                Say($"{change.Preset} applied to {Subject(track, index)}.");
+            }
+        }
+        finally
+        {
+            _editing = false;
+        }
+    }
+
+    // A knob that was dragged on an effect that is gone must not set the effect that took its place: the edit is dropped, and the user is told.
+    private Task AbandonedAsync()
+    {
+        Toasts.Show(ToastKind.Warning, "The effect changed while a knob was being dragged, so that edit was not sent.");
+        return Task.CompletedTask;
+    }
+
+    // Whether an edit of an effect can be sent now: the project can be edited and the effect is still in the chain; if not, it says why.
+    private bool TryHold(EffectId effect, out Track? track, out int index)
+    {
+        track = Current;
+        index = track is null ? -1 : IndexOf(track, effect);
+        if (track is null)
+        {
+            return false;
+        }
+        if (!Actions.CanEdit)
+        {
+            Say(Actions.Reason ?? "The project cannot be edited now.");
+            return false;
+        }
+        if (index < 0)
+        {
+            Toasts.Show(ToastKind.Warning, "That effect is no longer in the chain, so the change was not sent.");
+            return false;
+        }
+        return true;
+    }
+
+    private static string Subject(Track track, int index) => $"{NameAt(track, index)} {index + 1}";
+
     private Task PanelKeyAsync(KeyboardEventArgs key)
     {
+        if (Shortcuts.EffectPresets.Matches(key) && Current is { } selected && Selection.Of(selected) is not null && Actions.CanEdit)
+        {
+            Focus.FocusIn(EffectSettings.PresetMenuId, "button");
+            return Task.CompletedTask;
+        }
         if (key.Repeat)
         {
             return Task.CompletedTask;

@@ -216,6 +216,8 @@ public sealed class MediaDraggerTests
 
         private Action? _cancel;
 
+        public bool Shift => false;
+
         public bool Stopped { get; private set; }
 
         public void Begin(Action<double, double> move, Action<double, double> end, Action cancel)

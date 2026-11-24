@@ -1,6 +1,6 @@
-<li class="effect-item" data-dragging="@Flag(Dragging)" data-drop="@Drop">
+<li class="effect-item" data-dragging="@Flag(Dragging)" data-drop="@Drop" data-selected="@Flag(Selected)">
     <div id="@ElementId" class="effect-row" role="group" tabindex="0" aria-label="@Description" data-bypassed="@Flag(!Effect.Enabled)"
-         @onkeydown="KeyAsync">
+         @onkeydown="KeyAsync" @onfocusin="SelectAsync" @onclick="SelectAsync">
         <span class="effect-grip" data-editable="@Flag(Editable)" title="@GripHint" @onpointerdown="GrabAsync">
             <Icon Name="IconName.Grip" />
         </span>

@@ -17,48 +17,75 @@ public static class EffectRules
 
     private static readonly IReadOnlyList<EffectParameter> _eq =
     [
-        Setting<EqEffect>("hpFreq", 20, 1000, e => e.HpFreq, (e, v) => e with { HpFreq = v }),
-        Setting<EqEffect>("lowGain", -12, 12, e => e.LowGain, (e, v) => e with { LowGain = v }),
-        Setting<EqEffect>("lowFreq", 40, 600, e => e.LowFreq, (e, v) => e with { LowFreq = v }),
-        Setting<EqEffect>("midGain", -12, 12, e => e.MidGain, (e, v) => e with { MidGain = v }),
-        Setting<EqEffect>("midFreq", 200, 8000, e => e.MidFreq, (e, v) => e with { MidFreq = v }),
-        Setting<EqEffect>("midQ", 0.3, 4, e => e.MidQ, (e, v) => e with { MidQ = v }),
-        Setting<EqEffect>("highGain", -12, 12, e => e.HighGain, (e, v) => e with { HighGain = v }),
-        Setting<EqEffect>("highFreq", 1000, 16000, e => e.HighFreq, (e, v) => e with { HighFreq = v }),
-        Setting<EqEffect>("lpFreq", 1000, 20000, e => e.LpFreq, (e, v) => e with { LpFreq = v }),
+        Setting<EqEffect>(
+            "hpFreq", "High-pass", EffectUnit.Hertz, 20, 1000, e => e.HpFreq, (e, v) => e with { HpFreq = v }, EffectScale.Logarithmic),
+        Setting<EqEffect>(
+            "lowGain", "Low gain", EffectUnit.Decibel, -12, 12, e => e.LowGain, (e, v) => e with { LowGain = v }),
+        Setting<EqEffect>(
+            "lowFreq", "Low frequency", EffectUnit.Hertz, 40, 600, e => e.LowFreq, (e, v) => e with { LowFreq = v }, EffectScale.Logarithmic),
+        Setting<EqEffect>(
+            "midGain", "Mid gain", EffectUnit.Decibel, -12, 12, e => e.MidGain, (e, v) => e with { MidGain = v }),
+        Setting<EqEffect>(
+            "midFreq", "Mid frequency", EffectUnit.Hertz, 200, 8000, e => e.MidFreq, (e, v) => e with { MidFreq = v }, EffectScale.Logarithmic),
+        Setting<EqEffect>(
+            "midQ", "Mid width", EffectUnit.None, 0.3, 4, e => e.MidQ, (e, v) => e with { MidQ = v }, EffectScale.Logarithmic),
+        Setting<EqEffect>(
+            "highGain", "High gain", EffectUnit.Decibel, -12, 12, e => e.HighGain, (e, v) => e with { HighGain = v }),
+        Setting<EqEffect>(
+            "highFreq", "High frequency", EffectUnit.Hertz, 1000, 16000, e => e.HighFreq, (e, v) => e with { HighFreq = v }, EffectScale.Logarithmic),
+        Setting<EqEffect>(
+            "lpFreq", "Low-pass", EffectUnit.Hertz, 1000, 20000, e => e.LpFreq, (e, v) => e with { LpFreq = v }, EffectScale.Logarithmic),
     ];
 
     private static readonly IReadOnlyList<EffectParameter> _compressor =
     [
-        Setting<CompressorEffect>("threshold", -60, 0, e => e.Threshold, (e, v) => e with { Threshold = v }),
-        Setting<CompressorEffect>("knee", 0, 40, e => e.Knee, (e, v) => e with { Knee = v }),
-        Setting<CompressorEffect>("ratio", 1, 20, e => e.Ratio, (e, v) => e with { Ratio = v }),
-        Setting<CompressorEffect>("attack", 0.001, 1, e => e.Attack, (e, v) => e with { Attack = v }),
-        Setting<CompressorEffect>("release", 0.01, 1, e => e.Release, (e, v) => e with { Release = v }),
-        Setting<CompressorEffect>("makeup", 0, 24, e => e.Makeup, (e, v) => e with { Makeup = v }),
+        Setting<CompressorEffect>(
+            "threshold", "Threshold", EffectUnit.Decibel, -60, 0, e => e.Threshold, (e, v) => e with { Threshold = v }),
+        Setting<CompressorEffect>(
+            "knee", "Knee", EffectUnit.Decibel, 0, 40, e => e.Knee, (e, v) => e with { Knee = v }),
+        Setting<CompressorEffect>(
+            "ratio", "Ratio", EffectUnit.Ratio, 1, 20, e => e.Ratio, (e, v) => e with { Ratio = v }),
+        Setting<CompressorEffect>(
+            "attack", "Attack", EffectUnit.Seconds, 0.001, 1, e => e.Attack, (e, v) => e with { Attack = v }, EffectScale.Logarithmic),
+        Setting<CompressorEffect>(
+            "release", "Release", EffectUnit.Seconds, 0.01, 1, e => e.Release, (e, v) => e with { Release = v }, EffectScale.Logarithmic),
+        Setting<CompressorEffect>(
+            "makeup", "Makeup", EffectUnit.Decibel, 0, 24, e => e.Makeup, (e, v) => e with { Makeup = v }),
     ];
 
     private static readonly IReadOnlyList<EffectParameter> _reverb =
     [
-        Setting<ReverbEffect>("size", 0.1, 8, e => e.Size, (e, v) => e with { Size = v }),
-        Setting<ReverbEffect>("decay", 0.5, 6, e => e.Decay, (e, v) => e with { Decay = v }),
-        Setting<ReverbEffect>("predelay", 0, 0.2, e => e.Predelay, (e, v) => e with { Predelay = v }),
-        Setting<ReverbEffect>("mix", 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
+        Setting<ReverbEffect>(
+            "size", "Size", EffectUnit.None, 0.1, 8, e => e.Size, (e, v) => e with { Size = v }, EffectScale.Logarithmic),
+        Setting<ReverbEffect>(
+            "decay", "Decay", EffectUnit.Seconds, 0.5, 6, e => e.Decay, (e, v) => e with { Decay = v }),
+        Setting<ReverbEffect>(
+            "predelay", "Predelay", EffectUnit.Seconds, 0, 0.2, e => e.Predelay, (e, v) => e with { Predelay = v }),
+        Setting<ReverbEffect>(
+            "mix", "Mix", EffectUnit.Fraction, 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
     ];
 
     private static readonly IReadOnlyList<EffectParameter> _delay =
     [
-        Setting<DelayEffect>("time", 0.02, 2, e => e.Time, (e, v) => e with { Time = v }),
-        Setting<DelayEffect>("feedback", 0, 0.9, e => e.Feedback, (e, v) => e with { Feedback = v }),
-        Setting<DelayEffect>("tone", 500, 15000, e => e.Tone, (e, v) => e with { Tone = v }),
-        Setting<DelayEffect>("mix", 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
+        Setting<DelayEffect>(
+            "time", "Time", EffectUnit.Seconds, 0.02, 2, e => e.Time, (e, v) => e with { Time = v }, EffectScale.Logarithmic,
+            followsTempo: true),
+        Setting<DelayEffect>(
+            "feedback", "Feedback", EffectUnit.Fraction, 0, 0.9, e => e.Feedback, (e, v) => e with { Feedback = v }),
+        Setting<DelayEffect>(
+            "tone", "Tone", EffectUnit.Hertz, 500, 15000, e => e.Tone, (e, v) => e with { Tone = v }, EffectScale.Logarithmic),
+        Setting<DelayEffect>(
+            "mix", "Mix", EffectUnit.Fraction, 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
     ];
 
     private static readonly IReadOnlyList<EffectParameter> _saturation =
     [
-        Setting<SaturationEffect>("drive", 0, 1, e => e.Drive, (e, v) => e with { Drive = v }),
-        Setting<SaturationEffect>("trim", -12, 6, e => e.Trim, (e, v) => e with { Trim = v }),
-        Setting<SaturationEffect>("mix", 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
+        Setting<SaturationEffect>(
+            "drive", "Drive", EffectUnit.Fraction, 0, 1, e => e.Drive, (e, v) => e with { Drive = v }),
+        Setting<SaturationEffect>(
+            "trim", "Trim", EffectUnit.Decibel, -12, 6, e => e.Trim, (e, v) => e with { Trim = v }),
+        Setting<SaturationEffect>(
+            "mix", "Mix", EffectUnit.Fraction, 0, 1, e => e.Mix, (e, v) => e with { Mix = v }),
     ];
 
     /// <summary>The reason a chain of <paramref name="count"/> effects takes no more, or null when it takes one more.</summary>
@@ -120,6 +147,13 @@ public static class EffectRules
         };
     }
 
+    /// <summary>The value a setting has in a new effect of its kind.</summary>
+    public static double Default(EffectKind kind, EffectParameter setting)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        return setting.Get(Create(kind, EffectId.From("default")));
+    }
+
     /// <summary>The kind of an effect.</summary>
     public static EffectKind KindOf(Effect effect)
     {
@@ -165,12 +199,25 @@ public static class EffectRules
 
     private static EffectParameter Setting<TEffect>(
         string name,
+        string label,
+        EffectUnit unit,
         double min,
         double max,
         Func<TEffect, double> get,
-        Func<TEffect, double, TEffect> set)
+        Func<TEffect, double, TEffect> set,
+        EffectScale scale = EffectScale.Linear,
+        bool followsTempo = false)
         where TEffect : Effect
     {
-        return new EffectParameter(name, min, max, effect => get((TEffect)effect), (effect, value) => set((TEffect)effect, value));
+        return new EffectParameter(
+            name,
+            label,
+            unit,
+            min,
+            max,
+            effect => get((TEffect)effect),
+            (effect, value) => set((TEffect)effect, value),
+            scale,
+            followsTempo);
     }
 }
