@@ -3,7 +3,7 @@
 @using AudioLab.Web.Components.Lyrics
 @using AudioLab.Web.Session
 
-<div class="lyrics" role="region" aria-label="Lyrics">
+<div id="@PanelId" class="lyrics" role="region" aria-label="Lyrics">
     @if (Found is not { } found)
     {
         <EmptyState Heading="No audio clip selected" Message="@EmptyMessage" />
@@ -22,26 +22,28 @@
         </header>
         <div class="lyrics-body">
             <div class="lyrics-text">
-                <Field Label="Lyrics" Multiline="true" Value="@_draft" ValueChanged="value => _draft = value" MaxLength="@ProjectLimits.MaxLongText"
-                       Placeholder="Write the lyrics. Section tags such as [Verse 1] are allowed." />
+                <Field Label="Lyrics" Multiline="true" Value="@_draft" ValueChanged="value => _draft = value"
+                       MaxLength="@ProjectLimits.MaxLongText" Placeholder="Write the lyrics. Section tags such as [Verse 1] are allowed." />
                 <div class="lyrics-text-actions">
                     <span class="lyrics-caption">@TextCaption</span>
-                    <Button Variant="ButtonVariant.Primary" Name="Save text" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="SaveTextAsync">Save text</Button>
+                    <Button Variant="ButtonVariant.Primary" Name="Save text" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                            OnClick="SaveTextAsync">Save text</Button>
                 </div>
                 <p class="lyrics-caption">Clear timing keeps the text and drops every word time. Saving changed words drops their times.</p>
             </div>
             <div class="lyrics-scroll">
                 @if (Words.Count == 0)
                 {
-                    <EmptyState Heading="No words yet" Message="Save some text to see its words here, then time them by dragging or with the keys." />
+                    <EmptyState Heading="No timed words yet" Message="Words appear here once they have times, from an LRC file or by timing them." />
                 }
                 else
                 {
                     <ol class="lyrics-words" aria-label="@($"Words of {found.Clip.Name}")">
                         @for (int index = 0; index < Words.Count; index++)
                         {
-                            <LyricWordRow @key="index" Index="index" Lyrics="Lyrics!" Geometry="Geometry" Width="StripWidth" Editable="Actions.CanEdit"
-                                          Reason="@Actions.Reason" OnCommit="CommitAsync" OnSay="SayAsync" />
+                            <LyricWordRow Index="index" Lyrics="Lyrics!" Geometry="Geometry" Width="StripWidth" Editable="Actions.CanEdit"
+                                          Reason="@Actions.Reason" TabStop="@(index == _stop)" OnCommit="CommitAsync" OnSay="SayAsync"
+                                          OnFocusWord="FocusWordAsync" OnStep="StepAsync" />
                         }
                     </ol>
                 }

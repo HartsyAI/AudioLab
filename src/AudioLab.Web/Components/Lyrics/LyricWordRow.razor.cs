@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components.Web;
 namespace AudioLab.Web.Components.Lyrics;
 
 /// <summary>One word of the lyrics: its text and times, the bar it covers on the source's scale, and the drag and keys that move it.</summary>
-/// <remarks>It listens to the cursor and draws itself again only when it becomes or stops being the word under the playhead.</remarks>
+/// <remarks>It redraws alone when it becomes or stops being the word under the playhead, and it ends its own drag when it goes.</remarks>
 public sealed partial class LyricWordRow : IDisposable
 {
     private const double Threshold = 3;
@@ -20,9 +20,7 @@ public sealed partial class LyricWordRow : IDisposable
 
     private double _originX;
 
-    private double _originStart;
-
-    private double _originEnd;
+    private LyricWord _began;
 
     private double _previewStart;
 
@@ -32,7 +30,12 @@ public sealed partial class LyricWordRow : IDisposable
 
     private bool _current;
 
+    private bool _disposed;
+
     private string? _held;
+
+    /// <summary>The element id of a word's row.</summary>
+    public static string IdOf(int index) => $"lyric-word-{index}";
 
     /// <summary>The word's place in the lyrics, counted from 0.</summary>
     [Parameter, EditorRequired]
@@ -58,19 +61,34 @@ public sealed partial class LyricWordRow : IDisposable
     [Parameter]
     public string? Reason { get; set; }
 
+    /// <summary>Whether this row is the one the list stops at in the tab order; the others are reached with the arrow keys.</summary>
+    [Parameter]
+    public bool TabStop { get; set; }
+
     /// <summary>Raised with the edit a drag or a key asks for.</summary>
     [Parameter]
     public EventCallback<LyricWordEdit> OnCommit { get; set; }
 
-    /// <summary>Says a sentence to the user, such as why an edit was held.</summary>
+    /// <summary>Says a sentence to the user, such as why an edit was refused.</summary>
     [Parameter]
     public EventCallback<string> OnSay { get; set; }
+
+    /// <summary>Raised when the row takes the focus, with its index.</summary>
+    [Parameter]
+    public EventCallback<int> OnFocusWord { get; set; }
+
+    /// <summary>Raised when an arrow key asks for the row before or after, with its index.</summary>
+    [Parameter]
+    public EventCallback<int> OnStep { get; set; }
 
     [Inject]
     private LyricsCursor Cursor { get; set; } = default!;
 
     [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
+
+    [Inject]
+    private LyricsDrags Drags { get; set; } = default!;
 
     private LyricWord Word => Lyrics.Words[Index];
 
@@ -82,15 +100,24 @@ public sealed partial class LyricWordRow : IDisposable
 
     private double BarWidth => Math.Max(Geometry.Width(ShownEnd - ShownStart), MinBarWidth);
 
-    private static string Hint => "Ctrl+Arrow moves the word; Ctrl+Shift+Arrow moves its start; Ctrl+Up and Ctrl+Down move its end.";
-
     private string Description => $"Word {Index + 1}, {Word.Word}, from {Clock(ShownStart)} to {Clock(ShownEnd)} seconds"
         + (Word.Unsure == true ? ", unsure" : string.Empty);
+
+    private static string Hint =>
+        $"{Shortcuts.LyricsWordEarlier.Display} or {Shortcuts.LyricsWordLater.Display} moves the word. "
+        + $"{Shortcuts.LyricsStartEarlier.Display} or {Shortcuts.LyricsStartLater.Display} moves its start. "
+        + $"{Shortcuts.LyricsEndEarlier.Display} or {Shortcuts.LyricsEndLater.Display} moves its end.";
 
     /// <inheritdoc />
     public void Dispose()
     {
+        _disposed = true;
         Cursor.Changed -= OnCursorChanged;
+        if (_part is not null)
+        {
+            Pointer.Stop();
+            Drags.End(this);
+        }
     }
 
     /// <inheritdoc />
@@ -113,9 +140,11 @@ public sealed partial class LyricWordRow : IDisposable
         }
     }
 
+    private Task FocusAsync() => OnFocusWord.InvokeAsync(Index);
+
     private async Task PressAsync(MouseEventArgs press, LyricWordPart part)
     {
-        if (press.Button != 0 || _part is not null)
+        if (press.Button != 0 || _part is not null || _disposed)
         {
             return;
         }
@@ -126,17 +155,17 @@ public sealed partial class LyricWordRow : IDisposable
         }
         _part = part;
         _originX = press.ClientX;
-        _originStart = Word.Start;
-        _originEnd = Word.End;
+        _began = Word;
         _previewStart = Word.Start;
         _previewEnd = Word.End;
+        Drags.Begin(this);
         Pointer.Begin(Move, Release, Cancel);
     }
 
     // The drag follows the pointer. The preview is Core's rule for the word, so what is drawn is what the server will keep.
     private void Move(double x, double y)
     {
-        if (_part is not { } part)
+        if (_disposed || _part is not { } part)
         {
             return;
         }
@@ -146,28 +175,32 @@ public sealed partial class LyricWordRow : IDisposable
             return;
         }
         _active = true;
-        Targets(part, dx / Geometry.PixelsPerSecond, out double? start, out double? end);
+        double seconds = dx / Geometry.PixelsPerSecond;
+        (double? start, double? end) = LyricsTiming.Targets(Lyrics, Index, part, seconds);
         LyricWord kept = LyricsTiming.Preview(Lyrics, Index, start, end);
         _previewStart = kept.Start;
         _previewEnd = kept.End;
-        _held = LyricsTiming.HeldText(Lyrics, Index, start, end);
+        _held = part == LyricWordPart.Body
+            ? LyricsTiming.MoveHeldText(Lyrics, Index, seconds)
+            : LyricsTiming.HeldText(Lyrics, Index, start, end);
         _ = InvokeAsync(StateHasChanged);
     }
 
-    // A release that moved the word sends one edit; a press that never travelled, or a release where the word began, sends nothing.
+    // A release sends one edit, unless the word has changed since the drag began (another client may have edited the lyrics meanwhile).
     private void Release(double x, double y)
     {
-        if (_part is not { } part)
+        if (_disposed || _part is not { } part)
         {
             return;
         }
-        LyricWordEdit? edit = _active && Differs(part, _previewStart, _previewEnd) ? EditOf(part, _previewStart, _previewEnd) : null;
-        string? held = _held;
+        bool moved = _active && Differs(part, _previewStart, _previewEnd);
+        bool same = LyricsTiming.SameWord(Lyrics, Index, _began);
+        LyricWordEdit? edit = moved && same ? EditOf(part, _previewStart, _previewEnd, _held) : null;
         Reset();
         _ = InvokeAsync(StateHasChanged);
-        if (held is not null)
+        if (moved && !same)
         {
-            _ = OnSay.InvokeAsync(held);
+            _ = OnSay.InvokeAsync("The word changed while it was being dragged, so the move was not sent.");
         }
         if (edit is { } made)
         {
@@ -177,6 +210,10 @@ public sealed partial class LyricWordRow : IDisposable
 
     private void Cancel()
     {
+        if (_disposed)
+        {
+            return;
+        }
         Reset();
         _ = InvokeAsync(StateHasChanged);
     }
@@ -186,44 +223,52 @@ public sealed partial class LyricWordRow : IDisposable
         _part = null;
         _active = false;
         _held = null;
+        Drags.End(this);
     }
 
-    // A key moves the word by one step through the same preview and edit as a drag.
+    // A key moves the word by one step through the same rule and edit as a drag; plain arrows move the focus to the row before or after.
     private async Task KeyAsync(KeyboardEventArgs key)
     {
-        if (key.Repeat || Step(key) is not { } move)
+        if (key.Repeat)
         {
             return;
         }
+        if (Step(key) is { } move)
+        {
+            await MoveByKeyAsync(move.Part, move.Seconds);
+            return;
+        }
+        if (key.CtrlKey || key.MetaKey || key.ShiftKey || key.AltKey)
+        {
+            return;
+        }
+        if (key.Key == "ArrowUp")
+        {
+            await OnStep.InvokeAsync(Index - 1);
+        }
+        else if (key.Key == "ArrowDown")
+        {
+            await OnStep.InvokeAsync(Index + 1);
+        }
+    }
+
+    private async Task MoveByKeyAsync(LyricWordPart part, double seconds)
+    {
         if (!Editable)
         {
             await OnSay.InvokeAsync(Reason ?? "The project cannot be edited now.");
             return;
         }
-        _originStart = Word.Start;
-        _originEnd = Word.End;
-        Targets(move.Part, move.Seconds, out double? wantedStart, out double? wantedEnd);
-        LyricWord kept = LyricsTiming.Preview(Lyrics, Index, wantedStart, wantedEnd);
-        if (!Differs(move.Part, kept.Start, kept.End))
+        (double? start, double? end) = LyricsTiming.Targets(Lyrics, Index, part, seconds);
+        LyricWord kept = LyricsTiming.Preview(Lyrics, Index, start, end);
+        if (!Differs(part, kept.Start, kept.End))
         {
             return;
         }
-        if (LyricsTiming.HeldText(Lyrics, Index, wantedStart, wantedEnd) is { } held)
-        {
-            await OnSay.InvokeAsync(held);
-        }
-        await OnCommit.InvokeAsync(EditOf(move.Part, kept.Start, kept.End));
-    }
-
-    // The wanted start and end of a part moved by seconds from where the word was when the move began.
-    private void Targets(LyricWordPart part, double seconds, out double? start, out double? end)
-    {
-        (start, end) = part switch
-        {
-            LyricWordPart.Body => ((double?)(_originStart + seconds), (double?)(_originEnd + seconds)),
-            LyricWordPart.Start => ((double?)(_originStart + seconds), null),
-            _ => (null, (double?)(_originEnd + seconds)),
-        };
+        string? held = part == LyricWordPart.Body
+            ? LyricsTiming.MoveHeldText(Lyrics, Index, seconds)
+            : LyricsTiming.HeldText(Lyrics, Index, start, end);
+        await OnCommit.InvokeAsync(EditOf(part, kept.Start, kept.End, held));
     }
 
     private (LyricWordPart Part, double Seconds)? Step(KeyboardEventArgs key)
@@ -264,10 +309,10 @@ public sealed partial class LyricWordRow : IDisposable
         };
     }
 
-    private LyricWordEdit EditOf(LyricWordPart part, double start, double end) => part switch
+    private LyricWordEdit EditOf(LyricWordPart part, double start, double end, string? held) => part switch
     {
-        LyricWordPart.Body => new LyricWordEdit(Index, start, end),
-        LyricWordPart.Start => new LyricWordEdit(Index, start, null),
-        _ => new LyricWordEdit(Index, null, end),
+        LyricWordPart.Body => new LyricWordEdit(Index, start, end, held),
+        LyricWordPart.Start => new LyricWordEdit(Index, start, null, held),
+        _ => new LyricWordEdit(Index, null, end, held),
     };
 }

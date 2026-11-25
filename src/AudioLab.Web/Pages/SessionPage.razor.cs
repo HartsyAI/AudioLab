@@ -70,6 +70,9 @@ public sealed partial class SessionPage
     private RollDragState RollDrags { get; set; } = default!;
 
     [Inject]
+    private LyricsDrags LyricsDrags { get; set; } = default!;
+
+    [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
@@ -413,9 +416,9 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Busy))
+        if (history && (Drags.Current is not null || RollDrags.Busy || LyricsDrags.Busy))
         {
-            // A press is down on a clip or an edit of the roll is on its way: undoing now would take back a step under it, so history waits.
+            // A press is down on a clip, a word or the roll is on its way: undoing now would take back a step under it, so history waits.
             return true;
         }
         if (Shortcuts.Undo.Matches(chord))

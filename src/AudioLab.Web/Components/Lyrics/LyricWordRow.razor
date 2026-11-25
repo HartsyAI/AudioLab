@@ -1,6 +1,8 @@
 @using AudioLab.Web.Session
-<li class="lyric-word" tabindex="0" data-current="@(_current ? "true" : "false")" data-unsure="@(Word.Unsure == true ? "true" : null)"
-    data-dragging="@(_active ? "true" : "false")" aria-label="@Description" title="@Hint" @onkeydown="KeyAsync">
+<li class="lyric-word" role="listitem" id="@IdOf(Index)" tabindex="@(TabStop ? "0" : "-1")" title="@Hint"
+    data-current="@(_current ? "true" : "false")" data-unsure="@(Word.Unsure == true ? "true" : null)"
+    data-dragging="@(_active ? "true" : "false")" data-editable="@(Editable ? "true" : "false")"
+    aria-label="@Description" @onfocus="FocusAsync" @onkeydown="KeyAsync">
     <div class="word-columns">
         <span class="word-index">@(Index + 1)</span>
         <span class="word-text">@Word.Word</span>
@@ -8,9 +10,12 @@
         <span class="word-time">@Clock(ShownEnd)</span>
     </div>
     <div class="word-strip" style="width: @Css.Number(Width)px" aria-hidden="true">
-        <div class="word-bar" style="left: @Css.Number(BarLeft)px; width: @Css.Number(BarWidth)px" @onpointerdown="args => PressAsync(args, LyricWordPart.Body)">
-            <span class="word-grip word-grip-start" @onpointerdown="args => PressAsync(args, LyricWordPart.Start)" @onpointerdown:stopPropagation="true"></span>
-            <span class="word-grip word-grip-end" @onpointerdown="args => PressAsync(args, LyricWordPart.End)" @onpointerdown:stopPropagation="true"></span>
+        <div class="word-bar" style="left: @Css.Number(BarLeft)px; width: @Css.Number(BarWidth)px"
+             @onpointerdown="args => PressAsync(args, LyricWordPart.Body)">
+            <span class="word-grip word-grip-start" @onpointerdown="args => PressAsync(args, LyricWordPart.Start)"
+                  @onpointerdown:stopPropagation="true"></span>
+            <span class="word-grip word-grip-end" @onpointerdown="args => PressAsync(args, LyricWordPart.End)"
+                  @onpointerdown:stopPropagation="true"></span>
         </div>
     </div>
     @if (_held is { } held)

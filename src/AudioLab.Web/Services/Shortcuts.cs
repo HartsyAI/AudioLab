@@ -257,10 +257,12 @@ public static class Shortcuts
     public static readonly Shortcut LyricsWordLater = new("lyrics.word.later", "Move word later", "ArrowRight", Lyrics, Ctrl: true);
 
     /// <summary>Move the start of the focused word earlier.</summary>
-    public static readonly Shortcut LyricsStartEarlier = new("lyrics.start.earlier", "Move word start earlier", "ArrowLeft", Lyrics, Ctrl: true, Shift: true);
+    public static readonly Shortcut LyricsStartEarlier =
+        new("lyrics.start.earlier", "Move word start earlier", "ArrowLeft", Lyrics, Ctrl: true, Shift: true);
 
     /// <summary>Move the start of the focused word later.</summary>
-    public static readonly Shortcut LyricsStartLater = new("lyrics.start.later", "Move word start later", "ArrowRight", Lyrics, Ctrl: true, Shift: true);
+    public static readonly Shortcut LyricsStartLater =
+        new("lyrics.start.later", "Move word start later", "ArrowRight", Lyrics, Ctrl: true, Shift: true);
 
     /// <summary>Move the end of the focused word earlier.</summary>
     public static readonly Shortcut LyricsEndEarlier = new("lyrics.end.earlier", "Move word end earlier", "ArrowUp", Lyrics, Ctrl: true);

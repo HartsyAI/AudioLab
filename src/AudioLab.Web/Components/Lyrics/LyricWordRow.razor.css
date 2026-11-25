@@ -28,7 +28,12 @@
     background: var(--surface-selected);
 }
 
-.word-index,
+.word-index {
+    color: var(--text-faint);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-micro);
+}
+
 .word-time {
     color: var(--text-dim);
     font-family: var(--font-ui);
@@ -74,8 +79,15 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    width: var(--space-6);
+    width: min(var(--space-4), 33%);
+}
+
+.lyric-word[data-editable="true"] .word-grip {
     cursor: ew-resize;
+}
+
+.lyric-word[data-editable="true"]:hover .word-columns {
+    background: var(--surface-raised);
 }
 
 .word-grip-start {
