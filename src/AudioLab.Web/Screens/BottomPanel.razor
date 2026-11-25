@@ -13,9 +13,17 @@
             {
                 <EffectsPanel Document="Document" Selected="Selected" Actions="Actions" />
             }
+            else if (tab == BottomPanelState.Drums)
+            {
+                <DrumsPanel Document="Document" Actions="Actions" />
+            }
             else if (tab == "Media")
             {
                 <MediaPanel Document="Document" Actions="Actions" />
+            }
+            else if (tab == "Lyrics")
+            {
+                <LyricsPanel Document="Document" Actions="Actions" />
             }
             else
             {

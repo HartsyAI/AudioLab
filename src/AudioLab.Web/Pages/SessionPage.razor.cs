@@ -23,6 +23,9 @@ public sealed partial class SessionPage
     private EffectEditor? _effects;
 
     private SendEditor? _sends;
+    private LyricsEditor? _lyrics;
+    private BeatEditor? _beats;
+    private AutomationEditor? _automation;
 
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
@@ -50,6 +53,9 @@ public sealed partial class SessionPage
     public string Id { get; set; } = string.Empty;
 
     [Inject]
+    private AutomationLanes Lanes { get; set; } = default!;
+
+    [Inject]
     private LiveProjectFactory Factory { get; set; } = default!;
 
     [Inject]
@@ -68,6 +74,9 @@ public sealed partial class SessionPage
 
     [Inject]
     private RollDragState RollDrags { get; set; } = default!;
+
+    [Inject]
+    private LyricsDrags LyricsDrags { get; set; } = default!;
 
     [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
@@ -129,6 +138,9 @@ public sealed partial class SessionPage
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
         _sends = new SendEditor(live);
+        _lyrics = new LyricsEditor(live);
+        _beats = new BeatEditor(live);
+        _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
         Rebuild();
@@ -165,6 +177,8 @@ public sealed partial class SessionPage
             _midi = null;
             _effects = null;
             _sends = null;
+            _lyrics = null;
+            _beats = null;
             await live.DisposeAsync();
         }
     }
@@ -225,6 +239,9 @@ public sealed partial class SessionPage
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
                 Sends = SendActions.For(_sends!, ShowAsync),
+                Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
+                Beats = BeatActions.For(_beats!, ShowAsync),
+                Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
@@ -413,9 +430,10 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Busy))
+        // A press is down on a clip, a word or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
+        // So history waits.
+        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy))
         {
-            // A press is down on a clip or an edit of the roll is on its way: undoing now would take back a step under it, so history waits.
             return true;
         }
         if (Shortcuts.Undo.Matches(chord))
@@ -438,6 +456,11 @@ public sealed partial class SessionPage
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;
             _ = InvokeAsync(() => _actions.Midi.StepLength(open, bars));
+        }
+        else if (Shortcuts.AutomationToggle.Matches(chord) && Selection.Track is { } chosen && _actions.CanEdit
+            && _live?.Document?.Tracks.FirstOrDefault(track => track.Id == chosen) is { } lanes)
+        {
+            _ = InvokeAsync(() => _actions.Automation.SetView(lanes.Id, !lanes.View.AutomationVisible, null));
         }
         else if (Shortcuts.OpenEffects.Matches(chord) && Selection.Track is { } selected)
         {
