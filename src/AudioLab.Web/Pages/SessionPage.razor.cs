@@ -29,6 +29,8 @@ public sealed partial class SessionPage
 
     private GroupEditor? _groups;
 
+    private MasterEditor? _master;
+
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
     private string? _opened;
@@ -147,6 +149,7 @@ public sealed partial class SessionPage
         _effects = new EffectEditor(live, _midi.SendAsync);
         _sends = new SendEditor(live);
         _groups = new GroupEditor(live);
+        _master = new MasterEditor(live);
         _lyrics = new LyricsEditor(live);
         _beats = new BeatEditor(live);
         _automation = new AutomationEditor(live);
@@ -195,6 +198,7 @@ public sealed partial class SessionPage
             _effects = null;
             _sends = null;
             _groups = null;
+            _master = null;
             _lyrics = null;
             _beats = null;
             await live.DisposeAsync();
@@ -282,6 +286,7 @@ public sealed partial class SessionPage
                 Effects = EffectActions.For(_effects!, ShowAsync),
                 Sends = SendActions.For(_sends!, ShowAsync),
                 Groups = GroupActions.For(_groups!, ShowAsync),
+                Master = MasterActions.For(_master!, ShowAsync),
                 Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
                 Beats = BeatActions.For(_beats!, ShowAsync),
                 Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),

@@ -52,7 +52,20 @@ public sealed partial class ChannelStrip
     [Parameter]
     public string? Silence { get; set; }
 
-    /// <summary>The note under the master's slot: it is a project setting, and the master has no effect chain.</summary>
+    /// <summary>Raised with the gain when the fader is dragged or keyed.</summary>
+    /// <remarks>Without it the fader is shown and cannot be changed, as a track fader is for now.</remarks>
+    [Parameter]
+    public EventCallback<double> OnVolume { get; set; }
+
+    /// <summary>Raised with the wanted state when the master limiter's toggle is pressed.</summary>
+    [Parameter]
+    public EventCallback<bool> OnLimiter { get; set; }
+
+    /// <summary>Whether the master limiter is on, for its toggle.</summary>
+    [Parameter]
+    public bool LimiterOn { get; set; }
+
+    /// <summary>The note under the master's slot: its one setting is the limiter, and the master has no effect chain.</summary>
     [Parameter]
     public string? MasterNote { get; set; }
 
@@ -88,6 +101,17 @@ public sealed partial class ChannelStrip
 
     private string VolumeText => FaderScale.Text(Volume);
 
+    private static double VolumePositionOfUnity => FaderScale.Position(1);
+
+    private static string FormatVolume(double position) => FaderScale.Readout(FaderScale.Gain(position));
+
+    // A fader is interactive only where a handler for its gain is given: the master's, not a track's.
+    private EventCallback<double> VolumeCommit => OnVolume.HasDelegate ? EventCallback.Factory.Create<double>(this, VolumeCommitAsync) : default;
+
+    private Task VolumeCommitAsync(double position) => OnVolume.InvokeAsync(FaderScale.Gain(position));
+
+    private Task ToggleLimiterAsync() => OnLimiter.InvokeAsync(!LimiterOn);
+
     private IReadOnlyList<StripSlot> Slots
     {
         get
@@ -108,7 +132,7 @@ public sealed partial class ChannelStrip
         }
     }
 
-    // Only a track has a chain to open; the master's limiter is a project setting.
+    // Only a track has a chain to open; the master has no chain to open; its limiter is a named toggle.
     private bool Opens => Track is not null && OnOpenEffects.HasDelegate;
 
     private StripSlot Shown(StripEffect effect) => new(effect.Name, effect.Enabled, effect.Id, Opens && effect.Id is not null);
@@ -163,6 +187,7 @@ public sealed partial class ChannelStrip
     private string Key()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
-        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}";
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}" +
+            $"|{LimiterOn}|{OnVolume.HasDelegate}|{OnLimiter.HasDelegate}";
     }
 }

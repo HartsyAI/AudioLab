@@ -53,24 +53,8 @@
 }
 
 .track[role="slider"] {
-    border-radius: var(--radius-sm);
-}
-
-.track[role="slider"]:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-}
-
-.track[aria-disabled="true"] {
-    opacity: 0.5;
-}
-
-.track {
-    display: block;
-}
-
-.track[role="slider"] {
     appearance: none;
+    position: relative;
     width: 100%;
     height: 100%;
     margin: 0;
@@ -89,4 +73,8 @@
 
 .track[aria-disabled="true"] {
     opacity: 0.5;
+}
+
+.track {
+    display: block;
 }
