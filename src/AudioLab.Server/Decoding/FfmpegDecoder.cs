@@ -82,6 +82,8 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         // After the kill, a pipe that a surviving grandchild holds must not keep the decode waiting, so both reads are bounded.
         string message = (await WithinAsync(stderr, string.Empty)).Trim();
         await WithinAsync(drain);
+        // The output is measured after the exit too: a process that finished quickly can still have written past the limit.
+        tooLarge |= FileLength(output) > maxOutputBytes;
         DecodeOutcome(process.HasExited ? process.ExitCode : -1, output, message, timedOut, tooLarge, maxOutputBytes);
     }
 

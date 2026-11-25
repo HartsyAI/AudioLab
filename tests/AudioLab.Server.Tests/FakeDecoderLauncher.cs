@@ -21,9 +21,9 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
         HangProcess,
     }
 
-    // A child process that keeps running for longer than any test waits, so only a kill ends it.
-    private const string LongRunningFile = "ping.exe";
-    private const string LongRunningArguments = "-n 300 127.0.0.1";
+    // A child process that keeps running for longer than any test waits, so only a kill ends it. Each system has a command for that.
+    private static readonly string _longRunningFile = OperatingSystem.IsWindows() ? "ping.exe" : "sleep";
+    private static readonly string _longRunningArguments = OperatingSystem.IsWindows() ? "-n 300 127.0.0.1" : "300";
 
     public Mode Behaviour { get; set; } = Mode.Succeed;
 
@@ -66,7 +66,7 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
 
     private RealProcess StartRealProcess()
     {
-        Process process = Process.Start(new ProcessStartInfo(LongRunningFile, LongRunningArguments)
+        Process process = Process.Start(new ProcessStartInfo(_longRunningFile, _longRunningArguments)
         {
             UseShellExecute = false,
             CreateNoWindow = true,

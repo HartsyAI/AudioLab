@@ -12,7 +12,7 @@ public static class DecoderServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
         services.AddSingleton(options);
         services.AddSingleton<DecoderLocation>();
-        services.AddSingleton<IDecoderDownloader, HttpDecoderDownloader>();
+        services.AddSingleton<IDecoderDownloader>(_ => new HttpDecoderDownloader(HttpDecoderDownloader.CreateClient()));
         services.AddSingleton<IDecoderLauncher, SystemDecoderLauncher>();
         services.AddSingleton<DecoderInstaller>(provider => new DecoderInstaller(
             options,

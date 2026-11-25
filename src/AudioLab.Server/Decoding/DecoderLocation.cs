@@ -15,18 +15,32 @@ public sealed class DecoderLocation
         ArgumentNullException.ThrowIfNull(root);
         Folder = Path.Combine(root.Paths.Root, FolderName);
         TempFolder = Path.Combine(Folder, TempName);
-        Directory.CreateDirectory(TempFolder);
-        foreach (string leftover in Directory.EnumerateFiles(TempFolder))
+        // A folder that cannot be made or read must not stop the server: WAV uploads do not need the decoder, and a decode that
+        // needs the folder fails with its own refusal when it tries to use it.
+        try
         {
-            try
+            Directory.CreateDirectory(TempFolder);
+            foreach (string leftover in Directory.EnumerateFiles(TempFolder))
             {
-                File.Delete(leftover);
+                RemoveLeftover(leftover, logger);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                // A file another process still holds, or one this process may not delete, is left for the next start; nothing reads it.
-                DecoderLog.NotRemoved(logger, Path.GetFileName(leftover), exception.GetType().Name);
-            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            DecoderLog.NotRemoved(logger, "the temporary folder", exception.GetType().Name);
+        }
+    }
+
+    private static void RemoveLeftover(string leftover, ILogger logger)
+    {
+        try
+        {
+            File.Delete(leftover);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // A file another process still holds, or one this process may not delete, is left for the next start; nothing reads it.
+            DecoderLog.NotRemoved(logger, Path.GetFileName(leftover), exception.GetType().Name);
         }
     }
 

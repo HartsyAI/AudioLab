@@ -21,4 +21,7 @@ internal static partial class DecoderLog
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A temporary decoder file was not removed: {Name} ({Error})")]
     public static partial void NotRemoved(ILogger logger, string name, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Decoder install stopped unexpectedly: {Error}")]
+    public static partial void InstallStopped(ILogger logger, string error);
 }

@@ -22,6 +22,11 @@ public sealed class DecodedUploadService(
 
     private const int BufferBytes = 81920;
 
+    private int _spooled;
+
+    /// <summary>How many uploads have started to spool a file, counted for the tests and for the log of a busy server.</summary>
+    public int SpoolCount => Volatile.Read(ref _spooled);
+
     /// <summary>The demuxer the decoder may read a file of this content type with, so a file that is not the type it says it is is refused.</summary>
     /// <returns>The demuxer's name, or null when the content type is not a compressed type this server decodes.</returns>
     public static string? DemuxerFor(string mediaType) => mediaType.ToLowerInvariant() switch
@@ -58,25 +63,27 @@ public sealed class DecodedUploadService(
         {
             throw new MediaRejectedException($"The name is not valid: {nameProblems[0]}");
         }
-        if (!installer.Supported)
-        {
-            throw new DecoderNotInstalledException(
-                "The audio decoder is not available on this system, so compressed audio cannot be uploaded here. Upload a WAV file instead.");
-        }
-        string binary = installer.VerifiedBinary() ?? throw NotInstalled();
-        if (declaredLength > options.MaxInputBytes)
-        {
-            throw new MediaTooLargeException(options.MaxInputBytes);
-        }
-        await CheckRoomAsync(user, cancellationToken);
         string id = Guid.NewGuid().ToString("N");
         string source = Path.Combine(location.TempFolder, $"{id}.src");
         string output = Path.Combine(location.TempFolder, $"{id}.wav");
         try
         {
-            // The slot is taken first: a request that finds the decodes full is refused before a byte of it is written to disk.
+            // The decode slot comes before anything that costs: a request that finds the decodes full is refused at once, without
+            // hashing the binary, checking the quota or writing a byte to disk. Each user has one slot and the server two.
             using (gate.Enter(user))
             {
+                if (!installer.Supported)
+                {
+                    throw new DecoderNotInstalledException(
+                        "The audio decoder is not available on this system, so compressed audio cannot be uploaded here. "
+                        + "Upload a WAV file instead.");
+                }
+                string binary = installer.VerifiedBinary() ?? throw NotInstalled();
+                if (declaredLength > options.MaxInputBytes)
+                {
+                    throw new MediaTooLargeException(options.MaxInputBytes);
+                }
+                await CheckRoomAsync(user, cancellationToken);
                 await SpoolAsync(body, source, cancellationToken);
                 await decoder.DecodeAsync(binary, demuxer, source, output, mediaOptions.MaxUploadBytes, cancellationToken);
             }
@@ -113,6 +120,7 @@ public sealed class DecodedUploadService(
     // Counted on the bytes that arrive, as the media upload counts them, so a client that announces less than it sends is still held.
     private async Task SpoolAsync(Stream body, string path, CancellationToken cancellationToken)
     {
+        Interlocked.Increment(ref _spooled);
         byte[] buffer = new byte[BufferBytes];
         long total = 0;
         await using FileStream file = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferBytes, FileOptions.Asynchronous);

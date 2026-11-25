@@ -254,12 +254,23 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         job.Cancellation = cancellation;
         // Before the first place is taken, so that the number of places is the server's; a few seconds at most.
         await _limits.FirstAsync();
+        // A compressed file takes the decode place first, so a batch of them goes one at a time and the server's one decode per user
+        // is never a refusal the page caused; WAV files take only the upload places, and run beside them.
+        bool decodePlace = !MediaTypes.IsWav(job.Source.ContentType);
         try
         {
+            if (decodePlace)
+            {
+                await _limits.Decodes.AcquireAsync(cancellation.Token);
+            }
             await _limits.Slots.AcquireAsync(cancellation.Token);
         }
         catch (OperationCanceledException)
         {
+            if (decodePlace)
+            {
+                _limits.Decodes.Release();
+            }
             Remove(job);
             Settle();
             job.End();
@@ -306,6 +317,10 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             _limits.Release(job);
             job.Cancellation = null;
             _limits.Slots.Release();
+            if (decodePlace)
+            {
+                _limits.Decodes.Release();
+            }
             Settle();
             job.End();
         }

@@ -3,6 +3,8 @@ using System.Net;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Decoding;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AudioLab.Server.Tests;
 
@@ -81,7 +83,10 @@ public sealed class DecodedUploadTests
 
         using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, concat, "list.mp3", Mp3);
 
+        // The fake is not ffmpeg, so this asserts the whitelist that a real ffmpeg is given; the refusal here is the fake's exit.
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        int at = launcher.LastArguments.ToList().IndexOf("-format_whitelist");
+        Assert.Equal("mp3", launcher.LastArguments[at + 1]);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
 
@@ -178,6 +183,7 @@ public sealed class DecodedUploadTests
 
         // Refused requests are answered before they spool, so the one decode that runs is the only file the server writes.
         Assert.Equal(1, launcher.Starts);
+        Assert.Equal(1, server.Services.GetRequiredService<DecodedUploadService>().SpoolCount);
         Assert.Equal(49, answers.Count(answer => answer.StatusCode == HttpStatusCode.TooManyRequests));
         Assert.Empty(DecoderTestSupport.TempFiles(server));
         foreach (HttpResponseMessage answer in answers)
@@ -245,15 +251,29 @@ public sealed class DecodedUploadTests
     }
 
     [Fact]
-    public async Task AFloodOfStderrIsReadAndDoesNotStallTheDecode()
+    public async Task AFloodOfStderrIsReadAndOnlyAShortExcerptIsLogged()
     {
         FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.NoisyStderr };
-        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:10"));
+        List<string> messages = [];
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        await using RunningServer server = await DecoderTestSupport.StartAsync(
+            build,
+            new FakeDecoderDownloader(),
+            launcher,
+            TimeLimit("00:00:10"),
+            services => services.AddSingleton<ILogger<FfmpegDecoder>>(new CapturingLogger<FfmpegDecoder>(messages)));
+        DecoderTestSupport.PlaceBinary(server, build, DecoderTestSupport.Binary);
 
         using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "noisy.mp3", Mp3);
 
+        // The read keeps going to the end of the error output, so the process never blocks; the log gets 200 characters of it.
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
+        string logged = Assert.Single(messages, message => message.StartsWith("Decode exited", StringComparison.Ordinal));
+        string excerpt = logged[(logged.IndexOf("stderr: ", StringComparison.Ordinal) + "stderr: ".Length)..];
+        Assert.Equal(200, excerpt.Length);
+        Assert.All(excerpt, character => Assert.Equal('e', character));
     }
 
     [Fact]
@@ -306,19 +326,27 @@ public sealed class DecodedUploadTests
     }
 
     [Fact]
-    public async Task ABinaryReplacedWithTheSameSizeIsRefusedBeforeItRuns()
+    public async Task ABinaryReplacedWithTheSameSizeAndTimeIsRefusedBeforeItRuns()
     {
         FakeDecoderLauncher launcher = new();
         byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
         DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
         await using RunningServer server = await DecoderTestSupport.StartAsync(build, new FakeDecoderDownloader(), launcher);
-        // Same length as the pinned binary, different bytes: a size and time check would let it run; the checksum does not.
-        DecoderTestSupport.PlaceBinary(server, build, Enumerable.Repeat((byte)'x', DecoderTestSupport.Binary.Length).ToArray());
+        DecoderTestSupport.PlaceBinary(server, build, DecoderTestSupport.Binary);
+        using (HttpResponseMessage good = await DecoderTestSupport.UploadAsync(server, _compressedFile, "good.mp3", Mp3))
+        {
+            Assert.Equal(HttpStatusCode.Created, good.StatusCode);
+        }
+        string path = DecoderTestSupport.BinaryPath(server, build);
+        DateTime written = File.GetLastWriteTimeUtc(path);
 
+        // Same length, same write time, different bytes: only a hash on every decode sees the change.
+        DecoderTestSupport.PlaceBinary(server, build, Enumerable.Repeat((byte)'x', DecoderTestSupport.Binary.Length).ToArray());
+        File.SetLastWriteTimeUtc(path, written);
         using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("does not match its pinned checksum", await response.Content.ReadAsStringAsync());
-        Assert.Equal(0, launcher.Starts);
+        Assert.Equal(1, launcher.Starts);
     }
 }

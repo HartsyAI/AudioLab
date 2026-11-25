@@ -289,6 +289,26 @@ public sealed class MediaLibraryTests
 
     private const StringComparison Ordinal = StringComparison.Ordinal;
 
+    /// <summary>A batch of compressed files goes to the server one at a time, and every one of them is decoded and added.</summary>
+    [Fact]
+    public async Task ACompressedBatchGoesOneAtATimeAndEachFileIsAdded()
+    {
+        FakeMediaServer server = new([]) { UploadDelay = TimeSpan.FromMilliseconds(30) };
+        (MediaLibrary library, _) = Library(server);
+
+        library.Add(
+        [
+            new CompressedSource("a.mp3", "audio/mpeg", [1, 2, 3]),
+            new CompressedSource("b.mp3", "audio/mpeg", [4, 5, 6]),
+            new CompressedSource("c.flac", "audio/flac", [7, 8, 9]),
+        ]);
+        await UntilAsync(() => library.Files.Count == 3);
+
+        // The server allows one decode per user, so a batch of three is sent in turn, and none of them is refused as busy.
+        Assert.Equal(1, server.MostAtOnce);
+        Assert.Equal(3, library.Files.Count);
+    }
+
     private static MediaSummary Gone(string id)
     {
         return new MediaSummary(
@@ -298,6 +318,17 @@ public sealed class MediaLibraryTests
     private sealed class FakeSource(string name, byte[] bytes) : IUploadSource
     {
         public string Name => name;
+
+        public long Length => bytes.Length;
+
+        public Stream Open() => new MemoryStream(bytes);
+    }
+
+    private sealed class CompressedSource(string name, string contentType, byte[] bytes) : IUploadSource
+    {
+        public string Name => name;
+
+        public string ContentType => contentType;
 
         public long Length => bytes.Length;
 

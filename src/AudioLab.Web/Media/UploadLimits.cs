@@ -41,6 +41,9 @@ internal sealed class UploadLimits(MediaApi api, TimeProvider clock, ILogger log
     /// <summary>The places for uploads that run at once: three, or fewer when the server lets one user run fewer.</summary>
     public UploadSlots Slots { get; } = new(MediaLibrary.ParallelUploads);
 
+    /// <summary>The one place for compressed files: the server decodes one at a time for each user, so the page sends them one at a time.</summary>
+    public UploadSlots Decodes { get; } = new(1);
+
     /// <summary>The limits as the server last said; null until it has, or after a read that failed.</summary>
     public MediaLimits? Current { get; private set; }
 

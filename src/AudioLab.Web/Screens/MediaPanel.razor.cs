@@ -68,6 +68,14 @@ public sealed partial class MediaPanel : IDisposable
     private MediaLibrary Library { get; set; } = default!;
 
     [Inject]
+    private DecoderState Decoder { get; set; } = default!;
+
+    // With the decoder installed, the page also takes the compressed types, and it says they go one at a time.
+    private string HintText => Decoder.Installed
+        ? "Drop WAV, MP3, M4A, FLAC or OGG files anywhere on the page to add them. Compressed files are added one at a time."
+        : "Drop WAV files anywhere on the page to add them.";
+
+    [Inject]
     private MediaDragger Dragger { get; set; } = default!;
 
     [Inject]

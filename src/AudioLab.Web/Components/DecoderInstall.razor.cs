@@ -1,3 +1,4 @@
+using System.Net;
 using AudioLab.Core.Api.Decoder;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
@@ -100,6 +101,11 @@ public sealed partial class DecoderInstall : IDisposable
             DecoderStatus status = await Api.InstallAsync(package, _page.Token);
             await FollowAsync(status);
         }
+        catch (ApiException exception) when (exception.Status == HttpStatusCode.Conflict)
+        {
+            // Another tab or window started this install: follow its progress rather than report a refusal.
+            await FollowRunningAsync(exception.Message);
+        }
         catch (ApiException exception)
         {
             _busy = false;
@@ -109,6 +115,31 @@ public sealed partial class DecoderInstall : IDisposable
         {
             _busy = false;
             _message = "The server could not be reached, so the install did not start. Try again.";
+        }
+    }
+
+    private async Task FollowRunningAsync(string refusal)
+    {
+        try
+        {
+            DecoderStatus status = await Api.StatusAsync(_page.Token);
+            if (IsRunning(status.Phase))
+            {
+                await FollowAsync(status);
+                return;
+            }
+            _busy = false;
+            _message = refusal;
+        }
+        catch (ApiException)
+        {
+            _busy = false;
+            _message = refusal;
+        }
+        catch (HttpRequestException)
+        {
+            _busy = false;
+            _message = refusal;
         }
     }
 

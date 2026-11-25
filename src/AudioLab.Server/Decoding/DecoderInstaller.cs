@@ -22,6 +22,8 @@ public sealed class DecoderInstaller
     private string _phase = DecoderPhases.Idle;
     private long _received;
     private string? _reason;
+    private (string Path, long Length, DateTime Written)? _statusCheck;
+    private bool _statusVerified;
 
     /// <summary>Creates the installer for the build this platform has, or none when it has none.</summary>
     public DecoderInstaller(
@@ -79,14 +81,10 @@ public sealed class DecoderInstaller
             received = _received;
             reason = _reason;
         }
-        bool installed = false;
-        try
+        bool installed = StatusSaysInstalled();
+        if (!installed && _build is not null && File.Exists(_location.Binary(_build.Package.Version, _build.BinaryName)))
         {
-            installed = VerifiedBinary() is not null;
-        }
-        catch (DecoderNotInstalledException exception)
-        {
-            reason ??= exception.Message;
+            reason ??= "The installed audio decoder does not match its pinned checksum, so it will not run. Install it again from the Media tab.";
         }
         return new DecoderStatus(
             _build is not null,
@@ -149,6 +147,45 @@ public sealed class DecoderInstaller
         }
     }
 
+    // The status is asked on every poll of the page, so an installed binary is hashed once per file state (path, length and write
+    // time). A decode never uses this: VerifiedBinary hashes the file itself on every decode.
+    private bool StatusSaysInstalled()
+    {
+        if (_build is null)
+        {
+            return false;
+        }
+        string path = _location.Binary(_build.Package.Version, _build.BinaryName);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+        FileInfo info = new(path);
+        (string Path, long Length, DateTime Written) state = (path, info.Length, info.LastWriteTimeUtc);
+        lock (_lock)
+        {
+            if (_statusCheck is { } known && known == state)
+            {
+                return _statusVerified;
+            }
+        }
+        bool verified;
+        try
+        {
+            verified = VerifiedBinary() is not null;
+        }
+        catch (DecoderNotInstalledException)
+        {
+            verified = false;
+        }
+        lock (_lock)
+        {
+            _statusCheck = state;
+            _statusVerified = verified;
+        }
+        return verified;
+    }
+
     // The phase is always left as installed or failed: when the run ends any other way, the finally block fails it, so a status poll
     // never waits forever on a download that is no longer running.
     private async Task RunAsync(DecoderBuild build)
@@ -202,6 +239,11 @@ public sealed class DecoderInstaller
             Fail(reason);
             reported = true;
         }
+        catch (Exception exception) when (LogUnexpected(exception))
+        {
+            // Never reached: the filter above logs the exception once and lets it pass, so it still ends the run as a failure below.
+            throw;
+        }
         finally
         {
             if (!completed && !reported)
@@ -209,9 +251,10 @@ public sealed class DecoderInstaller
                 // Any other exception ends the run here as a failure, so the phase never stays at downloading.
                 Fail("The install stopped unexpectedly, so nothing was installed.");
             }
+            // The gate is given back first: an unexpected exception from the deletes below must not leave every later install refused.
+            _running.Release();
             TryDelete(archive);
             TryDelete(binary);
-            _running.Release();
         }
     }
 
@@ -244,6 +287,13 @@ public sealed class DecoderInstaller
         {
             throw new DecoderInstallFailedException("The decoder binary does not match its pinned checksum, so nothing was installed.");
         }
+    }
+
+    // The filter logs the exception's type once, with a fixed message, and returns false so the exception keeps going.
+    private bool LogUnexpected(Exception exception)
+    {
+        DecoderLog.InstallStopped(_logger, exception.GetType().Name);
+        return false;
     }
 
     private static string HashFile(string path)

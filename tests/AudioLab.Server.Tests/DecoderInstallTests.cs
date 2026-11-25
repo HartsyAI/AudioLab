@@ -3,6 +3,7 @@ using System.Text.Json;
 using AudioLab.Core.Api.Decoder;
 using AudioLab.Server.Decoding;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AudioLab.Server.Tests;
 
@@ -220,7 +221,12 @@ public sealed class DecoderInstallTests
         byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
         DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
         FakeDecoderDownloader downloader = new() { Payload = archive, Behaviour = FakeDecoderDownloader.Mode.Throw };
-        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
+        List<string> messages = [];
+        await using RunningServer server = await DecoderTestSupport.StartAsync(
+            build,
+            downloader,
+            new FakeDecoderLauncher(),
+            extra: services => services.AddSingleton<ILogger<DecoderInstaller>>(new CapturingLogger<DecoderInstaller>(messages)));
 
         using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
@@ -228,6 +234,8 @@ public sealed class DecoderInstallTests
 
         Assert.Contains("stopped unexpectedly", status.GetProperty("reason").GetString());
         Assert.Empty(DecoderTestSupport.TempFiles(server));
+        // Logged once, with the exception's type; the exception itself still ends the install as a failure.
+        Assert.Single(messages, message => message.StartsWith("Decoder install stopped unexpectedly: InvalidOperationException", StringComparison.Ordinal));
     }
 
     [Fact]

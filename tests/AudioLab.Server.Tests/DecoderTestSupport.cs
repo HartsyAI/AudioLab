@@ -6,7 +6,7 @@ using System.Text.Json;
 using AudioLab.Core.Api.Decoder;
 using AudioLab.Server.Decoding;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace AudioLab.Server.Tests;
 
@@ -55,7 +55,8 @@ internal static class DecoderTestSupport
         DecoderBuild? build,
         FakeDecoderDownloader downloader,
         FakeDecoderLauncher launcher,
-        IDictionary<string, string?>? settings = null)
+        IDictionary<string, string?>? settings = null,
+        Action<IServiceCollection>? extra = null)
     {
         // The install is off on a shared door unless a test turns it on; the decoder tests install, and the 403 test turns it off.
         Dictionary<string, string?> all = new()
@@ -78,7 +79,8 @@ internal static class DecoderTestSupport
                 provider.GetRequiredService<DecoderLocation>(),
                 downloader,
                 build,
-                NullLogger<DecoderInstaller>.Instance));
+                provider.GetRequiredService<ILogger<DecoderInstaller>>()));
+            extra?.Invoke(services);
         });
     }
 
