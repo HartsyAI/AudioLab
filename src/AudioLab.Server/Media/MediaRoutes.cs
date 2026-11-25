@@ -1,5 +1,7 @@
 using AudioLab.Core.Model;
+using AudioLab.Server.Decoding;
 using AudioLab.Server.Doors;
+using AudioLab.Server.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -17,6 +19,20 @@ public static class MediaRoutes
         "audio/x-wav",
         "audio/wave",
         "audio/vnd.wave",
+    };
+
+    // Accepted only as a body the optional decoder turns into WAV; the decoder reads what it reads, and the WAV is checked as any upload.
+    private static readonly HashSet<string> _compressedTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/mp4",
+        "audio/m4a",
+        "audio/x-m4a",
+        "audio/flac",
+        "audio/x-flac",
+        "audio/ogg",
+        "application/ogg",
     };
 
     /// <summary>Maps /media into <paramref name="routes"/>, a group behind the door filter.</summary>
@@ -40,7 +56,12 @@ public static class MediaRoutes
     }
 
     // The body is the WAV file itself, not a form: it is streamed to disk, never held in memory.
-    private static async Task<IResult> UploadAsync(HttpContext http, MediaService service, MediaOptions options, CancellationToken cancellationToken)
+    private static async Task<IResult> UploadAsync(
+        HttpContext http,
+        MediaService service,
+        DecodedUploadService decoded,
+        MediaOptions options,
+        CancellationToken cancellationToken)
     {
         // Before any early refusal: a body the server does not read is drained under this limit, and a lower one resets the client.
         IHttpMaxRequestBodySizeFeature? limit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
@@ -48,20 +69,40 @@ public static class MediaRoutes
         {
             limit.MaxRequestBodySize = options.MaxUploadBytes;
         }
-        if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? type)
-            || !_wavTypes.Contains(type.MediaType.Value ?? string.Empty))
+        string mediaType = MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? type)
+            ? type.MediaType.Value ?? string.Empty
+            : string.Empty;
+        bool wav = _wavTypes.Contains(mediaType);
+        if (!wav && !_compressedTypes.Contains(mediaType))
         {
             return Results.Problem(
                 statusCode: StatusCodes.Status415UnsupportedMediaType,
-                title: "Send the WAV file as the body with the content type audio/wav.");
+                title: "Send the audio file as the body: a WAV file, or MP3, M4A, FLAC or OGG with its own content type.");
         }
         if (!http.Request.Query.TryGetValue("name", out StringValues names) || names.Count != 1)
         {
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Send the file's name once, as the query value name.");
         }
         UserId user = http.RequireUser();
-        MediaRecord record = await service.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
-        return Results.Created($"{http.Request.PathBase}/api/media/{record.Id.Value}", MediaSummary.Of(record));
+        if (wav)
+        {
+            MediaRecord stored = await service.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
+            return Results.Created($"{http.Request.PathBase}/api/media/{stored.Id.Value}", MediaSummary.Of(stored));
+        }
+        // A compressed file is decoded to WAV first, and then stored exactly like a WAV upload; without the decoder it is refused with the reason.
+        try
+        {
+            MediaRecord converted = await decoded.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
+            return Results.Created($"{http.Request.PathBase}/api/media/{converted.Id.Value}", MediaSummary.Of(converted));
+        }
+        catch (DecoderNotInstalledException exception)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
+        }
+        catch (GateBusyException exception)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: exception.Message);
+        }
     }
 
     private static IResult Get(HttpContext http, string id, MediaService service)

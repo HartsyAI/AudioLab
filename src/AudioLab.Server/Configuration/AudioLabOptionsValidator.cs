@@ -56,6 +56,7 @@ public sealed partial class AudioLabOptionsValidator : IValidateOptions<AudioLab
         ValidateMedia(options.Media, problems);
         ValidateRender(options.Render, problems);
         ValidateMidi(options.Midi, problems);
+        AudioLab.Server.Decoding.DecoderOptionsValidator.Validate(options.Decoder, problems);
         return problems.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(problems);
     }
 

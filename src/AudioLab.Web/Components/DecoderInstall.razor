@@ -1,0 +1,6 @@
+@if (_status is { Supported: true, Installed: false })
+{
+    <Button Disabled="_busy" OnClick="Open">Install audio decoder</Button>
+}
+<Dialog Title="Install audio decoder" ConfirmText="Install decoder" ConfirmDisabled="_busy" Open="_open" OpenChanged="SetOpen"
+        OnConfirm="ConfirmAsync" Description="@DialogText" Error="@_error" />
