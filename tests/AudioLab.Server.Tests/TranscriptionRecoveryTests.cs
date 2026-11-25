@@ -368,6 +368,6 @@ public sealed class TranscriptionRecoveryTests
     private static Exception DiskFullAfterATornLine(string chunks)
     {
         File.AppendAllText(chunks, "{\"chunk\":2,\"segments\":[{\"start\":5");
-        return new IOException("There is not enough space on the disk.", unchecked((int)0x80070070));
+        return new IOException("There is not enough space on the disk.", OperatingSystem.IsWindows() ? unchecked((int)0x80070070) : 28);
     }
 }
