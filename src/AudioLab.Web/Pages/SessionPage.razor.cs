@@ -86,6 +86,9 @@ public sealed partial class SessionPage
     private AutomationRecorder Recorder { get; set; } = default!;
 
     [Inject]
+    private IAutomationModeRules AutomationModes { get; set; } = default!;
+
+    [Inject]
     private EffectsNavigator Effects { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
@@ -233,7 +236,7 @@ public sealed partial class SessionPage
     // The lane a pass records is the one RecordingLane names: none unless exactly one lane is in a recording mode the screen can choose.
     private AutomationTarget? RecordingTarget()
     {
-        if (_live?.Document is not { } document || RecordingLane.Find(document) is not { } lane)
+        if (_live?.Document is not { } document || RecordingLane.Find(document, AutomationModes.UnavailableReason) is not { } lane)
         {
             return null;
         }
