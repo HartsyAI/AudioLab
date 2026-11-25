@@ -22,7 +22,7 @@ public sealed class DrumShortcutTests
         }
     }
 
-    /// <summary>A step key that is also a session key is one the grid claims, so the transport does not act on it while the grid has the focus.</summary>
+    /// <summary>A step key that is also a session key is one the grid claims, so the transport does not act on it while the grid has focus.</summary>
     [Fact]
     public void EverySessionKeyAGridUsesIsClaimedByTheGrid()
     {

@@ -324,8 +324,13 @@ public static class Shortcuts
         DrumStepEarlier, DrumStepLater, DrumStepAbove, DrumStepBelow, DrumStepToggle, DrumStepToggleEnter, DrumStepFirst, DrumStepLast,
     ];
 
-    /// <summary>The keys a step grid takes from the session while its focus is in the grid: Space, Enter, Home and End stay in the lane, not on the transport.</summary>
-    public static readonly IReadOnlyList<Shortcut> DrumStepClaims = [DrumStepToggle, DrumStepToggleEnter, DrumStepFirst, DrumStepLast];
+    /// <summary>The keys a step grid takes from the session while its focus is in the grid: the arrows, Space, Enter, Home and End stay in the
+    /// grid, not on the transport or the page.</summary>
+    public static readonly IReadOnlyList<Shortcut> DrumStepClaims =
+    [
+        DrumStepEarlier, DrumStepLater, DrumStepAbove, DrumStepBelow, DrumStepToggle, DrumStepToggleEnter, DrumStepFirst, DrumStepLast,
+    ];
+
     /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
     public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
 
@@ -381,7 +386,8 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset, .. AutomationKeys,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset,
+        .. AutomationKeys,
         LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];
 }

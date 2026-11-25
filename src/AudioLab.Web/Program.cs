@@ -65,6 +65,7 @@ builder.Services.AddScoped<AutomationLanes>();
 builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddScoped<LyricsCursor>();
 builder.Services.AddScoped<LyricsDrags>();
+builder.Services.AddScoped<DrumDrags>();
 builder.Services.AddSingleton<ILyricsModels, UnavailableLyricsModels>();
 builder.Services.AddScoped<EffectSelection>();
 builder.Services.AddScoped<EffectsNavigator>();

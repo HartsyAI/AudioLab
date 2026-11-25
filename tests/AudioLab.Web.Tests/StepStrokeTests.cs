@@ -8,7 +8,7 @@ public sealed class StepStrokeTests
 {
     private readonly List<(IReadOnlyList<int> Steps, bool On)> _sent = [];
 
-    /// <summary>The steps painted while a batch is on its way go out as the next batch, and no second batch starts before the first is answered.</summary>
+    /// <summary>Steps painted while a batch is on its way go out as the next batch; no second batch starts before the first is answered.</summary>
     [Fact]
     public async Task EachBatchIsOneCommandAndOneBatchIsOnItsWayAtATime()
     {
@@ -96,5 +96,25 @@ public sealed class StepStrokeTests
 
         Assert.False(stroke.Paint(2, true));
         Assert.Empty(_sent);
+    }
+
+    /// <summary>An applied batch shows the drag's state as it is, so it raises no change; only a refusal does.</summary>
+    [Fact]
+    public async Task AnAppliedBatchRaisesNoChange()
+    {
+        int changes = 0;
+        StepStroke stroke = new(true, "g1", (steps, on) =>
+        {
+            _sent.Add((steps, on));
+            return Task.FromResult(EditResult.Applied(true, []));
+        });
+        stroke.Changed += () => changes++;
+
+        stroke.Paint(1, false);
+        await stroke.EndAsync();
+
+        Assert.Single(_sent);
+        Assert.Equal(0, changes);
+        Assert.Null(stroke.Refusal);
     }
 }

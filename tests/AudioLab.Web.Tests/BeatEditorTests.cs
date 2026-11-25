@@ -70,7 +70,9 @@ public sealed class BeatEditorTests
         await editor.SetLaneGainAsync(BeatLaneId.From("bln_kick"), 0.75);
 
         Assert.Equal(2, _hub.Sent.Count);
-        Assert.Contains(_hub.Sent, sent => sent.Command.Contains("beat_lane_set_steps", StringComparison.Ordinal) && sent.Json.Contains("\"on\":false", StringComparison.Ordinal));
+        Assert.Contains(
+            _hub.Sent,
+            sent => sent.Command.Contains("beat_lane_set_steps", StringComparison.Ordinal) && sent.Json.Contains("\"on\":false", StringComparison.Ordinal));
         Assert.Contains(_hub.Sent, sent => sent.Command.Contains("beat_lane_set_gain", StringComparison.Ordinal));
     }
 }

@@ -14,10 +14,17 @@ public sealed class HistoryGateTests
         Assert.True(HistoryGate.Waits(clipDragging: false, rollBusy: true, wordDragging: false));
     }
 
+    /// <summary>A paint drag over the drum steps makes undo and redo wait, as the other drags do.</summary>
+    [Fact]
+    public void APaintDragMakesHistoryWait()
+    {
+        Assert.True(HistoryGate.Waits(clipDragging: false, rollBusy: false, wordDragging: false, paintDragging: true));
+    }
+
     /// <summary>With no drag under way, undo and redo go through.</summary>
     [Fact]
     public void WithNoDragHistoryGoesThrough()
     {
-        Assert.False(HistoryGate.Waits(clipDragging: false, rollBusy: false, wordDragging: false));
+        Assert.False(HistoryGate.Waits(clipDragging: false, rollBusy: false, wordDragging: false, paintDragging: false));
     }
 }

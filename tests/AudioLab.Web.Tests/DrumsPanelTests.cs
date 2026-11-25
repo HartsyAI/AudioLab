@@ -51,16 +51,28 @@ public sealed class DrumsPanelTests
 
     private static Task<RenderedMarkup> MarkupAsync(ProjectDocument document, SessionActions actions)
     {
-        return RenderedMarkup.OfAsync<DrumsPanel>(new Dictionary<string, object?>
-        {
-            ["Document"] = document,
-            ["Actions"] = actions,
-        }, services =>
-        {
-            services.AddSingleton<IElementFocus>(new FakeFocus());
-            services.AddSingleton<INativeOverlay, NoOverlay>();
-            services.AddSingleton<DrumKeys>();
-        });
+        return RenderedMarkup.OfAsync<DrumsPanel>(Parameters(document, actions), services => Services(services, new FakeFocus()));
+    }
+
+    private static Dictionary<string, object?> Parameters(ProjectDocument document, SessionActions actions) => new()
+    {
+        ["Document"] = document,
+        ["Actions"] = actions,
+    };
+
+    private static void Services(IServiceCollection services, FakeFocus focus)
+    {
+        services.AddSingleton<IElementFocus>(focus);
+        services.AddSingleton<INativeOverlay, NoOverlay>();
+        services.AddSingleton<DrumKeys>();
+        services.AddSingleton<DrumDrags>();
+        services.AddSingleton<IElementMetrics>(new FakeMetrics());
+    }
+
+    /// <summary>Renders the drums tab and keeps it, so that its events can be raised and its focus read.</summary>
+    private static Task<RenderedMarkup> StartPanelAsync(ProjectDocument document, SessionActions actions, FakeFocus focus)
+    {
+        return RenderedMarkup.StartAsync<DrumsPanel>(Parameters(document, actions), services => Services(services, focus));
     }
 
     /// <summary>A typed swing survives another client's change to a track, even when the pattern arrives as a new object.</summary>
@@ -363,7 +375,7 @@ public sealed class DrumsPanelTests
         Assert.Equal(Offline, panel.Announcement);
     }
 
-    /// <summary>Arrows move the focus between steps and lanes, Home and End go to the ends of a lane, and an arrow with nowhere to go stays put.</summary>
+    /// <summary>Arrows move the focus between steps and lanes, Home and End go to a lane's ends, and an arrow with nowhere to go stays put.</summary>
     [Fact]
     public async Task TheArrowsAndHomeAndEndMoveTheFocusWithinTheGrid()
     {
@@ -391,9 +403,10 @@ public sealed class DrumsPanelTests
         Assert.Null(top.PendingFocus);
     }
 
-    /// <summary>The grid takes Space, Home and End from the page only while the focus is in it, so the transport keeps them elsewhere.</summary>
+    /// <summary>The grid takes Space, Enter, Home, End and the arrows from the page only while the focus is in it, so the transport keeps them
+    /// elsewhere.</summary>
     [Fact]
-    public async Task TheGridTakesSpaceHomeAndEndOnlyWhileTheFocusIsInIt()
+    public async Task TheGridTakesItsKeysFromThePageOnlyWhileTheFocusIsInIt()
     {
         DrumKeys keys = new();
         DrumsPanel panel = Panel(Document(Full()), Editable());
@@ -406,13 +419,146 @@ public sealed class DrumsPanelTests
         Assert.True(keys.Handle(new KeyChord("Home", false, false, false)));
         Assert.True(keys.Handle(new KeyChord(" ", false, false, false)));
         Assert.True(keys.Handle(new KeyChord("End", false, false, false)));
-        Assert.False(keys.Handle(new KeyChord("ArrowLeft", false, false, false)));
+        Assert.True(keys.Handle(new KeyChord("ArrowLeft", false, false, false)));
+        Assert.False(keys.Handle(new KeyChord("ArrowLeft", true, false, false)));
 
         await panel.GridFocusAsync(false);
         Assert.False(keys.Handle(new KeyChord("Home", false, false, false)));
     }
 
-    /// <summary>A paint drag sends each batch with its drag's gesture, and a refused batch is said in the status line and closes the gesture.</summary>
+    /// <summary>An arrow rendered on the grid moves the focus, and the panel renders so that the new cell takes it.</summary>
+    [Fact]
+    public async Task AnArrowRendersAndGivesTheFocusToTheCell()
+    {
+        FakeFocus focus = new();
+        RenderedMarkup markup = await StartPanelAsync(Document(Full()), Editable(), focus);
+
+        await markup.RaiseOnAsync(BeatLaneText.CellId(_kick, 2), "onkeydown", Key("ArrowRight"));
+
+        Assert.Equal([BeatLaneText.CellId(_kick, 3)], focus.Focused);
+        await markup.DisposeServicesAsync();
+    }
+
+    /// <summary>A refused switch from the keyboard renders, so its words reach the status line.</summary>
+    [Fact]
+    public async Task ARefusedSwitchFromTheKeyboardSaysItsWords()
+    {
+        FakeFocus focus = new();
+        RenderedMarkup markup = await StartPanelAsync(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneSteps = (_, _, _, _) => Task.FromResult(EditResult.Refused("The lane is gone.")),
+        }), focus);
+
+        await markup.RaiseOnAsync(BeatLaneText.CellId(_kick, 2), "onkeydown", Key("Enter"));
+
+        Assert.Contains("The lane is gone.", markup.Texts);
+    }
+
+    /// <summary>A switch on its way to the server is not sent again; the second key says so.</summary>
+    [Fact]
+    public async Task AKeyWhileASwitchIsOnItsWayIsSaidAndNotSent()
+    {
+        TaskCompletionSource<EditResult> reply = new();
+        int switches = 0;
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneSteps = (_, _, _, _) =>
+            {
+                switches++;
+                return reply.Task;
+            },
+        }));
+
+        Task first = panel.GridKeyAsync(Full().Lanes[0], 2, Key("Enter"));
+        await panel.GridKeyAsync(Full().Lanes[0], 2, Key("Enter"));
+
+        Assert.Equal(1, switches);
+        Assert.Equal("The last change is still being sent; try again in a moment.", panel.Announcement);
+
+        reply.SetResult(EditResult.Applied(true, []));
+        await first;
+    }
+
+    /// <summary>A switch is not dropped because a lane is being moved: the toggle has its own guard.</summary>
+    [Fact]
+    public async Task ASwitchIsNotDroppedWhileALaneMoves()
+    {
+        TaskCompletionSource<EditResult> move = new();
+        int switches = 0;
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            MoveLane = (_, _) => move.Task,
+            SetLaneSteps = (_, _, _, _) =>
+            {
+                switches++;
+                return Task.FromResult(EditResult.Applied(true, []));
+            },
+        }));
+
+        Task moving = panel.MoveAsync(Full().Lanes[1], MoveDirection.Up);
+        await panel.GridKeyAsync(Full().Lanes[0], 2, Key("Enter"));
+        move.SetResult(EditResult.Applied(true, []));
+        await moving;
+
+        Assert.Equal(1, switches);
+    }
+
+    /// <summary>A paint drag is open until its gesture is closed, so undo waits for it; a lost hub still closes it.</summary>
+    [Fact]
+    public async Task APaintDragIsOpenUntilItsGestureIsClosedEvenWhenTheHubIsLost()
+    {
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            BeginStroke = () => "g9",
+            EndStroke = _ => throw new InvalidOperationException("The hub is gone."),
+        }));
+        DrumDrags drags = new();
+        panel.PaintDrags = drags;
+
+        StepStroke stroke = panel.StartStroke(Full().Lanes[0], true);
+        Assert.True(drags.Busy);
+        await stroke.EndAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => panel.StrokeEndedAsync(stroke));
+        Assert.False(drags.Busy);
+    }
+
+    /// <summary>A pattern from another client without the focused lane takes the focus out of the grid, so the transport's keys work again.</summary>
+    [Fact]
+    public async Task ATransportKeyWorksOnceTheFocusedLaneIsGoneFromThePattern()
+    {
+        DrumKeys keys = new();
+        DrumsPanel panel = Panel(Document(Full()), Editable());
+        panel.GridKeys = keys;
+        panel.Claim();
+        await panel.GridFocusAsync(true);
+        await panel.PressAsync(Full().Lanes[0], 3);
+        Assert.True(keys.Handle(new KeyChord(" ", false, false, false)));
+
+        panel.Take(Document(new BeatPattern { Steps = 16, Swing = 0.5, Lanes = [Grid(_snare, "Snare")] }), Editable());
+
+        Assert.False(keys.Handle(new KeyChord(" ", false, false, false)));
+    }
+
+    /// <summary>Removing the focused lane takes the focus out of the grid too, and the transport's keys work again.</summary>
+    [Fact]
+    public async Task ATransportKeyWorksAfterTheFocusedLaneIsRemoved()
+    {
+        DrumKeys keys = new();
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            RemoveLane = _ => Task.FromResult(EditResult.Applied(true, [])),
+        }));
+        panel.GridKeys = keys;
+        panel.Claim();
+        await panel.GridFocusAsync(true);
+
+        await panel.RemoveAsync(Full().Lanes[0]);
+
+        Assert.False(keys.Handle(new KeyChord(" ", false, false, false)));
+    }
+
+    /// <summary>A paint drag sends each batch with its gesture; a refused batch is said in the status line and still closes the gesture.</summary>
     [Fact]
     public async Task APaintDragUsesOneGestureAndSaysARefusal()
     {
@@ -477,6 +623,30 @@ public sealed class DrumsPanelTests
         await panel.SetGainAsync(Full().Lanes[0]);
 
         Assert.Equal(new[] { 0.5 }, gains);
+    }
+
+    /// <summary>A gain the server refuses says its words in the status line.</summary>
+    [Fact]
+    public async Task ARefusedGainSaysItsWordsInTheStatusLine()
+    {
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneGain = (_, _) => Task.FromResult(EditResult.Refused("The lane's gain is out of range.")),
+        }));
+
+        panel.GainChanged(_kick, "2");
+        await panel.SetGainAsync(Full().Lanes[0]);
+
+        Assert.Equal("The lane's gain is out of range.", panel.Announcement);
+    }
+
+    private sealed class FakeMetrics : IElementMetrics
+    {
+        public string? Under { get; set; }
+
+        public (double Left, double Top)? Origin(string elementId) => null;
+
+        public bool IsOver(string elementId, double clientX, double clientY) => elementId == Under;
     }
 
     private sealed class FakeFocus : IElementFocus

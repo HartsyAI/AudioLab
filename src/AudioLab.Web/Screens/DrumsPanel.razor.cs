@@ -9,10 +9,13 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The drums tab: the pattern's swing and step count, its lanes in order with add, move, rename and remove, and each lane's gain and steps.</summary>
+/// <summary>The drums tab: the pattern's swing and step count, its lanes in order with add, move, rename and remove, and each lane's gain
+/// and steps.</summary>
 public sealed partial class DrumsPanel : IDisposable
 {
     private const string PanelId = "drums-panel";
+
+    private const string Sending = "The last change is still being sent; try again in a moment.";
 
     private bool _seen;
 
@@ -48,6 +51,8 @@ public sealed partial class DrumsPanel : IDisposable
 
     private bool _busy;
 
+    private bool _toggling;
+
     private bool _dirty = true;
 
     private BeatPattern? _shown;
@@ -68,6 +73,9 @@ public sealed partial class DrumsPanel : IDisposable
     [Inject]
     internal DrumKeys? GridKeys { get; set; }
 
+    [Inject]
+    internal DrumDrags? PaintDrags { get; set; }
+
     /// <summary>The element that takes the focus after the next render, or null.</summary>
     internal string? PendingFocus => _focus;
 
@@ -82,9 +90,6 @@ public sealed partial class DrumsPanel : IDisposable
 
     /// <summary>Whether the rename dialog is open.</summary>
     internal bool RenameOpen => _renaming is not null;
-
-    /// <summary>How many times the panel has rendered; a pointer over a step does not add one.</summary>
-    internal int Renders { get; private set; }
 
     private BeatPattern Pattern => Document.BeatPattern;
 
@@ -142,9 +147,17 @@ public sealed partial class DrumsPanel : IDisposable
         FollowPattern();
     }
 
-    /// <summary>Follows the pattern: the swing and step drafts when those change, and a lane's gain draft when that lane's gain changes.</summary>
+    /// <summary>Follows the pattern: the swing and step drafts when those change, a lane's gain draft when that lane's gain changes, and the
+    /// drafts of lanes that are gone are let go.</summary>
     internal void FollowPattern()
     {
+        foreach (BeatLaneId gone in _gainDrafts.Keys.Where(id => !Pattern.Lanes.Any(lane => lane.Id == id)).ToList())
+        {
+            _gainDrafts.Remove(gone);
+            _seenGains.Remove(gone);
+            _dirty = true;
+        }
+
         foreach (BeatLane lane in Pattern.Lanes)
         {
             if (!_seenGains.TryGetValue(lane.Id, out double seenGain) || seenGain != lane.Gain)
@@ -153,6 +166,12 @@ public sealed partial class DrumsPanel : IDisposable
                 _gainDrafts[lane.Id] = BeatDraft.FormatGain(lane.Gain);
                 _dirty = true;
             }
+        }
+
+        // The focused step is gone when its lane or its step is: then the focus is no longer in the grid, and its keys go back to the transport.
+        if (_inGrid && !FocusedStepIsInPattern())
+        {
+            _inGrid = false;
         }
 
         if (_seen && !BeatDraft.ChangedSince(Pattern, _seenSwing, _seenSteps))
@@ -168,13 +187,21 @@ public sealed partial class DrumsPanel : IDisposable
         _dirty = true;
     }
 
+    // The step the grid's tab stop names, when the pattern still has it; the first lane stands in while no lane has been reached.
+    private bool FocusedStepIsInPattern()
+    {
+        BeatLane? lane = _cursorLane is null
+            ? Pattern.Lanes.FirstOrDefault()
+            : Pattern.Lanes.FirstOrDefault(candidate => candidate.Id == _cursorLane);
+        return lane is not null && _cursorStep < lane.Steps.Count;
+    }
+
     /// <inheritdoc />
     protected override bool ShouldRender() => _dirty || !ReferenceEquals(Actions, _shownActions) || !Pattern.Equals(_shown);
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
-        Renders++;
         _shown = Pattern;
         _shownActions = Actions;
         _dirty = false;
@@ -235,6 +262,7 @@ public sealed partial class DrumsPanel : IDisposable
             if (result.Succeeded && result.Created.Count > 0)
             {
                 _focus = BeatLaneText.RowId(BeatLaneId.From(result.Created[0]));
+                _dirty = true;
             }
         }
         finally
@@ -257,6 +285,7 @@ public sealed partial class DrumsPanel : IDisposable
             if (result.Succeeded)
             {
                 _focus = BeatLaneText.MoveId(lane.Id, direction);
+                _dirty = true;
             }
         }
         finally
@@ -367,7 +396,10 @@ public sealed partial class DrumsPanel : IDisposable
             EditResult result = await Actions.Beats.RemoveLane(lane.Id);
             if (result.Succeeded)
             {
+                // The focus goes to the panel, so the grid's keys go back to the transport.
+                _inGrid = false;
                 _focus = PanelId;
+                _dirty = true;
             }
         }
         finally
@@ -414,23 +446,42 @@ public sealed partial class DrumsPanel : IDisposable
         }
     }
 
-    // A paint drag over a lane's steps: the stroke holds the drag's state, the gesture and the commands; the grid draws it.
+    // A paint drag over a lane's steps: the stroke holds the drag's state, the gesture and the commands; the grid draws it. The drag counts as
+    // open until its gesture is closed, so undo and redo wait for it.
     internal StepStroke StartStroke(BeatLane lane, bool on)
     {
+        PaintDrags?.Begin();
         string gesture = Actions.Beats.BeginStroke();
         BeatLaneId id = lane.Id;
         SessionActions actions = Actions;
         return new StepStroke(on, gesture, (steps, state) => actions.Beats.SetLaneSteps(id, steps, state, gesture));
     }
 
-    // The drag has ended and its commands have been answered: the gesture closes, and a refusal is said in the status line.
+    // The drag has ended and its commands have been answered: the gesture is closed even when a command failed, and a refusal is said in the
+    // status line.
     internal async Task StrokeEndedAsync(StepStroke stroke)
     {
-        await stroke.Done;
-        await Actions.Beats.EndStroke(stroke.Gesture);
+        try
+        {
+            await stroke.Done;
+        }
+        finally
+        {
+            try
+            {
+                await Actions.Beats.EndStroke(stroke.Gesture);
+            }
+            finally
+            {
+                PaintDrags?.End();
+                _dirty = true;
+            }
+        }
+
         if (stroke.Refusal is { } refusal)
         {
             _announcement = refusal;
+            _dirty = true;
         }
     }
 
@@ -438,6 +489,7 @@ public sealed partial class DrumsPanel : IDisposable
     {
         _cursorLane = lane.Id;
         _cursorStep = step;
+        _dirty = true;
         if (!Actions.CanEdit)
         {
             _announcement = Actions.Reason;
@@ -464,7 +516,8 @@ public sealed partial class DrumsPanel : IDisposable
         return Math.Clamp(_cursorStep, 0, Math.Max(lane.Steps.Count - 1, 0));
     }
 
-    // Space, Home and End belong to the grid while its focus is in it, so the session does not start the transport or move the playhead.
+    // Space, Enter, Home, End and the arrows belong to the grid while its focus is in it: the session does not start the transport, seek or
+    // scroll the page for them. The arrows are taken here too, so the page does not scroll.
     private bool ClaimsGridKey(KeyChord chord) => _inGrid && Shortcuts.DrumStepClaims.Any(shortcut => shortcut.Matches(chord));
 
     // Arrows move the focus; Space or Enter switches the focused step, as one command, and a held key does not repeat a switch.
@@ -488,6 +541,7 @@ public sealed partial class DrumsPanel : IDisposable
         _cursorLane = place.Lane.Id;
         _cursorStep = place.Step;
         _focus = BeatLaneText.CellId(place.Lane.Id, place.Step);
+        _dirty = true;
     }
 
     // Where a movement key takes the focus; null when it has nowhere to go.
@@ -536,24 +590,27 @@ public sealed partial class DrumsPanel : IDisposable
         return (neighbour, Math.Min(step, Math.Max(neighbour.Steps.Count - 1, 0)));
     }
 
-    // One step switches to the state it does not have now, as one command; a read-only project says why.
+    // One step switches to the state it does not have now, as one command. A read-only project says why; a switch on its way to the server
+    // says so too, and is not sent twice.
     private async Task ToggleAsync(BeatLane lane, int step)
     {
         _cursorLane = lane.Id;
         _cursorStep = step;
         _focus = BeatLaneText.CellId(lane.Id, step);
+        _dirty = true;
         if (!Actions.CanEdit)
         {
             _announcement = Actions.Reason;
             return;
         }
 
-        if (_busy)
+        if (_toggling)
         {
+            _announcement = Sending;
             return;
         }
 
-        _busy = true;
+        _toggling = true;
         try
         {
             bool on = lane.Steps[step];
@@ -562,7 +619,8 @@ public sealed partial class DrumsPanel : IDisposable
         }
         finally
         {
-            _busy = false;
+            _toggling = false;
+            _dirty = true;
         }
     }
 }

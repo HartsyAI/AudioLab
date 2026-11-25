@@ -44,7 +44,7 @@ public sealed class StepStroke
     /// <summary>Completes when every batch sent so far has been answered.</summary>
     public Task Done => _running;
 
-    /// <summary>Paints a step toward the drag's state. Returns true when the step's shown state changes; a step already in that state sends nothing.</summary>
+    /// <summary>Paints a step toward the drag's state. Returns true when the step's shown state changes.</summary>
     /// <param name="step">The step under the pointer.</param>
     /// <param name="shown">The state the step shows now, with the paint of this drag.</param>
     public bool Paint(int step, bool shown)
@@ -93,9 +93,8 @@ public sealed class StepStroke
                 }
 
                 _pending.Clear();
+                Changed?.Invoke();
             }
-
-            Changed?.Invoke();
         }
     }
 }
