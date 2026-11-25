@@ -4,7 +4,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>The edits of a track's automation lanes the session screen makes, each one command sent by wire name; refusals come back as words.</summary>
+/// <summary>The edits of a track's automation lanes, each one command by wire name; refusals come back as words.</summary>
 public sealed class AutomationEditor(LiveProject live)
 {
     /// <summary>Adds a point to a lane at a time and value; the server's rule places it.</summary>
@@ -12,7 +12,8 @@ public sealed class AutomationEditor(LiveProject live)
     {
         return EditRunner.RunAsync(
             live,
-            project => live.SendAsync(new AddAutomationPoint { Project = project, Track = track, Parameter = parameter, Time = time, Value = value }));
+            project => live.SendAsync(
+                new AddAutomationPoint { Project = project, Track = track, Parameter = parameter, Time = time, Value = value }));
     }
 
     /// <summary>Moves a point to an absolute time and value, as one gesture, so one undo step.</summary>

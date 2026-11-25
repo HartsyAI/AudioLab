@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The strip beside an automation lane (D69): its parameter, its mode and a hide control, each with its reason when it cannot be used.</summary>
+/// <summary>The strip beside an automation lane (D69): parameter, mode and hide, each with its reason when unusable.</summary>
 public sealed partial class AutomationHeader
 {
     private static readonly (AutomationMode Mode, string Label)[] _modes =
@@ -44,7 +44,12 @@ public sealed partial class AutomationHeader
         new SegmentItem("pan", "Pan lane", Label: "Pan", Reason: Reason),
     ];
 
-    private IReadOnlyList<SegmentItem> ModeItems => [.. _modes.Select(mode => new SegmentItem(mode.Mode.ToString().ToLowerInvariant(), $"Automation {mode.Label}", Label: mode.Label, Reason: Reason))];
+    private IReadOnlyList<SegmentItem> ModeItems =>
+    [
+        .. _modes.Select(mode => new SegmentItem(Id(mode.Mode), $"Automation {mode.Label}", Label: mode.Label, Reason: Reason)),
+    ];
+
+    private static string Id(AutomationMode mode) => mode.ToString().ToLowerInvariant();
 
     private Task ChooseParameterAsync(string id)
     {
@@ -54,7 +59,7 @@ public sealed partial class AutomationHeader
 
     private Task ChooseModeAsync(string id)
     {
-        AutomationMode? mode = _modes.Where(choice => choice.Mode.ToString().ToLowerInvariant() == id).Select(choice => (AutomationMode?)choice.Mode).FirstOrDefault();
+        AutomationMode? mode = _modes.Where(choice => Id(choice.Mode) == id).Select(choice => (AutomationMode?)choice.Mode).FirstOrDefault();
         return Editable && mode is { } chosen && chosen != Track.Automation.Mode ? Actions.SetMode(Track.Id, chosen) : Task.CompletedTask;
     }
 

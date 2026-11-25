@@ -6,7 +6,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>Holds the automation lane tests: the line a lane draws as the engine plays it, its bounded size, its hit test and the rule a drag sends.</summary>
+/// <summary>Holds the automation lane tests: the line as the engine plays it, its bounded size, its hit test and a drag's rule.</summary>
 public sealed class AutomationLaneTests
 {
     private const double Height = 40;

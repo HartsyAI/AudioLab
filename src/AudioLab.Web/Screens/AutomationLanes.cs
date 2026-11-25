@@ -11,6 +11,12 @@ public sealed class AutomationLanes
     /// <summary>Raised with the track whose lane changed.</summary>
     public event Action<TrackId>? Changed;
 
+    /// <summary>Raised when the words for the status region changed.</summary>
+    public event Action? AnnouncementChanged;
+
+    /// <summary>The last announcement, read by the status region of the arrangement (D68).</summary>
+    public string Announcement { get; private set; } = string.Empty;
+
     /// <summary>The track whose point is selected, or null.</summary>
     public TrackId? Track { get; private set; }
 
@@ -39,6 +45,13 @@ public sealed class AutomationLanes
         {
             Changed?.Invoke(now);
         }
+    }
+
+    /// <summary>Says a sentence in the status region, so that it is read to the user.</summary>
+    public void Announce(string text)
+    {
+        Announcement = text;
+        AnnouncementChanged?.Invoke();
     }
 
     /// <summary>Begins a drag of a point.</summary>

@@ -16,7 +16,7 @@ public sealed partial class AutomationLane : IDisposable
 {
     private IReadOnlyList<AutomationPoint>? _points;
 
-    private (double, double, bool, int?, int?, double, double, string, bool, string?, string, AutomationParameter, double, string) _shown;
+    private readonly AutomationLaneGate _gate = new();
 
     private string _curve = string.Empty;
 
@@ -118,17 +118,12 @@ public sealed partial class AutomationLane : IDisposable
         // The first render does not ask ShouldRender, so what it drew is remembered here; without it the next change would draw again for nothing.
         if (firstRender)
         {
-            _shown = Shown();
+            _gate.Remember(Snapshot());
         }
     }
 
     /// <inheritdoc />
-    protected override bool ShouldRender()
-    {
-        bool same = _shown.Equals(Shown());
-        _shown = Shown();
-        return !same;
-    }
+    protected override bool ShouldRender() => _gate.Draw(Snapshot());
 
     /// <inheritdoc />
     public void Dispose()
@@ -136,11 +131,24 @@ public sealed partial class AutomationLane : IDisposable
         Lanes.Changed -= OnLanesChanged;
     }
 
-    private (double, double, bool, int?, int?, double, double, string, bool, string?, string, AutomationParameter, double, string) Shown()
+    private AutomationLaneShown Snapshot()
     {
         AutomationDrag? drag = Lanes.Drag is { } active && active.Track == Track.Id ? active : null;
-        return (Top, Width, drag is not null, Lanes.Track == Track.Id ? Lanes.Index : null, drag?.Index, drag?.Time ?? 0, drag?.Value ?? 0,
-            ColorToken, Editable, Reason, Track.Name, Plan.Parameter, Plan.Height, ElementId);
+        return new AutomationLaneShown(
+            _points,
+            Lanes.Track == Track.Id ? Lanes.Index : null,
+            drag is not null,
+            drag?.Index,
+            drag?.Time ?? 0,
+            drag?.Value ?? 0,
+            Width,
+            Plan.Height,
+            Top,
+            ColorToken,
+            Editable,
+            Reason,
+            Name,
+            Plan.Parameter);
     }
 
     private void OnLanesChanged(TrackId track)
