@@ -28,6 +28,10 @@ public sealed class AutomationActions
     public Func<TrackId, bool?, AutomationParameter?, Task<EditResult>> SetView { get; init; } =
         (_, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Folds a recorded pass into a lane, and sets the mode after it when one is given (D25).</summary>
+    public Func<TrackId, AutomationParameter, AutomationPass, AutomationMode?, Task<EditResult>> CommitPass { get; init; } =
+        (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
     public static AutomationActions For(AutomationEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
     {
@@ -40,6 +44,7 @@ public sealed class AutomationActions
             Delete = (track, parameter, index) => show(editor.DeletePointAsync(track, parameter, index)),
             SetMode = (track, mode) => show(editor.SetModeAsync(track, mode)),
             SetView = (track, visible, parameter) => show(editor.SetViewAsync(track, visible, parameter)),
+            CommitPass = (track, parameter, pass, mode) => show(editor.CommitPassAsync(track, parameter, pass, mode)),
         };
     }
 }

@@ -1,5 +1,6 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
+using AudioLab.Core.Realtime;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Services;
@@ -50,6 +51,39 @@ public sealed class AutomationEditor(LiveProject live)
         return EditRunner.RunAsync(
             live,
             project => live.SendAsync(new DeleteAutomationPoint { Project = project, Track = track, Parameter = parameter, Index = index }));
+    }
+
+    /// <summary>Folds a recorded pass into a lane and, when a mode is given, sets it after the pass: one gesture, so one undo step (D25).</summary>
+    public Task<EditResult> CommitPassAsync(TrackId track, AutomationParameter parameter, AutomationPass pass, AutomationMode? mode)
+    {
+        return EditRunner.RunAsync(
+            live,
+            async project =>
+            {
+                string gesture = live.NewGesture();
+                try
+                {
+                    CommandReply committed = await live.SendAsync(
+                        new CommitAutomationWrite
+                        {
+                            Project = project,
+                            Track = track,
+                            Parameter = parameter,
+                            Points = [.. pass.Points],
+                            ReturnToOld = pass.ReturnToOld,
+                        },
+                        gesture);
+                    if (!committed.Succeeded || mode is not { } chosen)
+                    {
+                        return committed;
+                    }
+                    return await live.SendAsync(new SetAutomationMode { Project = project, Track = track, Mode = chosen }, gesture);
+                }
+                finally
+                {
+                    await live.EndGestureAsync(gesture);
+                }
+            });
     }
 
     /// <summary>Sets how a track's lanes behave during playback.</summary>
