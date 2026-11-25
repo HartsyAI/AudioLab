@@ -1,0 +1,9 @@
+<div class="automation-header" role="group" aria-label="@Name" style="height: @Css.Px(TrackLayout.AutomationHeight)">
+    <div class="row">
+        <Segmented Label="Automation parameter" Words="true" Items="ParameterItems" Value="@ParameterId" ValueChanged="ChooseParameterAsync" />
+        <Button Name="Hide automation lane" Disabled="!Editable" DisabledReason="@Reason" OnClick="HideAsync">Hide</Button>
+    </div>
+    <div class="row">
+        <Segmented Label="Automation mode" Words="true" Items="ModeItems" Value="@ModeId" ValueChanged="ChooseModeAsync" />
+    </div>
+</div>
