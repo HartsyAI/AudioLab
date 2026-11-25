@@ -103,7 +103,7 @@ public sealed class MediaDrag
             geometry.X(_start) + 1,
             layout.Tops[row] + LaneInset,
             Math.Max(2, geometry.Width(File.Duration) - 2),
-            layout.Heights[row] - (2 * LaneInset) - 1);
+            layout.ClipHeights[row] - (2 * LaneInset) - 1);
     }
 
     /// <summary>Releases the file: where to add it, or null when it is a click or the pointer is not over an audio lane.</summary>

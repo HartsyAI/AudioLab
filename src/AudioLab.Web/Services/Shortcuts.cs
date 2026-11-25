@@ -21,6 +21,9 @@ public static class Shortcuts
     /// <summary>The scope of a control that takes a value, such as a knob: keys heard while the focus is on the control itself.</summary>
     public const string Controls = "controls";
 
+    /// <summary>The scope of an automation lane: keys heard while the lane has the focus, so the arrangement keeps its own.</summary>
+    public const string Automation = "automation";
+
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
 
@@ -250,6 +253,39 @@ public static class Shortcuts
     /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
 
+    /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
+    public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
+
+    /// <summary>Adds a point to the selected lane at the selected point's time and value.</summary>
+    public static readonly Shortcut AutomationAdd = new("automation.add", "Add point", "Enter", Automation);
+
+    /// <summary>Selects the point before the selected one.</summary>
+    public static readonly Shortcut AutomationPrevious = new("automation.previous", "Select previous point", "ArrowLeft", Automation);
+
+    /// <summary>Selects the point after the selected one.</summary>
+    public static readonly Shortcut AutomationNext = new("automation.next", "Select next point", "ArrowRight", Automation);
+
+    /// <summary>Moves the selected point earlier by a grid step.</summary>
+    public static readonly Shortcut AutomationEarlier = new("automation.earlier", "Move point earlier", "ArrowLeft", Automation, Alt: true);
+
+    /// <summary>Moves the selected point later by a grid step.</summary>
+    public static readonly Shortcut AutomationLater = new("automation.later", "Move point later", "ArrowRight", Automation, Alt: true);
+
+    /// <summary>Raises the selected point by a tenth of the drawn range.</summary>
+    public static readonly Shortcut AutomationHigher = new("automation.higher", "Raise point", "ArrowUp", Automation, Alt: true);
+
+    /// <summary>Lowers the selected point by a tenth of the drawn range.</summary>
+    public static readonly Shortcut AutomationLower = new("automation.lower", "Lower point", "ArrowDown", Automation, Alt: true);
+
+    /// <summary>Removes the selected point.</summary>
+    public static readonly Shortcut AutomationDelete = new("automation.delete", "Delete point", "Delete", Automation);
+
+    /// <summary>The keys of an automation lane, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> AutomationKeys =
+    [
+        AutomationAdd, AutomationPrevious, AutomationNext, AutomationEarlier, AutomationLater, AutomationHigher, AutomationLower, AutomationDelete,
+    ];
+
     /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> EffectChain =
     [
@@ -270,8 +306,8 @@ public static class Shortcuts
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
-        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects,
+        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset, .. AutomationKeys,
     ];
 }
