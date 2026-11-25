@@ -71,6 +71,7 @@ builder.Services.AddScoped<EffectsNavigator>();
 builder.Services.AddScoped<PianoRollState>();
 builder.Services.AddScoped<RollDragState>();
 builder.Services.AddScoped<PianoRollKeys>();
+builder.Services.AddScoped<DrumKeys>();
 builder.Services.AddSingleton<IAuditionSink, UnavailableAudition>();
 builder.Services.AddSingleton<IMidiTransfer, UnavailableMidiTransfer>();
 builder.Services.AddScoped<NoteAudition>();

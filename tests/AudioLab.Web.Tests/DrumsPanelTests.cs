@@ -59,6 +59,7 @@ public sealed class DrumsPanelTests
         {
             services.AddSingleton<IElementFocus>(new FakeFocus());
             services.AddSingleton<INativeOverlay, NoOverlay>();
+            services.AddSingleton<DrumKeys>();
         });
     }
 
@@ -286,6 +287,196 @@ public sealed class DrumsPanelTests
         RenderedMarkup markup = await MarkupAsync(Document(Pattern()), SessionActions.ReadOnly(Offline));
 
         Assert.Contains(markup.Values("title"), title => title.Contains(Offline, StringComparison.Ordinal));
+    }
+
+    /// <summary>A lane with sixteen steps, all off, as the grid draws it.</summary>
+    private static BeatLane Grid(BeatLaneId id, string name) => new() { Id = id, Name = name, Gain = 1, Steps = [.. Enumerable.Repeat(false, 16)] };
+
+    private static BeatPattern Full() => new() { Steps = 16, Swing = 0.5, Lanes = [Grid(_kick, "Kick"), Grid(_snare, "Snare")] };
+
+    private static KeyboardEventArgs Key(string key, bool repeat = false) => new() { Key = key, Repeat = repeat };
+
+    /// <summary>A switch of a step sends one command and keeps the focus on that step.</summary>
+    [Fact]
+    public async Task ASwitchIsOneCommandAndTheFocusStaysOnTheStep()
+    {
+        List<(BeatLaneId Lane, int Step, bool On)> switches = [];
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneSteps = (lane, steps, on, _) =>
+            {
+                switches.Add((lane, steps[0], on));
+                return Task.FromResult(EditResult.Applied(true, []));
+            },
+        }));
+
+        await panel.GridKeyAsync(Full().Lanes[0], 2, Key("Enter"));
+
+        Assert.Single(switches);
+        Assert.Equal(_kick, switches[0].Lane);
+        Assert.Equal(2, switches[0].Step);
+        Assert.True(switches[0].On);
+        Assert.Equal(BeatLaneText.CellId(_kick, 2), panel.PendingFocus);
+    }
+
+    /// <summary>A held Space does not switch a step again and again.</summary>
+    [Fact]
+    public async Task AHeldSpaceDoesNotSwitchAStepAgain()
+    {
+        int switches = 0;
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneSteps = (_, _, _, _) =>
+            {
+                switches++;
+                return Task.FromResult(EditResult.Applied(true, []));
+            },
+        }));
+
+        await panel.GridKeyAsync(Full().Lanes[0], 2, Key(" ", repeat: true));
+
+        Assert.Equal(0, switches);
+    }
+
+    /// <summary>A read-only project says why a step does not switch, and sends nothing.</summary>
+    [Fact]
+    public async Task AReadOnlyGridSaysWhyAStepDoesNotSwitch()
+    {
+        int switches = 0;
+        DrumsPanel panel = Panel(Document(Full()), new SessionActions
+        {
+            CanEdit = false,
+            Reason = Offline,
+            Beats = new BeatActions
+            {
+                SetLaneSteps = (_, _, _, _) =>
+                {
+                    switches++;
+                    return Task.FromResult(EditResult.Applied(true, []));
+                },
+            },
+        });
+
+        await panel.GridKeyAsync(Full().Lanes[0], 2, Key("Enter"));
+
+        Assert.Equal(0, switches);
+        Assert.Equal(Offline, panel.Announcement);
+    }
+
+    /// <summary>Arrows move the focus between steps and lanes, Home and End go to the ends of a lane, and an arrow with nowhere to go stays put.</summary>
+    [Fact]
+    public async Task TheArrowsAndHomeAndEndMoveTheFocusWithinTheGrid()
+    {
+        DrumsPanel panel = Panel(Document(Full()), Editable());
+        BeatLane kick = Full().Lanes[0];
+        BeatLane snare = Full().Lanes[1];
+
+        await panel.GridKeyAsync(kick, 2, Key("ArrowRight"));
+        Assert.Equal(BeatLaneText.CellId(_kick, 3), panel.PendingFocus);
+
+        await panel.GridKeyAsync(kick, 3, Key("ArrowDown"));
+        Assert.Equal(BeatLaneText.CellId(_snare, 3), panel.PendingFocus);
+
+        await panel.GridKeyAsync(snare, 3, Key("End"));
+        Assert.Equal(BeatLaneText.CellId(_snare, 15), panel.PendingFocus);
+
+        await panel.GridKeyAsync(snare, 15, Key("Home"));
+        Assert.Equal(BeatLaneText.CellId(_snare, 0), panel.PendingFocus);
+
+        await panel.GridKeyAsync(snare, 0, Key("ArrowUp"));
+        Assert.Equal(BeatLaneText.CellId(_kick, 0), panel.PendingFocus);
+
+        DrumsPanel top = Panel(Document(Full()), Editable());
+        await top.GridKeyAsync(kick, 0, Key("ArrowUp"));
+        Assert.Null(top.PendingFocus);
+    }
+
+    /// <summary>The grid takes Space, Home and End from the page only while the focus is in it, so the transport keeps them elsewhere.</summary>
+    [Fact]
+    public async Task TheGridTakesSpaceHomeAndEndOnlyWhileTheFocusIsInIt()
+    {
+        DrumKeys keys = new();
+        DrumsPanel panel = Panel(Document(Full()), Editable());
+        panel.GridKeys = keys;
+        panel.Claim();
+
+        Assert.False(keys.Handle(new KeyChord("Home", false, false, false)));
+
+        await panel.GridFocusAsync(true);
+        Assert.True(keys.Handle(new KeyChord("Home", false, false, false)));
+        Assert.True(keys.Handle(new KeyChord(" ", false, false, false)));
+        Assert.True(keys.Handle(new KeyChord("End", false, false, false)));
+        Assert.False(keys.Handle(new KeyChord("ArrowLeft", false, false, false)));
+
+        await panel.GridFocusAsync(false);
+        Assert.False(keys.Handle(new KeyChord("Home", false, false, false)));
+    }
+
+    /// <summary>A paint drag sends each batch with its drag's gesture, and a refused batch is said in the status line and closes the gesture.</summary>
+    [Fact]
+    public async Task APaintDragUsesOneGestureAndSaysARefusal()
+    {
+        List<string> gestures = [];
+        List<string> ended = [];
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            BeginStroke = () => "g7",
+            EndStroke = gesture =>
+            {
+                ended.Add(gesture);
+                return Task.CompletedTask;
+            },
+            SetLaneSteps = (_, _, _, gesture) =>
+            {
+                gestures.Add(gesture!);
+                return Task.FromResult(EditResult.Refused("The lane is gone."));
+            },
+        }));
+
+        StepStroke stroke = panel.StartStroke(Full().Lanes[0], true);
+        stroke.Paint(1, false);
+        await panel.StrokeEndedAsync(stroke);
+
+        Assert.Equal(new[] { "g7" }, gestures);
+        Assert.Equal(new[] { "g7" }, ended);
+        Assert.Equal("The lane is gone.", panel.Announcement);
+    }
+
+    /// <summary>The grid's tab stop is the step the focus last reached, in the first lane until the focus goes somewhere.</summary>
+    [Fact]
+    public async Task TheTabStopFollowsTheFocus()
+    {
+        DrumsPanel panel = Panel(Document(Full()), Editable());
+        BeatLane kick = Full().Lanes[0];
+        BeatLane snare = Full().Lanes[1];
+
+        Assert.Equal(0, panel.CursorFor(kick));
+        Assert.Equal(-1, panel.CursorFor(snare));
+
+        await panel.GridKeyAsync(kick, 0, Key("ArrowDown"));
+
+        Assert.Equal(-1, panel.CursorFor(kick));
+        Assert.Equal(0, panel.CursorFor(snare));
+    }
+
+    /// <summary>A typed gain sends the gain as an absolute value, and a refused one says the words of the server.</summary>
+    [Fact]
+    public async Task ATypedGainIsSentAsItIs()
+    {
+        List<double> gains = [];
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            SetLaneGain = (_, gain) =>
+            {
+                gains.Add(gain);
+                return Task.FromResult(EditResult.Applied(true, []));
+            },
+        }));
+
+        panel.GainChanged(_kick, "0.5");
+        await panel.SetGainAsync(Full().Lanes[0]);
+
+        Assert.Equal(new[] { 0.5 }, gains);
     }
 
     private sealed class FakeFocus : IElementFocus

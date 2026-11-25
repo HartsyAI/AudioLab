@@ -79,6 +79,10 @@ public sealed partial class SessionPage
 
     [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
+
+    [Inject]
+    private DrumKeys DrumKeys { get; set; } = default!;
+
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
 
@@ -417,6 +421,11 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
+        if (DrumKeys.Handle(chord))
+        {
+            return true;
+        }
+
         if (RollKeys.Route(chord, TransportPress))
         {
             return true;

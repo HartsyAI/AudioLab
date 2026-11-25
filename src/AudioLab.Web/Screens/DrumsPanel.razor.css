@@ -44,10 +44,18 @@
 
 .drums-lane {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--lane-line);
+}
+
+.drums-lane-head {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-8);
     min-height: var(--control-md);
-    border-bottom: 1px solid var(--lane-line);
 }
 
 .drums-lane:focus-visible {

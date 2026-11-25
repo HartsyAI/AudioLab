@@ -45,4 +45,32 @@ public sealed class BeatEditorTests
         Assert.False(result.Succeeded);
         Assert.Equal("Swing must be from 0 to 1.", result.Refusal);
     }
+
+    /// <summary>Every batch of a paint drag goes out with the drag's gesture, so the drag is one undo step.</summary>
+    [Fact]
+    public async Task APaintDragsBatchesCarryItsGesture()
+    {
+        BeatEditor editor = await OpenAsync();
+        string gesture = editor.BeginStroke();
+
+        await editor.SetLaneStepsAsync(BeatLaneId.From("bln_kick"), [1, 2], true, gesture);
+        await editor.SetLaneStepsAsync(BeatLaneId.From("bln_kick"), [3], true, gesture);
+        await editor.EndStrokeAsync(gesture);
+
+        Assert.Equal(2, _hub.Sent.Count(sent => sent.Gesture == gesture));
+    }
+
+    /// <summary>A switch of steps and a gain are sent as absolute values, one command each.</summary>
+    [Fact]
+    public async Task ASwitchAndAGainAreOneCommandEach()
+    {
+        BeatEditor editor = await OpenAsync();
+
+        await editor.SetLaneStepsAsync(BeatLaneId.From("bln_kick"), [4], false);
+        await editor.SetLaneGainAsync(BeatLaneId.From("bln_kick"), 0.75);
+
+        Assert.Equal(2, _hub.Sent.Count);
+        Assert.Contains(_hub.Sent, sent => sent.Command.Contains("beat_lane_set_steps", StringComparison.Ordinal) && sent.Json.Contains("\"on\":false", StringComparison.Ordinal));
+        Assert.Contains(_hub.Sent, sent => sent.Command.Contains("beat_lane_set_gain", StringComparison.Ordinal));
+    }
 }
