@@ -626,7 +626,7 @@ public sealed class DrumsPanelTests
         Assert.Equal(new[] { 0.5 }, gains);
     }
 
-    /// <summary>Escape cancels a paint drag held down, from any focus: unsent steps are withdrawn, and the batch on its way stays.</summary>
+    /// <summary>Escape cancels a paint drag held down, anywhere but a text field or a dialog: unsent steps go, the batch on its way stays.</summary>
     [Fact]
     public async Task EscapeCancelsAHeldDragFromAnyFocus()
     {

@@ -526,7 +526,8 @@ public sealed partial class DrumsPanel : IDisposable
         return Math.Clamp(_cursorStep, 0, Math.Max(lane.Steps.Count - 1, 0));
     }
 
-    // Escape cancels a paint drag that is held down, from any focus, since a mouse press does not focus a button in every browser. Space, Enter,
+    // Escape cancels a paint drag that is held down, anywhere but a text field or a dialog, since a mouse press does not focus a button in every
+    // browser. Space, Enter,
     // Home, End and the arrows belong to the grid while its focus is in it, so the page does not scroll, start the transport or seek.
     private bool HandleGridKey(KeyChord chord)
     {

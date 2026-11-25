@@ -318,7 +318,7 @@ public static class Shortcuts
     /// <summary>Move the focus to the last step of the lane.</summary>
     public static readonly Shortcut DrumStepLast = new("drum.step.last", "Last step of the lane", "End", Drums);
 
-    /// <summary>Cancels the paint drag that is held down, from any focus: the steps not yet sent are withdrawn (DESIGN 7.6).</summary>
+    /// <summary>Cancels the paint drag that is held down, anywhere but a text field or a dialog: the steps not yet sent are withdrawn.</summary>
     public static readonly Shortcut DrumStepCancel = new("drum.step.cancel", "Cancel the paint drag", "Escape", Drums);
 
     /// <summary>The keys of a step grid, in the order they are listed.</summary>

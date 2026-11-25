@@ -80,6 +80,7 @@ public sealed class StepGridTests
         await markup.RaiseOnAsync(Cell(1), "onpointerenter", Pointer());
         Assert.Equal(afterPress + 1, markup.Batches);
         Assert.Equal([0, 1], sends.Painted);
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>A touch keeps its press on the cell it began on, so the cell under the finger is the one that is painted.</summary>
@@ -98,6 +99,28 @@ public sealed class StepGridTests
 
         Assert.Equal([2, 3, 4], sends.Painted);
         Assert.All(sends.Batches, batch => Assert.True(batch.On));
+        await markup.DisposeServicesAsync();
+    }
+
+    /// <summary>A mouse paints by entering a step, so a mouse move over the grid paints nothing, during a drag or not.</summary>
+    [Fact]
+    public async Task AMouseMoveOverTheGridPaintsNothing()
+    {
+        Sends sends = new();
+        RenderedMarkup markup = await StartAsync(sends);
+        sends.Metrics.Under = Cell(3);
+
+        await markup.RaiseOnAsync(null, "onpointermove", Pointer());
+        Assert.Empty(sends.Batches);
+
+        await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer());
+        await markup.RunAsync(() => { });
+        int pressed = markup.Batches;
+        await markup.RaiseOnAsync(null, "onpointermove", Pointer());
+
+        Assert.Equal(pressed, markup.Batches);
+        Assert.Equal([0], sends.Painted);
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>A press made while the last drag's commands are still unanswered starts a drag of its own, so both are sent.</summary>
@@ -116,6 +139,7 @@ public sealed class StepGridTests
 
         reply.SetResult(EditResult.Applied(true, []));
         await released;
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>A hub lost in the middle of a drag leaves no painted step behind, and the next press works.</summary>
@@ -134,6 +158,7 @@ public sealed class StepGridTests
 
         await markup.RaiseOnAsync(Cell(7), "onpointerdown", Pointer());
         Assert.Contains(7, sends.Painted);
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>The browser cancelling the pointer ends the drag and withdraws the steps not yet sent; a press after that starts again.</summary>
@@ -146,7 +171,8 @@ public sealed class StepGridTests
         StepGrid grid = markup.Instance<StepGrid>();
 
         await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer("touch"));
-        await markup.RaiseOnAsync(Cell(1), "onpointerenter", Pointer("touch"));
+        sends.Metrics.Under = Cell(1);
+        await markup.RaiseOnAsync(null, "onpointermove", Pointer("touch"));
         Task cancelled = markup.RaiseOnAsync(null, "onpointercancel", Pointer("touch"));
 
         Assert.False(grid.ShownOn(1));
@@ -158,6 +184,7 @@ public sealed class StepGridTests
         Assert.Equal([0], sends.Painted);
         await markup.RaiseOnAsync(Cell(5), "onpointerdown", Pointer());
         Assert.Contains(5, sends.Painted);
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>When the grid goes while a drag is open, the drag ends, so its gesture is closed.</summary>
@@ -178,5 +205,6 @@ public sealed class StepGridTests
 
         Assert.Single(ended);
         Assert.True(ended[0].Ended);
+        await markup.DisposeServicesAsync();
     }
 }
