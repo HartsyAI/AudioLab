@@ -18,6 +18,7 @@ public static class TranscriptionServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<TranscriptionStore>();
         services.AddSingleton<IAudioWindowSource, StoredAudioWindowSource>();
+        SpeechModelCatalog.Validate(SpeechModelCatalog.Entries);
         foreach (SpeechModelEntry entry in SpeechModelCatalog.Entries)
         {
             services.AddSingleton(entry);

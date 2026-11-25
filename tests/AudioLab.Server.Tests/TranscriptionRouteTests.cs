@@ -21,11 +21,11 @@ public sealed class TranscriptionRouteTests
         await using RunningServer server = await RunningServer.StartAsync();
 
         HttpResponseMessage missing = await server.Client.GetAsync($"/api/media/{UnknownId}/transcription");
-        HttpResponseMessage wellFormed = await server.Client.GetAsync("/api/media/not-an-id/transcription");
+        HttpResponseMessage plausibleId = await server.Client.GetAsync("/api/media/not-an-id/transcription");
         HttpResponseMessage malformed = await server.Client.GetAsync("/api/media/a%20b/transcription");
 
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, wellFormed.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, plausibleId.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
     }
 
@@ -54,7 +54,7 @@ public sealed class TranscriptionRouteTests
             services => services.AddSingleton<ISpeechModel>(model));
         string id = await UploadAsync(server.Client, "clip.wav");
         await server.Client.PostAsync($"/api/media/{id}/transcription", null);
-        await model.Entered;
+        await model.Entered.WaitAsync(TimeSpan.FromSeconds(30));
 
         HttpResponseMessage early = await server.Client.GetAsync($"/api/media/{id}/transcript");
         Assert.Equal(HttpStatusCode.Conflict, early.StatusCode);
@@ -120,6 +120,36 @@ public sealed class TranscriptionRouteTests
         string fullId = await UploadAsync(full.Client, "clip.wav");
         HttpResponseMessage outOfRoom = await full.Client.PostAsync($"/api/media/{fullId}/transcription", null);
         Assert.Equal(HttpStatusCode.InsufficientStorage, outOfRoom.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheSpeechModelIsReadAndChosenOverHttpAndABadBodyIsAClientError()
+    {
+        FakeSpeechModel model = new() { ModelId = SpeechModelCatalog.DefaultSpeechModel };
+        await using RunningServer server = await RunningServer.StartAsync(null, services => services.AddSingleton<ISpeechModel>(model));
+
+        HttpResponseMessage read = await server.Client.GetAsync("/api/transcription/speech-model");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Contains(SpeechModelCatalog.DefaultSpeechModel, await read.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using StringContent asText = new(SpeechModelCatalog.DefaultSpeechModel, System.Text.Encoding.UTF8, "text/plain");
+        HttpResponseMessage plain = await server.Client.PutAsync("/api/transcription/speech-model", asText);
+        Assert.Equal(HttpStatusCode.BadRequest, plain.StatusCode);
+
+        using StringContent malformed = new("{not json", System.Text.Encoding.UTF8, "application/json");
+        HttpResponseMessage broken = await server.Client.PutAsync("/api/transcription/speech-model", malformed);
+        Assert.Equal(HttpStatusCode.BadRequest, broken.StatusCode);
+
+        using StringContent unknown = new("{\"model\":\"not-installed\"}", System.Text.Encoding.UTF8, "application/json");
+        HttpResponseMessage refused = await server.Client.PutAsync("/api/transcription/speech-model", unknown);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+
+        using StringContent chosen = new(
+            "{\"model\":\"" + SpeechModelCatalog.DefaultSpeechModel + "\"}",
+            System.Text.Encoding.UTF8,
+            "application/json");
+        HttpResponseMessage accepted = await server.Client.PutAsync("/api/transcription/speech-model", chosen);
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
     }
 
     private static async Task<string> UploadAsync(HttpClient client, string name)

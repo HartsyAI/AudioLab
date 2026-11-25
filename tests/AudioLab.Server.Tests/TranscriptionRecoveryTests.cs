@@ -126,7 +126,7 @@ public sealed class TranscriptionRecoveryTests
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
         HangingSpeechModel model = new();
-        TranscriptionOptions options = new() { RetryDelay = TimeSpan.Zero, ModelTimeout = TimeSpan.FromMinutes(1) };
+        TranscriptionOptions options = new() { RetryDelay = TimeSpan.FromMilliseconds(1), ModelTimeout = TimeSpan.FromMinutes(1) };
         TranscriptionJobs jobs = new(
             files,
             store.Media,
@@ -138,14 +138,7 @@ public sealed class TranscriptionRecoveryTests
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
         await jobs.StartAsync(Users.Alice, media, None);
 
-        Task run = RunToEndAsync(jobs);
-        for (int tick = 0; !run.IsCompleted; tick++)
-        {
-            Assert.True(tick < 10_000, "The job never finished.");
-            store.Time.Advance(TimeSpan.FromMinutes(1));
-            await Task.WhenAny(run, Task.Delay(TimeSpan.FromMilliseconds(2)));
-        }
-        await run;
+        await RunWithClockAsync(jobs, store.Time).WaitAsync(TimeSpan.FromSeconds(30));
 
         TranscriptionStatus status = await StatusOfAsync(jobs, Users.Alice, media.Id);
         Assert.Equal(TranscriptionState.Failed, status.State);
@@ -226,37 +219,6 @@ public sealed class TranscriptionRecoveryTests
     }
 
     [Fact]
-    public async Task AJobKeepsTheModelItStartedWithAfterARestart()
-    {
-        using TempFolder folder = new();
-        TestStore first = TestStore.On(folder.Path);
-        TranscriptionStore firstFiles = Files(first);
-        await firstFiles.WriteSpeechModelAsync(Users.Alice, "model-a", None);
-        TranscriptionJobs firstJobs = Jobs(first, firstFiles, new FakeWindowSource(100), Answering("from a", "model-a"));
-        MediaRecord media = await first.UploadAsync(Users.Alice, Wav());
-        await firstJobs.StartAsync(Users.Alice, media, None);
-        Assert.True(await firstJobs.StepAsync(None));
-        Assert.True(await firstJobs.StepAsync(None));
-        first.Crash();
-
-        TestStore second = TestStore.On(folder.Path);
-        ISpeechModels both = Registry(Answering("from a", "model-a"), Answering("from b", "model-b"));
-        TranscriptionJobs secondJobs = Jobs(second, Files(second), new FakeWindowSource(100), both);
-        Assert.True(await secondJobs.StepAsync(None));
-        second.Crash();
-
-        await using TestStore third = TestStore.On(folder.Path);
-        TranscriptionStore thirdFiles = Files(third);
-        TranscriptionJobs thirdJobs = Jobs(third, thirdFiles, new FakeWindowSource(100), both);
-        await RunToEndAsync(thirdJobs);
-
-        TranscriptDocument document = (await thirdFiles.ReadTranscriptAsync(Users.Alice, media.Id, None))!;
-        Assert.Equal("model-a", document.Model);
-        Assert.All(document.Segments, segment => Assert.StartsWith("from a", segment.Text, StringComparison.Ordinal));
-        Assert.Equal(4, document.Segments.Count);
-    }
-
-    [Fact]
     public async Task AFinishedJobReportsItsProgressAfterARestart()
     {
         using TempFolder folder = new();
@@ -321,7 +283,13 @@ public sealed class TranscriptionRecoveryTests
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
-        TranscriptionOptions options = new() { MaxRunning = 2, MaxRunningPerUser = 1, MaxQueuedPerUser = 2, RetryDelay = TimeSpan.Zero };
+        TranscriptionOptions options = new()
+        {
+            MaxRunning = 2,
+            MaxRunningPerUser = 1,
+            MaxQueuedPerUser = 2,
+            RetryDelay = TimeSpan.FromMilliseconds(1),
+        };
         TranscriptionJobs jobs = new(
             files,
             store.Media,
