@@ -119,12 +119,9 @@ public sealed partial class LyricsPanel
 
     private bool ClearDisabled => !Timed || !Actions.CanEdit;
 
-    private bool EstimateDisabled => !Actions.CanEdit || _draft != _saved || _textWords == 0;
+    private string? EstimateBlock => LyricsEstimate.Block(Actions.CanEdit, Actions.Reason, _draft != _saved, _textWords);
 
-    private string? EstimateBlock => !Actions.CanEdit ? Actions.Reason
-        : _draft != _saved ? "Save the text first, so the estimate spreads the words you see."
-        : _textWords == 0 ? "Write some lyrics first; there are no words to spread."
-        : null;
+    private bool EstimateDisabled => EstimateBlock is not null;
 
     private string? ClearBlock => !Actions.CanEdit ? Actions.Reason : Timed ? null : NoTimes;
 
@@ -299,12 +296,9 @@ public sealed partial class LyricsPanel
         EditResult result = await Actions.Lyrics.Estimate(found.Clip.Id);
         if (result.Succeeded)
         {
-            string said = string.Create(
-                CultureInfo.InvariantCulture,
-                $"Spread {count} words evenly over {ClipRules.VisibleLength(found.Clip):0.0} seconds from {found.Clip.Start:0.0} s.");
+            string said = LyricsEstimate.Summary(count, ClipRules.VisibleLength(found.Clip), found.Clip.Start);
             await SayAsync(said);
             Toasts.Show(ToastKind.Info, said, Actions.Undo);
         }
     }
-
 }

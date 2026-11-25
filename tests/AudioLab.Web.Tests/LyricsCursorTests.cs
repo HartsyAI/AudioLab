@@ -37,10 +37,8 @@ public sealed class LyricsCursorTests
     [Fact]
     public void TheCursorSaysSoOnlyWhenTheWordUnderThePlayheadChanges()
     {
-        using PlaybackService playback = new(
-            new FakeAudioHost(),
-            new HttpClient { BaseAddress = new Uri("http://example.test/audiolab/") },
-            TimeProvider.System);
+        using HttpClient http = new() { BaseAddress = new Uri("http://example.test/audiolab/") };
+        using PlaybackService playback = new(new FakeAudioHost(), http, TimeProvider.System);
         using LyricsCursor cursor = new(playback);
         int said = 0;
         cursor.Changed += () => said++;
