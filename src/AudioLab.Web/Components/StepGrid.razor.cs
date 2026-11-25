@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Components.Web;
 namespace AudioLab.Web.Components;
 
 /// <summary>A lane's steps as a row of toggles. A press starts a paint drag that sets the steps the pointer crosses to one absolute state.
-/// The drag's work is in <see cref="StepStroke"/>; only this row re-renders while the pointer moves. The keys go to the parent through callbacks.</summary>
+/// The drag's work is in <see cref="StepStroke"/>; only this row re-renders while the pointer moves.
+/// The keys go to the parent through callbacks.</summary>
 public sealed partial class StepGrid : IDisposable
 {
     // The drag the pointer is in. A drag that has been released stays in _settling until the server has answered it, so a new press can start
@@ -164,17 +165,17 @@ public sealed partial class StepGrid : IDisposable
         }
     }
 
-    // Escape cancels a drag that is under way, as DESIGN 7.6 says; the keys of a step go to the parent otherwise.
-    internal Task KeyAsync(int step, KeyboardEventArgs key)
-    {
-        if (key.Key == "Escape" && _stroke is { Ended: false } stroke)
-        {
-            stroke.Cancel();
-            return Task.CompletedTask;
-        }
+    private Task KeyAsync(int step, KeyboardEventArgs key) => Key.InvokeAsync(new StepKey(step, key));
 
-        return Key.InvokeAsync(new StepKey(step, key));
+    // The browser cancelled the pointer, as when a system gesture takes it: the drag ends, and the steps it had not sent are withdrawn.
+    internal Task CancelAsync()
+    {
+        _stroke?.Cancel();
+        return ReleaseAsync();
     }
+
+    // Whether a step shows as on: the drag's paint, the paint of a drag the server has yet to answer, or the pattern's state.
+    internal bool ShownOn(int step) => Shown(step);
 
     private Task FocusAsync(bool inside) => FocusChanged.InvokeAsync(inside);
 

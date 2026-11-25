@@ -1,6 +1,6 @@
 <div class="step-grid" role="group" aria-label="Steps of @Lane.Name" style="--steps: @Lane.Steps.Count"
      aria-description="Arrows move the focus. Space or Enter switches a step. Home and End go to the first and last step. Drag to paint."
-     @onpointerup="ReleaseAsync" @onpointercancel="ReleaseAsync" @onpointerleave="ReleaseAsync" @onpointermove="TouchMove"
+     @onpointerup="ReleaseAsync" @onpointercancel="CancelAsync" @onpointerleave="ReleaseAsync" @onpointermove="TouchMove"
      @onfocusin="() => FocusAsync(true)" @onfocusout="() => FocusAsync(false)">
     @for (int step = 0; step < Lane.Steps.Count; step++)
     {

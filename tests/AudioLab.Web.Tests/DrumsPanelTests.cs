@@ -452,6 +452,7 @@ public sealed class DrumsPanelTests
         await markup.RaiseOnAsync(BeatLaneText.CellId(_kick, 2), "onkeydown", Key("Enter"));
 
         Assert.Contains("The lane is gone.", markup.Texts);
+        await markup.DisposeServicesAsync();
     }
 
     /// <summary>A switch on its way to the server is not sent again; the second key says so.</summary>
@@ -623,6 +624,39 @@ public sealed class DrumsPanelTests
         await panel.SetGainAsync(Full().Lanes[0]);
 
         Assert.Equal(new[] { 0.5 }, gains);
+    }
+
+    /// <summary>Escape cancels a paint drag held down, from any focus: unsent steps are withdrawn, and the batch on its way stays.</summary>
+    [Fact]
+    public async Task EscapeCancelsAHeldDragFromAnyFocus()
+    {
+        TaskCompletionSource<EditResult> reply = new();
+        List<int[]> sent = [];
+        DrumKeys keys = new();
+        DrumsPanel panel = Panel(Document(Full()), Editable(new BeatActions
+        {
+            BeginStroke = () => "g3",
+            SetLaneSteps = (_, steps, _, _) =>
+            {
+                sent.Add([.. steps]);
+                return reply.Task;
+            },
+        }));
+        panel.GridKeys = keys;
+        panel.Claim();
+        StepStroke stroke = panel.StartStroke(Full().Lanes[0], true);
+        stroke.Paint(0, false);
+        stroke.Paint(1, false);
+
+        Assert.True(keys.Handle(new KeyChord("Escape", false, false, false)));
+
+        reply.SetResult(EditResult.Applied(true, []));
+        await stroke.EndAsync();
+        await panel.StrokeEndedAsync(stroke);
+
+        Assert.Single(sent);
+        Assert.Equal(new[] { 0 }, sent[0]);
+        Assert.False(keys.Handle(new KeyChord("Escape", false, false, false)));
     }
 
     /// <summary>A gain the server refuses says its words in the status line.</summary>

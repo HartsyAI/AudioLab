@@ -35,6 +35,9 @@ public sealed partial class DrumsPanel : IDisposable
 
     private BeatLaneId? _renaming;
 
+    // The paint drag whose pointer is down, for Escape.
+    private StepStroke? _drag;
+
     private string? _renameError;
 
     private string? _focus;
@@ -123,7 +126,7 @@ public sealed partial class DrumsPanel : IDisposable
     {
         if (GridKeys is not null)
         {
-            GridKeys.Handler = ClaimsGridKey;
+            GridKeys.Handler = HandleGridKey;
         }
     }
 
@@ -454,7 +457,9 @@ public sealed partial class DrumsPanel : IDisposable
         string gesture = Actions.Beats.BeginStroke();
         BeatLaneId id = lane.Id;
         SessionActions actions = Actions;
-        return new StepStroke(on, gesture, (steps, state) => actions.Beats.SetLaneSteps(id, steps, state, gesture));
+        StepStroke stroke = new(on, gesture, (steps, state) => actions.Beats.SetLaneSteps(id, steps, state, gesture));
+        _drag = stroke;
+        return stroke;
     }
 
     // The drag has ended and its commands have been answered: the gesture is closed even when a command failed, and a refusal is said in the
@@ -474,6 +479,11 @@ public sealed partial class DrumsPanel : IDisposable
             finally
             {
                 PaintDrags?.End();
+                if (ReferenceEquals(_drag, stroke))
+                {
+                    _drag = null;
+                }
+
                 _dirty = true;
             }
         }
@@ -516,9 +526,23 @@ public sealed partial class DrumsPanel : IDisposable
         return Math.Clamp(_cursorStep, 0, Math.Max(lane.Steps.Count - 1, 0));
     }
 
-    // Space, Enter, Home, End and the arrows belong to the grid while its focus is in it: the session does not start the transport, seek or
-    // scroll the page for them. The arrows are taken here too, so the page does not scroll.
-    private bool ClaimsGridKey(KeyChord chord) => _inGrid && Shortcuts.DrumStepClaims.Any(shortcut => shortcut.Matches(chord));
+    // Escape cancels a paint drag that is held down, from any focus, since a mouse press does not focus a button in every browser. Space, Enter,
+    // Home, End and the arrows belong to the grid while its focus is in it, so the page does not scroll, start the transport or seek.
+    private bool HandleGridKey(KeyChord chord)
+    {
+        if (Shortcuts.DrumStepCancel.Matches(chord))
+        {
+            if (_drag is null || _drag.Ended)
+            {
+                return false;
+            }
+
+            _drag.Cancel();
+            return true;
+        }
+
+        return _inGrid && Shortcuts.DrumStepClaims.Any(shortcut => shortcut.Matches(chord));
+    }
 
     // Arrows move the focus; Space or Enter switches the focused step, as one command, and a held key does not repeat a switch.
     internal async Task GridKeyAsync(BeatLane lane, int step, KeyboardEventArgs key)

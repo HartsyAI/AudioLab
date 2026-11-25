@@ -9,13 +9,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>The step grid as it is rendered: what a pointer does to a lane's steps, how often the row renders, and how a lost hub or a dispose
-/// leaves the drag. The pointer's calls go to the rendered grid's own methods, which are the ones its handlers call.</summary>
+/// <summary>The step grid as it is rendered: the pointer events reach its handlers, a move renders only when it paints, and a lost hub, a cancel
+/// or a dispose leaves no painted step behind.</summary>
 public sealed class StepGridTests
 {
     private static readonly BeatLaneId _kick = BeatLaneId.From("bln_kick");
 
     private static BeatLane Kick() => new() { Id = _kick, Name = "Kick", Gain = 1, Steps = [.. Enumerable.Repeat(false, 16)] };
+
+    private static string Cell(int step) => BeatLaneText.CellId(_kick, step);
 
     private static PointerEventArgs Pointer(string type = "mouse") => new() { Button = 0, PointerType = type };
 
@@ -66,16 +68,16 @@ public sealed class StepGridTests
     {
         Sends sends = new();
         RenderedMarkup markup = await StartAsync(sends);
-        StepGrid grid = markup.Instance<StepGrid>();
 
-        await markup.RunAsync(() => grid.PressAsync(0));
+        await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer());
         await markup.RunAsync(() => { });
         int afterPress = markup.Batches;
-        await markup.RunAsync(() => grid.Enter(0));
-        await markup.RunAsync(() => grid.Enter(0));
+
+        await markup.RaiseOnAsync(Cell(0), "onpointerenter", Pointer());
+        await markup.RaiseOnAsync(Cell(0), "onpointerenter", Pointer());
         Assert.Equal(afterPress, markup.Batches);
 
-        await markup.RunAsync(() => grid.Enter(1));
+        await markup.RaiseOnAsync(Cell(1), "onpointerenter", Pointer());
         Assert.Equal(afterPress + 1, markup.Batches);
         Assert.Equal([0, 1], sends.Painted);
     }
@@ -86,14 +88,13 @@ public sealed class StepGridTests
     {
         Sends sends = new();
         RenderedMarkup markup = await StartAsync(sends);
-        StepGrid grid = markup.Instance<StepGrid>();
 
-        await markup.RunAsync(() => grid.PressAsync(2));
-        sends.Metrics.Under = BeatLaneText.CellId(_kick, 3);
-        await markup.RunAsync(() => grid.TouchMove(Pointer("touch")));
-        sends.Metrics.Under = BeatLaneText.CellId(_kick, 4);
-        await markup.RunAsync(() => grid.TouchMove(Pointer("touch")));
-        await markup.RunAsync(() => grid.ReleaseAsync());
+        await markup.RaiseOnAsync(Cell(2), "onpointerdown", Pointer("touch"));
+        sends.Metrics.Under = Cell(3);
+        await markup.RaiseOnAsync(null, "onpointermove", Pointer("touch"));
+        sends.Metrics.Under = Cell(4);
+        await markup.RaiseOnAsync(null, "onpointermove", Pointer("touch"));
+        await markup.RaiseOnAsync(null, "onpointerup", Pointer("touch"));
 
         Assert.Equal([2, 3, 4], sends.Painted);
         Assert.All(sends.Batches, batch => Assert.True(batch.On));
@@ -106,11 +107,10 @@ public sealed class StepGridTests
         TaskCompletionSource<EditResult> reply = new();
         Sends sends = new() { Reply = _ => reply.Task };
         RenderedMarkup markup = await StartAsync(sends);
-        StepGrid grid = markup.Instance<StepGrid>();
 
-        await markup.RunAsync(() => grid.PressAsync(1));
-        Task released = markup.RunAsync(() => grid.ReleaseAsync());
-        await markup.RunAsync(() => grid.PressAsync(5));
+        await markup.RaiseOnAsync(Cell(1), "onpointerdown", Pointer());
+        Task released = markup.RaiseOnAsync(null, "onpointerup", Pointer());
+        await markup.RaiseOnAsync(Cell(5), "onpointerdown", Pointer());
 
         Assert.Equal([1, 5], sends.Painted);
 
@@ -118,42 +118,46 @@ public sealed class StepGridTests
         await released;
     }
 
-    /// <summary>A hub lost in the middle of a drag leaves the grid out of the drag, so the next press works.</summary>
+    /// <summary>A hub lost in the middle of a drag leaves no painted step behind, and the next press works.</summary>
     [Fact]
-    public async Task ALostHubDuringADragDoesNotBlockTheNextPress()
+    public async Task ALostHubDuringADragLeavesNoPaintBehind()
     {
         Sends sends = new();
         EventCallback<StepStroke> lost = new(null, new Func<StepStroke, Task>(_ => throw new InvalidOperationException("The hub is gone.")));
         RenderedMarkup markup = await StartAsync(sends, lost);
         StepGrid grid = markup.Instance<StepGrid>();
 
-        await markup.RunAsync(() => grid.PressAsync(1));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => markup.RunAsync(() => grid.ReleaseAsync()));
+        await markup.RaiseOnAsync(Cell(1), "onpointerdown", Pointer());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => markup.RaiseOnAsync(null, "onpointerup", Pointer()));
 
-        await markup.RunAsync(() => grid.PressAsync(7));
+        Assert.False(grid.ShownOn(1));
 
+        await markup.RaiseOnAsync(Cell(7), "onpointerdown", Pointer());
         Assert.Contains(7, sends.Painted);
     }
 
-    /// <summary>Escape cancels a drag under way: the steps not yet sent are not sent, and a step the pointer crosses afterwards paints nothing.</summary>
+    /// <summary>The browser cancelling the pointer ends the drag and withdraws the steps not yet sent; a press after that starts again.</summary>
     [Fact]
-    public async Task EscapeCancelsADragUnderWay()
+    public async Task APointerCancelEndsTheDragAndWithdrawsWhatWasNotSent()
     {
         TaskCompletionSource<EditResult> reply = new();
         Sends sends = new() { Reply = _ => reply.Task };
         RenderedMarkup markup = await StartAsync(sends);
         StepGrid grid = markup.Instance<StepGrid>();
 
-        await markup.RunAsync(() => grid.PressAsync(0));
-        await markup.RunAsync(() => grid.Enter(1));
-        await markup.RunAsync(() => grid.Enter(2));
-        await markup.RunAsync(() => grid.KeyAsync(0, new KeyboardEventArgs { Key = "Escape" }));
-        await markup.RunAsync(() => grid.Enter(3));
+        await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer("touch"));
+        await markup.RaiseOnAsync(Cell(1), "onpointerenter", Pointer("touch"));
+        Task cancelled = markup.RaiseOnAsync(null, "onpointercancel", Pointer("touch"));
+
+        Assert.False(grid.ShownOn(1));
+        Assert.Equal([0], sends.Painted);
 
         reply.SetResult(EditResult.Applied(true, []));
-        await markup.RunAsync(() => grid.ReleaseAsync());
+        await cancelled;
 
         Assert.Equal([0], sends.Painted);
+        await markup.RaiseOnAsync(Cell(5), "onpointerdown", Pointer());
+        Assert.Contains(5, sends.Painted);
     }
 
     /// <summary>When the grid goes while a drag is open, the drag ends, so its gesture is closed.</summary>
@@ -168,7 +172,7 @@ public sealed class StepGridTests
             return Task.CompletedTask;
         }));
         RenderedMarkup markup = await StartAsync(sends, hear);
-        await markup.RunAsync(() => markup.Instance<StepGrid>().PressAsync(0));
+        await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer());
 
         markup.TakeDown();
 

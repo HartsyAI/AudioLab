@@ -114,11 +114,11 @@ internal sealed class RenderedMarkup : Renderer
         return Dispatcher.InvokeAsync(() => DispatchEventAsync(_handlers[name], new EventFieldInfo(), args));
     }
 
-    /// <summary>Raises an event on the element with the given id, such as <c>onkeydown</c> on a step's button.</summary>
-    /// <param name="elementId">The id the element was written with.</param>
+    /// <summary>Raises an event on the element with the given id, such as <c>onkeydown</c> on a step's button, and runs its handler.</summary>
+    /// <param name="elementId">The id the element was written with, or null for the root element, which has none.</param>
     /// <param name="name">The event, such as <c>onkeydown</c>.</param>
     /// <param name="args">The event's arguments.</param>
-    public Task RaiseOnAsync(string elementId, string name, EventArgs args)
+    public Task RaiseOnAsync(string? elementId, string name, EventArgs args)
     {
         return Dispatcher.InvokeAsync(() => DispatchEventAsync(_handlersOfElement[(elementId, name)], new EventFieldInfo(), args));
     }
@@ -150,20 +150,22 @@ internal sealed class RenderedMarkup : Renderer
     /// <inheritdoc />
     protected override void HandleException(Exception exception) => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(exception);
 
-    /// <inheritdoc />
-    protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
+    // The handlers the components hold now, by the element that has them. A batch sends an element's id only when that id changes, so the
+    // ids are read from the current render tree, which has all of them.
+    private void CollectHandlers(int componentId)
     {
-        Batches++;
-        ArrayRange<RenderTreeFrame> frames = renderBatch.ReferenceFrames;
+        _handlersOfElement.Clear();
+        CollectFrom(componentId);
+    }
+
+    private void CollectFrom(int componentId)
+    {
+        ArrayRange<RenderTreeFrame> frames = GetCurrentRenderTreeFrames(componentId);
         string? element = null;
         for (int i = 0; i < frames.Count; i++)
         {
             RenderTreeFrame frame = frames.Array[i];
-            if (frame.FrameType == RenderTreeFrameType.Component)
-            {
-                _types[frame.ComponentId] = frame.ComponentType;
-            }
-            else if (frame.FrameType == RenderTreeFrameType.Element)
+            if (frame.FrameType == RenderTreeFrameType.Element)
             {
                 element = null;
             }
@@ -173,8 +175,30 @@ internal sealed class RenderedMarkup : Renderer
             }
             else if (frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeEventHandlerId != 0)
             {
-                _handlers[frame.AttributeName] = frame.AttributeEventHandlerId;
                 _handlersOfElement[(element, frame.AttributeName)] = frame.AttributeEventHandlerId;
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Component)
+            {
+                CollectFrom(frame.ComponentId);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
+    {
+        Batches++;
+        ArrayRange<RenderTreeFrame> frames = renderBatch.ReferenceFrames;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            RenderTreeFrame frame = frames.Array[i];
+            if (frame.FrameType == RenderTreeFrameType.Component)
+            {
+                _types[frame.ComponentId] = frame.ComponentType;
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeEventHandlerId != 0)
+            {
+                _handlers[frame.AttributeName] = frame.AttributeEventHandlerId;
             }
             if (frame.FrameType == RenderTreeFrameType.Attribute)
             {
@@ -189,6 +213,7 @@ internal sealed class RenderedMarkup : Renderer
                 _markup.Add(frame.MarkupContent);
             }
         }
+        CollectHandlers(_root);
         List<Type> drawn = [];
         ArrayRange<RenderTreeDiff> updated = renderBatch.UpdatedComponents;
         for (int i = 0; i < updated.Count; i++)

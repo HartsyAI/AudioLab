@@ -318,6 +318,9 @@ public static class Shortcuts
     /// <summary>Move the focus to the last step of the lane.</summary>
     public static readonly Shortcut DrumStepLast = new("drum.step.last", "Last step of the lane", "End", Drums);
 
+    /// <summary>Cancels the paint drag that is held down, from any focus: the steps not yet sent are withdrawn (DESIGN 7.6).</summary>
+    public static readonly Shortcut DrumStepCancel = new("drum.step.cancel", "Cancel the paint drag", "Escape", Drums);
+
     /// <summary>The keys of a step grid, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> DrumStep =
     [
@@ -387,7 +390,7 @@ public static class Shortcuts
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
         DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset,
-        .. AutomationKeys,
+        .. AutomationKeys, DrumStepCancel,
         LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];
 }

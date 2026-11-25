@@ -1008,7 +1008,7 @@ the exception covers these three scripts and nothing else.
 - Icons are inline SVG from one set (Lucide, proposed), wrapped as Razor components. No icon font, no emoji.
   Transport glyphs are filled; every other icon is a 1.5 to 1.8 pixel stroke in the current text colour.
 - Dragging anything shows where it will land before release, and Escape cancels the drag.
-- A step grid (D87) takes Space, Enter, Home and End while its focus is in it, so the transport does not start or seek from a step; arrows move the focus among the steps of a lane and, up and down, between lanes.
+- A step grid (D87) takes the arrows, Space, Enter, Home and End while its focus is in it, so the transport does not start or seek from a step and the page does not scroll. Arrows move the focus among the steps of a lane and, up and down, between lanes. Escape cancels a paint drag that is held down, from any focus: the steps not yet sent are withdrawn.
 
 ### 7.7 What enforces it
 
