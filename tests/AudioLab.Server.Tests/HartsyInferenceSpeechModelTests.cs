@@ -151,17 +151,25 @@ public sealed class HartsyInferenceSpeechModelTests
     {
         using TempFolder folder = new();
         WriteInstalledFiles(folder.Path);
-        using ManualResetEventSlim release = new(false);
-        using SemaphoreSlim entered = new(0);
+        ManualResetEventSlim release = new(false);
+        SemaphoreSlim entered = new(0);
+        TaskCompletionSource finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
         HartsyInferenceSpeechModel model = new(
-            new TranscriptionOptions { ModelsRoot = folder.Path, ModelTimeout = TimeSpan.FromMilliseconds(200) },
+            new TranscriptionOptions { ModelsRoot = folder.Path },
             _custom,
             NullLogger<HartsyInferenceSpeechModel>.Instance,
             native: (samples, request) =>
             {
-                entered.Release();
-                release.Wait(_wait);
-                return "late";
+                try
+                {
+                    entered.Release();
+                    release.Wait(_wait);
+                    return "late";
+                }
+                finally
+                {
+                    finished.TrySetResult();
+                }
             });
         using CancellationTokenSource giveUp = new();
         Task first = model.TranscribeAsync(Window, giveUp.Token);
@@ -171,7 +179,30 @@ public sealed class HartsyInferenceSpeechModelTests
 
         await model.DisposeAsync().AsTask().WaitAsync(_wait);
 
+        // The native call returns only after the test lets it; the events are disposed after it has finished with them.
         release.Set();
+        await finished.Task.WaitAsync(_wait);
+        release.Dispose();
+        entered.Dispose();
+    }
+
+    [Fact]
+    public async Task ACancelledOpenLeavesNothingOpenAndTheNextCallOpensAgain()
+    {
+        using TempFolder folder = new();
+        WriteInstalledFiles(folder.Path);
+        HartsyInferenceSpeechModel model = new(
+            new TranscriptionOptions { ModelsRoot = folder.Path },
+            _custom,
+            NullLogger<HartsyInferenceSpeechModel>.Instance);
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => model.TranscribeAsync(Window, cancelled.Token));
+
+        // The placeholder files are not a model, so the open fails with its reason; the point is that the next call opens again.
+        SpeechModelException error = await Assert.ThrowsAsync<SpeechModelException>(
+            () => model.TranscribeAsync(Window, CancellationToken.None));
+        Assert.Equal("The speech model could not be opened.", error.Message);
     }
 
     private static void WriteInstalledFiles(string root)

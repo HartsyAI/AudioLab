@@ -152,6 +152,26 @@ public sealed class TranscriptionRouteTests
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
     }
 
+    [Fact]
+    public async Task AModelWithMissingFilesIsNotInstalledAndItsChoiceIsRefusedOverHttp()
+    {
+        using TempFolder models = new();
+        await using RunningServer server = await RunningServer.StartAsync(
+            new Dictionary<string, string?> { ["AudioLab:Transcription:ModelsRoot"] = models.Path },
+            null);
+
+        HttpResponseMessage read = await server.Client.GetAsync("/api/transcription/speech-model");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        Assert.Contains("\"installed\":[]", await read.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using StringContent chosen = new(
+            "{\"model\":\"" + SpeechModelCatalog.DefaultSpeechModel + "\"}",
+            System.Text.Encoding.UTF8,
+            "application/json");
+        HttpResponseMessage refused = await server.Client.PutAsync("/api/transcription/speech-model", chosen);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+    }
+
     private static async Task<string> UploadAsync(HttpClient client, string name)
     {
         using ByteArrayContent content = new(TranscriptionTestSupport.Wav());
