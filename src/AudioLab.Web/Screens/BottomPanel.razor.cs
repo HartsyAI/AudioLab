@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The bottom panel: tabs for the selection's tools. The mixer, media, piano roll and effects tabs have content; the rest say so.</summary>
+/// <summary>The bottom panel: tabs for the selection's tools. The mixer, media, piano roll, effects and drums tabs have content; the rest say so.</summary>
 public sealed partial class BottomPanel : IDisposable
 {
     /// <summary>The document.</summary>

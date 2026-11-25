@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>The edits of the drum pattern the session screen makes, each one command sent by wire name; refusals come back as the server's words.</summary>
+/// <summary>The drum pattern edits of the session screen: one command each, with refusals in the server's words.</summary>
 /// <param name="live">The open project.</param>
 public sealed class BeatEditor(LiveProject live)
 {
