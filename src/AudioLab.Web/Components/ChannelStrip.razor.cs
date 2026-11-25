@@ -48,6 +48,10 @@ public sealed partial class ChannelStrip
     [Parameter]
     public EventCallback<(TrackId Track, EffectId? Effect)> OnOpenEffects { get; set; }
 
+    /// <summary>Why the track is silent in the mix, in words, or null when it is heard; the caption says it, not the colour alone.</summary>
+    [Parameter]
+    public string? Silence { get; set; }
+
     /// <summary>The note under the master's slot: it is a project setting, and the master has no effect chain.</summary>
     [Parameter]
     public string? MasterNote { get; set; }
@@ -159,6 +163,6 @@ public sealed partial class ChannelStrip
     private string Key()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
-        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}";
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}";
     }
 }

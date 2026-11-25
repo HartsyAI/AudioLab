@@ -118,4 +118,31 @@ public sealed class MixRuleTests
         Assert.Equal(0, MixRules.SendGain(document, a with { Muted = true }, pre));
         Assert.Equal(0, MixRules.SendGain(document with { Groups = [Band(muted: true)] }, a with { Group = _band }, pre));
     }
+
+    [Fact]
+    public void SilenceNamesTheFirstReasonThatApplies()
+    {
+        Track own = BlankProject.Track("own") with { Muted = true, Group = _band };
+        Track grouped = BlankProject.Track("grouped") with { Group = _band };
+        Track other = BlankProject.Track("other") with { Soloed = true };
+        ProjectDocument muted = Mix([own, grouped], Band(muted: true));
+        ProjectDocument soloed = Mix([BlankProject.Track("quiet"), other]);
+
+        Assert.Equal(MixSilence.TrackMuted, MixRules.SilenceOf(muted, own));
+        Assert.Equal(MixSilence.GroupMuted, MixRules.SilenceOf(muted, grouped));
+        Assert.Equal(MixSilence.SoloElsewhere, MixRules.SilenceOf(soloed, BlankProject.Track("quiet")));
+        Assert.Equal(MixSilence.None, MixRules.SilenceOf(soloed, other));
+    }
+
+    [Fact]
+    public void ABusFedBySoloIsHeardWhileItsSendIsUnmuted()
+    {
+        Track soloSource = BlankProject.Track("a") with { Soloed = true, Sends = [new Send(_bus, 1, false, false)] };
+        Track muteSend = BlankProject.Track("b") with { Soloed = true, Sends = [new Send(_bus, 1, false, true)] };
+        ProjectDocument fed = Mix([soloSource, Bus()]);
+        ProjectDocument unfed = Mix([muteSend, Bus()]);
+
+        Assert.Equal(MixSilence.None, MixRules.SilenceOf(fed, fed.Tracks[1]));
+        Assert.Equal(MixSilence.SoloElsewhere, MixRules.SilenceOf(unfed, unfed.Tracks[1]));
+    }
 }

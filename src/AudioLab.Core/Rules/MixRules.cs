@@ -45,6 +45,22 @@ public static class MixRules
             && track.Sends.Any(send => send.Bus == bus.Id && !send.Muted));
     }
 
+    /// <summary>Why a track is silent: its own mute first, then its group's, then a solo elsewhere; <see cref="MixSilence.None"/> when it is heard.</summary>
+    public static MixSilence SilenceOf(ProjectDocument document, Track track)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(track);
+        if (track.Muted)
+        {
+            return MixSilence.TrackMuted;
+        }
+        if (GroupRules.GroupOf(track, document.Groups)?.Muted == true)
+        {
+            return MixSilence.GroupMuted;
+        }
+        return IsSoloAudible(document, track) ? MixSilence.None : MixSilence.SoloElsewhere;
+    }
+
     /// <summary>Whether a track's direct output is heard under solo: nothing is soloed, it is soloed, or it is a bus a soloed track feeds.</summary>
     public static bool IsSoloAudible(ProjectDocument document, Track track)
     {

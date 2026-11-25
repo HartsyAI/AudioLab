@@ -1,12 +1,24 @@
-<div class="fader" role="img" aria-label="@($"{Label} {Text} dB")">
+<div class="fader" role="@(Interactive ? null : "img")" aria-label="@(Interactive ? null : $"{Label} {Text} dB")">
     <div class="scale" aria-hidden="true">
         @foreach (string mark in FaderScale.Labels)
         {
             <span>@mark</span>
         }
     </div>
-    <div class="track">
-        <div class="slot"></div>
-        <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
-    </div>
+    @if (Interactive)
+    {
+        <div class="track" role="slider" tabindex="@(Disabled ? "-1" : "0")" aria-label="@Label" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="@Now" aria-valuetext="@Shown" aria-disabled="@(Disabled ? "true" : null)" title="@Hint"
+             data-dragging="@(_gesture is { Active: true } ? "true" : "false")" @onpointerdown="PressAsync" @onkeydown="KeyAsync" @ondblclick="ResetAsync">
+            <div class="slot"></div>
+            <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
+        </div>
+    }
+    else
+    {
+        <div class="track">
+            <div class="slot"></div>
+            <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
+        </div>
+    }
 </div>

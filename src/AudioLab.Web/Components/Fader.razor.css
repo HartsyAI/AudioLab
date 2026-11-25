@@ -51,3 +51,16 @@
     height: 0.09375rem;
     background: var(--surface-raised);
 }
+
+.track[role="slider"] {
+    border-radius: var(--radius-sm);
+}
+
+.track[role="slider"]:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.track[aria-disabled="true"] {
+    opacity: 0.5;
+}
