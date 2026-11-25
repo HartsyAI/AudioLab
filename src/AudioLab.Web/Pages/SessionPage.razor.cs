@@ -26,6 +26,8 @@ public sealed partial class SessionPage
 
     private GroupEditor? _groups;
 
+    private MasterEditor? _master;
+
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
     private string? _opened;
@@ -132,6 +134,7 @@ public sealed partial class SessionPage
         _effects = new EffectEditor(live, _midi.SendAsync);
         _sends = new SendEditor(live);
         _groups = new GroupEditor(live);
+        _master = new MasterEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
         Rebuild();
@@ -169,6 +172,7 @@ public sealed partial class SessionPage
             _effects = null;
             _sends = null;
             _groups = null;
+            _master = null;
             await live.DisposeAsync();
         }
     }
@@ -230,6 +234,7 @@ public sealed partial class SessionPage
                 Effects = EffectActions.For(_effects!, ShowAsync),
                 Sends = SendActions.For(_sends!, ShowAsync),
                 Groups = GroupActions.For(_groups!, ShowAsync),
+                Master = MasterActions.For(_master!, ShowAsync),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),

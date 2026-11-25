@@ -13,7 +13,8 @@
     </div>
     <Knob Label="@($"Pan of {Name}")" Position="Pan" Text="@PanText" />
     <div class="fader-row">
-        <Fader Label="@($"Volume of {Name}")" Position="VolumePosition" Text="@VolumeText" />
+        <Fader Label="@($"Volume of {Name}")" Position="VolumePosition" Text="@VolumeText" OnCommit="VolumeCommit" Format="FormatVolume"
+               DefaultPosition="@VolumePositionOfUnity" Disabled="!Editable" Reason="@(Editable ? null : Reason)" />
         <div class="meter"><LiveMeter Track="Track" /></div>
     </div>
     <div class="foot">
@@ -23,6 +24,11 @@
                     Reason="@(Editable ? null : Reason)" OnClick="MuteAsync" />
             <Toggle Track="true" Label="S" Name="@($"Solo {Name}")" Tone="ToggleTone.Caution" On="Soloed" Disabled="!Editable"
                     Reason="@(Editable ? null : Reason)" OnClick="SoloAsync" />
+        }
+        @if (Master && OnLimiter.HasDelegate)
+        {
+            <Toggle Label="Limiter" Name="Master limiter" On="LimiterOn" Tone="ToggleTone.Accent" Disabled="!Editable"
+                    Reason="@(Editable ? null : Reason)" OnClick="ToggleLimiterAsync" />
         }
         <span class="db">@VolumeText</span>
     </div>

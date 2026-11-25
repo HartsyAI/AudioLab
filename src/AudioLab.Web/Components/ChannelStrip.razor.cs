@@ -52,6 +52,18 @@ public sealed partial class ChannelStrip
     [Parameter]
     public string? Silence { get; set; }
 
+    /// <summary>Raised with the gain when the fader is dragged or keyed; without it the fader is shown and cannot be changed (a track's, for now).</summary>
+    [Parameter]
+    public EventCallback<double> OnVolume { get; set; }
+
+    /// <summary>Raised with the wanted state when the master limiter's toggle is pressed.</summary>
+    [Parameter]
+    public EventCallback<bool> OnLimiter { get; set; }
+
+    /// <summary>Whether the master limiter is on, for its toggle.</summary>
+    [Parameter]
+    public bool LimiterOn { get; set; }
+
     /// <summary>The note under the master's slot: it is a project setting, and the master has no effect chain.</summary>
     [Parameter]
     public string? MasterNote { get; set; }
@@ -87,6 +99,21 @@ public sealed partial class ChannelStrip
     private double VolumePosition => FaderScale.Position(Volume);
 
     private string VolumeText => FaderScale.Text(Volume);
+
+    private static double VolumePositionOfUnity => FaderScale.Position(1);
+
+    private static string FormatVolume(double position)
+    {
+        string text = FaderScale.Text(FaderScale.Gain(position));
+        return text == "-inf" ? text : $"{text} dB";
+    }
+
+    // A fader is interactive only where a handler for its gain is given: the master's, not a track's.
+    private EventCallback<double> VolumeCommit => OnVolume.HasDelegate ? EventCallback.Factory.Create<double>(this, VolumeCommitAsync) : default;
+
+    private Task VolumeCommitAsync(double position) => OnVolume.InvokeAsync(FaderScale.Gain(position));
+
+    private Task ToggleLimiterAsync() => OnLimiter.InvokeAsync(!LimiterOn);
 
     private IReadOnlyList<StripSlot> Slots
     {
@@ -163,6 +190,6 @@ public sealed partial class ChannelStrip
     private string Key()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
-        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}";
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}|{LimiterOn}|{OnVolume.HasDelegate}|{OnLimiter.HasDelegate}";
     }
 }

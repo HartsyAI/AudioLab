@@ -15,6 +15,7 @@
         }
     }
     <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true"
-                  MasterNote="The master limiter is a project setting; the master has no effect chain." />
+                  MasterNote="The master limiter is a project setting; the master has no effect chain." Editable="Actions.CanEdit" Reason="@Actions.Reason"
+                  OnVolume="Actions.Master.SetVolume" LimiterOn="Document.MasterLimiter" OnLimiter="Actions.Master.SetLimiter" />
     <SendsPanel Document="Document" Actions="Actions" Selected="SelectedTrack" />
 </div>
