@@ -3,10 +3,11 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>A point of an automation lane being dragged: it follows the pointer, and where it lands comes from the server's rule.</summary>
+/// <summary>A point of an automation lane being dragged: it follows the pointer, and the release sends it as the server's rule places it.</summary>
 /// <remarks>
-/// Nothing is sent while it moves. A press that never travels <see cref="Threshold"/> pixels is a click, and a release where the point
-/// began sends nothing. The release sends the point's index as it was and absolute targets (D25), so a drag that comes back restores exactly.
+/// A move only changes the dragged point's time and value; the lane itself is not copied on each move. A press that never travels
+/// <see cref="Threshold"/> pixels is a click. The time changes only when the pointer moves across, so a vertical drag leaves the time as it was,
+/// and a drag that returns to where it began sends nothing (D25).
 /// </remarks>
 public sealed class AutomationDrag
 {
@@ -26,6 +27,8 @@ public sealed class AutomationDrag
     private readonly double _startX;
 
     private readonly double _startY;
+
+    private bool _moved;
 
     /// <summary>Starts a drag of the point at <paramref name="index"/>, pressed at a point in lane pixels.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The lane holds no point at that index.</exception>
@@ -48,8 +51,6 @@ public sealed class AutomationDrag
         _grabY = laneY - plan.Y(_origin.Value);
         Time = _origin.Time;
         Value = _origin.Value;
-        Preview = points;
-        PreviewIndex = index;
     }
 
     /// <summary>The track whose lane is dragged.</summary>
@@ -70,13 +71,10 @@ public sealed class AutomationDrag
     /// <summary>The value the point would take if released now.</summary>
     public double Value { get; private set; }
 
-    /// <summary>The lane as the server's rule would leave it if released now.</summary>
-    public IReadOnlyList<AutomationPoint> Preview { get; private set; }
+    /// <summary>The point's time and value as the drag began, for the overlay that shows the drag.</summary>
+    public AutomationPoint Origin => _origin;
 
-    /// <summary>Where the dragged point would sit in <see cref="Preview"/>.</summary>
-    public int PreviewIndex { get; private set; }
-
-    /// <summary>Moves the pointer to a point in lane pixels.</summary>
+    /// <summary>Moves the pointer to a point in lane pixels; only the dragged point's time and value change.</summary>
     public void Move(double laneX, double laneY)
     {
         if (!Active && Math.Abs(laneX - _startX) < Threshold && Math.Abs(laneY - _startY) < Threshold)
@@ -84,21 +82,23 @@ public sealed class AutomationDrag
             return;
         }
         Active = true;
-        Time = Math.Round(_plan.Time(laneX - _grabX), 3);
+        if (Math.Abs(laneX - _startX) >= Threshold || _moved)
+        {
+            _moved = true;
+            Time = Math.Round(_plan.Time(laneX - _grabX), 3);
+        }
         Value = _plan.Value(laneY - _grabY);
-        LaneEdit edit = AutomationRules.Move(_points, Index, new AutomationPoint(Time, Value));
-        Preview = edit.Points;
-        PreviewIndex = edit.Index;
     }
 
     /// <summary>Releases the point: the move to send, or null when it is a click or ended where it began.</summary>
+    /// <returns>The move, with the index the server's rule gives the point after it.</returns>
     public AutomationMoveTarget? Commit()
     {
         if (!Active || (Math.Abs(Time - _origin.Time) < 1e-9 && Math.Abs(Value - _origin.Value) < 1e-9))
         {
             return null;
         }
-        return new AutomationMoveTarget(Index, Time, Value, PreviewIndex);
+        int landsAt = AutomationRules.Move(_points, Index, new AutomationPoint(Time, Value)).Index;
+        return new AutomationMoveTarget(Index, Time, Value, landsAt);
     }
 }
-

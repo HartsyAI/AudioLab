@@ -1,16 +1,10 @@
-<div class="automation" role="group" aria-label="@Name" tabindex="0" data-editable="@(Editable ? "true" : "false")"
+<div class="automation" id="@ElementId" role="application" aria-label="@Name" tabindex="0" data-editable="@(Editable ? "true" : "false")"
      style="top: @Css.Px(Top); width: @Css.Px(Width); height: @Css.Px(Plan.Height)" title="@(Editable ? null : Reason)"
-     @onkeydown="KeyAsync" @onkeydown:stopPropagation="true" @ondblclick="DoubleClickAsync">
+     @onpointerdown="PointerDownAsync" @ondblclick="DoubleClickAsync" @onkeydown="KeyAsync">
     <svg class="line" width="@Css.Number(Width)" height="@Css.Number(Plan.Height)" aria-hidden="true">
-        <path d="@Path" style="stroke: @ColorToken"></path>
+        <path class="curve" d="@Curve" style="stroke: @ColorToken"></path>
+        <path class="marks" d="@Dots"></path>
+        <path class="selected" d="@Selected"></path>
+        <path class="overlay" d="@Overlay"></path>
     </svg>
-    @for (int index = 0; index < Shown.Count; index++)
-    {
-        AutomationPoint point = Shown[index];
-        int position = index;
-        <div class="point" data-selected="@(position == SelectedIndex ? "true" : "false")"
-             style="left: @Css.Px(Plan.X(point.Time) - PointRadius); top: @Css.Px(Plan.Y(point.Value) - PointRadius)"
-             @onpointerdown="press => PointDownAsync(position, press)" @onpointerdown:stopPropagation="true"
-             @ondblclick:stopPropagation="true"></div>
-    }
 </div>

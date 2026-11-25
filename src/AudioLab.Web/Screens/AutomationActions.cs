@@ -28,11 +28,15 @@ public sealed class AutomationActions
     public Func<TrackId, bool?, AutomationParameter?, Task<EditResult>> SetView { get; init; } =
         (_, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>The project as the live connection holds it now, or null before it is open.</summary>
+    public Func<ProjectDocument?> Current { get; init; } = () => null;
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
-    public static AutomationActions For(AutomationEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
+    public static AutomationActions For(AutomationEditor editor, Func<Task<EditResult>, Task<EditResult>> show, Func<ProjectDocument?> current)
     {
         ArgumentNullException.ThrowIfNull(editor);
         ArgumentNullException.ThrowIfNull(show);
+        ArgumentNullException.ThrowIfNull(current);
         return new AutomationActions
         {
             Add = (track, parameter, time, value) => show(editor.AddPointAsync(track, parameter, time, value)),
@@ -40,6 +44,7 @@ public sealed class AutomationActions
             Delete = (track, parameter, index) => show(editor.DeletePointAsync(track, parameter, index)),
             SetMode = (track, mode) => show(editor.SetModeAsync(track, mode)),
             SetView = (track, visible, parameter) => show(editor.SetViewAsync(track, visible, parameter)),
+            Current = current,
         };
     }
 }

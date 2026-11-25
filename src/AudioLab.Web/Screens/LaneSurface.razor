@@ -26,12 +26,17 @@
         </div>
         @if (track.View.AutomationVisible && Lanes is not null)
         {
-            <AutomationLane Plan="PlanOf(track)" Points="PointsOf(track)" Preview="PreviewOf(track)" PreviewIndex="PreviewIndexOf(track)"
-                            Selected="SelectedOf(track)" Top="@Layout.AutomationTop(index)" Width="@Width" ColorToken="@Colors.Token(track.Color)"
-                            TrackName="@track.Name" Editable="CanEdit" Reason="@Reason"
-                            OnPointDown="press => OnAutomationPointDown.InvokeAsync((track.Id, press.Index, press.Press))"
-                            OnAdd="click => OnAutomationAdd.InvokeAsync((track.Id, click.X, click.Y))"
+            <AutomationLane Track="track" Lanes="Lanes" Plan="PlanOf(track)" Top="@Layout.AutomationTop(index)" Width="@Width"
+                            ColorToken="@Colors.Token(track.Color)" Editable="CanEdit" Reason="@Reason"
+                            OnPointerDown="press => OnAutomationPointDown.InvokeAsync((track.Id, press))"
+                            OnDoubleClick="click => OnAutomationAdd.InvokeAsync((track.Id, click))"
                             OnKey="key => OnAutomationKey.InvokeAsync((track.Id, key))" />
+        }
+        else if (Lanes is not null && CanEdit)
+        {
+            <div class="show-automation" style="top: @Css.Px(Layout.Tops[index] + 4)">
+                <Button Name="Show automation lane" OnClick="() => OnShowAutomation.InvokeAsync(track.Id)">Automation</Button>
+            </div>
         }
     }
     <DragLayer Document="Document" PixelsPerSecond="Geometry.PixelsPerSecond" />

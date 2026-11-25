@@ -46,3 +46,9 @@
     background: var(--playhead);
     pointer-events: none;
 }
+
+.show-automation {
+    position: absolute;
+    right: var(--space-8);
+    z-index: var(--z-lane-overlay);
+}
