@@ -7,10 +7,8 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>
-/// The catalogue channel fader: a slot, a cap and the decibel scale at its left. With <see cref="OnCommit"/> it is a slider you drag,
-/// step and reset; a disabled one stays in the tab order and says why.
-/// </summary>
+/// <summary>The catalogue channel fader: a slot, a cap and the decibel scale at its left; with <see cref="OnCommit"/> it is a slider.</summary>
+/// <remarks>It is dragged, stepped and reset as a knob is, and a disabled one stays in the tab order and says why.</remarks>
 public sealed partial class Fader : IDisposable
 {
     private const int SettleMilliseconds = 400;
