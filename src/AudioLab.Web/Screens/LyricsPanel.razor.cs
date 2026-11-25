@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
@@ -6,6 +7,7 @@ using AudioLab.Web.Components.Lyrics;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace AudioLab.Web.Screens;
 
@@ -25,6 +27,8 @@ public sealed partial class LyricsPanel : IDisposable
     private ClipLyrics? _followedLyrics;
 
     private string _shift = "0";
+
+    private const long MaxLrcBytes = ProjectLimits.MaxLongText * 4L;
 
     private string? _announcement;
 
@@ -185,6 +189,32 @@ public sealed partial class LyricsPanel : IDisposable
         if (result.Succeeded && seconds >= -first)
         {
             await SayAsync($"Words moved by {seconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds.");
+        }
+    }
+
+    // An LRC file is read whole, up to the most text a clip may hold; the server then says whether its lines fit.
+    private async Task ImportChosenAsync(InputFileChangeEventArgs chosen)
+    {
+        if (Found is not { } found)
+        {
+            return;
+        }
+        IBrowserFile file = chosen.File;
+        if (file.Size > MaxLrcBytes)
+        {
+            Toasts.Show(ToastKind.Warning, "That file is larger than a clip may hold as lyrics, so it was not read.");
+            return;
+        }
+        string text;
+        using (Stream stream = file.OpenReadStream(MaxLrcBytes))
+        using (StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        {
+            text = await reader.ReadToEndAsync();
+        }
+        EditResult result = await Actions.Lyrics.ImportLrc(found.Clip.Id, text);
+        if (result.Succeeded)
+        {
+            await SayAsync(string.Create(CultureInfo.InvariantCulture, $"Lyrics imported from {file.Name}."));
         }
     }
 
