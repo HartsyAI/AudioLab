@@ -10,10 +10,10 @@ namespace AudioLab.Server.Transcription;
 
 /// <summary>One speech model, served by HartsyInference's Whisper pipeline on the machine's GPU when there is one (D98).</summary>
 /// <remarks>
-/// The model is read from <see cref="TranscriptionOptions.ModelsRoot"/> and never downloaded here; its folder and language come from its
-/// registry entry. It is opened on the first window and stays resident until the server stops. The text comes back without times, so each
-/// window's text is one segment spanning the audio the window was given. Only one native call runs at a time: a call still running after
-/// its caller gave up holds the model, and a later call waits for it to return, inside its own model timeout (D93).
+/// The model is read from its folder under <see cref="TranscriptionOptions.ModelsRoot"/>, the folder the registry entry names, and never
+/// downloaded here; the engine is given that same folder. It is opened on the first window and stays resident until the server stops. The
+/// text comes back without times, so each window's text is one segment spanning the audio the window was given. Only one native call runs
+/// at a time: a call still running after its caller gave up holds the model, and a later call waits for it, inside its own model timeout.
 /// </remarks>
 public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
 {
@@ -21,6 +21,7 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
     private const string CouldNotOpen = "The speech model could not be opened.";
     private const string Failed = "The speech model failed.";
     private const string Busy = "The speech model is busy; it will be asked again.";
+    private static readonly TimeSpan _disposeWait = TimeSpan.FromSeconds(1);
 
     private static readonly string[] _requiredFiles = ["model.safetensors", "vocab.json", "merges.txt", "config.json"];
 
@@ -55,6 +56,15 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
     /// <inheritdoc />
     public string ModelId => _entry.Id;
 
+    /// <inheritdoc />
+    public bool IsBusy => _busy.CurrentCount == 0;
+
+    /// <summary>The folder the entry's model lives in, under the models root.</summary>
+    public static string ModelFolder(TranscriptionOptions options, SpeechModelEntry entry)
+    {
+        return Path.Combine(options.ModelsRoot ?? string.Empty, "Audio", "stt", entry.Folder);
+    }
+
     /// <summary>Whether the folder of a registry entry holds every file the adapter needs. A model that is not installed is not registered,
     /// so it cannot be chosen (D98).</summary>
     public static bool IsInstalled(TranscriptionOptions options, SpeechModelEntry entry)
@@ -63,7 +73,7 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
         {
             return false;
         }
-        string folder = Path.Combine(options.ModelsRoot, "Audio", "stt", entry.Folder);
+        string folder = ModelFolder(options, entry);
         return _requiredFiles.All(file => File.Exists(Path.Combine(folder, file)));
     }
 
@@ -85,7 +95,7 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
             Language = _entry.Language,
         };
         Func<float[], AudioRequest, string> call = _native ?? await LeaseCallAsync(cancellationToken);
-        // A call the caller gave up on may still hold the model; this one waits for it, and the wait is inside the model timeout (D93).
+        // A call the caller gave up on may still hold the model; this one waits for it, inside the model timeout (D93).
         await _busy.WaitAsync(cancellationToken);
         // The native call is not given the token: it cannot be stopped, so the gate is released only when it returns.
         Task<string> spoken = Task.Run(() =>
@@ -121,9 +131,9 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        // A native call still running keeps the lease until it returns. The wait is bounded, so a stop never waits longer than the model
-        // timeout (D93); when the call is still running after it, the lease is left alone and the host ends the process.
-        if (!await _busy.WaitAsync(_options.ModelTimeout))
+        // A native call still running keeps the lease. The wait is one second at most, so the stop's total stays within the host's shutdown
+        // timeout (D93); a lease still in use is left to the process.
+        if (!await _busy.WaitAsync(_disposeWait))
         {
             TranscriptionLog.ModelStillBusy(_logger);
             return;
@@ -172,10 +182,22 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
                 return _lease;
             }
             KnobStore.Set(EngineKnobs.ModelsRoot, _options.ModelsRoot!);
-            _engine = new InferenceEngine(_options.Device);
-            ModelSpec spec = ModelResolver.Resolve(_entry.Id, null, Modality.Transcribe);
-            _lease = await _engine.Transcribe.OpenTranscriberAsync(spec, cancellationToken);
-            return _lease;
+            InferenceEngine engine = new(_options.Device);
+            try
+            {
+                // The engine is given the folder the entry names, the same one IsInstalled checked.
+                ModelSpec spec = ModelResolver.Resolve(_entry.Id, ModelFolder(_options, _entry), Modality.Transcribe);
+                ITranscriberLease lease = await engine.Transcribe.OpenTranscriberAsync(spec, cancellationToken);
+                _engine = engine;
+                _lease = lease;
+                return lease;
+            }
+            catch
+            {
+                // A failed or cancelled open leaves nothing behind: the next call opens again, with an engine of its own.
+                engine.Dispose();
+                throw;
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException and not SpeechModelException)
         {

@@ -1,5 +1,6 @@
 using AudioLab.Core.Model;
 using AudioLab.Core.Transcription;
+using AudioLab.Server.Store;
 using AudioLab.Server.Transcription;
 using Microsoft.Extensions.Logging.Abstractions;
 using static AudioLab.Server.Tests.TranscriptionTestSupport;
@@ -596,6 +597,151 @@ public sealed class TranscriptionContractTests
         Assert.Equal(TranscriptionState.Failed, failed.State);
         Assert.Equal(2, failed.ChunksDone);
         Assert.Null(await secondJobs.StatusAsync(Users.Bob, older.Id, None));
+    }
+
+    [Fact]
+    public async Task ANonIoFailureOfTheRunningWriteFailsOnlyThatJob()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        bool armed = false;
+        string statePath = string.Empty;
+        AtomicFile atomic = new(observer: (stage, temp) =>
+        {
+            if (armed && temp.StartsWith(statePath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The disk refused the write.");
+            }
+        });
+        TranscriptionStore files = Files(store, atomic);
+        MediaRecord broken = await store.UploadAsync(Users.Alice, Wav());
+        MediaRecord other = await store.UploadAsync(Users.Bob, Wav());
+        statePath = files.Paths.TranscriptJobFile(Users.Alice, broken.Id);
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(100), new FakeSpeechModel());
+        await jobs.StartAsync(Users.Alice, broken, None);
+        await jobs.StartAsync(Users.Bob, other, None);
+        armed = true;
+
+        await RunToEndAsync(jobs);
+
+        TranscriptionStatus failed = await StatusOfAsync(jobs, Users.Alice, broken.Id);
+        Assert.Equal(TranscriptionState.Failed, failed.State);
+        Assert.Equal("The job state could not be saved; resume to try again.", failed.Reason);
+        Assert.Equal(TranscriptionState.Done, (await StatusOfAsync(jobs, Users.Bob, other.Id)).State);
+    }
+
+    [Fact]
+    public async Task AStartWhoseStateCannotBeWrittenKeepsTheJobAndItsCheckpoints()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        TranscriptionStore files = Files(store);
+        await files.WriteSpeechModelAsync(Users.Alice, "model-a", None);
+        FakeSpeechModel a = Named("model-a", "from a");
+        a.Fail = call => call == 1 ? new SpeechModelException("The model rejected the audio.", retryable: false) : null;
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(100), a);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
+        await jobs.StartAsync(Users.Alice, media, None);
+        await RunToEndAsync(jobs);
+        Assert.Equal(TranscriptionState.Failed, (await StatusOfAsync(jobs, Users.Alice, media.Id)).State);
+
+        await files.WriteSpeechModelAsync(Users.Alice, "model-b", None);
+        string stateFile = files.Paths.TranscriptJobFile(Users.Alice, media.Id);
+        File.Delete(stateFile);
+        Directory.CreateDirectory(stateFile);
+        await Assert.ThrowsAnyAsync<Exception>(() => jobs.StartAsync(Users.Alice, media, None));
+
+        TranscriptionStatus kept = await StatusOfAsync(jobs, Users.Alice, media.Id);
+        Assert.Equal(TranscriptionState.Failed, kept.State);
+        Assert.Equal(1, kept.ChunksDone);
+        Assert.Single(await files.ReadChunksAsync(Users.Alice, media.Id, None));
+    }
+
+    [Fact]
+    public async Task AFailedDoneWriteIsResumedFromItsCheckpointsWithoutAModelCall()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        TranscriptionStore files = Files(store);
+        FakeSpeechModel model = new();
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(100), model);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
+        await jobs.StartAsync(Users.Alice, media, None);
+        for (int chunk = 0; chunk < 4; chunk++)
+        {
+            Assert.True(await jobs.StepAsync(None));
+        }
+        string stateFile = files.Paths.TranscriptJobFile(Users.Alice, media.Id);
+        byte[] saved = await File.ReadAllBytesAsync(stateFile);
+        File.Delete(stateFile);
+        Directory.CreateDirectory(stateFile);
+        Assert.True(await jobs.StepAsync(None));
+        Assert.Equal(TranscriptionState.Failed, (await StatusOfAsync(jobs, Users.Alice, media.Id)).State);
+
+        Directory.Delete(stateFile);
+        await File.WriteAllBytesAsync(stateFile, saved);
+        int calls = model.Calls;
+        await jobs.ResumeAsync(Users.Alice, media.Id, None);
+        await RunToEndAsync(jobs);
+
+        Assert.Equal(calls, model.Calls);
+        Assert.Equal(TranscriptionState.Done, (await StatusOfAsync(jobs, Users.Alice, media.Id)).State);
+        Assert.NotNull(await files.ReadTranscriptAsync(Users.Alice, media.Id, None));
+    }
+
+    [Fact]
+    public async Task ACallThatTimesOutWhileTheModelIsBusyLeavesTheReasonThatSaysSo()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        TranscriptionStore files = Files(store);
+        BusyHangingSpeechModel model = new();
+        TranscriptionOptions options = new() { ModelTimeout = TimeSpan.FromMinutes(1), Retries = 0 };
+        TranscriptionJobs jobs = new(
+            files,
+            store.Media,
+            new FakeWindowSource(100),
+            Registry(model),
+            options,
+            store.Time,
+            NullLogger<TranscriptionJobs>.Instance);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
+        await jobs.StartAsync(Users.Alice, media, None);
+
+        await RunWithClockAsync(jobs, store.Time).WaitAsync(TimeSpan.FromSeconds(30));
+
+        TranscriptionStatus status = await StatusOfAsync(jobs, Users.Alice, media.Id);
+        Assert.Equal(TranscriptionState.Failed, status.State);
+        Assert.Equal("The speech model did not answer in time: it is busy with a call that has not finished.", status.Reason);
+    }
+
+    [Fact]
+    public async Task ALockedChunkLogLeavesTheStartUpAliveAndThatJobAtNoProgress()
+    {
+        using TempFolder folder = new();
+        TestStore first = TestStore.On(folder.Path);
+        TranscriptionStore firstFiles = Files(first);
+        FakeSpeechModel model = new()
+        {
+            Fail = call => call == 2 ? new SpeechModelException("The model rejected the audio.", retryable: false) : null,
+        };
+        TranscriptionJobs firstJobs = Jobs(first, firstFiles, new FakeWindowSource(100), model);
+        MediaRecord media = await first.UploadAsync(Users.Alice, Wav());
+        await firstJobs.StartAsync(Users.Alice, media, None);
+        await RunToEndAsync(firstJobs);
+        first.Crash();
+
+        await using TestStore second = TestStore.On(folder.Path);
+        TranscriptionStore secondFiles = Files(second);
+        string chunkLog = secondFiles.Paths.TranscriptChunkFile(Users.Alice, media.Id);
+        using FileStream locked = new(chunkLog, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        TranscriptionJobs secondJobs = Jobs(second, secondFiles, new FakeWindowSource(100), model);
+
+        await secondJobs.WhenLoadedAsync().WaitAsync(TimeSpan.FromSeconds(30));
+
+        TranscriptionStatus status = await StatusOfAsync(secondJobs, Users.Alice, media.Id);
+        Assert.Equal(TranscriptionState.Failed, status.State);
+        Assert.Equal(0, status.ChunksDone);
     }
 
     private static FakeSpeechModel Named(string modelId, string text)

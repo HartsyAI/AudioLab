@@ -63,6 +63,11 @@ public sealed class TranscriptionWorker(
         {
             return await jobs.StepAsync(abandon);
         }
+        catch (OperationCanceledException) when (abandon.IsCancellationRequested)
+        {
+            // The stop abandoned the wait for a turn: a normal end of the loop, not a failure.
+            return false;
+        }
         catch (Exception exception)
         {
             TranscriptionLog.WorkerFailed(logger, exception);

@@ -29,6 +29,8 @@ public sealed class TranscriptionJobs : IMediaRemoval
     });
     private readonly Lazy<Task> _loading;
     private const string UnexpectedReason = "The transcription stopped on an unexpected error; resume to try again.";
+    private const string TimedOut = "The speech model did not answer in time.";
+    private const string BusyTimeout = "The speech model did not answer in time: it is busy with a call that has not finished.";
     private const string ModelNotInstalled = "The speech model is not installed.";
     private const string StateNotSaved = "The job state could not be saved; resume to try again.";
     private const string TranscriptTooLarge =
@@ -62,8 +64,9 @@ public sealed class TranscriptionJobs : IMediaRemoval
     /// <summary>Called when the server's stop begins: no retry starts after it (D93).</summary>
     public void BeginStop() => _stopping = true;
 
-    /// <summary>Starts a job for a media file (D90). A job that is there is returned with <c>created</c> false, except a done job whose transcript
-    /// is missing or refused: that one is made again from chunk 0.</summary>
+    /// <summary>Starts a job for a media file (D90), or answers with the job there (<c>created</c> false). A queued, running or paused job is
+    /// always answered; a failed, cancelled or done job is answered under the model the user has chosen, and a done one only with its
+    /// transcript present. Any other start makes a new job from chunk 0; if its state cannot be written, the job there is kept as it was.</summary>
     /// <exception cref="TranscriptionLimitException">The user already has as many queued, paused or running jobs as allowed.</exception>
     public async Task<StartOutcome> StartAsync(UserId user, MediaRecord record, CancellationToken cancellationToken)
     {
@@ -88,12 +91,21 @@ public sealed class TranscriptionJobs : IMediaRemoval
                     $"You already have {open} transcriptions queued or running; the most is {_options.MaxQueuedPerUser}. "
                     + "Try again when one has finished.");
             }
-            // A new job starts with no checkpoints of its own: the chunk log of an earlier job is cleared, never read (D92).
-            _store.DeleteChunks(user, record.Id);
-            _jobs.Remove(key);
+            // The chunk log of the job being replaced is parked, never read, until the new state is written; a failed write puts it back (D92).
+            _store.ParkChunks(user, record.Id);
             DateTimeOffset now = _time.GetUtcNow();
             TranscriptionJobFile file = NewFile(user, record, chunks, duration, now, model);
-            await _store.WriteStateAsync(user, record.Id, file, cancellationToken);
+            try
+            {
+                await _store.WriteStateAsync(user, record.Id, file, cancellationToken);
+            }
+            catch
+            {
+                _store.RestoreParkedChunks(user, record.Id);
+                throw;
+            }
+            _jobs.Remove(key);
+            _store.DeleteParkedChunks(user, record.Id);
             TranscriptionJob job = new(user, record.Id)
             {
                 File = file,
@@ -374,9 +386,9 @@ public sealed class TranscriptionJobs : IMediaRemoval
                 {
                     await SetStateAsync(queued, TranscriptionState.Running, null, cancellationToken);
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    // The file still says queued. The table fails this job now, so one job's state file does not hold up the others.
+                    // Any failure of the write fails this job, so one job's state file never stops the others. The file still says queued.
                     TranscriptionLog.StoreFailed(_logger, exception.GetType().Name);
                     FailInMemory(queued);
                     continue;
@@ -552,7 +564,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
         }
         call.Cancel();
         cancellationToken.ThrowIfCancellationRequested();
-        throw new SpeechModelException("The speech model did not answer in time.", retryable: true);
+        throw new SpeechModelException(model.IsBusy ? BusyTimeout : TimedOut, retryable: true);
     }
 
     /// <summary>Reads the chunk log and checks the job's identity; a job whose identity has changed starts again from chunk 0 (D92). The model
@@ -654,9 +666,10 @@ public sealed class TranscriptionJobs : IMediaRemoval
             await SetStateAsync(job, state, reason, cancellationToken);
             return true;
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // The state file could not be written. The table still leaves the running state and the job gives up its turn, so it is never
+            // The state file could not be written, for whatever reason. The table still leaves the running state and the job gives up its turn,
+            // so it is never
             // held with no turn. The file keeps what it said, so a restart queues the job again from its checkpoints (D93).
             TranscriptionLog.StoreFailed(_logger, exception.GetType().Name);
             FailInMemory(job);

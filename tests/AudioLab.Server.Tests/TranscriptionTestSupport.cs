@@ -16,7 +16,9 @@ internal static class TranscriptionTestSupport
 
     public static byte[] Wav() => TestWav.Build(SampleEncoding.Pcm16, 1, 16000, 16000);
 
-    public static TranscriptionStore Files(TestStore store) => new(store.Root, new AtomicFile(), NullLogger<TranscriptionStore>.Instance);
+    public static TranscriptionStore Files(TestStore store) => Files(store, new AtomicFile());
+
+    public static TranscriptionStore Files(TestStore store, AtomicFile atomic) => new(store.Root, atomic, NullLogger<TranscriptionStore>.Instance);
 
     /// <summary>The registry of the given models, over the catalog's entries; a model that is not in the catalog is still found by its id.</summary>
     public static ISpeechModels Registry(params ISpeechModel[] models)
