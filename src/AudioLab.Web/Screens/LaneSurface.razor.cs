@@ -72,8 +72,38 @@ public sealed partial class LaneSurface
     [Parameter]
     public EventCallback<(ClipId Clip, PointerEventArgs Press)> OnClipPointerDown { get; set; }
 
+    /// <summary>The automation lanes' view state: the selected point and the drag in progress.</summary>
+    [Parameter]
+    public AutomationLanes? Lanes { get; set; }
+
+    /// <summary>Whether the automation lanes may be edited now.</summary>
+    [Parameter]
+    public bool CanEdit { get; set; }
+
+    /// <summary>Why they may not, for the tooltip of a lane.</summary>
+    [Parameter]
+    public string? Reason { get; set; }
+
+    /// <summary>Raised with a track and a double-click on its automation lane.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, MouseEventArgs Click)> OnAutomationAdd { get; set; }
+
+    /// <summary>Raised with a track and a press on its automation lane.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, PointerEventArgs Press)> OnAutomationPointDown { get; set; }
+
+    /// <summary>Raised with a track and a key an automation lane hands up.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, KeyboardEventArgs Key)> OnAutomationKey { get; set; }
+
+    /// <summary>Raised with a track whose hidden automation lane is asked to show.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnShowAutomation { get; set; }
+
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
+
+    private AutomationLanePlan PlanOf(Track track) => new(track.View.AutomationParameter, Geometry, TrackLayout.AutomationHeight);
 
     private double Width => Math.Round(Geometry.Width(Length));
 

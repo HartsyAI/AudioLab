@@ -1,0 +1,54 @@
+.automation {
+    position: absolute;
+    left: 0;
+    display: block;
+    box-sizing: border-box;
+    background: var(--surface-lane);
+    border-top: 1px solid var(--lane-line);
+    outline: none;
+    user-select: none;
+    touch-action: none;
+}
+
+.automation:focus-visible {
+    box-shadow: inset var(--focus-ring);
+}
+
+.line {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.curve {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+}
+
+.marks {
+    fill: none;
+    stroke: var(--control-cap);
+    stroke-width: var(--space-8);
+    stroke-linecap: round;
+}
+
+.selected {
+    fill: none;
+    stroke: var(--playhead);
+    stroke-width: var(--space-8);
+    stroke-linecap: round;
+}
+
+.overlay {
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 1.5;
+    stroke-dasharray: var(--space-4) var(--space-4);
+}
+
+.automation[data-editable="false"] .marks {
+    opacity: 0.5;
+}

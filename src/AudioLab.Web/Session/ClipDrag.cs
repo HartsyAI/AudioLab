@@ -60,7 +60,7 @@ public sealed class ClipDrag
         OriginTrack = track.Id;
         OriginStart = audio?.Start ?? midi!.Start;
         Width = Math.Max(2, geometry.Width(audio is null ? midi!.Length : ClipRules.VisibleLength(audio)) - 2);
-        Height = layout.Heights[row] - (2 * LaneInset) - 1;
+        Height = layout.ClipHeights[row] - (2 * LaneInset) - 1;
         _originTop = layout.Tops[row] + LaneInset;
         _startX = laneX;
         _startY = laneY;
