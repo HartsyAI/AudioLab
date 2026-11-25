@@ -3,8 +3,8 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>The word under the playhead of the clip whose lyrics are shown; it reads the transport once per tick and says so only when the word changes.</summary>
-/// <remarks>Each word listens and redraws itself only when it becomes or stops being the one under the playhead, so the list is never drawn again for a tick.</remarks>
+/// <summary>The word under the playhead of the clip whose lyrics are shown.</summary>
+/// <remarks>It reads the transport once per tick and says so only when the word changes, so each word redraws alone.</remarks>
 public sealed class LyricsCursor : IDisposable
 {
     private readonly PlaybackService _playback;

@@ -62,6 +62,7 @@ builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddScoped<LyricsCursor>();
+builder.Services.AddScoped<LyricsDrags>();
 builder.Services.AddScoped<EffectSelection>();
 builder.Services.AddScoped<EffectsNavigator>();
 builder.Services.AddScoped<PianoRollState>();
