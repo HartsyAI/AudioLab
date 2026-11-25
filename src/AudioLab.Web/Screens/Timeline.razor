@@ -23,10 +23,14 @@
             @for (int index = 0; index < Document.Tracks.Count; index++)
             {
                 Track track = Document.Tracks[index];
-                <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.Heights[index]" Selected="@(track.Id == Selection.Track)"
+                <TrackHeader @key="track.Id" Track="track" Index="index" Height="Layout.ClipHeights[index]" Selected="@(track.Id == Selection.Track)"
                              ColorToken="@Colors.Token(track.Color)" OnSelect="SelectTrack" Editable="Actions.CanEdit" Reason="@Actions.Reason"
                              OnMute="Actions.ToggleMute"
                              OnSolo="Actions.ToggleSolo" OnRename="Actions.RenameTrack" />
+                @if (track.View.AutomationVisible)
+                {
+                    <AutomationHeader Track="track" Editable="Actions.CanEdit" Reason="@Actions.Reason" Actions="Actions.Automation" />
+                }
             }
         </div>
         <div class="lanes">
@@ -42,7 +46,9 @@
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
                              OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" OnOpenClip="OpenClip"
-                             OnLaneDoubleClick="LaneDoubleClickAsync" />
+                             OnLaneDoubleClick="LaneDoubleClickAsync" Lanes="Lanes" CanEdit="Actions.CanEdit"
+                             Reason="@Actions.Reason" OnAutomationAdd="AutomationAddAsync" OnAutomationPointDown="AutomationPointDown"
+                             OnAutomationKey="AutomationKeyAsync" />
                 <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
                 <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />
             }

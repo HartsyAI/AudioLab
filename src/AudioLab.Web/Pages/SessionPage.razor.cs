@@ -22,6 +22,8 @@ public sealed partial class SessionPage
 
     private EffectEditor? _effects;
 
+    private AutomationEditor? _automation;
+
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
     private string? _opened;
@@ -126,6 +128,7 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
+        _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
         Rebuild();
@@ -220,6 +223,7 @@ public sealed partial class SessionPage
                 AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
+                Automation = AutomationActions.For(_automation!, ShowAsync),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
@@ -433,6 +437,11 @@ public sealed partial class SessionPage
         {
             int bars = Shortcuts.MidiClipLonger.Matches(chord) ? 1 : -1;
             _ = InvokeAsync(() => _actions.Midi.StepLength(open, bars));
+        }
+        else if (Shortcuts.AutomationToggle.Matches(chord) && Selection.Track is { } chosen && _actions.CanEdit
+            && _live?.Document?.Tracks.FirstOrDefault(track => track.Id == chosen) is { } lanes)
+        {
+            _ = InvokeAsync(() => _actions.Automation.SetView(lanes.Id, !lanes.View.AutomationVisible, null));
         }
         else if (Shortcuts.OpenEffects.Matches(chord) && Selection.Track is { } selected)
         {

@@ -1,0 +1,48 @@
+.automation {
+    position: absolute;
+    left: 0;
+    display: block;
+    box-sizing: border-box;
+    background: var(--surface-lane);
+    border-top: 1px solid var(--lane-line);
+    outline: none;
+    user-select: none;
+    touch-action: none;
+}
+
+.automation:focus-visible {
+    box-shadow: inset var(--focus-ring);
+}
+
+.line {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.line path {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+}
+
+.point {
+    position: absolute;
+    width: var(--space-8);
+    height: var(--space-8);
+    border-radius: var(--radius-round);
+    background: var(--control-cap);
+    box-shadow: var(--shadow-cap);
+    cursor: ns-resize;
+}
+
+.point[data-selected="true"] {
+    background: var(--playhead);
+}
+
+.automation[data-editable="false"] .point {
+    opacity: 0.5;
+    cursor: default;
+}
