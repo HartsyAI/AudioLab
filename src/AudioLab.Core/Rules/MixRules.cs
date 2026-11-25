@@ -48,7 +48,8 @@ public static class MixRules
             && track.Sends.Any(send => send.Bus == bus.Id && !send.Muted));
     }
 
-    /// <summary>Why a track is silent: its own mute first, then its group's, then a solo elsewhere; <see cref="MixSilence.None"/> when it is heard.</summary>
+    /// <summary>Why a track is silent, as the mix counts it: its own mute, then its group's, then a solo it is not heard through.</summary>
+    /// <remarks><see cref="MixSilence.None"/> when it is heard.</remarks>
     public static MixSilence SilenceOf(ProjectDocument document, Track track)
     {
         ArgumentNullException.ThrowIfNull(document);

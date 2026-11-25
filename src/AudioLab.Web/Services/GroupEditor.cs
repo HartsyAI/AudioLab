@@ -16,7 +16,9 @@ public sealed class GroupEditor(LiveProject live)
     /// <summary>Sets the gain multiplier of a group, as one gesture: a drag is one undo step.</summary>
     public Task<EditResult> SetVolumeAsync(GroupId group, double volume)
     {
-        return EditRunner.RunInGestureAsync(live, (project, gesture) => live.SendAsync(new SetGroupVolume { Project = project, Group = group, Volume = volume }, gesture));
+        return EditRunner.RunInGestureAsync(
+            live,
+            (project, gesture) => live.SendAsync(new SetGroupVolume { Project = project, Group = group, Volume = volume }, gesture));
     }
 
     /// <summary>Mutes or unmutes every member of a group.</summary>
