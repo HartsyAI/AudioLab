@@ -9,7 +9,7 @@ public sealed class HangingSpeechModel : ISpeechModel
     public int Calls { get; private set; }
 
     /// <inheritdoc />
-    public string ModelId => "hanging-model";
+    public string ModelId => AudioLab.Core.Transcription.SpeechModelCatalog.DefaultSpeechModel;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SpeechSegment>> TranscribeAsync(SpeechWindow window, CancellationToken cancellationToken)

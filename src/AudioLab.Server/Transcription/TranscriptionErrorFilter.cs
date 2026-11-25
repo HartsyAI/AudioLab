@@ -24,6 +24,10 @@ public sealed class TranscriptionErrorFilter : IEndpointFilter
         {
             return Results.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: exception.Message);
         }
+        catch (SpeechModelChoiceException exception)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: exception.Message);
+        }
         catch (TranscriptRefusedException exception)
         {
             return Results.Problem(

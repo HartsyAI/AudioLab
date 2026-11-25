@@ -1,4 +1,5 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Transcription;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Media;
 
@@ -18,6 +19,25 @@ public static class TranscriptionRoutes
         group.MapPost("/transcription/cancel", CancelAsync);
         group.MapPost("/transcription/resume", ResumeAsync);
         group.MapGet("/transcript", TranscriptAsync);
+
+        RouteGroupBuilder speech = routes.MapGroup("/transcription/speech-model").AddEndpointFilter<TranscriptionErrorFilter>();
+        speech.MapGet(string.Empty, SpeechModelAsync);
+        speech.MapPut(string.Empty, ChooseSpeechModelAsync);
+    }
+
+    private static async Task<IResult> SpeechModelAsync(HttpContext http, TranscriptionService service, CancellationToken cancellationToken)
+    {
+        return Results.Ok(await service.SpeechModelAsync(http.RequireUser(), cancellationToken));
+    }
+
+    private static async Task<IResult> ChooseSpeechModelAsync(HttpContext http, TranscriptionService service, CancellationToken cancellationToken)
+    {
+        SpeechModelChoice? choice = await http.Request.ReadFromJsonAsync(TranscriptJsonContext.Default.SpeechModelChoice, cancellationToken);
+        if (choice is null || string.IsNullOrWhiteSpace(choice.Model))
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Name the speech model to use.");
+        }
+        return Results.Ok(await service.ChooseSpeechModelAsync(http.RequireUser(), choice.Model, cancellationToken));
     }
 
     private static async Task<IResult> StartAsync(HttpContext http, string id, TranscriptionService service, CancellationToken cancellationToken)

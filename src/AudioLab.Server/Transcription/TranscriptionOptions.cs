@@ -21,9 +21,6 @@ public sealed record TranscriptionOptions
     /// <summary>The HartsyInference models folder (the one holding <c>Audio/stt</c>). Unset means no speech model is installed.</summary>
     public string? ModelsRoot { get; init; }
 
-    /// <summary>The speech model, as HartsyInference names it.</summary>
-    public string ModelId { get; init; } = "whisper:medium.en";
-
     /// <summary>The backend selector HartsyInference takes: <c>auto</c>, <c>cuda</c> or <c>cpu</c>.</summary>
     public string Device { get; init; } = "auto";
 
@@ -38,7 +35,7 @@ public sealed record TranscriptionOptions
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxRunning, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxQueuedPerUser, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(Retries, 0);
-        ArgumentOutOfRangeException.ThrowIfLessThan(RetryDelay, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RetryDelay, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ModelTimeout, TimeSpan.Zero);
     }
 }

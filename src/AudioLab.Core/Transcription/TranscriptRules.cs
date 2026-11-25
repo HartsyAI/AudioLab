@@ -81,9 +81,7 @@ public static class TranscriptRules
             }
             double start = Math.Clamp(segment.Start, 0, windowLength);
             double end = Math.Clamp(segment.End, start, windowLength);
-            ValueList<LyricWord>? words = segment.Words is { } given
-                ? new ValueList<LyricWord>(given.Select(word => ClampWord(word, start, end)))
-                : null;
+            ValueList<LyricWord>? words = segment.Words is { } given ? KeptWords(given, start, end) : null;
             kept.Add(new SpeechSegment(start, end, text, segment.Kind, words));
         }
         kept.Sort((left, right) => left.Start.CompareTo(right.Start));
@@ -160,6 +158,21 @@ public static class TranscriptRules
         owned = new ValueList<TranscriptSegment>(kept);
         problem = string.Empty;
         return true;
+    }
+
+    /// <summary>The words with text, collapsed and clamped into their segment; a word of only spaces is dropped.</summary>
+    private static ValueList<LyricWord>? KeptWords(ValueList<LyricWord> given, double start, double end)
+    {
+        List<LyricWord> kept = [];
+        foreach (LyricWord word in given)
+        {
+            string text = Collapse(word.Word);
+            if (text.Length > 0)
+            {
+                kept.Add(ClampWord(word with { Word = text }, start, end));
+            }
+        }
+        return kept.Count == 0 ? null : new ValueList<LyricWord>(kept);
     }
 
     private static LyricWord ClampWord(LyricWord word, double start, double end)

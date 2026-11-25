@@ -170,7 +170,7 @@ public sealed class TranscriptionJobTests
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
-        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(TenHours), new UnavailableSpeechModel());
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(TenHours), Registry());
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
         await jobs.StartAsync(Users.Alice, media, None);
 

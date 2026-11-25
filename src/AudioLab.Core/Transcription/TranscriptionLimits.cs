@@ -18,6 +18,9 @@ public static class TranscriptionLimits
     /// <summary>Most bytes of a stored transcript file.</summary>
     public const long MaxTranscriptBytes = 64L * 1024 * 1024;
 
+    /// <summary>Bytes kept back from <see cref="MaxTranscriptBytes"/> for the document's own fields.</summary>
+    public const long TranscriptOverheadBytes = 4096;
+
     /// <summary>How far outside its window a model's segment may fall, in seconds, before the answer is refused.</summary>
     public const double WindowToleranceSeconds = 0.5;
 

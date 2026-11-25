@@ -21,10 +21,12 @@ public sealed class TranscriptionRouteTests
         await using RunningServer server = await RunningServer.StartAsync();
 
         HttpResponseMessage missing = await server.Client.GetAsync($"/api/media/{UnknownId}/transcription");
-        HttpResponseMessage malformed = await server.Client.GetAsync("/api/media/not-an-id/transcription");
+        HttpResponseMessage wellFormed = await server.Client.GetAsync("/api/media/not-an-id/transcription");
+        HttpResponseMessage malformed = await server.Client.GetAsync("/api/media/a%20b/transcription");
 
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, malformed.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, wellFormed.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
     }
 
     [Fact]
@@ -45,15 +47,19 @@ public sealed class TranscriptionRouteTests
     [Fact]
     public async Task ATranscriptThatIsNotDoneIsAConflictAndANotReadableOneIsRefused()
     {
+        FakeSpeechModel model = new() { ModelId = SpeechModelCatalog.DefaultSpeechModel };
+        model.BlockAt(0);
         await using RunningServer server = await RunningServer.StartAsync(
             null,
-            services => services.AddSingleton<ISpeechModel>(new FakeSpeechModel()));
+            services => services.AddSingleton<ISpeechModel>(model));
         string id = await UploadAsync(server.Client, "clip.wav");
         await server.Client.PostAsync($"/api/media/{id}/transcription", null);
+        await model.Entered;
 
         HttpResponseMessage early = await server.Client.GetAsync($"/api/media/{id}/transcript");
-        Assert.True(early.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.OK, early.StatusCode.ToString());
+        Assert.Equal(HttpStatusCode.Conflict, early.StatusCode);
 
+        model.Release();
         await WaitForStateAsync(server.Client, id, "done");
         string stored = Directory.EnumerateFiles(server.StoreFolder, "t*.transcript.json", SearchOption.AllDirectories).Single();
         File.WriteAllText(stored, "not json at all");
@@ -101,14 +107,16 @@ public sealed class TranscriptionRouteTests
     {
         await using RunningServer unavailable = await RunningServer.StartAsync(
             null,
-            services => services.AddSingleton<IAudioWindowSource>(new BrokenWindowSource(10, new IOException("The store is locked."), onDuration: true)));
+            services => services.AddSingleton<IAudioWindowSource>(
+                new BrokenWindowSource(10, new IOException("The store is locked."), onDuration: true)));
         string id = await UploadAsync(unavailable.Client, "clip.wav");
         HttpResponseMessage answer = await unavailable.Client.PostAsync($"/api/media/{id}/transcription", null);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, answer.StatusCode);
 
         await using RunningServer full = await RunningServer.StartAsync(
             null,
-            services => services.AddSingleton<IAudioWindowSource>(new BrokenWindowSource(10, new IOException("No space.", DiskFullCode), onDuration: true)));
+            services => services.AddSingleton<IAudioWindowSource>(
+                new BrokenWindowSource(10, new IOException("No space.", DiskFullCode), onDuration: true)));
         string fullId = await UploadAsync(full.Client, "clip.wav");
         HttpResponseMessage outOfRoom = await full.Client.PostAsync($"/api/media/{fullId}/transcription", null);
         Assert.Equal(HttpStatusCode.InsufficientStorage, outOfRoom.StatusCode);

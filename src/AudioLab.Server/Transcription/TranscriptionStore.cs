@@ -25,6 +25,42 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
         return atomic.WriteAsync(Paths.TranscriptJobFile(user, id), bytes, cancellationToken);
     }
 
+    /// <summary>The speech model the user chose, or null when none is stored or the stored choice cannot be read (D98).</summary>
+    public async Task<string?> ReadSpeechModelAsync(UserId user, CancellationToken cancellationToken)
+    {
+        string path = SpeechModelPath(user);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        try
+        {
+            SpeechModelChoice? choice = JsonSerializer.Deserialize(
+                await File.ReadAllBytesAsync(path, cancellationToken),
+                TranscriptJsonContext.Default.SpeechModelChoice);
+            return choice?.Model;
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            TranscriptionLog.FileFailed(logger, exception.GetType().Name);
+            return null;
+        }
+    }
+
+    /// <summary>Stores the speech model the user chose, atomically.</summary>
+    public Task WriteSpeechModelAsync(UserId user, string model, CancellationToken cancellationToken)
+    {
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(new SpeechModelChoice(model), TranscriptJsonContext.Default.SpeechModelChoice);
+        Directory.CreateDirectory(Paths.TranscriptsDirectory(user));
+        return atomic.WriteAsync(SpeechModelPath(user), bytes, cancellationToken);
+    }
+
+    /// <summary>The bytes a chunk takes in the chunk log, which is how the transcript's size is counted (D95).</summary>
+    public static long ChunkBytes(ChunkRecord chunk)
+    {
+        return JsonSerializer.SerializeToUtf8Bytes(chunk, TranscriptJsonContext.Default.ChunkRecord).LongLength;
+    }
+
     /// <summary>Every job state file on disk, with the file's path; a file that cannot be read is logged and left out.</summary>
     public IEnumerable<(string Path, TranscriptionJobFile File)> ReadAllStates()
     {
@@ -96,6 +132,18 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
             await atomic.WriteAsync(path, bytes.AsMemory(0, position), cancellationToken);
         }
         return kept;
+    }
+
+    /// <summary>The stored transcript of a media record, or null; refused when the file is not sound or belongs to another version (D94).</summary>
+    /// <exception cref="TranscriptRefusedException">The file is not one the server accepts, or belongs to another version of the media.</exception>
+    public async Task<TranscriptDocument?> ReadTranscriptForAsync(UserId user, MediaRecord record, CancellationToken cancellationToken)
+    {
+        TranscriptDocument? document = await ReadTranscriptAsync(user, record.Id, cancellationToken);
+        if (document is not null && document.Sha256 != record.Sha256)
+        {
+            throw new TranscriptRefusedException(["The stored transcript belongs to another version of the file."]);
+        }
+        return document;
     }
 
     /// <summary>Removes a job's chunk log, so its work starts again.</summary>
@@ -189,6 +237,8 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
             }
         }
     }
+
+    private string SpeechModelPath(UserId user) => Path.Combine(Paths.TranscriptsDirectory(user), "speech-model.json");
 
     private TranscriptionJobFile? ReadState(string path)
     {

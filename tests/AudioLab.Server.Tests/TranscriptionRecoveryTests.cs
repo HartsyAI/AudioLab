@@ -9,7 +9,8 @@ using static AudioLab.Server.Tests.TranscriptionTestSupport;
 
 namespace AudioLab.Server.Tests;
 
-/// <summary>The job system when things go wrong: a torn write, a damaged file, a model that fails in ways it should not, a restart, and the limits.</summary>
+/// <summary>The job system when things go wrong: a torn write, a damaged file, a model that fails in ways it should not, a restart, and the
+/// limits.</summary>
 public sealed class TranscriptionRecoveryTests
 {
     private const string GenericReason = "The transcription stopped on an unexpected error; resume to try again.";
@@ -70,7 +71,8 @@ public sealed class TranscriptionRecoveryTests
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
-        TranscriptionJobs jobs = Jobs(store, files, new BrokenWindowSource(100, new WavFormatException("The data chunk is damaged.")), new FakeSpeechModel());
+        BrokenWindowSource source = new(100, new WavFormatException("The data chunk is damaged."));
+        TranscriptionJobs jobs = Jobs(store, files, source, new FakeSpeechModel());
         await jobs.StartAsync(Users.Alice, media, None);
 
         await RunToEndAsync(jobs);
@@ -125,7 +127,14 @@ public sealed class TranscriptionRecoveryTests
         TranscriptionStore files = Files(store);
         HangingSpeechModel model = new();
         TranscriptionOptions options = new() { RetryDelay = TimeSpan.Zero, ModelTimeout = TimeSpan.FromMinutes(1) };
-        TranscriptionJobs jobs = new(files, store.Media, new FakeWindowSource(100), model, options, store.Time, NullLogger<TranscriptionJobs>.Instance);
+        TranscriptionJobs jobs = new(
+            files,
+            store.Media,
+            new FakeWindowSource(100),
+            Registry(model),
+            options,
+            store.Time,
+            NullLogger<TranscriptionJobs>.Instance);
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
         await jobs.StartAsync(Users.Alice, media, None);
 
@@ -217,11 +226,13 @@ public sealed class TranscriptionRecoveryTests
     }
 
     [Fact]
-    public async Task AChangedModelStartsOverAndTheRestartAfterTheChangeKeepsOnlyTheNewModel()
+    public async Task AJobKeepsTheModelItStartedWithAfterARestart()
     {
         using TempFolder folder = new();
         TestStore first = TestStore.On(folder.Path);
-        TranscriptionJobs firstJobs = Jobs(first, Files(first), new FakeWindowSource(100), Answering("from a"));
+        TranscriptionStore firstFiles = Files(first);
+        await firstFiles.WriteSpeechModelAsync(Users.Alice, "model-a", None);
+        TranscriptionJobs firstJobs = Jobs(first, firstFiles, new FakeWindowSource(100), Answering("from a", "model-a"));
         MediaRecord media = await first.UploadAsync(Users.Alice, Wav());
         await firstJobs.StartAsync(Users.Alice, media, None);
         Assert.True(await firstJobs.StepAsync(None));
@@ -229,18 +240,19 @@ public sealed class TranscriptionRecoveryTests
         first.Crash();
 
         TestStore second = TestStore.On(folder.Path);
-        TranscriptionJobs secondJobs = Jobs(second, Files(second), new FakeWindowSource(100), Answering("from b", "model-b"));
+        ISpeechModels both = Registry(Answering("from a", "model-a"), Answering("from b", "model-b"));
+        TranscriptionJobs secondJobs = Jobs(second, Files(second), new FakeWindowSource(100), both);
         Assert.True(await secondJobs.StepAsync(None));
         second.Crash();
 
         await using TestStore third = TestStore.On(folder.Path);
         TranscriptionStore thirdFiles = Files(third);
-        TranscriptionJobs thirdJobs = Jobs(third, thirdFiles, new FakeWindowSource(100), Answering("from b", "model-b"));
+        TranscriptionJobs thirdJobs = Jobs(third, thirdFiles, new FakeWindowSource(100), both);
         await RunToEndAsync(thirdJobs);
 
         TranscriptDocument document = (await thirdFiles.ReadTranscriptAsync(Users.Alice, media.Id, None))!;
-        Assert.Equal("model-b", document.Model);
-        Assert.All(document.Segments, segment => Assert.StartsWith("from b", segment.Text, StringComparison.Ordinal));
+        Assert.Equal("model-a", document.Model);
+        Assert.All(document.Segments, segment => Assert.StartsWith("from a", segment.Text, StringComparison.Ordinal));
         Assert.Equal(4, document.Segments.Count);
     }
 
@@ -310,7 +322,14 @@ public sealed class TranscriptionRecoveryTests
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
         TranscriptionOptions options = new() { MaxRunning = 2, MaxRunningPerUser = 1, MaxQueuedPerUser = 2, RetryDelay = TimeSpan.Zero };
-        TranscriptionJobs jobs = new(files, store.Media, new FakeWindowSource(100), new FakeSpeechModel(), options, store.Time, NullLogger<TranscriptionJobs>.Instance);
+        TranscriptionJobs jobs = new(
+            files,
+            store.Media,
+            new FakeWindowSource(100),
+            Registry(new FakeSpeechModel()),
+            options,
+            store.Time,
+            NullLogger<TranscriptionJobs>.Instance);
         MediaRecord aliceOne = await store.UploadAsync(Users.Alice, Wav());
         MediaRecord aliceTwo = await store.UploadAsync(Users.Alice, Wav());
         MediaRecord aliceThree = await store.UploadAsync(Users.Alice, Wav());
@@ -353,15 +372,18 @@ public sealed class TranscriptionRecoveryTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => services.AddTranscription(new TranscriptionOptions { MaxRunning = 0 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => services.AddTranscription(new TranscriptionOptions { MaxRunningPerUser = 0 }));
-        Assert.Throws<ArgumentOutOfRangeException>(() => services.AddTranscription(new TranscriptionOptions { RetryDelay = TimeSpan.FromSeconds(-1) }));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => services.AddTranscription(new TranscriptionOptions { RetryDelay = TimeSpan.FromSeconds(-1) }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => services.AddTranscription(new TranscriptionOptions { RetryDelay = TimeSpan.Zero }));
     }
 
     private static FakeSpeechModel Answering(string text, string? modelId = null)
     {
         return new FakeSpeechModel
         {
-            ModelId = modelId ?? "fake-model",
-            Answer = (call, window) => [new SpeechSegment(1, 2, text + " " + call.ToString(System.Globalization.CultureInfo.InvariantCulture), SpeechKind.Speech)],
+            ModelId = modelId ?? AudioLab.Core.Transcription.SpeechModelCatalog.DefaultSpeechModel,
+            Answer = (call, window) =>
+                [new SpeechSegment(1, 2, text + " " + call.ToString(System.Globalization.CultureInfo.InvariantCulture), SpeechKind.Speech)],
         };
     }
 

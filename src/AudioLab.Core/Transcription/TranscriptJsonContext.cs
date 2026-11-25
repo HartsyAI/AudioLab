@@ -13,6 +13,8 @@ namespace AudioLab.Core.Transcription;
 [JsonSerializable(typeof(TranscriptionJobFile))]
 [JsonSerializable(typeof(ChunkRecord))]
 [JsonSerializable(typeof(TranscriptionStatus))]
+[JsonSerializable(typeof(SpeechModelChoice))]
+[JsonSerializable(typeof(SpeechModelStatus))]
 public sealed partial class TranscriptJsonContext : JsonSerializerContext
 {
 }
