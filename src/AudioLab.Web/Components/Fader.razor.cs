@@ -7,7 +7,10 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue channel fader: a slot, a cap and the decibel scale at its left; with <see cref="OnCommit"/> it is a slider you drag, step and reset.</summary>
+/// <summary>
+/// The catalogue channel fader: a slot, a cap and the decibel scale at its left. With <see cref="OnCommit"/> it is a slider you drag,
+/// step and reset; a disabled one stays in the tab order and says why.
+/// </summary>
 public sealed partial class Fader : IDisposable
 {
     private const int SettleMilliseconds = 400;
@@ -15,6 +18,12 @@ public sealed partial class Fader : IDisposable
     private ValueGesture? _gesture;
 
     private double? _held;
+
+    private double _wanted = double.NaN;
+
+    private double _sent = double.NaN;
+
+    private bool _sending;
 
     private CancellationTokenSource? _settle;
 
@@ -100,7 +109,7 @@ public sealed partial class Fader : IDisposable
     protected override void OnParametersSet()
     {
         // The new position has been drawn, so the preview that stood in for it can go.
-        if (_held is not null && _gesture is null && Math.Abs(Math.Clamp(Position, 0, 1) - _held.Value) < 1e-9)
+        if (_held is not null && !_sending && _gesture is null && Math.Abs(Math.Clamp(Position, 0, 1) - _held.Value) < 1e-9)
         {
             _held = null;
         }
@@ -169,15 +178,34 @@ public sealed partial class Fader : IDisposable
         return Disabled ? Task.CompletedTask : CommitAsync(Math.Clamp(DefaultPosition, 0, 1));
     }
 
+    // The preview stays until the position that answers it is drawn; keys that arrive while one is on its way are folded into the next send.
     private async Task CommitAsync(double target)
     {
-        if (Math.Abs(target - Travel) < 1e-9)
+        if (!_sending && Math.Abs(target - Travel) < 1e-9)
         {
             return;
         }
         _held = target;
+        _wanted = target;
         StateHasChanged();
-        await OnCommit.InvokeAsync(target);
+        if (_sending)
+        {
+            return;
+        }
+        _sending = true;
+        try
+        {
+            while (_sent != _wanted)
+            {
+                _sent = _wanted;
+                await OnCommit.InvokeAsync(_sent);
+            }
+        }
+        finally
+        {
+            _sending = false;
+            _sent = double.NaN;
+        }
         await LetGoAsync();
     }
 

@@ -1,13 +1,16 @@
-using AudioLab.Core.Model;
+﻿using AudioLab.Core.Model;
 using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Effects;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>What a change to the master redraws, and that its fader and limiter are offered only when they can act.</summary>
+/// <summary>What a change to the master redraws, that its limiter says why it cannot be changed, and what a master drag sends.</summary>
 public sealed class MasterRedrawTests
 {
     private static ProjectDocument Mix(double masterVolume = 1, bool limiter = false)
@@ -29,7 +32,7 @@ public sealed class MasterRedrawTests
 
     private static void MixerServices(IServiceCollection services)
     {
-        services.AddSingleton<AudioLab.Web.Interop.IKeyGuard>(new NoKeyGuard());
+        services.AddSingleton<IKeyGuard>(new NoKeyGuard());
         services.AddSingleton(new TrackColorMap([.. Enumerable.Repeat("#ee6d86", 12)]));
         services.AddScoped<SessionSelection>();
         services.AddScoped<EffectSelection>();
@@ -37,10 +40,33 @@ public sealed class MasterRedrawTests
         services.AddScoped<EffectsNavigator>();
     }
 
-    // Static text is written as markup and dynamic text as a text frame, so an assertion reads both.
-    private static string Html(RenderedMarkup rendered) => string.Join(" ", rendered.Markup.Concat(rendered.Texts));
+    // The attribute that follows a label is the element's own: the title written after its aria-label belongs to it, and no other element's.
+    private static bool TitleOfElementNamed(RenderedMarkup rendered, string label, string text)
+    {
+        IReadOnlyList<(string Name, string Value)> attributes = rendered.Attributes;
+        int start = -1;
+        for (int i = 0; i < attributes.Count && start < 0; i++)
+        {
+            if (attributes[i] == ("aria-label", label))
+            {
+                start = i;
+            }
+        }
+        if (start < 0)
+        {
+            return false;
+        }
+        for (int j = start + 1; j < attributes.Count && attributes[j].Name != "aria-label"; j++)
+        {
+            if (attributes[j].Name == "title" && attributes[j].Value.Contains(text, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
-    /// <summary>A change to the master fader draws the master's strip alone; no track strip is drawn for it.</summary>
+    /// <summary>A change to the master fader draws the master's strip alone; the one strip drawn is the master's.</summary>
     [Fact]
     public async Task AMasterFaderChangeDrawsOnlyTheMasterStrip()
     {
@@ -49,17 +75,85 @@ public sealed class MasterRedrawTests
         await mixer.RenderAgainAsync(MixerParameters(Mix(masterVolume: 0.5)));
 
         Assert.Equal(1, mixer.Drawn.Count(type => type == typeof(ChannelStrip)));
+        Assert.Contains("Channel Master", mixer.Values("aria-label"));
         await mixer.DisposeServicesAsync();
     }
 
-    /// <summary>The master's limiter is always a named toggle, and when the screen cannot edit it is disabled with the screen's reason.</summary>
+    /// <summary>The master's limiter is a named toggle, and when the screen cannot edit its own title says why.</summary>
     [Fact]
-    public async Task TheLimiterIsNamedAndSaysWhyItIsDisabled()
+    public async Task TheLimiterIsNamedAndItsOwnTitleSaysWhyItIsDisabled()
     {
         RenderedMarkup readOnly = await RenderedMarkup.StartAsync<MixerPanel>(MixerParameters(Mix(limiter: true), canEdit: false), MixerServices);
 
-        Assert.Contains("Master limiter", readOnly.Values("aria-label"));
-        Assert.Contains(readOnly.Values("title"), title => title.Contains("Offline.", StringComparison.Ordinal));
+        Assert.True(TitleOfElementNamed(readOnly, "Master limiter", "Offline."));
         await readOnly.DisposeServicesAsync();
+    }
+
+    /// <summary>A drag on the master fader is drawn by the fader alone, sends nothing before the release, and sends one gain on it.</summary>
+    [Fact]
+    public async Task AMasterFaderDragSendsOneGainOnRelease()
+    {
+        DrivenPointer pointer = new();
+        List<double> sent = [];
+        Dictionary<string, object?> parameters = new()
+        {
+            ["Name"] = "Master",
+            ["ColorToken"] = "var(--text)",
+            ["Effects"] = (IReadOnlyList<StripEffect>)[],
+            ["Volume"] = 1.0,
+            ["Master"] = true,
+            ["Editable"] = true,
+            ["OnVolume"] = EventCallback.Factory.Create<double>(new object(), gain => sent.Add(gain)),
+        };
+        RenderedMarkup strip = await RenderedMarkup.StartAsync<ChannelStrip>(parameters, services => services.AddSingleton<IPointerTracker>(pointer));
+
+        await strip.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
+        List<int> drawnPerMove = [];
+        for (int step = 1; step <= 40; step++)
+        {
+            await strip.RunAsync(() => pointer.Move(0, 300 - (step * 2)));
+            await Task.Yield();
+            drawnPerMove.Add(strip.Drawn.Count);
+        }
+
+        Assert.All(drawnPerMove, count => Assert.Equal(1, count));
+        Assert.All(strip.Drawn, type => Assert.Equal(typeof(Fader), type));
+        Assert.Empty(sent);
+        await strip.RunAsync(() => pointer.Release(0, 220));
+        await UntilAsync(() => sent.Count == 1);
+        Assert.Single(sent);
+        await strip.DisposeServicesAsync();
+    }
+
+    // Waits for a condition the handler reaches on another task; fails rather than waits for ever.
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        for (int attempt = 0; attempt < 200 && !condition(); attempt++)
+        {
+            await Task.Delay(5);
+        }
+    }
+
+    private sealed class DrivenPointer : IPointerTracker
+    {
+        private Action<double, double>? _move;
+
+        private Action<double, double>? _end;
+
+        public bool Shift => false;
+
+        public void Begin(Action<double, double> move, Action<double, double> end, Action cancel)
+        {
+            (_move, _end) = (move, end);
+        }
+
+        public void Stop()
+        {
+            (_move, _end) = (null, null);
+        }
+
+        public void Move(double x, double y) => _move?.Invoke(x, y);
+
+        public void Release(double x, double y) => _end?.Invoke(x, y);
     }
 }

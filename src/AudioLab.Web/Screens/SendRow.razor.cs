@@ -1,16 +1,15 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>One send of a track: its bus, its level as a knob, the place against the fader, the mute and a remove. It redraws only when its own send changed.</summary>
+/// <summary>One send of a track: its bus, its level as a knob, the place against the fader, the mute and a remove.</summary>
+/// <remarks>It redraws only when its own send changed.</remarks>
 public sealed partial class SendRow
 {
-    // A new send starts at the server's default, which is -6 dB, so the knob's reset returns to it.
-    private const double DefaultLevel = 0.5;
-
     private string? _shown;
 
     /// <summary>The track that sends.</summary>
@@ -38,6 +37,9 @@ public sealed partial class SendRow
     private double KnobPosition => PositionOf(Send.Level);
 
     private string LevelText => LevelOf(Send.Level);
+
+    // The reset returns the knob to the server's starting level, the same value the handler gives a new send.
+    private static double ResetPosition => PositionOf(MixRules.DefaultSendLevel);
 
     private static double PositionOf(double gain) => (FaderScale.Position(gain) * 2) - 1;
 

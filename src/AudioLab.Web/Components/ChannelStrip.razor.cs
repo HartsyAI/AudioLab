@@ -52,7 +52,8 @@ public sealed partial class ChannelStrip
     [Parameter]
     public string? Silence { get; set; }
 
-    /// <summary>Raised with the gain when the fader is dragged or keyed; without it the fader is shown and cannot be changed (a track's, for now).</summary>
+    /// <summary>Raised with the gain when the fader is dragged or keyed.</summary>
+    /// <remarks>Without it the fader is shown and cannot be changed, as a track fader is for now.</remarks>
     [Parameter]
     public EventCallback<double> OnVolume { get; set; }
 
@@ -186,6 +187,7 @@ public sealed partial class ChannelStrip
     private string Key()
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
-        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}|{LimiterOn}|{OnVolume.HasDelegate}|{OnLimiter.HasDelegate}";
+        return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}" +
+            $"|{LimiterOn}|{OnVolume.HasDelegate}|{OnLimiter.HasDelegate}";
     }
 }

@@ -1,4 +1,4 @@
-<div class="mixer" id="@MixerId" role="region" aria-label="Mixer">
+<div class="mixer" id="@_id" role="region" aria-label="Mixer">
     @foreach (MixerLane lane in Lanes)
     {
         if (lane.Group is { } group)
@@ -15,7 +15,8 @@
         }
     }
     <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true"
-                  MasterNote="The master limiter is a project setting; the master has no effect chain." Editable="Actions.CanEdit" Reason="@Actions.Reason"
-                  OnVolume="Actions.Master.SetVolume" LimiterOn="Document.MasterLimiter" OnLimiter="Actions.Master.SetLimiter" />
+                  MasterNote="The master limiter is a project setting; the master has no effect chain." Editable="Actions.CanEdit"
+                  Reason="@Actions.Reason" OnVolume="Actions.Master.SetVolume" LimiterOn="Document.MasterLimiter"
+                  OnLimiter="Actions.Master.SetLimiter" />
     <SendsPanel Document="Document" Actions="Actions" Selected="SelectedTrack" />
 </div>

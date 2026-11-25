@@ -5,6 +5,9 @@ namespace AudioLab.Core.Rules;
 /// <summary>What a track's mute, solo and gain mean once its group and the aux buses are counted. The engine and the UI read these.</summary>
 public static class MixRules
 {
+    /// <summary>The level a new send starts at: -6 dB, after the track's fader.</summary>
+    public const double DefaultSendLevel = 0.5;
+
     /// <summary>Whether a track is silent by its own mute or its group's.</summary>
     public static bool IsMuted(Track track, IEnumerable<TrackGroup> groups)
     {
@@ -45,7 +48,8 @@ public static class MixRules
             && track.Sends.Any(send => send.Bus == bus.Id && !send.Muted));
     }
 
-    /// <summary>Why a track is silent: its own mute first, then its group's, then a solo elsewhere; <see cref="MixSilence.None"/> when it is heard.</summary>
+    /// <summary>Why a track is silent, as the mix counts it: its own mute, then its group's, then a solo it is not heard through.</summary>
+    /// <remarks><see cref="MixSilence.None"/> when it is heard.</remarks>
     public static MixSilence SilenceOf(ProjectDocument document, Track track)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -58,8 +62,14 @@ public static class MixRules
         {
             return MixSilence.GroupMuted;
         }
-        return IsSoloAudible(document, track) ? MixSilence.None : MixSilence.SoloElsewhere;
+        // Heard as ProjectContent counts it: its direct output under solo, or an unmuted send into a soloed bus.
+        bool heard = IsSoloAudible(document, track) || track.Sends.Any(send => SendGain(document, track, send) > 0);
+        return heard ? MixSilence.None : MixSilence.SoloElsewhere;
     }
+
+    /// <summary>Whether a track is heard only through a send into a soloed bus, while a solo elsewhere would otherwise silence it.</summary>
+    public static bool IsHeardThroughBus(ProjectDocument document, Track track) =>
+        SilenceOf(document, track) == MixSilence.None && !IsSoloAudible(document, track);
 
     /// <summary>Whether a track's direct output is heard under solo: nothing is soloed, it is soloed, or it is a bus a soloed track feeds.</summary>
     public static bool IsSoloAudible(ProjectDocument document, Track track)
