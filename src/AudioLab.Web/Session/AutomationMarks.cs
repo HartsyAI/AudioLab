@@ -20,13 +20,14 @@ public static class AutomationMarks
         return $"M{Format(plan.X(point.Time))} {Format(plan.Y(point.Value))}h0";
     }
 
-    /// <summary>The dragged point where it would be released, joined to its neighbours; nothing when no drag is in progress.</summary>
+    /// <summary>The dragged point where it would be released, joined to its neighbours; nothing when no drag is in progress or the drag records.</summary>
+    /// <remarks>A recorded drag moves no point, so a landing drawn for it would snap back on the release; it draws nothing.</remarks>
     /// <param name="plan">The lane's plan.</param>
     /// <param name="points">The lane's points as the document holds them, which the drag started from.</param>
     /// <param name="drag">The drag in progress, or null.</param>
     public static string Overlay(AutomationLanePlan plan, IReadOnlyList<AutomationPoint> points, AutomationDrag? drag)
     {
-        if (drag is null)
+        if (drag is null || drag.Recorded)
         {
             return string.Empty;
         }
