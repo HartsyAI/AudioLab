@@ -3,11 +3,11 @@
     <div class="drums-bar">
         <div class="drums-setting">
             <Slider Position="Pattern.Swing" Text="@SwingText" Label="Swing" />
-            <Field Label="Swing, 0 to 1" Value="_swingDraft" ValueChanged="SwingChanged" MaxLength="8" Invalid="!SwingValid" />
+            <Field Label="Swing, 0 to 1" Value="@_swingDraft" ValueChanged="SwingChanged" MaxLength="8" Invalid="!SwingValid" />
             <Button OnClick="ApplySwingAsync" Disabled="!CanApplySwing" DisabledReason="@SwingBlock">Set swing</Button>
         </div>
         <div class="drums-setting">
-            <Field Label="Steps" Value="_stepsDraft" ValueChanged="StepsChanged" MaxLength="3" Invalid="!StepsValid" />
+            <Field Label="Steps" Value="@_stepsDraft" ValueChanged="StepsChanged" MaxLength="3" Invalid="!StepsValid" />
             <Button OnClick="ApplyStepsAsync" Disabled="!CanApplySteps" DisabledReason="@StepsBlock">Set steps</Button>
         </div>
         <Button Variant="ButtonVariant.Primary" OnClick="AddLaneAsync" Disabled="!Actions.CanEdit" DisabledReason="@Block">Add lane</Button>
@@ -40,7 +40,7 @@
         </ol>
     }
     <Dialog Title="Rename drum lane" ConfirmText="Rename lane" Open="_renaming is not null" OpenChanged="CloseRename" OnConfirm="RenameAsync"
-            ConfirmDisabled="string.IsNullOrWhiteSpace(_nameDraft)" Error="_renameError">
-        <Field Label="Name" Value="_nameDraft" ValueChanged="NameChanged" MaxLength="200" />
+            ConfirmDisabled="string.IsNullOrWhiteSpace(_nameDraft)" Error="@_renameError">
+        <Field Label="Name" Value="@_nameDraft" ValueChanged="NameChanged" MaxLength="200" />
     </Dialog>
 </div>
