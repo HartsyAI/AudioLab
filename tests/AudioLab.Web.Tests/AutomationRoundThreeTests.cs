@@ -58,9 +58,9 @@ public sealed class AutomationRoundThreeTests
     {
         Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Off));
         Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Read));
-        Assert.Equal(AutomationModes.RecorderNotWired, AutomationModes.UnavailableReason(AutomationMode.Touch));
-        Assert.Equal(AutomationModes.RecorderNotWired, AutomationModes.UnavailableReason(AutomationMode.Latch));
-        Assert.Equal(AutomationModes.RecorderNotWired, AutomationModes.UnavailableReason(AutomationMode.Write));
+        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Touch));
+        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Latch));
+        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Write));
     }
 
     /// <summary>Undo and redo are held while a point is dragged, and free again when the drag ends.</summary>
