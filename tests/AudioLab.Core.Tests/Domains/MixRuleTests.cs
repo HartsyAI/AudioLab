@@ -145,4 +145,20 @@ public sealed class MixRuleTests
         Assert.Equal(MixSilence.None, MixRules.SilenceOf(fed, fed.Tracks[1]));
         Assert.Equal(MixSilence.SoloElsewhere, MixRules.SilenceOf(unfed, unfed.Tracks[1]));
     }
+
+    [Fact]
+    public void ASourceUnsoloedIsHeardThroughASoloedBusAndTheBusItself()
+    {
+        Track source = BlankProject.Track("a") with { Sends = [new Send(_bus, 1, false, false)] };
+        Track silenced = BlankProject.Track("b") with { Sends = [new Send(_bus, 1, false, true)] };
+        Track soloed = BlankProject.Track("c") with { Soloed = true };
+        ProjectDocument heard = Mix([source, Bus() with { Soloed = true }, soloed]);
+        ProjectDocument muted = Mix([silenced, Bus() with { Soloed = true }, soloed]);
+
+        Assert.Equal(MixSilence.None, MixRules.SilenceOf(heard, source));
+        Assert.True(MixRules.IsHeardThroughBus(heard, source));
+        Assert.Equal(MixSilence.None, MixRules.SilenceOf(heard, heard.Tracks[1]));
+        Assert.False(MixRules.IsHeardThroughBus(heard, heard.Tracks[1]));
+        Assert.Equal(MixSilence.SoloElsewhere, MixRules.SilenceOf(muted, silenced));
+    }
 }

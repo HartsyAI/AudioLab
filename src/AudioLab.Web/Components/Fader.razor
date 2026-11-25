@@ -1,24 +1,25 @@
 <div class="fader" role="@(Interactive ? null : "img")" aria-label="@(Interactive ? null : $"{Label} {Text} dB")">
-    <div class="scale" aria-hidden="true">
+    <span class="scale" aria-hidden="true">
         @foreach (string mark in FaderScale.Labels)
         {
             <span>@mark</span>
         }
-    </div>
+    </span>
     @if (Interactive)
     {
-        <div class="track" role="slider" tabindex="@(Disabled ? "-1" : "0")" aria-label="@Label" aria-valuemin="0" aria-valuemax="100"
-             aria-valuenow="@Now" aria-valuetext="@Shown" aria-disabled="@(Disabled ? "true" : null)" title="@Hint"
-             data-dragging="@(_gesture is { Active: true } ? "true" : "false")" @onpointerdown="PressAsync" @onkeydown="KeyAsync" @ondblclick="ResetAsync">
-            <div class="slot"></div>
-            <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
-        </div>
+        <button type="button" class="track" role="slider" aria-label="@Label" aria-valuemin="0" aria-valuemax="100"
+                aria-valuenow="@Now" aria-valuetext="@ValueText" aria-disabled="@(Disabled ? "true" : null)" title="@Hint"
+                data-dragging="@(_gesture is { Active: true } ? "true" : "false")" @onpointerdown="PressAsync" @onkeydown="KeyAsync"
+                @ondblclick="ResetAsync">
+            <span class="slot"></span>
+            <span class="cap" style="bottom: @Percent%"><span class="notch"></span></span>
+        </button>
     }
     else
     {
-        <div class="track">
-            <div class="slot"></div>
-            <div class="cap" style="bottom: @Percent%"><div class="notch"></div></div>
-        </div>
+        <span class="track">
+            <span class="slot"></span>
+            <span class="cap" style="bottom: @Percent%"><span class="notch"></span></span>
+        </span>
     }
 </div>

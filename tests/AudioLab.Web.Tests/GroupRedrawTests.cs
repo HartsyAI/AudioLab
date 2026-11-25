@@ -2,9 +2,9 @@ using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Effects;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,18 +39,19 @@ public sealed class GroupRedrawTests
         return Song.Empty().With([kick, snare, bass]) with { Groups = [Drums(collapsed, muted, volume)] };
     }
 
-    private static Dictionary<string, object?> MixerParameters(ProjectDocument document)
+    private static Dictionary<string, object?> MixerParameters(ProjectDocument document, bool canEdit = false)
     {
         return new Dictionary<string, object?>
         {
             ["Document"] = document,
-            ["Actions"] = SessionActions.ReadOnly("Offline."),
+            ["Actions"] = canEdit ? new SessionActions { CanEdit = true } : SessionActions.ReadOnly("Offline."),
             ["Selected"] = null,
         };
     }
 
     private static void MixerServices(IServiceCollection services)
     {
+        services.AddSingleton<IKeyGuard>(new NoKeyGuard());
         services.AddSingleton(new TrackColorMap([.. Enumerable.Repeat("#ee6d86", 12)]));
         services.AddScoped<SessionSelection>();
         services.AddScoped<EffectSelection>();
@@ -84,6 +85,27 @@ public sealed class GroupRedrawTests
         await mixer.DisposeServicesAsync();
     }
 
+    /// <summary>A track heard only through a send into a soloed bus says so, rather than saying it is silenced.</summary>
+    [Fact]
+    public async Task ATrackHeardThroughASoloedBusSaysSo()
+    {
+        Track source = Song.NewTrack("source") with
+        {
+            Name = "Source",
+            Sends = [new Send(TrackId.From("reverb"), 1, false, false)],
+        };
+        Track reverb = Song.NewTrack("reverb") with { Name = "Reverb", Kind = TrackKind.Bus, Soloed = true };
+        Track other = Song.NewTrack("other") with { Name = "Other", Soloed = false };
+        ProjectDocument document = Song.Empty().With([source, reverb, other]);
+
+        RenderedMarkup mixer = await RenderedMarkup.StartAsync<MixerPanel>(MixerParameters(document), MixerServices);
+
+        // The source is heard; the unrelated track, which sends nowhere, is silenced by the solo.
+        Assert.Contains("Heard through a soloed bus", Html(mixer));
+        Assert.Contains("Silenced by a solo elsewhere", Html(mixer));
+        await mixer.DisposeServicesAsync();
+    }
+
     /// <summary>A change to a group's volume draws its strip and no track strip: the volume is not in what a track shows.</summary>
     [Fact]
     public async Task AGroupVolumeDrawsOnlyTheGroupStrip()
@@ -97,37 +119,77 @@ public sealed class GroupRedrawTests
         await mixer.DisposeServicesAsync();
     }
 
-    /// <summary>A fader drag is drawn by the fader alone, and nothing is sent until the release.</summary>
+    /// <summary>A colour that cannot be chosen is a disabled swatch, and the screen's reason is written beside it.</summary>
     [Fact]
-    public async Task AFaderDragIsDrawnByTheFaderAloneAndSendsNothingBeforeTheRelease()
+    public async Task AColourThatCannotBeChosenSaysWhy()
+    {
+        RenderedMarkup strip = await RenderedMarkup.OfAsync<GroupStrip>(new Dictionary<string, object?>
+        {
+            ["Group"] = Drums(),
+            ["Members"] = 2,
+            ["ColorToken"] = "var(--track-1)",
+            ["Palette"] = (IReadOnlyList<string>)[.. Enumerable.Repeat("#ee6d86", 12)],
+            ["Actions"] = SessionActions.ReadOnly("Offline."),
+        });
+
+        Assert.Contains("Offline.", Html(strip));
+        Assert.Contains(strip.Values("title"), title => title.Contains("Offline.", StringComparison.Ordinal));
+        await strip.DisposeServicesAsync();
+    }
+
+    /// <summary>A drag on a group's fader is drawn by the fader alone, sends nothing before the release, and sends one volume on it.</summary>
+    [Fact]
+    public async Task AGroupFaderDragSendsOneVolumeOnRelease()
     {
         DrivenPointer pointer = new();
         List<double> sent = [];
+        SessionActions actions = new()
+        {
+            CanEdit = true,
+            Groups = new GroupActions
+            {
+                SetVolume = (_, volume) =>
+                {
+                    sent.Add(volume);
+                    return Task.FromResult(EditResult.Applied(true, []));
+                },
+            },
+        };
         Dictionary<string, object?> parameters = new()
         {
-            ["Label"] = "Volume of group Drums",
-            ["Text"] = "0.0 dB",
-            ["Position"] = 0.75,
-            ["OnCommit"] = EventCallback.Factory.Create<double>(new object(), position => sent.Add(position)),
+            ["Group"] = Drums(),
+            ["Members"] = 2,
+            ["ColorToken"] = "var(--track-1)",
+            ["Palette"] = (IReadOnlyList<string>)[.. Enumerable.Repeat("#ee6d86", 12)],
+            ["Actions"] = actions,
         };
-        RenderedMarkup fader = await RenderedMarkup.StartAsync<Fader>(parameters, services => services.AddSingleton<IPointerTracker>(pointer));
+        RenderedMarkup strip = await RenderedMarkup.StartAsync<GroupStrip>(parameters, services => services.AddSingleton<IPointerTracker>(pointer));
 
-        await fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
+        await strip.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
         List<int> drawnPerMove = [];
         for (int step = 1; step <= 40; step++)
         {
-            await fader.RunAsync(() => pointer.Move(0, 300 - (step * 2)));
+            await strip.RunAsync(() => pointer.Move(0, 300 - (step * 2)));
             await Task.Yield();
-            drawnPerMove.Add(fader.Drawn.Count);
+            drawnPerMove.Add(strip.Drawn.Count);
         }
 
         Assert.All(drawnPerMove, count => Assert.Equal(1, count));
-        Assert.All(fader.Drawn, type => Assert.Equal(typeof(Fader), type));
+        Assert.All(strip.Drawn, type => Assert.Equal(typeof(Fader), type));
         Assert.Empty(sent);
-        await fader.RunAsync(() => pointer.Release(0, 220));
-        await Task.Delay(50);
+        await strip.RunAsync(() => pointer.Release(0, 220));
+        await UntilAsync(() => sent.Count == 1);
         Assert.Single(sent);
-        await fader.DisposeServicesAsync();
+        await strip.DisposeServicesAsync();
+    }
+
+    // Waits for a condition the handler reaches on another task; fails rather than waits for ever.
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        for (int attempt = 0; attempt < 200 && !condition(); attempt++)
+        {
+            await Task.Delay(5);
+        }
     }
 
     private sealed class DrivenPointer : IPointerTracker

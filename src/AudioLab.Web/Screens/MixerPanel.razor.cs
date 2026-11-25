@@ -1,15 +1,19 @@
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Effects;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The mixer tab: one channel strip for each track, a group's strip before its first track, then the master and the sends.</summary>
+/// <summary>The mixer tab: a group's strip before its first track, one strip for each track, then the master and the sends.</summary>
 public sealed partial class MixerPanel
 {
+    // The id is per instance, so two mixers on one page do not share it.
+    private readonly string _id = $"mixer-{Guid.NewGuid():N}";
+
     /// <summary>The document.</summary>
     [Parameter, EditorRequired]
     public ProjectDocument Document { get; set; } = null!;
@@ -27,6 +31,9 @@ public sealed partial class MixerPanel
 
     [Inject]
     private EffectsNavigator Navigator { get; set; } = default!;
+
+    [Inject]
+    private IKeyGuard Guard { get; set; } = default!;
 
     private Track? SelectedTrack => Selected is { } id ? Document.Tracks.FirstOrDefault(track => track.Id == id) : null;
 
@@ -59,6 +66,16 @@ public sealed partial class MixerPanel
         }
     }
 
+    /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && OperatingSystem.IsBrowser())
+        {
+            // A knob or a fader takes the arrow keys, Home and End; without this the transport would also seek with them.
+            Guard.PreventNavigationKeys(_id, "slider");
+        }
+    }
+
     private static IReadOnlyList<StripEffect> Effects(Track track)
     {
         return [.. track.Effects.Select(effect => new StripEffect(effect.Id, TrackText.Effect(effect), effect.Enabled))];
@@ -72,6 +89,7 @@ public sealed partial class MixerPanel
             MixSilence.TrackMuted => "Muted",
             MixSilence.GroupMuted => $"Muted by {GroupRules.GroupOf(track, Document.Groups)?.Name ?? "its group"}",
             MixSilence.SoloElsewhere => "Silenced by a solo elsewhere",
+            MixSilence.None when MixRules.IsHeardThroughBus(Document, track) => "Heard through a soloed bus",
             _ => null,
         };
     }

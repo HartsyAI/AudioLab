@@ -1,6 +1,4 @@
-using System.Globalization;
 using AudioLab.Core.Model;
-using AudioLab.Web.Components;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
@@ -31,28 +29,20 @@ public sealed partial class GroupStrip
     [Parameter, EditorRequired]
     public SessionActions Actions { get; set; } = null!;
 
-    private string VolumeText => LevelOf(Group.Volume);
+    private string VolumeText => FaderScale.Readout(Group.Volume);
 
-    private IReadOnlyList<MenuItem> ColourItems => [.. Palette.Select((_, index) => new MenuItem(index.ToString(CultureInfo.InvariantCulture), $"Colour {index + 1}", string.Empty))];
+    private string SwatchTitle => Actions.CanEdit ? string.Empty : Actions.Reason ?? string.Empty;
 
     // The fader travels over the decibel scale, the same as a track's, so its marks and its readout agree.
     private static double PositionOf(double gain) => FaderScale.Position(gain);
 
-    private static string LevelOf(double gain)
-    {
-        string text = FaderScale.Text(gain);
-        return text == "-inf" ? text : $"{text} dB";
-    }
-
-    private static string FormatVolume(double position) => LevelOf(FaderScale.Gain(position));
+    private static string FormatVolume(double position) => FaderScale.Readout(FaderScale.Gain(position));
 
     private Task SetVolumeAsync(double position) => Actions.Groups.SetVolume(Group.Id, FaderScale.Gain(position));
 
-    private Task SetColourAsync(MenuItem item)
+    private Task SetColourAsync(int index)
     {
-        return int.TryParse(item.Id, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index >= 0 && index < Palette.Count
-            ? Actions.Groups.SetColor(Group.Id, Palette[index])
-            : Task.CompletedTask;
+        return index >= 0 && index < Palette.Count ? Actions.Groups.SetColor(Group.Id, Palette[index]) : Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -76,6 +66,7 @@ public sealed partial class GroupStrip
 
     private string Key()
     {
-        return $"{Group.Id.Value}|{Group.Name}|{Group.Color}|{Group.Collapsed}|{Group.Tint}|{Group.Muted}|{Group.Soloed}|{Group.Volume}|{Members}|{ColorToken}|{Actions.CanEdit}|{Actions.Reason}";
+        return $"{Group.Id.Value}|{Group.Name}|{Group.Color}|{Group.Collapsed}|{Group.Tint}|{Group.Muted}|{Group.Soloed}|{Group.Volume}|" +
+            $"{Members}|{ColorToken}|{Actions.CanEdit}|{Actions.Reason}";
     }
 }

@@ -9,10 +9,14 @@
         <Toggle Label="Tint" Name="@($"Tint the clips of group {Group.Name}")" On="Group.Tint" Tone="ToggleTone.Accent" Disabled="!Actions.CanEdit"
                 Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetTint(Group.Id, !Group.Tint)" />
     </div>
-    @if (Actions.CanEdit)
-    {
-        <Menu Label="Colour" Items="ColourItems" OnSelect="SetColourAsync" />
-    }
+    <div class="swatches" role="group" aria-label="@($"Colour of group {Group.Name}")">
+        @for (int shade = 0; shade < Palette.Count; shade++)
+        {
+            int chosen = shade;
+            <button type="button" class="swatch" style="background: @Palette[chosen]" aria-label="@($"Colour {chosen + 1} for group {Group.Name}")"
+                    title="@SwatchTitle" disabled="@(!Actions.CanEdit)" @onclick="() => SetColourAsync(chosen)"></button>
+        }
+    </div>
     <div class="fader-row">
         <Fader Label="@($"Volume of group {Group.Name}")" Position="@PositionOf(Group.Volume)" Text="@VolumeText" Format="FormatVolume"
                DefaultPosition="@PositionOf(1)" OnCommit="SetVolumeAsync" Disabled="!Actions.CanEdit" Reason="@Actions.Reason" />
@@ -24,5 +28,9 @@
                 Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetSoloed(Group.Id, !Group.Soloed)" />
         <span class="db">@VolumeText</span>
     </div>
-    <span class="silence">@Members @(Members == 1 ? "track" : "tracks")</span>
+    @if (!Actions.CanEdit)
+    {
+        <span class="members">@Actions.Reason</span>
+    }
+    <span class="members">@Members @(Members == 1 ? "track" : "tracks")</span>
 </div>
