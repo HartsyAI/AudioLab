@@ -15,6 +15,7 @@ namespace AudioLab.Core.Transcription;
 /// <param name="Reason">Why it failed or was cancelled, when it was; a sentence for the user.</param>
 /// <param name="Created">When the job was accepted, in UTC.</param>
 /// <param name="Updated">When the state last changed, in UTC.</param>
+/// <param name="Duration">The media's length in seconds, so a finished job reports its progress after a restart.</param>
 public sealed record TranscriptionJobFile(
     [property: JsonPropertyName("version")] int Version,
     [property: JsonPropertyName("owner")] string Owner,
@@ -27,7 +28,8 @@ public sealed record TranscriptionJobFile(
     [property: JsonPropertyName("state")] TranscriptionState State,
     [property: JsonPropertyName("reason")] string? Reason,
     [property: JsonPropertyName("created")] DateTimeOffset Created,
-    [property: JsonPropertyName("updated")] DateTimeOffset Updated)
+    [property: JsonPropertyName("updated")] DateTimeOffset Updated,
+    [property: JsonPropertyName("duration")] double Duration = 0)
 {
     /// <summary>The only format version the code writes and reads.</summary>
     public const int CurrentVersion = 1;

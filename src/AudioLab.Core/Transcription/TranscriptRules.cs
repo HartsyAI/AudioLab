@@ -54,13 +54,44 @@ public static class TranscriptRules
             AddTextProblems(problems, where, segment.Text, segment.Kind);
             if (segment.Words is { } words)
             {
-                AddWordProblems(problems, where, words, segment.Start, segment.End, 0);
+                AddWordProblems(problems, where, words, segment.Start, segment.End);
             }
         }
         return Cap(problems);
     }
 
+    /// <summary>The answer with its text and times made usable: whitespace collapsed, segments with no text dropped, each segment and each word
+    /// clamped into the window (and the word into its segment), and the segments sorted by start. A value that is not finite is kept,
+    /// so <see cref="AnswerProblems"/> refuses it.</summary>
+    public static IReadOnlyList<SpeechSegment> Normalise(IReadOnlyList<SpeechSegment> answer, double windowLength)
+    {
+        ArgumentNullException.ThrowIfNull(answer);
+        List<SpeechSegment> kept = [];
+        foreach (SpeechSegment segment in answer)
+        {
+            if (!double.IsFinite(segment.Start) || !double.IsFinite(segment.End))
+            {
+                kept.Add(segment);
+                continue;
+            }
+            string text = Collapse(segment.Text);
+            if (text.Length == 0)
+            {
+                continue;
+            }
+            double start = Math.Clamp(segment.Start, 0, windowLength);
+            double end = Math.Clamp(segment.End, start, windowLength);
+            ValueList<LyricWord>? words = segment.Words is { } given
+                ? new ValueList<LyricWord>(given.Select(word => ClampWord(word, start, end)))
+                : null;
+            kept.Add(new SpeechSegment(start, end, text, segment.Kind, words));
+        }
+        kept.Sort((left, right) => left.Start.CompareTo(right.Start));
+        return kept;
+    }
+
     /// <summary>What is wrong with a model's answer for one window, in words; empty when every segment is usable.</summary>
+    /// <remarks>Call it on the answer after <see cref="Normalise"/>, which has put every time inside the window.</remarks>
     public static IReadOnlyList<string> AnswerProblems(IReadOnlyList<SpeechSegment> answer, double windowLength)
     {
         ArgumentNullException.ThrowIfNull(answer);
@@ -74,7 +105,7 @@ public static class TranscriptRules
         {
             SpeechSegment segment = answer[index];
             string where = $"Segment {index} of the answer";
-            if (!IsSeconds(segment.Start) || !IsSeconds(segment.End) || segment.Start > segment.End
+            if (!double.IsFinite(segment.Start) || !double.IsFinite(segment.End) || segment.Start > segment.End
                 || segment.Start < -tolerance || segment.End > windowLength + tolerance)
             {
                 problems.Add($"{where} lies outside its window.");
@@ -82,43 +113,64 @@ public static class TranscriptRules
             AddTextProblems(problems, where, segment.Text, segment.Kind);
             if (segment.Words is { } words)
             {
-                AddWordProblems(problems, where, words, segment.Start, segment.End, tolerance);
+                AddWordProblems(problems, where, words, segment.Start, segment.End);
             }
         }
         return Cap(problems);
     }
 
-    /// <summary>The segments of a window's answer that the window owns, in media seconds (D91); the rest belong to a neighbour.</summary>
-    /// <exception cref="ArgumentException">The answer fails <see cref="AnswerProblems"/>.</exception>
-    public static ValueList<TranscriptSegment> Own(TranscriptionWindow window, IReadOnlyList<SpeechSegment> answer, double durationSeconds)
+    /// <summary>The segments of a window's answer that the window owns, in media seconds (D91); the rest belong to a neighbour. The answer is
+    /// normalised first, so the stored segments pass <see cref="DocumentProblems"/> by construction.</summary>
+    /// <returns>False, with the first problem, when the answer is not one the server accepts.</returns>
+    public static bool TryOwn(
+        TranscriptionWindow window,
+        IReadOnlyList<SpeechSegment> answer,
+        double durationSeconds,
+        out ValueList<TranscriptSegment> owned,
+        out string problem)
     {
         ArgumentNullException.ThrowIfNull(answer);
-        IReadOnlyList<string> problems = AnswerProblems(answer, window.LengthSeconds);
+        IReadOnlyList<SpeechSegment> usable = Normalise(answer, window.LengthSeconds);
+        IReadOnlyList<string> problems = AnswerProblems(usable, window.LengthSeconds);
         if (problems.Count > 0)
         {
-            throw new ArgumentException(problems[0], nameof(answer));
+            owned = new ValueList<TranscriptSegment>([]);
+            problem = problems[0];
+            return false;
         }
         List<TranscriptSegment> kept = [];
-        foreach (SpeechSegment segment in answer)
+        foreach (SpeechSegment segment in usable)
         {
-            double start = Math.Max(0, window.StartSeconds + segment.Start);
-            bool owned = start >= window.StartSeconds
+            double start = window.StartSeconds + segment.Start;
+            bool isOwned = start >= window.StartSeconds
                 && (start < window.OwnedEndSeconds || (window.IsLast && start <= window.OwnedEndSeconds));
-            if (!owned || start >= durationSeconds)
+            if (!isOwned || start >= durationSeconds)
             {
                 continue;
             }
-            double end = Math.Min(durationSeconds, window.StartSeconds + segment.End);
+            double end = Math.Max(start, Math.Min(durationSeconds, window.StartSeconds + segment.End));
             ValueList<LyricWord>? words = segment.Words is { } given
-                ? new ValueList<LyricWord>(given.Select(word => word with
-                {
-                    Start = word.Start + window.StartSeconds,
-                    End = word.End + window.StartSeconds,
-                }))
+                ? new ValueList<LyricWord>(given.Select(word => ClampWord(
+                    word with { Start = word.Start + window.StartSeconds, End = word.End + window.StartSeconds },
+                    start,
+                    end)))
                 : null;
-            kept.Add(new TranscriptSegment(start, Math.Max(start, end), segment.Text, segment.Kind, words));
+            kept.Add(new TranscriptSegment(start, end, segment.Text, segment.Kind, words));
         }
-        return new ValueList<TranscriptSegment>(kept);
+        owned = new ValueList<TranscriptSegment>(kept);
+        problem = string.Empty;
+        return true;
+    }
+
+    private static LyricWord ClampWord(LyricWord word, double start, double end)
+    {
+        double wordStart = Math.Clamp(word.Start, start, end);
+        return word with { Start = wordStart, End = Math.Clamp(Math.Max(word.End, wordStart), start, end) };
+    }
+
+    private static string Collapse(string? text)
+    {
+        return string.Join(' ', (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static void AddTextProblems(List<string> problems, string where, string text, SpeechKind kind)
@@ -127,7 +179,7 @@ public static class TranscriptRules
         {
             problems.Add($"{where} needs text of 1 to {TranscriptionLimits.MaxTextChars} characters.");
         }
-        else if (text.Any(character => char.IsControl(character) && character != ' '))
+        else if (text.Any(character => char.IsControl(character) && !char.IsWhiteSpace(character)))
         {
             problems.Add($"{where} holds a control character.");
         }
@@ -137,13 +189,13 @@ public static class TranscriptRules
         }
     }
 
-    private static void AddWordProblems(List<string> problems, string where, ValueList<LyricWord> words, double start, double end, double tolerance)
+    private static void AddWordProblems(List<string> problems, string where, ValueList<LyricWord> words, double start, double end)
     {
         foreach (LyricWord word in words)
         {
             if (string.IsNullOrWhiteSpace(word.Word) || word.Word.Length > TranscriptionLimits.MaxWordChars
                 || !IsSeconds(word.Start) || !IsSeconds(word.End) || word.Start > word.End
-                || word.Start < start - tolerance || word.End > end + tolerance)
+                || word.Start < start || word.End > end)
             {
                 problems.Add($"{where} has a word that lies outside its segment.");
                 return;

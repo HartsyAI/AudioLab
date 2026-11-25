@@ -56,7 +56,7 @@ public sealed class TranscriptionService(MediaService media, TranscriptionJobs j
             TranscriptionState state = await jobs.StateOfAsync(user, id, cancellationToken)
                 ?? throw new TranscriptionNotFoundException("There is no transcription of that file.");
             throw state == TranscriptionState.Done
-                ? new TranscriptionNotFoundException("The transcript of that file is missing; resume the transcription to make it again.")
+                ? new TranscriptionNotFoundException("The transcript of that file is missing; start the transcription again to make it.")
                 : new TranscriptionConflictException($"The transcription is {state.ToString().ToLowerInvariant()}; it has no transcript yet.");
         }
         if (document.Sha256 != record.Sha256)
