@@ -56,6 +56,9 @@ internal sealed class RenderedMarkup : Renderer
     /// <summary>The types of the components drawn in the latest batch, one for each draw: what a change cost.</summary>
     public IReadOnlyList<Type> Drawn { get; private set; } = [];
 
+    /// <summary>The root component the render started with, so a test can reach what it hosts; null for a render made with <see cref="OfAsync{T}"/>.</summary>
+    public object? Instance { get; private set; }
+
     /// <summary>Renders <typeparamref name="T"/> with the given parameters.</summary>
     /// <typeparam name="T">The component.</typeparam>
     /// <param name="parameters">The parameters by name.</param>
@@ -88,6 +91,7 @@ internal sealed class RenderedMarkup : Renderer
         ServiceProvider provider = collection.BuildServiceProvider();
         RenderedMarkup renderer = new(provider) { _provider = provider };
         T component = (T)renderer.InstantiateComponent(typeof(T));
+        renderer.Instance = component;
         renderer._root = renderer.AssignRootComponentId(component);
         renderer._types[renderer._root] = typeof(T);
         await renderer.Dispatcher.InvokeAsync(() => renderer.RenderRootComponentAsync(renderer._root, ParameterView.FromDictionary(parameters)));

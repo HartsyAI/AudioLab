@@ -87,6 +87,21 @@ public sealed class AutomationWriter(AutomationMode mode, AutomationParameter pa
         _held = false;
     }
 
+    /// <summary>The playhead jumped (a seek, or a loop's wrap): a write or a held touch starts a new segment at the jump.</summary>
+    /// <remarks>
+    /// A write records its resting value at the jump; a held touch goes on at the value it holds. A latch holds its value across the skip, so it
+    /// keeps its segment, and a touch that is not held has nothing to end. The caller samples at the jump as well.
+    /// </remarks>
+    public void Jump(double time, double value)
+    {
+        if (!_passing || _segments.Count == 0 || Mode == AutomationMode.Latch || (Mode == AutomationMode.Touch && !_held))
+        {
+            return;
+        }
+        _segments.Add([]);
+        Record(time, value);
+    }
+
     /// <summary>A sample of the control's value at a time, from a transport tick; recorded only while the pass records.</summary>
     public void Sample(double time, double value)
     {
