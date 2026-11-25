@@ -226,29 +226,36 @@ public sealed partial class LyricWordRow : IDisposable
         Drags.End(this);
     }
 
-    // A key moves the word by one step through the same rule and edit as a drag; plain arrows move the focus to the row before or after.
+    // A key moves the word by one step through the same rule and edit as a drag; plain keys move the focus along the list.
+    // A held move key does nothing: each step is one undo step, so a repeat would send one command per repeat.
     private async Task KeyAsync(KeyboardEventArgs key)
     {
-        if (key.Repeat)
-        {
-            return;
-        }
         if (Step(key) is { } move)
         {
-            await MoveByKeyAsync(move.Part, move.Seconds);
+            if (!key.Repeat)
+            {
+                await MoveByKeyAsync(move.Part, move.Seconds);
+            }
             return;
         }
         if (key.CtrlKey || key.MetaKey || key.ShiftKey || key.AltKey)
         {
             return;
         }
-        if (key.Key == "ArrowUp")
+        switch (key.Key)
         {
-            await OnStep.InvokeAsync(Index - 1);
-        }
-        else if (key.Key == "ArrowDown")
-        {
-            await OnStep.InvokeAsync(Index + 1);
+            case "ArrowUp":
+                await OnStep.InvokeAsync(Index - 1);
+                break;
+            case "ArrowDown":
+                await OnStep.InvokeAsync(Index + 1);
+                break;
+            case "Home":
+                await OnStep.InvokeAsync(0);
+                break;
+            case "End":
+                await OnStep.InvokeAsync(Lyrics.Words.Count - 1);
+                break;
         }
     }
 

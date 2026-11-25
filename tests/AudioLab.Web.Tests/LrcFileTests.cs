@@ -64,11 +64,11 @@ public sealed class LrcFileTests
         Assert.Equal("That file is empty.", refusal);
     }
 
-    /// <summary>Text longer than a clip may hold is refused before it is parsed.</summary>
+    /// <summary>Text longer than a clip may hold is refused by the length check, which runs before the lines are parsed: this text has no timed line, so a parse alone would say it has none.</summary>
     [Fact]
-    public void TextLongerThanAClipMayHoldIsRefused()
+    public void TextLongerThanAClipMayHoldIsRefusedBeforeItIsParsed()
     {
-        string text = "[00:01.00]" + new string('a', ProjectLimits.MaxLongText);
+        string text = new('a', ProjectLimits.MaxLongText + 1);
         (string? read, string? refusal) = LrcFile.Read(Utf8(text));
         Assert.Null(read);
         Assert.Equal("That file holds more text than a clip's lyrics may, so it was not read.", refusal);
