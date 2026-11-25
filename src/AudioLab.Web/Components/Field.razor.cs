@@ -29,6 +29,10 @@ public sealed partial class Field
     [Parameter]
     public bool Invalid { get; set; }
 
+    /// <summary>Whether the field takes several lines, as a text area, with the same surface and focus ring.</summary>
+    [Parameter]
+    public bool Multiline { get; set; }
+
     /// <summary>Extra attributes forwarded to the input, such as an id.</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? Attributes { get; set; }

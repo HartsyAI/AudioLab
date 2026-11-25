@@ -21,6 +21,10 @@
             {
                 <MediaPanel Document="Document" Actions="Actions" />
             }
+            else if (tab == "Lyrics")
+            {
+                <LyricsPanel Document="Document" Actions="Actions" />
+            }
             else
             {
                 <EmptyState Heading="@tab" Message="@($"The {tab.ToLowerInvariant()} tab arrives in a later phase.")" />

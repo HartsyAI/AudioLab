@@ -22,6 +22,7 @@ public sealed partial class SessionPage
 
     private EffectEditor? _effects;
 
+    private LyricsEditor? _lyrics;
     private BeatEditor? _beats;
     private AutomationEditor? _automation;
 
@@ -72,6 +73,9 @@ public sealed partial class SessionPage
 
     [Inject]
     private RollDragState RollDrags { get; set; } = default!;
+
+    [Inject]
+    private LyricsDrags LyricsDrags { get; set; } = default!;
 
     [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
@@ -132,6 +136,7 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
+        _lyrics = new LyricsEditor(live);
         _beats = new BeatEditor(live);
         _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
@@ -169,6 +174,7 @@ public sealed partial class SessionPage
             _editor = null;
             _midi = null;
             _effects = null;
+            _lyrics = null;
             _beats = null;
             await live.DisposeAsync();
         }
@@ -229,6 +235,7 @@ public sealed partial class SessionPage
                 AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
+                Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
                 Beats = BeatActions.For(_beats!, ShowAsync),
                 Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),
                 RenameTrack = BeginRename,
@@ -419,10 +426,10 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Busy || Lanes.HoldsHistory))
+        // A press is down on a clip, a word or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
+        // So history waits.
+        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy))
         {
-            // A press is down on a clip or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
-            // So history waits.
             return true;
         }
         if (Shortcuts.Undo.Matches(chord))

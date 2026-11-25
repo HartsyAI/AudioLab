@@ -31,6 +31,9 @@ public sealed class SessionActions
     /// <summary>What can be done to MIDI clips.</summary>
     public MidiActions Midi { get; init; } = new();
 
+    /// <summary>What can be done to a clip's lyrics.</summary>
+    public LyricsActions Lyrics { get; init; } = new();
+
     /// <summary>What can be done to a track's effect chain.</summary>
     public EffectActions Effects { get; init; } = new();
 

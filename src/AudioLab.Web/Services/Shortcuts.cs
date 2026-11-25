@@ -253,6 +253,29 @@ public static class Shortcuts
     /// <summary>Put the knob that has the focus back to its default.</summary>
     public static readonly Shortcut ControlReset = new("control.reset", "Reset to default", "Backspace", Controls);
 
+    /// <summary>The scope of the lyrics tab: keys heard while the focus is on a word, so they never meet the keys of the arrangement.</summary>
+    public const string Lyrics = "lyrics";
+
+    /// <summary>Move the focused word earlier, its start and its end together.</summary>
+    public static readonly Shortcut LyricsWordEarlier = new("lyrics.word.earlier", "Move word earlier", "ArrowLeft", Lyrics, Ctrl: true);
+
+    /// <summary>Move the focused word later, its start and its end together.</summary>
+    public static readonly Shortcut LyricsWordLater = new("lyrics.word.later", "Move word later", "ArrowRight", Lyrics, Ctrl: true);
+
+    /// <summary>Move the start of the focused word earlier.</summary>
+    public static readonly Shortcut LyricsStartEarlier =
+        new("lyrics.start.earlier", "Move word start earlier", "ArrowLeft", Lyrics, Ctrl: true, Shift: true);
+
+    /// <summary>Move the start of the focused word later.</summary>
+    public static readonly Shortcut LyricsStartLater =
+        new("lyrics.start.later", "Move word start later", "ArrowRight", Lyrics, Ctrl: true, Shift: true);
+
+    /// <summary>Move the end of the focused word earlier.</summary>
+    public static readonly Shortcut LyricsEndEarlier = new("lyrics.end.earlier", "Move word end earlier", "ArrowUp", Lyrics, Ctrl: true);
+
+    /// <summary>Move the end of the focused word later.</summary>
+    public static readonly Shortcut LyricsEndLater = new("lyrics.end.later", "Move word end later", "ArrowDown", Lyrics, Ctrl: true);
+
     /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
 
@@ -326,5 +349,6 @@ public static class Shortcuts
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
         DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, ControlReset, .. AutomationKeys,
+        LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];
 }
