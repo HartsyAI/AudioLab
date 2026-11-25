@@ -68,7 +68,7 @@ public sealed partial class LyricsPanel : IDisposable
     // The strip covers the whole source of the clip, so a word out past the visible part is still on it.
     private double StripWidth => Found is { } found ? Geometry.Width(Math.Max(found.Clip.Duration, Words.Count > 0 ? Words[^1].End : 0)) : 0;
 
-    private string CountText => Words.Count == 1 ? "1 word" : $"{Words.Count} words";
+    private string CountText => TextWords == 1 ? "1 word" : $"{TextWords} words" + (Timed ? string.Empty : ", untimed");
 
     private string SourceText => Lyrics?.Source switch
     {
@@ -88,6 +88,12 @@ public sealed partial class LyricsPanel : IDisposable
     private string? ShiftBlock => !Actions.CanEdit ? Actions.Reason : Timed ? null : NoTimes;
 
     private bool ClearDisabled => !Timed || !Actions.CanEdit;
+
+    private int TextWords => LyricsRules.WordsOf(Lyrics?.Text).Count;
+
+    private bool EstimateDisabled => !Actions.CanEdit || TextWords == 0;
+
+    private string? EstimateBlock => !Actions.CanEdit ? Actions.Reason : TextWords == 0 ? "Write some lyrics first; there are no words to spread." : null;
 
     private string? ClearBlock => !Actions.CanEdit ? Actions.Reason : Timed ? null : NoTimes;
 
@@ -116,6 +122,7 @@ public sealed partial class LyricsPanel : IDisposable
         if (clip?.Id != _clip)
         {
             _clip = clip?.Id;
+            _announcement = null;
             _draft = server;
             _saved = server;
         }
@@ -218,6 +225,24 @@ public sealed partial class LyricsPanel : IDisposable
         if (result.Succeeded)
         {
             await SayAsync(string.Create(CultureInfo.InvariantCulture, $"Lyrics imported from {file.Name}."));
+        }
+    }
+
+    private async Task EstimateAsync()
+    {
+        if (Found is not { } found)
+        {
+            return;
+        }
+        int count = LyricsRules.WordsOf(found.Clip.Meta?.Lyrics?.Text).Count;
+        EditResult result = await Actions.Lyrics.Estimate(found.Clip.Id);
+        if (result.Succeeded)
+        {
+            string said = string.Create(
+                CultureInfo.InvariantCulture,
+                $"Spread {count} words evenly over {ClipRules.VisibleLength(found.Clip):0.0} seconds from {found.Clip.Start:0.0} s.");
+            await SayAsync(said);
+            Toasts.Show(ToastKind.Info, said, Actions.Undo);
         }
     }
 
