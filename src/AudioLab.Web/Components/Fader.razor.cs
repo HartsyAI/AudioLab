@@ -11,19 +11,15 @@ namespace AudioLab.Web.Components;
 /// <remarks>It is dragged, stepped and reset as a knob is, and a disabled one stays in the tab order and says why.</remarks>
 public sealed partial class Fader : IDisposable
 {
-    private const int SettleMilliseconds = 400;
+    private readonly ValueSender _sender;
 
     private ValueGesture? _gesture;
 
-    private double? _held;
-
-    private double _wanted = double.NaN;
-
-    private double _sent = double.NaN;
-
-    private bool _sending;
-
-    private CancellationTokenSource? _settle;
+    /// <summary>Creates the fader, whose sends go to <see cref="OnCommit"/> and whose redraws are asked for when a send changes what is shown.</summary>
+    public Fader()
+    {
+        _sender = new ValueSender(value => OnCommit.InvokeAsync(value), () => StateHasChanged());
+    }
 
     /// <summary>The position along the scale, from 0 at the bottom to 1 at the top.</summary>
     [Parameter]
@@ -62,13 +58,13 @@ public sealed partial class Fader : IDisposable
 
     private bool Interactive => OnCommit.HasDelegate;
 
-    private double Travel => _gesture?.Position ?? _held ?? Math.Clamp(Position, 0, 1);
+    private double Travel => _gesture?.Position ?? _sender.Held ?? Math.Clamp(Position, 0, 1);
 
     private string Percent => (Travel * 100).ToString("0.##", CultureInfo.InvariantCulture);
 
     private string Now => Math.Round(Travel * 100).ToString(CultureInfo.InvariantCulture);
 
-    private string Shown => Format is { } format && (_gesture is not null || _held is not null) ? format(Travel) : Text;
+    private string Shown => Format is { } format && (_gesture is not null || _sender.Held is not null) ? format(Travel) : Text;
 
     // The value in words for a screen reader: a readout without its unit gets the decibels.
     private string ValueText
@@ -95,8 +91,7 @@ public sealed partial class Fader : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _settle?.Cancel();
-        _settle?.Dispose();
+        _sender.Dispose();
         if (_gesture is { Active: true })
         {
             Pointer.Stop();
@@ -107,9 +102,9 @@ public sealed partial class Fader : IDisposable
     protected override void OnParametersSet()
     {
         // The new position has been drawn, so the preview that stood in for it can go.
-        if (_held is not null && !_sending && _gesture is null && Math.Abs(Math.Clamp(Position, 0, 1) - _held.Value) < 1e-9)
+        if (_gesture is null)
         {
-            _held = null;
+            _sender.Arrived(Math.Clamp(Position, 0, 1));
         }
     }
 
@@ -177,52 +172,12 @@ public sealed partial class Fader : IDisposable
     }
 
     // The preview stays until the position that answers it is drawn; keys that arrive while one is on its way are folded into the next send.
-    private async Task CommitAsync(double target)
+    private Task CommitAsync(double target)
     {
-        if (!_sending && Math.Abs(target - Travel) < 1e-9)
+        if (!_sender.Sending && Math.Abs(target - Travel) < 1e-9)
         {
-            return;
+            return Task.CompletedTask;
         }
-        _held = target;
-        _wanted = target;
-        StateHasChanged();
-        if (_sending)
-        {
-            return;
-        }
-        _sending = true;
-        try
-        {
-            while (_sent != _wanted)
-            {
-                _sent = _wanted;
-                await OnCommit.InvokeAsync(_sent);
-            }
-        }
-        finally
-        {
-            _sending = false;
-            _sent = double.NaN;
-        }
-        await LetGoAsync();
-    }
-
-    // A refused edit never moves the position, so the preview must not stay for ever: it goes after a moment if the position did not come.
-    private async Task LetGoAsync()
-    {
-        _settle?.Cancel();
-        _settle?.Dispose();
-        CancellationTokenSource settle = new();
-        _settle = settle;
-        try
-        {
-            await Task.Delay(SettleMilliseconds, settle.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        _held = null;
-        StateHasChanged();
+        return _sender.SendAsync(target);
     }
 }

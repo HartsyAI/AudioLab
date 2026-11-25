@@ -44,6 +44,33 @@ internal sealed class RenderedMarkup : Renderer
     /// <returns>The values, in the order they were written.</returns>
     public string[] Values(string name) => [.. _attributes.Where(attribute => attribute.Name == name).Select(attribute => attribute.Value)];
 
+    /// <summary>Whether the element with the given aria-label has a title that contains the text: the title written after its label is its own.</summary>
+    /// <param name="label">The element's aria-label.</param>
+    /// <param name="text">The text the title must contain.</param>
+    public bool TitleOfElementNamed(string label, string text)
+    {
+        int start = -1;
+        for (int i = 0; i < _attributes.Count && start < 0; i++)
+        {
+            if (_attributes[i] == ("aria-label", label))
+            {
+                start = i;
+            }
+        }
+        if (start < 0)
+        {
+            return false;
+        }
+        for (int j = start + 1; j < _attributes.Count && _attributes[j].Name != "aria-label"; j++)
+        {
+            if (_attributes[j].Name == "title" && _attributes[j].Value.Contains(text, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Every piece of static markup that was written, which the compiler writes in one frame, such as a span with a literal.</summary>
     public IReadOnlyList<string> Markup => _markup;
 
