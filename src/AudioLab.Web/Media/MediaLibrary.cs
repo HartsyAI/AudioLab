@@ -324,7 +324,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             }
             Changed?.Invoke();
         });
-        return await api.UploadAsync(job.Name, job.Source.Open(), job.Length, progress, cancellationToken);
+        return await api.UploadAsync(job.Name, job.Source.Open(), job.Length, progress, cancellationToken, job.Source.ContentType);
     }
 
     // A file is judged on limits that are as new as the last upload, delete or Try again; `known` is false when they could not be had in time,
@@ -344,6 +344,11 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         if (name.Count > 0)
         {
             return $"The name is not valid: {name[0]}";
+        }
+        // A compressed file is decoded by the server, which judges it and says why when it cannot; only a WAV file is checked here.
+        if (!MediaTypes.IsWav(source.ContentType))
+        {
+            return null;
         }
         byte[] head = new byte[WavPrecheck.HeadBytes];
         int read = 0;

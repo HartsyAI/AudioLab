@@ -22,14 +22,20 @@ public static class DecoderRoutes
         {
             DecoderInstallOutcome.Started => Results.Accepted("/api/decoder", installer.Status()),
             DecoderInstallOutcome.AlreadyInstalled => Results.Ok(installer.Status()),
-            DecoderInstallOutcome.Busy => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "An install is already running; wait for it to finish."),
-            DecoderInstallOutcome.Disabled => Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Installing the decoder is turned off on this server."),
+            DecoderInstallOutcome.Busy => Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "An install is already running; wait for it to finish."),
+            DecoderInstallOutcome.Disabled => Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Installing the decoder is turned off on this server."),
             DecoderInstallOutcome.Unsupported => Results.Problem(
                 statusCode: StatusCodes.Status409Conflict,
-                title: "No audio decoder is available for this platform."),
-            _ => Results.Problem(
+                title: "The audio decoder is not available on this system."),
+            DecoderInstallOutcome.NotConfirmed => Results.Problem(
                 statusCode: StatusCodes.Status422UnprocessableEntity,
                 title: "The version or checksum does not match the build shown. Reload the page and confirm again."),
+            // Any outcome added later is a server fault until it is answered on purpose, not a client error.
+            _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError, title: "The install could not be started."),
         };
     }
 }

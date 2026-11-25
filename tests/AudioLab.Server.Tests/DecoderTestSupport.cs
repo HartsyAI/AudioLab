@@ -20,22 +20,35 @@ internal static class DecoderTestSupport
 
     public static readonly byte[] Binary = Encoding.UTF8.GetBytes("fake decoder binary, never run");
 
-    public static byte[] Archive(byte[] binary)
+    /// <summary>An archive holding the binary under its pinned entry name, and any extra entries the test adds beside it.</summary>
+    public static byte[] Archive(byte[] binary, params (string Name, byte[] Data)[] extras)
     {
         using MemoryStream stream = new();
         using (ZipArchive zip = new(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            ZipArchiveEntry entry = zip.CreateEntry(EntryName);
-            using Stream target = entry.Open();
-            target.Write(binary);
+            WriteEntry(zip, EntryName, binary);
+            foreach ((string name, byte[] data) in extras)
+            {
+                WriteEntry(zip, name, data);
+            }
         }
         return stream.ToArray();
     }
 
+    private static void WriteEntry(ZipArchive zip, string name, byte[] data)
+    {
+        ZipArchiveEntry entry = zip.CreateEntry(name);
+        using Stream target = entry.Open();
+        target.Write(data);
+    }
+
     public static string Sha256(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 
-    public static DecoderBuild BuildFor(byte[] archive, byte[] binary) =>
-        new(new DecoderPackage(Version, SourceUrl, archive.Length, Sha256(archive)), ["fake.example.invalid"], EntryName, "ffmpeg.exe", Sha256(binary));
+    public static DecoderBuild BuildFor(byte[] archive, byte[] binary)
+    {
+        DecoderPackage package = new(Version, SourceUrl, archive.Length, Sha256(archive));
+        return new DecoderBuild(package, ["fake.example.invalid"], EntryName, "ffmpeg.exe", Sha256(binary));
+    }
 
     /// <summary>Starts the server with the fake build, downloader and launcher in place of the real ones.</summary>
     public static Task<RunningServer> StartAsync(
@@ -44,10 +57,12 @@ internal static class DecoderTestSupport
         FakeDecoderLauncher launcher,
         IDictionary<string, string?>? settings = null)
     {
+        // The install is off on a shared door unless a test turns it on; the decoder tests install, and the 403 test turns it off.
         Dictionary<string, string?> all = new()
         {
             ["AudioLab:Door:Kind"] = "Swarm",
             ["AudioLab:Door:ProxySecret"] = Secret,
+            ["AudioLab:Decoder:InstallEnabled"] = "true",
         };
         foreach (KeyValuePair<string, string?> pair in settings ?? new Dictionary<string, string?>())
         {

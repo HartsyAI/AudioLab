@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using AudioLab.Core.Model;
+using AudioLab.Web.Media;
 
 namespace AudioLab.Web.Services;
 
@@ -21,7 +22,7 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
 
     private const string Media = "api/media";
 
-    private const string WavType = "audio/wav";
+    private const string WavType = MediaTypes.Wav;
 
     private const string TookTooLong = "The server took too long to answer. Try again.";
 
@@ -77,6 +78,7 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
     /// <param name="length">The size of the file, announced to the server so it can refuse an oversized file at once.</param>
     /// <param name="progress">Told how much of the file has been handed to the browser; the browser then still has to send it.</param>
     /// <param name="cancellationToken">Cancels the upload; it is the only thing that does.</param>
+    /// <param name="contentType">The type the file is sent as: WAV, or a compressed type the server decodes.</param>
     /// <exception cref="ApiException">The file is larger than <see cref="MaxUploadBytes"/>, and is not read, or the server refused it.</exception>
     /// <exception cref="UploadInterruptedException">The upload ended with no answer: the connection closed, or the browser gave up.</exception>
     public async Task<MediaSummary> UploadAsync(
@@ -84,7 +86,8 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
         Stream content,
         long length,
         IProgress<UploadProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string contentType = WavType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(content);
@@ -95,7 +98,7 @@ public sealed class MediaApi(HttpClient http, HttpClient uploads)
             throw new ApiException(HttpStatusCode.RequestEntityTooLarge, UploadChecks.TooLarge(length, MaxUploadBytes));
         }
         using StreamContent body = new(new ProgressStream(content, length, progress));
-        body.Headers.ContentType = new MediaTypeHeaderValue(WavType);
+        body.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         body.Headers.ContentLength = length;
         try
         {

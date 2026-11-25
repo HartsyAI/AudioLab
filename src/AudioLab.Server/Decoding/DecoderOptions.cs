@@ -3,8 +3,12 @@ namespace AudioLab.Server.Decoding;
 /// <summary>What the optional audio decoder may do, under <c>AudioLab:Decoder</c>.</summary>
 public sealed record DecoderOptions
 {
-    /// <summary>Whether the install route may download the decoder. A hosted instance sets it false, so no user can fetch a binary for all.</summary>
-    public bool InstallEnabled { get; init; } = true;
+    /// <summary>Whether the install route may download the decoder. Off by default: only the desktop door turns it on, since the
+    /// decoder is one per server and an install would serve every user of a shared instance.</summary>
+    public bool InstallEnabled { get; init; }
+
+    /// <summary>The longest one install may take, from its start to the decoder being in place; a longer one is failed and cleaned up.</summary>
+    public TimeSpan InstallTimeout { get; init; } = TimeSpan.FromMinutes(30);
 
     /// <summary>The largest compressed file one upload may carry; the decoded WAV is still held to <c>AudioLab:Media:MaxUploadBytes</c>.</summary>
     public long MaxInputBytes { get; init; } = 256L * 1024 * 1024;

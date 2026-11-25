@@ -14,7 +14,7 @@ public sealed class DecoderApiTests
         "{\"supported\":true,\"installed\":false,\"installedVersion\":null,\"phase\":\"idle\",\"received\":0,\"total\":114768076,"
         + "\"reason\":null,\"package\":{\"version\":\"9.0.2\","
         + "\"sourceUrl\":\"https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip\","
-        + "\"bytes\":114768076,\"sha256\":\"" + Sha + "\"}}";
+        + "\"bytes\":114768076,\"sha256\":\"" + Sha + "\"},\"installEnabled\":true}";
 
     private static readonly Uri _site = new("http://audiolab.test/audiolab/");
 
@@ -33,6 +33,7 @@ public sealed class DecoderApiTests
         Assert.False(status.Installed);
         Assert.NotNull(status.Package);
         Assert.Equal(("9.0.2", Sha), (status.Package.Version, status.Package.Sha256));
+        Assert.True(status.InstallEnabled);
     }
 
     /// <summary>The install names exactly the version and checksum the user confirmed, and nothing else.</summary>

@@ -16,6 +16,10 @@ public static class DecoderOptionsValidator
         {
             problems.Add("AudioLab:Decoder:Timeout must be 1 second to 1 hour.");
         }
+        if (options.InstallTimeout < TimeSpan.FromSeconds(1) || options.InstallTimeout > TimeSpan.FromHours(2))
+        {
+            problems.Add("AudioLab:Decoder:InstallTimeout must be 1 second to 2 hours.");
+        }
         if (options.StderrCapBytes is < 1024 or > 1024 * 1024)
         {
             problems.Add("AudioLab:Decoder:StderrCapBytes must be 1024 to 1048576.");

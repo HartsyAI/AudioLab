@@ -13,20 +13,38 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
 
     private const int OutputChannels = 2;
     private const string OutputCodec = "pcm_s16le";
-    private const int StderrLogChars = 512;
+    // The log gets a short excerpt of the error output, with control characters replaced, so a file cannot write lines into the log.
+    private const int StderrLogChars = 200;
     private static readonly TimeSpan _pollInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan _reapWait = TimeSpan.FromSeconds(10);
 
-    /// <summary>Decodes <paramref name="input"/> to <paramref name="output"/>, which must not exist yet, and removes the output when the decode fails.</summary>
+    /// <summary>Decodes <paramref name="input"/> to <paramref name="output"/>, which must not exist yet, and removes the output
+    /// when the decode fails.</summary>
+    /// <param name="binary">The installed decoder's path, as <see cref="DecoderInstaller.VerifiedBinary"/> returned it.</param>
+    /// <param name="demuxer">
+    /// The one demuxer the input may be read with, chosen from its content type, so a file of another format is refused.
+    /// </param>
+    /// <param name="input">The compressed file, a temporary file the caller wrote.</param>
+    /// <param name="output">Where the WAV is written; it must not exist yet.</param>
+    /// <param name="maxOutputBytes">The most WAV the decode may write before it is stopped.</param>
+    /// <param name="cancellationToken">Ends the decode, as the caller's request ending does.</param>
+    /// <exception cref="DecoderNotInstalledException">The process could not be started at all.</exception>
     /// <exception cref="MediaRejectedException">The file is not audio the decoder reads, or the decode took longer than the time limit.</exception>
     /// <exception cref="MediaTooLargeException">The decoded audio grew past <paramref name="maxOutputBytes"/>.</exception>
-    public async Task DecodeAsync(string binary, string input, string output, long maxOutputBytes, CancellationToken cancellationToken)
+    public async Task DecodeAsync(
+        string binary,
+        string demuxer,
+        string input,
+        string output,
+        long maxOutputBytes,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(binary);
+        ArgumentException.ThrowIfNullOrEmpty(demuxer);
         ArgumentException.ThrowIfNullOrEmpty(input);
         ArgumentException.ThrowIfNullOrEmpty(output);
         // The caller removes the output on any outcome, including a cancelled request; this method removes it when the decode itself fails.
-        IDecoderProcess process = launcher.Start(binary, Arguments(input, output), location.TempFolder);
+        IDecoderProcess process = StartProcess(binary, Arguments(demuxer, input, output));
         using IDecoderProcess owned = process;
         using CancellationTokenSource limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(options.Timeout);
@@ -61,9 +79,35 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
                 await StopAsync(process);
             }
         }
-        string message = (await stderr).Trim();
-        await drain;
+        // After the kill, a pipe that a surviving grandchild holds must not keep the decode waiting, so both reads are bounded.
+        string message = (await WithinAsync(stderr, string.Empty)).Trim();
+        await WithinAsync(drain);
         DecodeOutcome(process.HasExited ? process.ExitCode : -1, output, message, timedOut, tooLarge, maxOutputBytes);
+    }
+
+    private IDecoderProcess StartProcess(string binary, IReadOnlyList<string> arguments)
+    {
+        try
+        {
+            return launcher.Start(binary, arguments, location.TempFolder);
+        }
+        catch (System.ComponentModel.Win32Exception exception)
+        {
+            DecoderLog.Refused(logger, $"the process could not be started ({exception.NativeErrorCode})");
+            throw new DecoderNotInstalledException("The audio decoder could not be started on this server, so the file was not decoded.");
+        }
+    }
+
+    // Waits for the task for at most the reap wait; a task that is still running then is given up on, and the fallback is returned.
+    private static async Task<T> WithinAsync<T>(Task<T> task, T fallback)
+    {
+        Task finished = await Task.WhenAny(task, Task.Delay(_reapWait));
+        return finished == task ? await task : fallback;
+    }
+
+    private static async Task WithinAsync(Task task)
+    {
+        await Task.WhenAny(task, Task.Delay(_reapWait));
     }
 
     private void DecodeOutcome(int exitCode, string output, string stderr, bool timedOut, bool tooLarge, long maxOutputBytes)
@@ -88,7 +132,7 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         }
     }
 
-    private static IReadOnlyList<string> Arguments(string input, string output) =>
+    private static IReadOnlyList<string> Arguments(string demuxer, string input, string output) =>
     [
         "-nostdin",
         "-hide_banner",
@@ -96,6 +140,8 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         "error",
         "-protocol_whitelist",
         "file",
+        "-format_whitelist",
+        demuxer,
         "-y",
         "-i",
         input,
@@ -153,7 +199,12 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         }
     }
 
-    private static string Truncate(string text) => text.Length <= StderrLogChars ? text : text[..StderrLogChars];
+    // Control characters become spaces, so the excerpt is one line of plain text whatever the decoder wrote.
+    private static string Truncate(string text)
+    {
+        string plain = new(text.Select(character => char.IsControl(character) ? ' ' : character).ToArray());
+        return plain.Length <= StderrLogChars ? plain : plain[..StderrLogChars];
+    }
 
     private static long FileLength(string path) => File.Exists(path) ? new FileInfo(path).Length : 0;
 

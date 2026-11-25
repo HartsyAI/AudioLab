@@ -92,7 +92,13 @@ public static class MediaRoutes
         // A compressed file is decoded to WAV first, and then stored exactly like a WAV upload; without the decoder it is refused with the reason.
         try
         {
-            MediaRecord converted = await decoded.UploadAsync(user, names[0], http.Request.Body, http.Request.ContentLength, cancellationToken);
+            MediaRecord converted = await decoded.UploadAsync(
+                user,
+                mediaType,
+                names[0],
+                http.Request.Body,
+                http.Request.ContentLength,
+                cancellationToken);
             return Results.Created($"{http.Request.PathBase}/api/media/{converted.Id.Value}", MediaSummary.Of(converted));
         }
         catch (DecoderNotInstalledException exception)

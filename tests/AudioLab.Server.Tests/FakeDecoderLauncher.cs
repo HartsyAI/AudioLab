@@ -1,19 +1,29 @@
+using System.Diagnostics;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Decoding;
 
 namespace AudioLab.Server.Tests;
 
-/// <summary>Stands in for the ffmpeg process. It writes a valid WAV, exits with an error and writes nothing, or never exits
-/// until it is killed, and it counts the starts and the kills so a test can see what the decoder did.</summary>
+/// <summary>Stands in for the ffmpeg process. Each mode is one way a decode can end: a valid WAV, an error with no output, a WAV
+/// that is not one, an error with a large stderr, or a process that never exits until it is killed. <see
+/// cref="Mode.HangProcess"/> starts a real child process, so a test can check that the kill really ended it. Every
+/// start and kill is counted.</summary>
 internal sealed class FakeDecoderLauncher : IDecoderLauncher
 {
     public enum Mode
     {
         Succeed,
         Fail,
+        InvalidWav,
+        NoisyStderr,
         Hang,
+        HangProcess,
     }
+
+    // A child process that keeps running for longer than any test waits, so only a kill ends it.
+    private const string LongRunningFile = "ping.exe";
+    private const string LongRunningArguments = "-n 300 127.0.0.1";
 
     public Mode Behaviour { get; set; } = Mode.Succeed;
 
@@ -22,6 +32,8 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
     public int Kills { get; private set; }
 
     public IReadOnlyList<string> LastArguments { get; private set; } = [];
+
+    public int? SpawnedProcessId { get; private set; }
 
     public IDecoderProcess Start(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
     {
@@ -33,7 +45,10 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
         {
             Mode.Succeed => Succeeded(output),
             Mode.Fail => new FakeProcess(this, exited: true, exitCode: 1),
-            _ => new FakeProcess(this, exited: false, exitCode: 0),
+            Mode.InvalidWav => WritesNotWav(output),
+            Mode.NoisyStderr => new FakeProcess(this, exited: true, exitCode: 1, stderr: new string('e', 200 * 1024)),
+            Mode.Hang => new FakeProcess(this, exited: false, exitCode: 0),
+            _ => StartRealProcess(),
         };
     }
 
@@ -43,16 +58,36 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
         return new FakeProcess(null, exited: true, exitCode: 0);
     }
 
+    private static FakeProcess WritesNotWav(string output)
+    {
+        File.WriteAllBytes(output, "exit code zero, but this is not a RIFF file at all"u8.ToArray());
+        return new FakeProcess(null, exited: true, exitCode: 0);
+    }
+
+    private RealProcess StartRealProcess()
+    {
+        Process process = Process.Start(new ProcessStartInfo(LongRunningFile, LongRunningArguments)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        }) ?? throw new InvalidOperationException("The test process did not start.");
+        SpawnedProcessId = process.Id;
+        return new RealProcess(this, process);
+    }
+
     private sealed class FakeProcess : IDecoderProcess
     {
         private readonly FakeDecoderLauncher? _owner;
         private readonly TaskCompletionSource _exit = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public FakeProcess(FakeDecoderLauncher? owner, bool exited, int exitCode)
+        public FakeProcess(FakeDecoderLauncher? owner, bool exited, int exitCode, string stderr = "")
         {
             _owner = owner;
             HasExited = exited;
             ExitCode = exitCode;
+            StandardError = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(stderr));
             if (exited)
             {
                 _exit.TrySetResult();
@@ -63,7 +98,7 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
 
         public int ExitCode { get; private set; }
 
-        public Stream StandardError { get; } = new MemoryStream();
+        public Stream StandardError { get; }
 
         public Stream StandardOutput { get; } = new MemoryStream();
 
@@ -86,5 +121,37 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
             StandardError.Dispose();
             StandardOutput.Dispose();
         }
+    }
+
+    private sealed class RealProcess(FakeDecoderLauncher owner, Process process) : IDecoderProcess
+    {
+        public bool HasExited => process.HasExited;
+
+        public int ExitCode => process.ExitCode;
+
+        public Stream StandardError => process.StandardError.BaseStream;
+
+        public Stream StandardOutput => process.StandardOutput.BaseStream;
+
+        public Task WaitForExitAsync(CancellationToken cancellationToken) => process.WaitForExitAsync(cancellationToken);
+
+        public bool KillTree()
+        {
+            owner.Kills++;
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // It exited between the check and the kill, which is what a kill is for.
+            }
+            return true;
+        }
+
+        public void Dispose() => process.Dispose();
     }
 }

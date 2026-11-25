@@ -24,6 +24,11 @@ public sealed class SystemDecoderLauncher : IDecoderLauncher
         {
             info.ArgumentList.Add(argument);
         }
+        // The child gets no variables of the server's, only the one Windows needs to start and a folder of its own for temporary files.
+        info.Environment.Clear();
+        info.Environment["SystemRoot"] = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
+        info.Environment["TEMP"] = workingDirectory;
+        info.Environment["TMP"] = workingDirectory;
         Process process = Process.Start(info) ?? throw new InvalidOperationException("The decoder process did not start.");
         process.StandardInput.Close();
         return new SystemDecoderProcess(process);

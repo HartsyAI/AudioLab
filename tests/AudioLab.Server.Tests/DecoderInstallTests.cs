@@ -2,11 +2,14 @@ using System.Net;
 using System.Text.Json;
 using AudioLab.Core.Api.Decoder;
 using AudioLab.Server.Decoding;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AudioLab.Server.Tests;
 
 public sealed class DecoderInstallTests
 {
+    private const string Limit = "AudioLab:Decoder:InstallTimeout";
+
     [Fact]
     public async Task InstallsTheConfirmedBuildAndExtractsOnlyTheVerifiedBinary()
     {
@@ -82,7 +85,7 @@ public sealed class DecoderInstallTests
     }
 
     [Fact]
-    public async Task ReportsNoBuildForThisPlatformWithoutDownloading()
+    public async Task ReportsNoBuildForThisPlatformAndDownloadsNothing()
     {
         FakeDecoderDownloader downloader = new() { Payload = DecoderTestSupport.Archive(DecoderTestSupport.Binary) };
         await using RunningServer server = await DecoderTestSupport.StartAsync(null, downloader, new FakeDecoderLauncher());
@@ -90,6 +93,7 @@ public sealed class DecoderInstallTests
         using HttpResponseMessage response = await DecoderTestSupport.PostInstallAsync(server, DecoderTestSupport.Version, new string('0', 64));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("not available on this system", await response.Content.ReadAsStringAsync());
         Assert.Equal(0, downloader.Calls);
     }
 
@@ -98,7 +102,8 @@ public sealed class DecoderInstallTests
     {
         byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
         DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
-        await using RunningServer server = await DecoderTestSupport.StartAsync(build, new FakeDecoderDownloader { Payload = archive }, new FakeDecoderLauncher());
+        FakeDecoderDownloader downloader = new() { Payload = archive };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
         DecoderTestSupport.PlaceBinary(server, build, "edited on disk"u8.ToArray());
 
         using HttpRequestMessage request = DecoderTestSupport.Request(HttpMethod.Get, "/api/decoder");
@@ -107,5 +112,162 @@ public sealed class DecoderInstallTests
 
         Assert.False(document.RootElement.GetProperty("installed").GetBoolean());
         Assert.Contains("pinned checksum", document.RootElement.GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task ADisabledInstallIsRefusedWith403AndDownloadsNothing()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive };
+        Dictionary<string, string?> settings = new() { ["AudioLab:Decoder:InstallEnabled"] = "false" };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher(), settings);
+
+        using HttpResponseMessage response = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        using HttpRequestMessage status = DecoderTestSupport.Request(HttpMethod.Get, "/api/decoder");
+        using HttpResponseMessage answer = await server.Client.SendAsync(status);
+        using JsonDocument document = JsonDocument.Parse(await answer.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(0, downloader.Calls);
+        Assert.False(document.RootElement.GetProperty("installEnabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task AShareDoorDoesNotOfferTheInstallUnlessTheConfigurationTurnsItOn()
+    {
+        Dictionary<string, string?> settings = new()
+        {
+            ["AudioLab:Door:Kind"] = "Swarm",
+            ["AudioLab:Door:ProxySecret"] = "0123456789abcdef0123456789abcdef",
+        };
+        await using RunningServer server = await RunningServer.StartAsync(settings);
+
+        using HttpRequestMessage request = DecoderTestSupport.Request(HttpMethod.Get, "/api/decoder");
+        using HttpResponseMessage response = await server.Client.SendAsync(request);
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.False(document.RootElement.GetProperty("installEnabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task TheDesktopDoorOffersTheInstallByDefault()
+    {
+        await using RunningServer server = await RunningServer.StartAsync();
+
+        using HttpRequestMessage request = DecoderTestSupport.Request(HttpMethod.Get, "/api/decoder");
+        using HttpResponseMessage response = await server.Client.SendAsync(request);
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.True(document.RootElement.GetProperty("installEnabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ASourceOutsideTheBuildsPinnedHostsIsRefused()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary) with { Hosts = ["www.gyan.dev"] };
+        FakeDecoderDownloader downloader = new() { Payload = archive };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
+
+        using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        JsonElement status = await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Installed, DecoderPhases.Failed);
+
+        Assert.Equal(DecoderPhases.Failed, status.GetProperty("phase").GetString());
+        Assert.Contains("not one this build may use", status.GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task AStalledDownloadFailsAtTheInstallTimeoutAndLeavesNothingBehind()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive, Behaviour = FakeDecoderDownloader.Mode.Stall };
+        Dictionary<string, string?> settings = new() { [Limit] = "00:00:02" };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher(), settings);
+
+        using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        JsonElement status = await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Failed);
+
+        Assert.Contains("took longer than the server allows", status.GetProperty("reason").GetString());
+        Assert.Equal(1, downloader.Calls);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task ASecondInstallWhileOneRunsIsRefusedWith409()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive, Behaviour = FakeDecoderDownloader.Mode.Stall };
+        Dictionary<string, string?> settings = new() { [Limit] = "00:00:03" };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher(), settings);
+
+        using HttpResponseMessage first = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        using HttpResponseMessage second = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Contains("already running", await second.Content.ReadAsStringAsync());
+        await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Failed);
+    }
+
+    [Fact]
+    public async Task AnUnlistedFailureStillEndsTheInstallAsFailed()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive, Behaviour = FakeDecoderDownloader.Mode.Throw };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
+
+        using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        JsonElement status = await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Failed);
+
+        Assert.Contains("stopped unexpectedly", status.GetProperty("reason").GetString());
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task AnArchiveEntryThatClimbsOutOfTheFolderIsNeverWritten()
+    {
+        string escape = $"audiolab-zip-slip-{Guid.NewGuid():N}.txt";
+        byte[] archive = DecoderTestSupport.Archive(
+            DecoderTestSupport.Binary,
+            ($"../{escape}", "written outside the decoder folder"u8.ToArray()));
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
+
+        using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        JsonElement status = await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Installed, DecoderPhases.Failed);
+
+        Assert.Equal(DecoderPhases.Installed, status.GetProperty("phase").GetString());
+        Assert.False(File.Exists(Path.GetFullPath(Path.Combine(server.StoreFolder, "..", escape))));
+        Assert.Empty(Directory.GetFiles(server.StoreFolder, escape, SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task OnlyTheNamedBinaryIsLeftInTheDecoderFolder()
+    {
+        byte[] archive = DecoderTestSupport.Archive(
+            DecoderTestSupport.Binary,
+            ("bin/tool.exe", "an extra program"u8.ToArray()),
+            ("README.txt", "not the decoder"u8.ToArray()));
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        FakeDecoderDownloader downloader = new() { Payload = archive };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, downloader, new FakeDecoderLauncher());
+
+        using HttpResponseMessage accepted = await DecoderTestSupport.PostInstallAsync(server, build.Package.Version, build.Package.Sha256);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        JsonElement status = await DecoderTestSupport.WaitForPhaseAsync(server, DecoderPhases.Installed, DecoderPhases.Failed);
+
+        Assert.Equal(DecoderPhases.Installed, status.GetProperty("phase").GetString());
+        string folder = server.Services.GetRequiredService<DecoderLocation>().Folder;
+        string[] files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
+        Assert.Equal(new[] { DecoderTestSupport.BinaryPath(server, build) }, files);
     }
 }

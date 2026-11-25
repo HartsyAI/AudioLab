@@ -22,7 +22,6 @@ public sealed class DecoderInstaller
     private string _phase = DecoderPhases.Idle;
     private long _received;
     private string? _reason;
-    private (string Path, long Length, DateTime Written)? _verified;
 
     /// <summary>Creates the installer for the build this platform has, or none when it has none.</summary>
     public DecoderInstaller(
@@ -39,7 +38,14 @@ public sealed class DecoderInstaller
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>Whether a build is pinned for this platform; when it is not, no install is possible and no decode can run.</summary>
+    public bool Supported => _build is not null;
+
     /// <summary>The installed decoder's path, or null when none is installed.</summary>
+    /// <remarks>
+    /// The binary is hashed on every call. A cache keyed by its size and write time would let a same-size replacement run, and
+    /// the hash costs well under a second against the at most two decodes that run at once.
+    /// </remarks>
     /// <exception cref="DecoderNotInstalledException">The installed binary does not match its pinned checksum, so it is not run.</exception>
     public string? VerifiedBinary()
     {
@@ -52,23 +58,11 @@ public sealed class DecoderInstaller
         {
             return null;
         }
-        FileInfo info = new(path);
-        lock (_lock)
-        {
-            if (_verified is { } known && known.Path == path && known.Length == info.Length && known.Written == info.LastWriteTimeUtc)
-            {
-                return path;
-            }
-        }
         if (!string.Equals(HashFile(path), _build.BinarySha256, StringComparison.OrdinalIgnoreCase))
         {
             DecoderLog.Refused(_logger, "the installed binary does not match its pinned checksum");
             throw new DecoderNotInstalledException(
                 "The installed audio decoder does not match its pinned checksum, so it will not run. Install it again from the Media tab.");
-        }
-        lock (_lock)
-        {
-            _verified = (path, info.Length, info.LastWriteTimeUtc);
         }
         return path;
     }
@@ -102,7 +96,8 @@ public sealed class DecoderInstaller
             received,
             _build?.Package.Bytes ?? 0,
             reason,
-            _build?.Package);
+            _build?.Package,
+            _options.InstallEnabled);
     }
 
     /// <summary>Starts an install of the pinned build when the request names exactly that build; the download runs in the background.</summary>
@@ -154,10 +149,15 @@ public sealed class DecoderInstaller
         }
     }
 
+    // The phase is always left as installed or failed: when the run ends any other way, the finally block fails it, so a status poll
+    // never waits forever on a download that is no longer running.
     private async Task RunAsync(DecoderBuild build)
     {
         string archive = Path.Combine(_location.TempFolder, $"{Guid.NewGuid():N}.zip");
         string binary = Path.Combine(_location.TempFolder, $"{Guid.NewGuid():N}.exe");
+        using CancellationTokenSource limit = new(_options.InstallTimeout);
+        bool completed = false;
+        bool reported = false;
         try
         {
             await using (FileStream file = new(archive, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferBytes, FileOptions.Asynchronous))
@@ -168,7 +168,7 @@ public sealed class DecoderInstaller
                     file,
                     build.Package.Bytes,
                     SetReceived,
-                    CancellationToken.None);
+                    limit.Token);
                 if (received != build.Package.Bytes)
                 {
                     throw new DecoderInstallFailedException("The download is not the pinned size, so nothing was installed.");
@@ -184,28 +184,31 @@ public sealed class DecoderInstaller
             string target = _location.Binary(build.Package.Version, build.BinaryName);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Move(binary, target, overwrite: true);
-            lock (_lock)
-            {
-                _verified = null;
-            }
+            completed = true;
             SetPhase(DecoderPhases.Installed);
             DecoderLog.Installed(_logger, build.Package.Version);
         }
         catch (Exception exception) when (exception is DecoderInstallFailedException or IOException or HttpRequestException or InvalidDataException
             or UnauthorizedAccessException or OperationCanceledException)
         {
-            string reason = exception is DecoderInstallFailedException failed
-                ? failed.Message
-                : "The download or the extraction failed, so nothing was installed.";
-            DecoderLog.InstallFailed(_logger, exception.GetType().Name);
-            lock (_lock)
+            string reason = exception switch
             {
-                _phase = DecoderPhases.Failed;
-                _reason = reason;
-            }
+                DecoderInstallFailedException failed => failed.Message,
+                OperationCanceledException when limit.IsCancellationRequested =>
+                    "The download took longer than the server allows, so nothing was installed.",
+                _ => "The download or the extraction failed, so nothing was installed.",
+            };
+            DecoderLog.InstallFailed(_logger, exception.GetType().Name);
+            Fail(reason);
+            reported = true;
         }
         finally
         {
+            if (!completed && !reported)
+            {
+                // Any other exception ends the run here as a failure, so the phase never stays at downloading.
+                Fail("The install stopped unexpectedly, so nothing was installed.");
+            }
             TryDelete(archive);
             TryDelete(binary);
             _running.Release();
@@ -254,6 +257,15 @@ public sealed class DecoderInstaller
         lock (_lock)
         {
             _phase = phase;
+        }
+    }
+
+    private void Fail(string reason)
+    {
+        lock (_lock)
+        {
+            _phase = DecoderPhases.Failed;
+            _reason = reason;
         }
     }
 

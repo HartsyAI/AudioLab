@@ -9,8 +9,9 @@ public sealed class DecoderLocation
     private const string TempName = "tmp";
 
     /// <summary>Creates the folders under the store root and removes what an interrupted install or decode left in the temporary folder.</summary>
-    public DecoderLocation(StoreRoot root)
+    public DecoderLocation(StoreRoot root, ILogger<DecoderLocation> logger)
     {
+        ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(root);
         Folder = Path.Combine(root.Paths.Root, FolderName);
         TempFolder = Path.Combine(Folder, TempName);
@@ -21,9 +22,10 @@ public sealed class DecoderLocation
             {
                 File.Delete(leftover);
             }
-            catch (IOException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                // A file another process still holds is left for the next start; nothing reads it.
+                // A file another process still holds, or one this process may not delete, is left for the next start; nothing reads it.
+                DecoderLog.NotRemoved(logger, Path.GetFileName(leftover), exception.GetType().Name);
             }
         }
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
@@ -25,6 +26,22 @@ public sealed class DecodedUploadTests
         return server;
     }
 
+    private static Dictionary<string, string?> TimeLimit(string time) => new() { ["AudioLab:Decoder:Timeout"] = time };
+
+    [Theory]
+    [InlineData("audio/mpeg", "mp3")]
+    [InlineData("audio/mp3", "mp3")]
+    [InlineData("audio/mp4", "mov")]
+    [InlineData("audio/x-m4a", "mov")]
+    [InlineData("audio/flac", "flac")]
+    [InlineData("audio/ogg", "ogg")]
+    [InlineData("AUDIO/MPEG", "mp3")]
+    [InlineData("text/plain", null)]
+    public void EachCompressedTypeIsReadWithItsOwnDemuxerOnly(string mediaType, string? demuxer)
+    {
+        Assert.Equal(demuxer, DecodedUploadService.DemuxerFor(mediaType));
+    }
+
     [Fact]
     public async Task ADecodedFileIsStoredAsWav()
     {
@@ -35,6 +52,36 @@ public sealed class DecodedUploadTests
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(1, launcher.Starts);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task AnUploadIsReadWithOnlyTheDemuxerItsContentTypeNames()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Succeed };
+        await using RunningServer server = await StartInstalledAsync(launcher);
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        int at = launcher.LastArguments.ToList().IndexOf("-format_whitelist");
+        Assert.True(at >= 0);
+        Assert.Equal("mp3", launcher.LastArguments[at + 1]);
+        Assert.True(at < launcher.LastArguments.ToList().IndexOf("-i"), "the whitelist must come before the input");
+    }
+
+    [Fact]
+    public async Task AFileThatIsNotTheTypeItClaimsIsRefusedByItsDemuxer()
+    {
+        // A concat list sent as audio/mpeg: the decoder is given the mp3 demuxer only, and reads nothing from it. The fake stands in
+        // for that refusal with a failed exit; the argument check above shows the demuxer the real run is given.
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Fail };
+        await using RunningServer server = await StartInstalledAsync(launcher);
+        byte[] concat = "ffconcat version 1.0\nfile '/etc/hosts'\n"u8.ToArray();
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, concat, "list.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
 
@@ -53,16 +100,31 @@ public sealed class DecodedUploadTests
     }
 
     [Fact]
-    public async Task ADecodeThatRunsPastItsTimeLimitIsKilledAndItsTempFilesRemoved()
+    public async Task ADecodeThatRunsPastItsTimeLimitKillsTheRealProcessAndRemovesItsTempFiles()
     {
-        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
-        Dictionary<string, string?> settings = new() { ["AudioLab:Decoder:Timeout"] = "00:00:01" };
-        await using RunningServer server = await StartInstalledAsync(launcher, settings);
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.HangProcess };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:01"));
 
         using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "slow.mp3", Mp3);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Contains("took longer", await response.Content.ReadAsStringAsync());
+        Assert.Equal(1, launcher.Kills);
+        int pid = Assert.IsType<int>(launcher.SpawnedProcessId);
+        // A process that is still running would be found here; the kill has to have ended it, not only marked it.
+        Assert.ThrowsAny<ArgumentException>(() => Process.GetProcessById(pid));
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task ASilentlyHungDecodeIsRefusedAtItsTimeLimit()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:01"));
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "slow.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal(1, launcher.Kills);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
@@ -84,19 +146,113 @@ public sealed class DecodedUploadTests
     }
 
     [Fact]
-    public async Task AnotherUsersFailedDecodeDoesNotTouchTheirUploads()
+    public async Task AnotherUsersHungDecodeDoesNotRefuseTheirUploads()
     {
-        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Fail };
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:02"));
+
+        Task<HttpResponseMessage> mallory = DecoderTestSupport.UploadAsync(server, _compressedFile, "bad.mp3", Mp3, user: "mallory");
+        Task<HttpResponseMessage> wav = DecoderTestSupport.UploadAsync(server, TestWav.Build(SampleEncoding.Pcm16, 2, 48000, 24000), "ok.wav", Wav);
+        Task<HttpResponseMessage> alice = DecoderTestSupport.UploadAsync(server, _compressedFile, "good.mp3", Mp3);
+        using HttpResponseMessage malloryAnswer = await mallory;
+        using HttpResponseMessage wavAnswer = await wav;
+        using HttpResponseMessage aliceAnswer = await alice;
+
+        // Each user has one decode slot and the server two, so alice's decode runs beside mallory's and is not refused as busy.
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, malloryAnswer.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, wavAnswer.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, aliceAnswer.StatusCode);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task FiftyParallelCompressedUploadsOfOneUserDecodeOneAtATime()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:05"));
+
+        Task<HttpResponseMessage>[] uploads = Enumerable.Range(0, 50)
+            .Select(_ => DecoderTestSupport.UploadAsync(server, _compressedFile, "burst.mp3", Mp3))
+            .ToArray();
+        HttpResponseMessage[] answers = await Task.WhenAll(uploads);
+
+        // Refused requests are answered before they spool, so the one decode that runs is the only file the server writes.
+        Assert.Equal(1, launcher.Starts);
+        Assert.Equal(49, answers.Count(answer => answer.StatusCode == HttpStatusCode.TooManyRequests));
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+        foreach (HttpResponseMessage answer in answers)
+        {
+            answer.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task AUploadThatArrivesWhileAnotherDecodesIsRefusedWith429()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:03"));
+
+        Task<HttpResponseMessage> first = DecoderTestSupport.UploadAsync(server, _compressedFile, "first.mp3", Mp3);
+        while (launcher.Starts == 0)
+        {
+            await Task.Delay(10);
+        }
+        using HttpResponseMessage second = await DecoderTestSupport.UploadAsync(server, _compressedFile, "second.mp3", Mp3);
+        using HttpResponseMessage firstAnswer = await first;
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, firstAnswer.StatusCode);
+        Assert.Equal(1, launcher.Starts);
+    }
+
+    [Fact]
+    public async Task ACompressedFileOverTheInputLimitIsRefusedWith413BeforeItIsWritten()
+    {
+        FakeDecoderLauncher launcher = new();
+        Dictionary<string, string?> settings = new() { ["AudioLab:Decoder:MaxInputBytes"] = "1024" };
+        await using RunningServer server = await StartInstalledAsync(launcher, settings);
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, new byte[4096], "big.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Equal(0, launcher.Starts);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task ADecodedFileOverTheUploadLimitIsRefusedWith413()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Succeed };
+        Dictionary<string, string?> settings = new() { ["AudioLab:Media:MaxUploadBytes"] = "1024" };
+        await using RunningServer server = await StartInstalledAsync(launcher, settings);
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "long.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task DecoderOutputThatIsNotWavIsRefusedWith422()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.InvalidWav };
         await using RunningServer server = await StartInstalledAsync(launcher);
 
-        using HttpResponseMessage failed = await DecoderTestSupport.UploadAsync(server, _compressedFile, "bad.mp3", Mp3, user: "mallory");
-        using HttpResponseMessage wav = await DecoderTestSupport.UploadAsync(server, TestWav.Build(SampleEncoding.Pcm16, 2, 48000, 24000), "ok.wav", Wav);
-        launcher.Behaviour = FakeDecoderLauncher.Mode.Succeed;
-        using HttpResponseMessage decoded = await DecoderTestSupport.UploadAsync(server, _compressedFile, "good.mp3", Mp3);
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "odd.mp3", Mp3);
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, failed.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, wav.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, decoded.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task AFloodOfStderrIsReadAndDoesNotStallTheDecode()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.NoisyStderr };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:10"));
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "noisy.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
 
@@ -112,6 +268,57 @@ public sealed class DecodedUploadTests
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("Install audio decoder", await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, launcher.Starts);
+    }
+
+    [Fact]
+    public async Task OnAServerThatDoesNotOfferTheInstallTheRefusalSaysToUploadWav()
+    {
+        FakeDecoderLauncher launcher = new();
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        Dictionary<string, string?> settings = new() { ["AudioLab:Decoder:InstallEnabled"] = "false" };
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, new FakeDecoderDownloader(), launcher, settings);
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
+
+        // Without the install button on this server, the refusal must not send the user to it.
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("cannot be installed here", body);
+        Assert.DoesNotContain("Install audio decoder", body);
+        Assert.Equal(0, launcher.Starts);
+    }
+
+    [Fact]
+    public async Task OnAPlatformWithNoBuildTheRefusalSaysTheDecoderIsNotAvailable()
+    {
+        FakeDecoderLauncher launcher = new();
+        await using RunningServer server = await DecoderTestSupport.StartAsync(null, new FakeDecoderDownloader(), launcher);
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("not available on this system", body);
+        Assert.DoesNotContain("Install audio decoder", body);
+        Assert.Equal(0, launcher.Starts);
+    }
+
+    [Fact]
+    public async Task ABinaryReplacedWithTheSameSizeIsRefusedBeforeItRuns()
+    {
+        FakeDecoderLauncher launcher = new();
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, new FakeDecoderDownloader(), launcher);
+        // Same length as the pinned binary, different bytes: a size and time check would let it run; the checksum does not.
+        DecoderTestSupport.PlaceBinary(server, build, Enumerable.Repeat((byte)'x', DecoderTestSupport.Binary.Length).ToArray());
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("does not match its pinned checksum", await response.Content.ReadAsStringAsync());
         Assert.Equal(0, launcher.Starts);
     }
 }

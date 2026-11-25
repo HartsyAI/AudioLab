@@ -16,6 +16,11 @@ public sealed partial class MediaPanel : IDisposable
 
     private const string ListId = "media-list";
 
+    /// <summary>The id of the Add audio button, which the decoder install moves focus to when it has finished.</summary>
+    public const string AddId = "media-add";
+
+    private static readonly Dictionary<string, object> _addAttributes = new() { ["id"] = AddId };
+
     // Progress arrives many times a second; the list is drawn at most this often, so a busy upload never makes the page busy.
     private static readonly TimeSpan _drawInterval = TimeSpan.FromMilliseconds(100);
 

@@ -9,6 +9,7 @@ namespace AudioLab.Core.Api.Decoder;
 /// <param name="Total">The archive's size while downloading, the same as <see cref="DecoderPackage.Bytes"/>.</param>
 /// <param name="Reason">Why the last install failed, or null.</param>
 /// <param name="Package">The build an install would fetch, or null when the platform has none.</param>
+/// <param name="InstallEnabled">Whether this server lets a user install the decoder at all; false on a shared instance.</param>
 public sealed record DecoderStatus(
     bool Supported,
     bool Installed,
@@ -17,4 +18,5 @@ public sealed record DecoderStatus(
     long Received,
     long Total,
     string? Reason,
-    DecoderPackage? Package);
+    DecoderPackage? Package,
+    bool InstallEnabled);

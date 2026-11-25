@@ -1,4 +1,5 @@
 using AudioLab.Web.Media;
+using AudioLab.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 
@@ -42,17 +43,27 @@ public sealed partial class FilePicker : IDisposable
     [Inject]
     private MediaLibrary Library { get; set; } = default!;
 
+    [Inject]
+    private DecoderState Decoder { get; set; } = default!;
+
+    // The compressed types are offered only while the decoder is installed, so the chooser never invites a file the server cannot read.
+    private string AcceptTypes => MediaTypes.Accept(Decoder.Installed);
+
     /// <inheritdoc />
     public void Dispose()
     {
         Library.Changed -= OnLibraryChanged;
+        Decoder.Changed -= OnDecoderChanged;
     }
 
     /// <inheritdoc />
     protected override void OnInitialized()
     {
         Library.Changed += OnLibraryChanged;
+        Decoder.Changed += OnDecoderChanged;
     }
+
+    private void OnDecoderChanged() => _ = InvokeAsync(StateHasChanged);
 
     private string IdOf(Chooser chooser) => chooser == _choosers[^1] ? Id : $"{Id}-{chooser.Number}";
 
