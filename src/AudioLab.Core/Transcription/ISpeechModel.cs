@@ -6,6 +6,9 @@ public interface ISpeechModel
     /// <summary>The model's name, stored with each job, so a changed model never mixes answers into one transcript.</summary>
     public string ModelId { get; }
 
+    /// <summary>Whether a native call the model gave up on still holds it. A call that times out while the model is busy is told so.</summary>
+    public bool IsBusy => false;
+
     /// <summary>Transcribes one window.</summary>
     /// <param name="window">The audio of the window.</param>
     /// <param name="cancellationToken">Cancels the call; a cancelled call keeps nothing.</param>

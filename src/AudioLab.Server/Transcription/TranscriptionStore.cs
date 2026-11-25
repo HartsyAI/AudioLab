@@ -68,14 +68,14 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
         {
             yield break;
         }
-        foreach (string folder in Directory.EnumerateDirectories(Paths.UsersDirectory))
+        foreach (string folder in Entries(() => Directory.EnumerateDirectories(Paths.UsersDirectory)))
         {
             string transcripts = Path.Combine(folder, "transcripts");
             if (!Directory.Exists(transcripts))
             {
                 continue;
             }
-            foreach (string path in Directory.EnumerateFiles(transcripts, "t*.job.json"))
+            foreach (string path in Entries(() => Directory.EnumerateFiles(transcripts, "t*.job.json")))
             {
                 TranscriptionJobFile? file = ReadState(path);
                 if (file is not null)
@@ -224,17 +224,61 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
         {
             return;
         }
-        foreach (string folder in Directory.EnumerateDirectories(Paths.UsersDirectory))
+        foreach (string folder in Entries(() => Directory.EnumerateDirectories(Paths.UsersDirectory)))
         {
             string transcripts = Path.Combine(folder, "transcripts");
             if (!Directory.Exists(transcripts))
             {
                 continue;
             }
-            foreach (string temp in Directory.EnumerateFiles(transcripts, "t*.tmp"))
+            foreach (string temp in Entries(() => Directory.EnumerateFiles(transcripts, "t*.tmp")))
             {
                 DeleteFile(temp);
             }
+            foreach (string parked in Entries(() => Directory.EnumerateFiles(transcripts, "t*.parked")))
+            {
+                DeleteFile(parked);
+            }
+        }
+    }
+
+    /// <summary>Moves a job's chunk log aside, so a new job never reads it. It is put back if the new state cannot be written, and removed once
+    /// the new state is written (D92).</summary>
+    public void ParkChunks(UserId user, MediaId id)
+    {
+        string chunks = Paths.TranscriptChunkFile(user, id);
+        if (File.Exists(chunks))
+        {
+            File.Move(chunks, Parked(user, id), overwrite: true);
+        }
+    }
+
+    /// <summary>Puts a parked chunk log back where it was.</summary>
+    public void RestoreParkedChunks(UserId user, MediaId id)
+    {
+        string parked = Parked(user, id);
+        if (File.Exists(parked))
+        {
+            File.Move(parked, Paths.TranscriptChunkFile(user, id), overwrite: true);
+        }
+    }
+
+    /// <summary>Removes a parked chunk log, once the job that replaces it has its state.</summary>
+    public void DeleteParkedChunks(UserId user, MediaId id) => DeleteFile(Parked(user, id));
+
+    private string Parked(UserId user, MediaId id) => Paths.TranscriptChunkFile(user, id) + ".parked";
+
+    /// <summary>The entries a listing gives, or none when it fails: one unreadable folder must not fault the start-up for every route.</summary>
+    private IReadOnlyList<string> Entries(Func<IEnumerable<string>> list)
+    {
+        try
+        {
+            return list().ToList();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            TranscriptionLog.FileFailed(logger, exception.GetType().Name);
+            return [];
         }
     }
 

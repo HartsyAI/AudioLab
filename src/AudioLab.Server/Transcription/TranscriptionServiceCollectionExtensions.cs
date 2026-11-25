@@ -12,14 +12,27 @@ public static class TranscriptionServiceCollectionExtensions
     /// <summary>Registers the store, the job table, the worker, the window source and the speech model registry (D98).</summary>
     public static IServiceCollection AddTranscription(this IServiceCollection services, TranscriptionOptions options)
     {
+        return services.AddTranscription(options, SpeechModelCatalog.Entries);
+    }
+
+    /// <summary>Registers the transcription services for the given registry entries. The entries are checked here, once, so a bad one stops
+    /// the start (D98).</summary>
+    /// <exception cref="ArgumentException">An entry is not one the registry accepts.</exception>
+    public static IServiceCollection AddTranscription(
+        this IServiceCollection services,
+        TranscriptionOptions options,
+        IEnumerable<SpeechModelEntry> entries)
+    {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(entries);
         options.Validate();
+        List<SpeechModelEntry> registry = [.. entries];
+        SpeechModelCatalog.Validate(registry);
         services.AddSingleton(options);
         services.AddSingleton<TranscriptionStore>();
         services.AddSingleton<IAudioWindowSource, StoredAudioWindowSource>();
-        SpeechModelCatalog.Validate(SpeechModelCatalog.Entries);
-        foreach (SpeechModelEntry entry in SpeechModelCatalog.Entries)
+        foreach (SpeechModelEntry entry in registry)
         {
             services.AddSingleton(entry);
         }
