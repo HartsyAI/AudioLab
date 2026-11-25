@@ -2,7 +2,8 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>The speech model the lyrics tab asks to time a clip's text or to transcribe its audio; the server runs it, and the page only sends the request.</summary>
+/// <summary>The speech model the lyrics tab asks to time a clip's text or to transcribe its audio.</summary>
+/// <remarks>The server runs the model; the page only sends the request and takes the answer.</remarks>
 public interface ILyricsModels
 {
     /// <summary>Why the models cannot be used now, or null when they can.</summary>
