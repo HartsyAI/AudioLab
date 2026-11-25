@@ -50,7 +50,8 @@ public sealed class MediaErrorFilter(ILogger<MediaErrorFilter> logger) : IEndpoi
                 title: "The file is not accepted.",
                 detail: exception.Message);
         }
-        catch (Exception exception) when (exception is MediaQuotaExceededException or MediaInUseException or MediaDeleteInProgressException)
+        catch (Exception exception) when (exception is MediaQuotaExceededException or MediaInUseException or MediaDeleteInProgressException
+            or MediaTranscriptionBusyException)
         {
             return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: exception.Message);
         }

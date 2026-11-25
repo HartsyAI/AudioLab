@@ -15,7 +15,8 @@ public sealed class MediaService(
     TimeProvider time,
     PeakRebuilder rebuilder,
     IMediaQuota quota,
-    ILogger<MediaService> logger)
+    ILogger<MediaService> logger,
+    IMediaRemoval? removal = null)
 {
     private const int CopyBufferBytes = 80 * 1024;
 
@@ -159,6 +160,10 @@ public sealed class MediaService(
     /// <exception cref="MediaInUseException">A project of the user plays it.</exception>
     public async Task DeleteAsync(UserId user, MediaId id, CancellationToken cancellationToken)
     {
+        if (removal is not null)
+        {
+            await removal.EnsureRemovableAsync(user, id, cancellationToken);
+        }
         _ = store.BeginDelete(user, id);
         bool finished = false;
         try
@@ -169,6 +174,10 @@ public sealed class MediaService(
             }
             await store.FinishDeleteAsync(user, id, cancellationToken);
             finished = true;
+            if (removal is not null)
+            {
+                await removal.RemoveAsync(user, id, cancellationToken);
+            }
         }
         finally
         {
