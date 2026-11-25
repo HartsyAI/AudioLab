@@ -17,4 +17,13 @@ public sealed record TranscriptionOptions
 
     /// <summary>How long the worker waits before a retry; read from the server's clock.</summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The HartsyInference models folder (the one holding <c>Audio/stt</c>). Unset means no speech model is installed.</summary>
+    public string? ModelsRoot { get; init; }
+
+    /// <summary>The speech model, as HartsyInference names it.</summary>
+    public string ModelId { get; init; } = "whisper:medium.en";
+
+    /// <summary>The backend selector HartsyInference takes: <c>auto</c>, <c>cuda</c> or <c>cpu</c>.</summary>
+    public string Device { get; init; } = "auto";
 }

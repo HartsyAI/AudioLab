@@ -424,7 +424,12 @@ public sealed class TranscriptionJobs : IMediaRemoval
         {
             try
             {
-                return await _model.TranscribeAsync(new SpeechWindow(window.StartSeconds, samples), cancellationToken);
+                // The model is given only the audio the window owns: the overlap would be transcribed twice, and the
+                // model returns text without times, so it cannot tell which copy to keep (see the change log).
+                ReadOnlyMemory<float> owned = window.IsLast
+                    ? samples
+                    : samples[..(int)Math.Min(samples.Length, TranscriptionWindows.StepFrames)];
+                return await _model.TranscribeAsync(new SpeechWindow(window.StartSeconds, owned), cancellationToken);
             }
             catch (SpeechModelException exception) when (exception.Retryable && attempt < _options.Retries)
             {

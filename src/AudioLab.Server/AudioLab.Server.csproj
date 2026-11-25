@@ -6,6 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="HartsyInference.Engine" />
+    <PackageReference Include="HartsyInference.Cuda" />
   </ItemGroup>
 
   <ItemGroup>

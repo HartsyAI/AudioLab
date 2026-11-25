@@ -14,7 +14,9 @@ public static class TranscriptionServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<TranscriptionStore>();
         services.AddSingleton<IAudioWindowSource, StoredAudioWindowSource>();
-        services.AddSingleton<ISpeechModel, UnavailableSpeechModel>();
+        services.AddSingleton<ISpeechModel>(_ => options.ModelsRoot is null
+            ? new UnavailableSpeechModel()
+            : new HartsyInferenceSpeechModel(options));
         services.AddSingleton<TranscriptionJobs>();
         services.AddSingleton<IMediaRemoval>(provider => provider.GetRequiredService<TranscriptionJobs>());
         services.AddSingleton<TranscriptionService>();
