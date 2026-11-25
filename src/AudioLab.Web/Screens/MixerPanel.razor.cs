@@ -1,6 +1,7 @@
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Session;
 using AudioLab.Web.Session.Effects;
 using Microsoft.AspNetCore.Components;
@@ -27,6 +28,21 @@ public sealed partial class MixerPanel
 
     [Inject]
     private EffectsNavigator Navigator { get; set; } = default!;
+
+    [Inject]
+    private IKeyGuard Guard { get; set; } = default!;
+
+    private const string MixerId = "mixer";
+
+    /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && OperatingSystem.IsBrowser())
+        {
+            // A knob or a fader takes the arrow keys, Home and End; without this the transport would also seek with them.
+            Guard.PreventNavigationKeys(MixerId, "slider");
+        }
+    }
 
     private Track? SelectedTrack => Selected is { } id ? Document.Tracks.FirstOrDefault(track => track.Id == id) : null;
 

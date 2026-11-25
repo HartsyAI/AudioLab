@@ -50,6 +50,13 @@ public static class FaderScale
         return Math.Pow(10, decibels / 20);
     }
 
+    /// <summary>The readout of a gain with its unit: decibels, or "-inf" for silence.</summary>
+    public static string Readout(double gain)
+    {
+        string text = Text(gain);
+        return text == "-inf" ? text : $"{text} dB";
+    }
+
     /// <summary>The readout of a gain: one decimal and a sign for a boost, or "-inf" for silence.</summary>
     public static string Text(double gain)
     {

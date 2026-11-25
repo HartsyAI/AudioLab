@@ -43,11 +43,7 @@ public sealed partial class SendRow
 
     private static double GainOf(double knob) => FaderScale.Gain((Math.Clamp(knob, -1, 1) + 1) / 2);
 
-    private static string LevelOf(double gain)
-    {
-        string text = FaderScale.Text(gain);
-        return text == "-inf" ? text : $"{text} dB";
-    }
+    private static string LevelOf(double gain) => FaderScale.Readout(gain);
 
     private static string FormatLevel(double knob) => LevelOf(GainOf(knob));
 

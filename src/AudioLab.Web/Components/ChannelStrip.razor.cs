@@ -102,11 +102,7 @@ public sealed partial class ChannelStrip
 
     private static double VolumePositionOfUnity => FaderScale.Position(1);
 
-    private static string FormatVolume(double position)
-    {
-        string text = FaderScale.Text(FaderScale.Gain(position));
-        return text == "-inf" ? text : $"{text} dB";
-    }
+    private static string FormatVolume(double position) => FaderScale.Readout(FaderScale.Gain(position));
 
     // A fader is interactive only where a handler for its gain is given: the master's, not a track's.
     private EventCallback<double> VolumeCommit => OnVolume.HasDelegate ? EventCallback.Factory.Create<double>(this, VolumeCommitAsync) : default;

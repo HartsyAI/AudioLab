@@ -38,11 +38,7 @@ public sealed partial class GroupStrip
     // The fader travels over the decibel scale, the same as a track's, so its marks and its readout agree.
     private static double PositionOf(double gain) => FaderScale.Position(gain);
 
-    private static string LevelOf(double gain)
-    {
-        string text = FaderScale.Text(gain);
-        return text == "-inf" ? text : $"{text} dB";
-    }
+    private static string LevelOf(double gain) => FaderScale.Readout(gain);
 
     private static string FormatVolume(double position) => LevelOf(FaderScale.Gain(position));
 

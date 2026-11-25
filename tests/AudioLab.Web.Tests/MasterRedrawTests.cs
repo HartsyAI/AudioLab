@@ -29,6 +29,7 @@ public sealed class MasterRedrawTests
 
     private static void MixerServices(IServiceCollection services)
     {
+        services.AddSingleton<AudioLab.Web.Interop.IKeyGuard>(new NoKeyGuard());
         services.AddSingleton(new TrackColorMap([.. Enumerable.Repeat("#ee6d86", 12)]));
         services.AddScoped<SessionSelection>();
         services.AddScoped<EffectSelection>();
