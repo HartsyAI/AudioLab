@@ -12,6 +12,9 @@ public sealed class TranscriptionRouteTests
 {
     private const string UnknownId = "med_00000000000000000000000000000000";
 
+    // Windows reports a full disk as 0x80070070; Unix reports ENOSPC, 28 (see StoreIoErrors).
+    private static int DiskFullCode => OperatingSystem.IsWindows() ? unchecked((int)0x80070070) : 28;
+
     [Fact]
     public async Task AnUnknownMediaIsNotFound()
     {
@@ -105,7 +108,7 @@ public sealed class TranscriptionRouteTests
 
         await using RunningServer full = await RunningServer.StartAsync(
             null,
-            services => services.AddSingleton<IAudioWindowSource>(new BrokenWindowSource(10, new IOException("No space.", unchecked((int)0x80070070)), onDuration: true)));
+            services => services.AddSingleton<IAudioWindowSource>(new BrokenWindowSource(10, new IOException("No space.", DiskFullCode), onDuration: true)));
         string fullId = await UploadAsync(full.Client, "clip.wav");
         HttpResponseMessage outOfRoom = await full.Client.PostAsync($"/api/media/{fullId}/transcription", null);
         Assert.Equal(HttpStatusCode.InsufficientStorage, outOfRoom.StatusCode);
