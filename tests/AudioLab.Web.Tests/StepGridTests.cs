@@ -135,6 +135,27 @@ public sealed class StepGridTests
         Assert.Contains(7, sends.Painted);
     }
 
+    /// <summary>Escape cancels a drag under way: the steps not yet sent are not sent, and a step the pointer crosses afterwards paints nothing.</summary>
+    [Fact]
+    public async Task EscapeCancelsADragUnderWay()
+    {
+        TaskCompletionSource<EditResult> reply = new();
+        Sends sends = new() { Reply = _ => reply.Task };
+        RenderedMarkup markup = await StartAsync(sends);
+        StepGrid grid = markup.Instance<StepGrid>();
+
+        await markup.RunAsync(() => grid.PressAsync(0));
+        await markup.RunAsync(() => grid.Enter(1));
+        await markup.RunAsync(() => grid.Enter(2));
+        await markup.RunAsync(() => grid.KeyAsync(0, new KeyboardEventArgs { Key = "Escape" }));
+        await markup.RunAsync(() => grid.Enter(3));
+
+        reply.SetResult(EditResult.Applied(true, []));
+        await markup.RunAsync(() => grid.ReleaseAsync());
+
+        Assert.Equal([0], sends.Painted);
+    }
+
     /// <summary>When the grid goes while a drag is open, the drag ends, so its gesture is closed.</summary>
     [Fact]
     public async Task DisposingTheGridEndsItsDrag()

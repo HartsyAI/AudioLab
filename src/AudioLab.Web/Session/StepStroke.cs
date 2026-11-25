@@ -64,6 +64,25 @@ public sealed class StepStroke
         return true;
     }
 
+    /// <summary>Cancels the drag, as Escape does: the steps painted but not yet sent are withdrawn, and no step is painted after this. A batch
+    /// already on its way stays, as an applied batch does; the returned task of <see cref="EndAsync"/> completes once it has been answered.</summary>
+    public void Cancel()
+    {
+        if (Ended)
+        {
+            return;
+        }
+
+        Ended = true;
+        foreach (int step in _pending)
+        {
+            _painted.Remove(step);
+        }
+
+        _pending.Clear();
+        Changed?.Invoke();
+    }
+
     /// <summary>Ends the drag: no step is painted after this. The returned task completes once what was painted has been sent.</summary>
     public Task EndAsync()
     {

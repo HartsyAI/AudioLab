@@ -164,7 +164,17 @@ public sealed partial class StepGrid : IDisposable
         }
     }
 
-    private Task KeyAsync(int step, KeyboardEventArgs key) => Key.InvokeAsync(new StepKey(step, key));
+    // Escape cancels a drag that is under way, as DESIGN 7.6 says; the keys of a step go to the parent otherwise.
+    internal Task KeyAsync(int step, KeyboardEventArgs key)
+    {
+        if (key.Key == "Escape" && _stroke is { Ended: false } stroke)
+        {
+            stroke.Cancel();
+            return Task.CompletedTask;
+        }
+
+        return Key.InvokeAsync(new StepKey(step, key));
+    }
 
     private Task FocusAsync(bool inside) => FocusChanged.InvokeAsync(inside);
 

@@ -98,6 +98,37 @@ public sealed class StepStrokeTests
         Assert.Empty(_sent);
     }
 
+    /// <summary>Cancelling withdraws the steps not yet sent and keeps the batch on its way, which is applied as any batch is.</summary>
+    [Fact]
+    public async Task ACancelWithdrawsTheUnsentStepsAndKeepsTheBatchOnItsWay()
+    {
+        TaskCompletionSource<EditResult> first = new();
+        int changes = 0;
+        StepStroke stroke = new(true, "g1", (steps, on) =>
+        {
+            _sent.Add((steps, on));
+            return _sent.Count == 1 ? first.Task : Task.FromResult(EditResult.Applied(true, []));
+        });
+        stroke.Changed += () => changes++;
+
+        stroke.Paint(1, false);
+        stroke.Paint(2, false);
+        stroke.Paint(3, false);
+        stroke.Cancel();
+
+        Assert.False(stroke.Paint(4, false));
+        Assert.Equal(new[] { 1 }, stroke.Painted.Keys);
+        Assert.Equal(1, changes);
+
+        first.SetResult(EditResult.Applied(true, []));
+        await stroke.EndAsync();
+
+        Assert.Single(_sent);
+        Assert.Equal(new[] { 1 }, _sent[0].Steps);
+        Assert.Equal(new[] { 1 }, stroke.Painted.Keys);
+        Assert.Null(stroke.Refusal);
+    }
+
     /// <summary>An applied batch shows the drag's state as it is, so it raises no change; only a refusal does.</summary>
     [Fact]
     public async Task AnAppliedBatchRaisesNoChange()
