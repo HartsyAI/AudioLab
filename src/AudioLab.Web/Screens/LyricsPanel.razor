@@ -3,7 +3,7 @@
 @using AudioLab.Web.Components.Lyrics
 @using AudioLab.Web.Session
 
-<div class="lyrics" role="region" aria-label="Lyrics">
+<div id="@PanelId" class="lyrics" role="region" aria-label="Lyrics">
     @if (Found is not { } found)
     {
         <EmptyState Heading="No audio clip selected" Message="@EmptyMessage" />
@@ -16,35 +16,38 @@
             <span class="lyrics-source">@SourceText</span>
             <span class="lyrics-gap"></span>
             <LrcFileButton CanEdit="Actions.CanEdit" Reason="@Actions.Reason" OnChosen="ImportChosenAsync" />
-            <Button Name="Estimate timing" Disabled="@EstimateDisabled" DisabledReason="@EstimateBlock" OnClick="EstimateAsync">Estimate timing</Button>
-            <Button Name="Align text to audio" Disabled="true" DisabledReason="@Models.Unavailable">Align text</Button>
-            <Button Name="Transcribe audio" Disabled="true" DisabledReason="@Models.Unavailable">Transcribe</Button>
+            <Button Name="Estimate timing" Disabled="@EstimateDisabled" DisabledReason="@EstimateBlock"
+                    OnClick="EstimateAsync">Estimate timing</Button>
+            <Button Name="Align text to audio" Disabled="@(Models.Unavailable is not null)" DisabledReason="@Models.Unavailable">Align text</Button>
+            <Button Name="Transcribe audio" Disabled="@(Models.Unavailable is not null)" DisabledReason="@Models.Unavailable">Transcribe</Button>
             <Field Label="Move words by (seconds)" Value="@_shift" ValueChanged="value => _shift = value" MaxLength="16" Placeholder="0.5" />
             <Button Name="Move words" Disabled="@ShiftDisabled" DisabledReason="@ShiftBlock" OnClick="ShiftAsync">Move words</Button>
             <Button Name="Clear timing" Disabled="@ClearDisabled" DisabledReason="@ClearBlock" OnClick="ClearAsync">Clear timing</Button>
         </header>
         <div class="lyrics-body">
             <div class="lyrics-text">
-                <Field Label="Lyrics" Multiline="true" Value="@_draft" ValueChanged="value => _draft = value" MaxLength="@ProjectLimits.MaxLongText"
-                       Placeholder="Write the lyrics. Section tags such as [Verse 1] are allowed." />
+                <Field Label="Lyrics" Multiline="true" Value="@_draft" ValueChanged="value => _draft = value"
+                       MaxLength="@ProjectLimits.MaxLongText" Placeholder="Write the lyrics. Section tags such as [Verse 1] are allowed." />
                 <div class="lyrics-text-actions">
                     <span class="lyrics-caption">@TextCaption</span>
-                    <Button Variant="ButtonVariant.Primary" Name="Save text" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason" OnClick="SaveTextAsync">Save text</Button>
+                    <Button Variant="ButtonVariant.Primary" Name="Save text" Disabled="@(!Actions.CanEdit)" DisabledReason="@Actions.Reason"
+                            OnClick="SaveTextAsync">Save text</Button>
                 </div>
                 <p class="lyrics-caption">Clear timing keeps the text and drops every word time. Saving changed words drops their times.</p>
             </div>
             <div class="lyrics-scroll">
                 @if (Words.Count == 0)
                 {
-                    <EmptyState Heading="No words yet" Message="Estimate timing spreads the words over the clip; then time them by dragging or with the keys." />
+                    <EmptyState Heading="No timed words yet" Message="Words appear here once they have times, from an LRC file or by timing them." />
                 }
                 else
                 {
                     <ol class="lyrics-words" aria-label="@($"Words of {found.Clip.Name}")">
                         @for (int index = 0; index < Words.Count; index++)
                         {
-                            <LyricWordRow @key="index" Index="index" Lyrics="Lyrics!" Geometry="Geometry" Width="StripWidth" Editable="Actions.CanEdit"
-                                          Reason="@Actions.Reason" OnCommit="CommitAsync" OnSay="SayAsync" />
+                            <LyricWordRow Index="index" Lyrics="Lyrics!" Geometry="Geometry" Width="StripWidth" Editable="Actions.CanEdit"
+                                          Reason="@Actions.Reason" TabStop="@(index == _stop)" OnCommit="CommitAsync" OnSay="SayAsync"
+                                          OnFocusWord="FocusWordAsync" OnStep="StepAsync" />
                         }
                     </ol>
                 }

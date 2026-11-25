@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 
 namespace AudioLab.Web.Services;
 
-/// <summary>The edits of a clip's lyrics the session screen makes, each one command sent by wire name; the server's reasons come back as words.</summary>
+/// <summary>The edits of a clip's lyrics the session screen makes, one command each; the server's reasons come back as words.</summary>
 public sealed class LyricsEditor(LiveProject live)
 {
     /// <summary>Sets the text of a clip's lyrics; text with no words removes them.</summary>
