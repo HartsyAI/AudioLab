@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 namespace AudioLab.Web.Session;
 
 /// <summary>The steps a key moves a selected point by, and the move that results (D69).</summary>
-/// <remarks>A value step is a tenth of the drawn range, so a step is four pixels at the lane's height. The move names the point's index as the lane holds it now.</remarks>
+/// <remarks>A value step is a tenth of the drawn range: four pixels at the lane's height. The move names the point's index now.</remarks>
 public static class AutomationNudge
 {
     /// <summary>How many value steps span the drawn range.</summary>
@@ -16,7 +16,12 @@ public static class AutomationNudge
     /// <param name="parameter">The lane's parameter.</param>
     /// <param name="direction">The direction of the step.</param>
     /// <param name="timeStep">The grid step in seconds at the point's time, used by the time directions.</param>
-    public static AutomationMoveTarget? Target(IReadOnlyList<AutomationPoint> points, int index, AutomationParameter parameter, NudgeDirection direction, double timeStep)
+    public static AutomationMoveTarget? Target(
+        IReadOnlyList<AutomationPoint> points,
+        int index,
+        AutomationParameter parameter,
+        NudgeDirection direction,
+        double timeStep)
     {
         ArgumentNullException.ThrowIfNull(points);
         if ((uint)index >= (uint)points.Count)

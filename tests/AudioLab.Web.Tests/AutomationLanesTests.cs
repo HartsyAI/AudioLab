@@ -27,7 +27,7 @@ public sealed class AutomationLanesTests
         Assert.Equal([_track, _track, TrackId.From("t2")], raised);
     }
 
-    /// <summary>A prune raises a change only for what it drops: a selection the document still has, and a drag it still has, cost no redraw.</summary>
+    /// <summary>A prune raises a change only for what it drops, so a selection or drag the document keeps costs no redraw.</summary>
     [Fact]
     public void PruneRaisesOnlyWhenASelectionOrDragWasDropped()
     {
@@ -123,8 +123,13 @@ public sealed class AutomationLanesTests
             lane.Add(new AutomationPoint(i + 1, 0.5));
         }
         Track track = Song.NewTrack("t1", 64);
-        track = track with { Automation = AutomationRules.WithLane(track.Automation, AutomationParameter.Volume, [.. lane]), View = track.View with { AutomationVisible = visibleFirst, AutomationParameter = AutomationParameter.Volume } };
-        Track second = Song.NewTrack("t2", 64) with { View = new TrackView { Height = 64, AutomationVisible = secondVisible, AutomationParameter = AutomationParameter.Volume } };
+        track = track with
+        {
+            Automation = AutomationRules.WithLane(track.Automation, AutomationParameter.Volume, [.. lane]),
+            View = track.View with { AutomationVisible = visibleFirst, AutomationParameter = AutomationParameter.Volume },
+        };
+        TrackView view = new() { Height = 64, AutomationVisible = secondVisible, AutomationParameter = AutomationParameter.Volume };
+        Track second = Song.NewTrack("t2", 64) with { View = view };
         return Song.Empty().With(track, second);
     }
 }

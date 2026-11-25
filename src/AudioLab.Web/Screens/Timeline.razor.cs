@@ -104,6 +104,7 @@ public sealed partial class Timeline : IDisposable
     public void Dispose()
     {
         Selection.Changed -= OnSelectionChanged;
+        Lanes.AnnouncementChanged -= OnAnnouncement;
         if (_drag is { } drag)
         {
             // The screen went while a clip was lifted: the listeners are let go and the drag is dropped without a move.
@@ -117,6 +118,7 @@ public sealed partial class Timeline : IDisposable
     protected override void OnInitialized()
     {
         Selection.Changed += OnSelectionChanged;
+        Lanes.AnnouncementChanged += OnAnnouncement;
     }
 
     /// <inheritdoc />
@@ -150,6 +152,8 @@ public sealed partial class Timeline : IDisposable
     }
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnAnnouncement() => _ = InvokeAsync(StateHasChanged);
 
     private Task AddTrack() => Actions.AddTrack();
 

@@ -40,7 +40,7 @@ public sealed class AutomationLanePlan(AutomationParameter parameter, TimelineGe
     /// <summary>The value at a pixel, clamped to the lane's drawn range.</summary>
     public double Value(double y) => Math.Clamp(Min + ((1 - (Math.Clamp(y, 0, Height) / Height)) * (Max - Min)), Min, Max);
 
-    /// <summary>The line of a lane as one SVG path across <paramref name="width"/> pixels; its size is at most four segments a pixel column.</summary>
+    /// <summary>The line of a lane as one SVG path across <paramref name="width"/> pixels, at most four segments a column.</summary>
     /// <param name="points">The lane's points, in time order.</param>
     /// <param name="width">The width of the lane in pixels.</param>
     /// <returns>The path. Outside the points the lane holds its end value.</returns>

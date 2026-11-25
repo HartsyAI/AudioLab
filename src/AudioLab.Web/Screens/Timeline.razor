@@ -34,6 +34,7 @@
             }
         </div>
         <div class="lanes">
+            <div class="automation-status" role="status" aria-live="polite">@Lanes.Announcement</div>
             @if (Document.Tracks.Count == 0)
             {
                 <EmptyState Heading="No tracks yet" Message="Add a track, then put clips on it.">
@@ -46,8 +47,9 @@
                 <LaneSurface Document="Document" Layout="Layout" Geometry="Geometry" Bars="Bars" Length="Length" SelectedTrack="Selection.Track"
                              SelectedClip="Selection.Clip" TabStop="TabStop" OnSelectTrack="SelectTrack" OnSelectClip="SelectClip"
                              OnClipKey="ClipKeyAsync" OnClipPointerDown="ClipPointerDownAsync" OnOpenClip="OpenClip"
-                             OnLaneDoubleClick="LaneDoubleClickAsync" Lanes="Lanes" CanEdit="Actions.CanEdit"
-                             Reason="@Actions.Reason" OnAutomationAdd="AutomationAddAsync" OnAutomationPointDown="AutomationPointDown" OnShowAutomation="ShowAutomationAsync"
+                             OnLaneDoubleClick="LaneDoubleClickAsync" Lanes="Lanes"
+                             CanEdit="Actions.CanEdit" Reason="@Actions.Reason" OnAutomationAdd="AutomationAddAsync"
+                             OnAutomationPointDown="AutomationPointDown" OnShowAutomation="ShowAutomationAsync"
                              OnAutomationKey="AutomationKeyAsync" />
                 <LoopRange Part="LoopRangePart.Lanes" Geometry="Geometry" />
                 <Playhead Part="PlayheadPart.Line" Geometry="Geometry" />

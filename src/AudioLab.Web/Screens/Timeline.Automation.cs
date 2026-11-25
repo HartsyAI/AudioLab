@@ -1,6 +1,7 @@
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
+using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
@@ -8,7 +9,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The automation lanes of the arrangement (D69): a press selects or drags a point, a double-click adds one, and the keys walk and edit.</summary>
+/// <summary>The automation lanes of the arrangement (D69): press to select or drag, double-click to add, keys to walk and edit.</summary>
 public sealed partial class Timeline
 {
     private readonly SemaphoreSlim _nudges = new(1, 1);
@@ -59,7 +60,7 @@ public sealed partial class Timeline
         IReadOnlyList<AutomationPoint> lane = AutomationRules.Lane(track.Automation, track.View.AutomationParameter);
         if (plan.IndexAt(lane, x, y) is { } hit)
         {
-            Lanes.Select(track.Id, hit);
+            SelectPoint(track.Id, hit);
             return;
         }
         await AddPointAsync(track, plan.Time(x), plan.Value(y));
@@ -77,7 +78,8 @@ public sealed partial class Timeline
         EditResult result = await Actions.Automation.Add(track.Id, track.View.AutomationParameter, time, value);
         if (result.Succeeded)
         {
-            Lanes.Select(track.Id, index);
+            SelectPoint(track.Id, index);
+            Lanes.Announce(AutomationAnnouncement.Added(track.View.AutomationParameter, time, value));
         }
     }
 
@@ -99,7 +101,7 @@ public sealed partial class Timeline
         {
             return;
         }
-        Lanes.Select(track.Id, index);
+        SelectPoint(track.Id, index);
         if (!Actions.CanEdit)
         {
             return;
@@ -149,7 +151,8 @@ public sealed partial class Timeline
             EditResult result = await Actions.Automation.Move(drag.Track, parameter, send);
             if (result.Succeeded)
             {
-                Lanes.Select(drag.Track, send.LandsAt);
+                SelectPoint(drag.Track, send.LandsAt);
+                Lanes.Announce(AutomationAnnouncement.Moved(parameter, send.Time, send.Value));
             }
         }
         finally
@@ -158,7 +161,7 @@ public sealed partial class Timeline
         }
     }
 
-    // The keys of a lane: the selected point is walked, added, moved and removed. Escape cancels a drag, which the pointer does.
+    // The keys of a lane: the decision is AutomationKeys, and this runs it against the document as it is now.
     private async Task AutomationKeyAsync((TrackId Track, KeyboardEventArgs Key) press)
     {
         Track? track = CurrentTrack(press.Track);
@@ -166,39 +169,40 @@ public sealed partial class Timeline
         {
             return;
         }
+        KeyboardEventArgs key = press.Key;
+        KeyChord chord = new(key.Key, key.CtrlKey || key.MetaKey, key.ShiftKey, key.AltKey, key.Repeat);
         AutomationParameter parameter = track.View.AutomationParameter;
         IReadOnlyList<AutomationPoint> lane = AutomationRules.Lane(track.Automation, parameter);
         int? selected = Lanes.Track == track.Id ? Lanes.Index : null;
-        KeyboardEventArgs key = press.Key;
-        if (Shortcuts.AutomationPrevious.Matches(key))
+        AutomationKeyAction action = AutomationKeys.Decide(chord, lane.Count, selected);
+        switch (action.Kind)
         {
-            Lanes.Select(track.Id, lane.Count == 0 ? null : Math.Max(0, (selected ?? lane.Count) - 1));
-        }
-        else if (Shortcuts.AutomationNext.Matches(key))
-        {
-            Lanes.Select(track.Id, lane.Count == 0 ? null : Math.Min(lane.Count - 1, (selected ?? -1) + 1));
-        }
-        else if (Shortcuts.AutomationAdd.Matches(key))
-        {
-            // Enter adds after the selected point, one grid step later and at its value; with nothing selected it adds nothing.
-            if (!key.Repeat && selected is { } at && at < lane.Count)
-            {
+            case AutomationKeyKind.Select:
+                SelectPoint(track.Id, action.Index);
+                break;
+            case AutomationKeyKind.Add when action.Index is { } at:
+                // Enter adds after the selected point, one grid step later and at its value.
                 await AddPointAsync(track, lane[at].Time + new GridSnap(Document).Step(lane[at].Time), lane[at].Value);
-            }
+                break;
+            case AutomationKeyKind.Delete when action.Index is { } index:
+                await DeletePointAsync(track, parameter, index);
+                break;
+            case AutomationKeyKind.Nudge when action.Index is not null && action.Direction is { } direction:
+                await NudgeAsync(track.Id, direction);
+                break;
         }
-        else if (Shortcuts.AutomationDelete.Matches(key) && selected is { } index && index < lane.Count)
+    }
+
+    private async Task DeletePointAsync(Track track, AutomationParameter parameter, int index)
+    {
+        EditResult result = await Actions.Automation.Delete(track.Id, parameter, index);
+        if (!result.Succeeded)
         {
-            EditResult result = await Actions.Automation.Delete(track.Id, parameter, index);
-            if (result.Succeeded)
-            {
-                int remaining = lane.Count - 1;
-                Lanes.Select(track.Id, remaining == 0 ? null : Math.Min(index, remaining - 1));
-            }
+            return;
         }
-        else if (Nudge(key) is { } direction && selected is not null)
-        {
-            await NudgeAsync(track.Id, direction);
-        }
+        int remaining = AutomationRules.Lane(CurrentTrack(track.Id)?.Automation ?? track.Automation, parameter).Count;
+        SelectPoint(track.Id, remaining == 0 ? null : Math.Min(index, remaining - 1));
+        Lanes.Announce(AutomationAnnouncement.Removed(remaining));
     }
 
     // Nudges run one at a time, and each one reads the lane after the reply to the one before it, so two quick presses move the same point twice.
@@ -226,7 +230,8 @@ public sealed partial class Timeline
             EditResult result = await Actions.Automation.Move(track, current.View.AutomationParameter, send);
             if (result.Succeeded)
             {
-                Lanes.Select(track, send.LandsAt);
+                SelectPoint(track, send.LandsAt);
+                Lanes.Announce(AutomationAnnouncement.Moved(current.View.AutomationParameter, send.Time, send.Value));
             }
         }
         finally
@@ -235,24 +240,22 @@ public sealed partial class Timeline
         }
     }
 
-    private Task ShowAutomationAsync(TrackId track) => Actions.Automation.SetView(track, true, null);
-
-    private static NudgeDirection? Nudge(KeyboardEventArgs key)
+    // Selects a point and announces it, so a selection by key, by press or by an edit is heard the same way.
+    private void SelectPoint(TrackId track, int? index)
     {
-        if (Shortcuts.AutomationEarlier.Matches(key))
+        Lanes.Select(track, index);
+        if (index is not { } at || CurrentTrack(track) is not { } owner)
         {
-            return NudgeDirection.Earlier;
+            return;
         }
-        if (Shortcuts.AutomationLater.Matches(key))
+        IReadOnlyList<AutomationPoint> lane = AutomationRules.Lane(owner.Automation, owner.View.AutomationParameter);
+        if (at < lane.Count)
         {
-            return NudgeDirection.Later;
+            Lanes.Announce(AutomationAnnouncement.Selected(owner.View.AutomationParameter, at, lane.Count, lane[at].Time, lane[at].Value));
         }
-        if (Shortcuts.AutomationHigher.Matches(key))
-        {
-            return NudgeDirection.Higher;
-        }
-        return Shortcuts.AutomationLower.Matches(key) ? NudgeDirection.Lower : null;
     }
+
+    private Task ShowAutomationAsync(TrackId track) => Actions.Automation.SetView(track, true, null);
 
     // The track as the document holds it now: after a reply the live document is already the new one, before the screen has drawn it.
     private Track? CurrentTrack(TrackId track)

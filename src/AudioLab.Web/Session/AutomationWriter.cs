@@ -4,7 +4,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Records one pass of a track's automation while the transport plays (D25), fed by the transport's ticks and the control's values.</summary>
+/// <summary>Records one pass of a track's automation while the transport plays (D25), fed by ticks and the control's values.</summary>
 /// <remarks>
 /// Write records every sample from the start of the pass to its stop, in one segment. Touch records each grab-to-release as its own
 /// segment, so the old curve between two touches is kept. Latch records from the first touch to the stop, in one segment, and keeps the
