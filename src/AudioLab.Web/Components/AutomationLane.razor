@@ -1,0 +1,10 @@
+<div class="automation" id="@ElementId" role="application" aria-label="@Name" tabindex="0" data-editable="@(Editable ? "true" : "false")"
+     style="top: @Css.Px(Top); width: @Css.Px(Width); height: @Css.Px(Plan.Height)" title="@(Editable ? null : Reason)"
+     @onpointerdown="PointerDownAsync" @ondblclick="DoubleClickAsync" @onkeydown="KeyAsync">
+    <svg class="line" width="@Css.Number(Width)" height="@Css.Number(Plan.Height)" aria-hidden="true">
+        <path class="curve" d="@Curve" style="stroke: @ColorToken"></path>
+        <path class="marks" d="@Dots"></path>
+        <path class="selected" d="@Selected"></path>
+        <path class="overlay" d="@Overlay"></path>
+    </svg>
+</div>
