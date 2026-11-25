@@ -12,7 +12,7 @@ internal static class TranscriptionTestSupport
 {
     public static readonly CancellationToken None = CancellationToken.None;
 
-    public static TranscriptionOptions Options { get; } = new() { RetryDelay = TimeSpan.Zero };
+    public static TranscriptionOptions Options { get; } = new() { RetryDelay = TimeSpan.FromMilliseconds(1) };
 
     public static byte[] Wav() => TestWav.Build(SampleEncoding.Pcm16, 1, 16000, 16000);
 
@@ -44,6 +44,27 @@ internal static class TranscriptionTestSupport
     {
         while (await jobs.StepAsync(None))
         {
+        }
+    }
+
+    /// <summary>Runs turns while the test clock is moved past each wait, so a retry's delay and a model's timeout both end (D93).</summary>
+    public static async Task RunWithClockAsync(TranscriptionJobs jobs, ManualTimeProvider time)
+    {
+        while (true)
+        {
+            Task<bool> turn = jobs.StepAsync(None);
+            while (!turn.IsCompleted)
+            {
+                if (time.NextTimerDelay is { } delay)
+                {
+                    time.Advance(delay);
+                }
+                await Task.Delay(1);
+            }
+            if (!await turn)
+            {
+                return;
+            }
         }
     }
 

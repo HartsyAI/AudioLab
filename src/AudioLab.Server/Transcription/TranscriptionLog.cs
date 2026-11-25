@@ -16,8 +16,8 @@ internal static partial class TranscriptionLog
     [LoggerMessage(EventId = 4, Level = LogLevel.Information, Message = "A model call is retried, attempt {Attempt}.")]
     public static partial void ModelRetried(ILogger logger, int attempt);
 
-    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "The transcription worker stopped a turn: {Type}.")]
-    public static partial void WorkerFailed(ILogger logger, string type);
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "The transcription worker stopped a turn.")]
+    public static partial void WorkerFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "A transcription chunk log had a damaged tail of {Bytes} bytes; it was cut off.")]
     public static partial void DamagedTail(ILogger logger, long bytes);

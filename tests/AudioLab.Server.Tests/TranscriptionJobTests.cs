@@ -156,7 +156,7 @@ public sealed class TranscriptionJobTests
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
         await jobs.StartAsync(Users.Alice, media, None);
 
-        await RunToEndAsync(jobs);
+        await RunWithClockAsync(jobs, store.Time);
 
         TranscriptionStatus status = await StatusOfAsync(jobs, Users.Alice, media.Id);
         Assert.Equal(TranscriptionState.Failed, status.State);

@@ -32,7 +32,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
     private const string ModelNotInstalled = "The speech model is not installed.";
     private const string StateNotSaved = "The job state could not be saved; resume to try again.";
     private const string TranscriptTooLarge =
-        "The transcript would be larger than the server stores, 64 MiB; the rest of the file is not transcribed.";
+        "The transcript would be larger than the server stores, 64 MiB, so the job failed and no transcript was kept.";
     private long _sequence;
     private volatile bool _stopping;
 
@@ -77,8 +77,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
         try
         {
             TranscriptionJob? existing = _jobs.TryGetValue(key, out TranscriptionJob? found) ? found : null;
-            if (existing is not null
-                && (existing.File.State != TranscriptionState.Done || await HasUsableTranscriptAsync(user, record, cancellationToken)))
+            if (existing is not null && await AnswersStartAsync(existing, user, record, model, cancellationToken))
             {
                 return new StartOutcome(StatusOf(existing), false);
             }
@@ -89,12 +88,9 @@ public sealed class TranscriptionJobs : IMediaRemoval
                     $"You already have {open} transcriptions queued or running; the most is {_options.MaxQueuedPerUser}. "
                     + "Try again when one has finished.");
             }
-            if (existing is not null)
-            {
-                _store.DeleteTranscript(user, record.Id);
-                _store.DeleteChunks(user, record.Id);
-                _jobs.Remove(key);
-            }
+            // A new job starts with no checkpoints of its own: the chunk log of an earlier job is cleared, never read (D92).
+            _store.DeleteChunks(user, record.Id);
+            _jobs.Remove(key);
             DateTimeOffset now = _time.GetUtcNow();
             TranscriptionJobFile file = NewFile(user, record, chunks, duration, now, model);
             await _store.WriteStateAsync(user, record.Id, file, cancellationToken);
@@ -226,7 +222,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
         }
         catch (Exception exception)
         {
-            TranscriptionLog.WorkerFailed(_logger, exception.GetType().Name);
+            TranscriptionLog.WorkerFailed(_logger, exception);
             await FinishAsync(job, TranscriptionState.Failed, UnexpectedReason, CancellationToken.None);
             return true;
         }
@@ -312,14 +308,12 @@ public sealed class TranscriptionJobs : IMediaRemoval
             }
             UserId owner = UserId.From(file.Owner);
             MediaId media = MediaId.From(file.Media);
-            IReadOnlyList<ChunkRecord> kept = file.State == TranscriptionState.Done
-                ? []
-                : await _store.ReadChunksAsync(owner, media, CancellationToken.None);
             if (!string.Equals(_store.Paths.TranscriptJobFile(owner, media), path, StringComparison.OrdinalIgnoreCase))
             {
                 TranscriptionLog.StateSkipped(_logger);
                 continue;
             }
+            IReadOnlyList<ChunkRecord> kept = file.State == TranscriptionState.Done ? [] : await ReadProgressAsync(owner, media);
             await _mutex.WaitAsync();
             try
             {
@@ -376,7 +370,17 @@ public sealed class TranscriptionJobs : IMediaRemoval
                 {
                     continue;
                 }
-                await SetStateAsync(queued, TranscriptionState.Running, null, cancellationToken);
+                try
+                {
+                    await SetStateAsync(queued, TranscriptionState.Running, null, cancellationToken);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // The file still says queued. The table fails this job now, so one job's state file does not hold up the others.
+                    TranscriptionLog.StoreFailed(_logger, exception.GetType().Name);
+                    FailInMemory(queued);
+                    continue;
+                }
                 _turns.AddLast(queued);
             }
             LinkedListNode<TranscriptionJob>? first = _turns.First;
@@ -430,7 +434,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            TranscriptionLog.WorkerFailed(_logger, exception.GetType().Name);
+            TranscriptionLog.WorkerFailed(_logger, exception);
             await FinishAsync(job, TranscriptionState.Failed, "The media file could not be read; resume to try again.", cancellationToken);
             return false;
         }
@@ -518,6 +522,10 @@ public sealed class TranscriptionJobs : IMediaRemoval
                 attempt++;
                 TranscriptionLog.ModelRetried(_logger, attempt);
                 await Task.Delay(_options.RetryDelay, _time, cancellationToken);
+                if (_stopping)
+                {
+                    throw new OperationCanceledException("The transcription is paused for the server's stop.");
+                }
             }
         }
     }
@@ -630,29 +638,75 @@ public sealed class TranscriptionJobs : IMediaRemoval
             await FinishAsync(job, TranscriptionState.Failed, exception.Message, cancellationToken);
             return;
         }
-        await FinishAsync(job, TranscriptionState.Done, null, cancellationToken);
-        _store.DeleteChunks(job.Owner, job.Media);
+        // The checkpoints go only once the done state is written: if it is not, a resume finishes from them with no model call (D92).
+        if (await FinishAsync(job, TranscriptionState.Done, null, cancellationToken))
+        {
+            _store.DeleteChunks(job.Owner, job.Media);
+        }
     }
 
-    private async Task FinishAsync(TranscriptionJob job, TranscriptionState state, string? reason, CancellationToken cancellationToken)
+    /// <returns>True when the state was written; false when the job was failed in the table instead.</returns>
+    private async Task<bool> FinishAsync(TranscriptionJob job, TranscriptionState state, string? reason, CancellationToken cancellationToken)
     {
         await _mutex.WaitAsync(cancellationToken);
         try
         {
             await SetStateAsync(job, state, reason, cancellationToken);
+            return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // The state file could not be written. The table still leaves the running state and the job gives up its turn, so it is never
-            // held with no turn. The file still says running, so the next start queues the job again (D93).
+            // held with no turn. The file keeps what it said, so a restart queues the job again from its checkpoints (D93).
             TranscriptionLog.StoreFailed(_logger, exception.GetType().Name);
-            job.File = job.File with { State = TranscriptionState.Failed, Reason = StateNotSaved, Updated = _time.GetUtcNow() };
-            job.Prepared = false;
-            _turns.Remove(job);
+            FailInMemory(job);
+            return false;
         }
         finally
         {
             _mutex.Release();
+        }
+    }
+
+    /// <summary>Fails a job in the table after its state file could not be written, with the reason that says so (D93).</summary>
+    private void FailInMemory(TranscriptionJob job)
+    {
+        job.File = job.File with { State = TranscriptionState.Failed, Reason = StateNotSaved, Updated = _time.GetUtcNow() };
+        job.Prepared = false;
+        _turns.Remove(job);
+    }
+
+    /// <summary>Whether a start answers with the job that is there (D90): a job that is queued, running or paused always; a failed or
+    /// cancelled job, a done one, under the same model only, and a done one only with its transcript present.</summary>
+    private async Task<bool> AnswersStartAsync(
+        TranscriptionJob job,
+        UserId user,
+        MediaRecord record,
+        string model,
+        CancellationToken cancellationToken)
+    {
+        if (job.File.State is TranscriptionState.Queued or TranscriptionState.Running or TranscriptionState.Paused)
+        {
+            return true;
+        }
+        if (job.File.Model != model)
+        {
+            return false;
+        }
+        return job.File.State != TranscriptionState.Done || await HasUsableTranscriptAsync(user, record, cancellationToken);
+    }
+
+    /// <summary>The chunk log of a job, or none when it cannot be read; one unreadable file must not fault start-up for every route (D92).</summary>
+    private async Task<IReadOnlyList<ChunkRecord>> ReadProgressAsync(UserId owner, MediaId media)
+    {
+        try
+        {
+            return await _store.ReadChunksAsync(owner, media, CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            TranscriptionLog.StoreFailed(_logger, exception.GetType().Name);
+            return [];
         }
     }
 

@@ -6,17 +6,21 @@ namespace AudioLab.Server.Transcription;
 /// that it is abandoned, and the running jobs are paused from their last complete chunk. A failure of a chunk fails its job, and the loop
 /// goes on.
 /// </remarks>
-public sealed class TranscriptionWorker(TranscriptionJobs jobs, TranscriptionOptions options, ILogger<TranscriptionWorker> logger)
-    : BackgroundService
+public sealed class TranscriptionWorker(
+    TranscriptionJobs jobs,
+    TranscriptionOptions options,
+    TimeProvider time,
+    ILogger<TranscriptionWorker> logger) : BackgroundService
 {
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        ITimer? abandonAfter = null;
         using CancellationTokenSource abandon = new();
         using CancellationTokenRegistration stop = stoppingToken.Register(() =>
         {
             jobs.BeginStop();
-            abandon.CancelAfter(options.ModelTimeout);
+            abandonAfter = time.CreateTimer(_ => abandon.Cancel(), null, options.ModelTimeout, Timeout.InfiniteTimeSpan);
         });
         try
         {
@@ -36,6 +40,7 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, TranscriptionOpt
         }
         finally
         {
+            abandonAfter?.Dispose();
             await jobs.PauseRunningAsync(CancellationToken.None);
         }
     }
@@ -48,7 +53,7 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, TranscriptionOpt
         }
         catch (Exception exception)
         {
-            TranscriptionLog.WorkerFailed(logger, exception.GetType().Name);
+            TranscriptionLog.WorkerFailed(logger, exception);
         }
     }
 
@@ -60,7 +65,7 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, TranscriptionOpt
         }
         catch (Exception exception)
         {
-            TranscriptionLog.WorkerFailed(logger, exception.GetType().Name);
+            TranscriptionLog.WorkerFailed(logger, exception);
             return false;
         }
     }

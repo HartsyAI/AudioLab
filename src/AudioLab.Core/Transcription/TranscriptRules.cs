@@ -74,7 +74,7 @@ public static class TranscriptRules
                 kept.Add(segment);
                 continue;
             }
-            string text = Collapse(segment.Text);
+            string text = Cut(Collapse(segment.Text), TranscriptionLimits.MaxTextChars);
             if (text.Length == 0)
             {
                 continue;
@@ -166,7 +166,7 @@ public static class TranscriptRules
         List<LyricWord> kept = [];
         foreach (LyricWord word in given)
         {
-            string text = Collapse(word.Word);
+            string text = Cut(Collapse(word.Word), TranscriptionLimits.MaxWordChars);
             if (text.Length > 0)
             {
                 kept.Add(ClampWord(word with { Word = text }, start, end));
@@ -179,6 +179,17 @@ public static class TranscriptRules
     {
         double wordStart = Math.Clamp(word.Start, start, end);
         return word with { Start = wordStart, End = Math.Clamp(Math.Max(word.End, wordStart), start, end) };
+    }
+
+    /// <summary>The text cut to at most <paramref name="max"/> characters, without splitting a surrogate pair.</summary>
+    private static string Cut(string text, int max)
+    {
+        if (text.Length <= max)
+        {
+            return text;
+        }
+        int length = char.IsHighSurrogate(text[max - 1]) ? max - 1 : max;
+        return text[..length].TrimEnd();
     }
 
     private static string Collapse(string? text)

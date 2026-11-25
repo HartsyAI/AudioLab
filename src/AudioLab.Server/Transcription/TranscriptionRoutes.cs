@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AudioLab.Core.Model;
 using AudioLab.Core.Transcription;
 using AudioLab.Server.Doors;
@@ -32,12 +33,29 @@ public static class TranscriptionRoutes
 
     private static async Task<IResult> ChooseSpeechModelAsync(HttpContext http, TranscriptionService service, CancellationToken cancellationToken)
     {
-        SpeechModelChoice? choice = await http.Request.ReadFromJsonAsync(TranscriptJsonContext.Default.SpeechModelChoice, cancellationToken);
+        if (!(http.Request.ContentType?.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            return BadChoice();
+        }
+        SpeechModelChoice? choice;
+        try
+        {
+            choice = await http.Request.ReadFromJsonAsync(TranscriptJsonContext.Default.SpeechModelChoice, cancellationToken);
+        }
+        catch (Exception exception) when (exception is JsonException or BadHttpRequestException or NotSupportedException)
+        {
+            return BadChoice();
+        }
         if (choice is null || string.IsNullOrWhiteSpace(choice.Model))
         {
-            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Name the speech model to use.");
+            return BadChoice();
         }
         return Results.Ok(await service.ChooseSpeechModelAsync(http.RequireUser(), choice.Model, cancellationToken));
+    }
+
+    private static IResult BadChoice()
+    {
+        return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Send the speech model to use as JSON: {\"model\": \"id\"}.");
     }
 
     private static async Task<IResult> StartAsync(HttpContext http, string id, TranscriptionService service, CancellationToken cancellationToken)
