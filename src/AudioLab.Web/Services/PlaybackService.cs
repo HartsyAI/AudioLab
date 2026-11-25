@@ -2,6 +2,7 @@ using AudioLab.Core.Model;
 using AudioLab.Core.Playback;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Interop;
+using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Services;
 
@@ -10,7 +11,7 @@ namespace AudioLab.Web.Services;
 /// The engine runs in a worker (D24); this class holds no audio logic. Blazor WebAssembly runs on one thread, so nothing here locks.
 /// What is asked before the engine runs (a seek, a loop) is kept and applied when it starts.
 /// </remarks>
-public sealed class PlaybackService : IDisposable
+public sealed class PlaybackService : IDisposable, IPlaybackTransport
 {
     // How much of a level is left after one status (40 ms): about 35 dB a second.
     private const double Fallback = 0.85;
@@ -60,6 +61,9 @@ public sealed class PlaybackService : IDisposable
 
     /// <summary>Whether the engine is playing.</summary>
     public TransportState Transport => _status?.State ?? TransportState.Stopped;
+
+    /// <summary>Whether the audio engine is running now: false while it is let go, failed or starting (D86).</summary>
+    public bool EngineRunning => Phase == PlaybackPhase.Ready;
 
     /// <summary>The playhead in seconds: what the audio thread is about to play, or where the playhead was last put.</summary>
     public double Position =>

@@ -149,7 +149,7 @@ public sealed class StepGridTests
         Sends sends = new();
         EventCallback<StepStroke> lost = new(null, new Func<StepStroke, Task>(_ => throw new InvalidOperationException("The hub is gone.")));
         RenderedMarkup markup = await StartAsync(sends, lost);
-        StepGrid grid = markup.Instance<StepGrid>();
+        StepGrid grid = markup.Component<StepGrid>();
 
         await markup.RaiseOnAsync(Cell(1), "onpointerdown", Pointer());
         await Assert.ThrowsAsync<InvalidOperationException>(() => markup.RaiseOnAsync(null, "onpointerup", Pointer()));
@@ -168,7 +168,7 @@ public sealed class StepGridTests
         TaskCompletionSource<EditResult> reply = new();
         Sends sends = new() { Reply = _ => reply.Task };
         RenderedMarkup markup = await StartAsync(sends);
-        StepGrid grid = markup.Instance<StepGrid>();
+        StepGrid grid = markup.Component<StepGrid>();
 
         await markup.RaiseOnAsync(Cell(0), "onpointerdown", Pointer("touch"));
         sends.Metrics.Under = Cell(1);
