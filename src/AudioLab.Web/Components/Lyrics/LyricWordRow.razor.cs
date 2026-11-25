@@ -261,13 +261,18 @@ public sealed partial class LyricWordRow : IDisposable
         }
         (double? start, double? end) = LyricsTiming.Targets(Lyrics, Index, part, seconds);
         LyricWord kept = LyricsTiming.Preview(Lyrics, Index, start, end);
-        if (!Differs(part, kept.Start, kept.End))
-        {
-            return;
-        }
         string? held = part == LyricWordPart.Body
             ? LyricsTiming.MoveHeldText(Lyrics, Index, seconds)
             : LyricsTiming.HeldText(Lyrics, Index, start, end);
+        if (!Differs(part, kept.Start, kept.End))
+        {
+            // Nothing moved, so a neighbour held the word: the user is told why, and nothing is sent.
+            if (held is not null)
+            {
+                await OnSay.InvokeAsync(held);
+            }
+            return;
+        }
         await OnCommit.InvokeAsync(EditOf(part, kept.Start, kept.End, held));
     }
 
