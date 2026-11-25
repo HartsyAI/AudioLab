@@ -63,6 +63,16 @@ public sealed partial class Fader : IDisposable
 
     private string Shown => Format is { } format && (_gesture is not null || _held is not null) ? format(Travel) : Text;
 
+    // The value in words for a screen reader: a readout without its unit gets the decibels.
+    private string ValueText
+    {
+        get
+        {
+            string shown = Shown;
+            return shown == "-inf" || shown.EndsWith(" dB", StringComparison.Ordinal) ? shown : $"{shown} dB";
+        }
+    }
+
     private string Hint
     {
         get
@@ -71,7 +81,7 @@ public sealed partial class Fader : IDisposable
             {
                 return Reason ?? "Not available.";
             }
-            return $"{Label}: {Shown}. Double-click or {Shortcuts.ControlReset.Display} resets it.";
+            return $"{Label}: {ValueText}. Double-click or {Shortcuts.ControlReset.Display} resets it.";
         }
     }
 
