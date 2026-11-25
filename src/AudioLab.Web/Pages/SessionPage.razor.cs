@@ -23,6 +23,7 @@ public sealed partial class SessionPage
     private EffectEditor? _effects;
 
     private LyricsEditor? _lyrics;
+    private BeatEditor? _beats;
     private AutomationEditor? _automation;
 
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
@@ -136,6 +137,7 @@ public sealed partial class SessionPage
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
         _lyrics = new LyricsEditor(live);
+        _beats = new BeatEditor(live);
         _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
@@ -173,6 +175,7 @@ public sealed partial class SessionPage
             _midi = null;
             _effects = null;
             _lyrics = null;
+            _beats = null;
             await live.DisposeAsync();
         }
     }
@@ -233,6 +236,7 @@ public sealed partial class SessionPage
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
                 Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
+                Beats = BeatActions.For(_beats!, ShowAsync),
                 Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
