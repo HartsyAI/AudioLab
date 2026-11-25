@@ -1,0 +1,16 @@
+<div class="send">
+    <div class="send-head">
+        <span class="send-name">@BusName</span>
+        <Button Name="@($"Remove the send from {TrackName} to {BusName}")" Disabled="!Actions.CanEdit" DisabledReason="@Actions.Reason"
+                OnClick="RemoveAsync">Remove</Button>
+    </div>
+    <div class="send-controls">
+        <Knob Label="@($"Level of the send from {TrackName} to {BusName}")" Position="KnobPosition" Text="@LevelText"
+              Format="FormatLevel" DefaultPosition="PositionOf(DefaultLevel)" OnCommit="SetLevelAsync" Disabled="!Actions.CanEdit"
+              Reason="@Actions.Reason" ResetShortcut="@ResetKey" />
+        <Toggle Label="Pre" Name="@($"Send from {TrackName} to {BusName} before the fader")" On="Send.Pre" Tone="ToggleTone.Accent"
+                Disabled="!Actions.CanEdit" Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => SetPreAsync(!Send.Pre)" />
+        <Toggle Track="true" Label="M" Name="@($"Mute the send from {TrackName} to {BusName}")" On="Send.Muted" Tone="ToggleTone.Mute"
+                Disabled="!Actions.CanEdit" Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => SetMutedAsync(!Send.Muted)" />
+    </div>
+</div>

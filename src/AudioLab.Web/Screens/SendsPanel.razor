@@ -1,0 +1,33 @@
+<section class="sends" aria-label="@Heading">
+    <header class="sends-head">
+        <span class="sends-title">Sends</span>
+        @if (Selected is { Kind: not TrackKind.Bus } && AddItems.Count > 0)
+        {
+            <Menu Label="Add send" Items="AddItems" OnSelect="AddAsync" />
+        }
+    </header>
+    @if (Selected is null)
+    {
+        <p class="sends-note">Select a track to see its sends.</p>
+    }
+    else if (Selected.Kind == TrackKind.Bus)
+    {
+        <p class="sends-note">A bus has no sends.</p>
+    }
+    else if (Buses.Count == 0)
+    {
+        <p class="sends-note">There is no bus to send to. Add a bus track first.</p>
+    }
+    else if (Sends.Count == 0)
+    {
+        <p class="sends-note">@Selected.Name sends to no bus. Add a send from the menu.</p>
+    }
+    else if (AddItems.Count == 0)
+    {
+        <p class="sends-note">Every bus has a send from @Selected.Name.</p>
+    }
+    @foreach (Send send in Sends)
+    {
+        <SendRow @key="send.Bus" Track="Selected!.Id" TrackName="@Selected!.Name" Send="send" BusName="@BusName(send.Bus)" Actions="Actions" />
+    }
+</section>

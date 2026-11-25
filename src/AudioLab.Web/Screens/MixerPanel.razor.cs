@@ -27,6 +27,8 @@ public sealed partial class MixerPanel
     [Inject]
     private EffectsNavigator Navigator { get; set; } = default!;
 
+    private Track? SelectedTrack => Selected is { } id ? Document.Tracks.FirstOrDefault(track => track.Id == id) : null;
+
     private IReadOnlyList<StripEffect> MasterEffects => Document.MasterLimiter ? [new StripEffect(null, "Limiter", true)] : [];
 
     private static IReadOnlyList<StripEffect> Effects(Track track)

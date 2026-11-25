@@ -36,6 +36,20 @@ public static class FaderScale
         return 1;
     }
 
+    /// <summary>The gain at a place on the scale, the inverse of <see cref="Position"/>; 0 gives silence.</summary>
+    public static double Gain(double position)
+    {
+        double place = Math.Clamp(position, 0, 1);
+        if (place <= 0)
+        {
+            return 0;
+        }
+        double scaled = place * (_marks.Length - 1);
+        int segment = Math.Min((int)Math.Floor(scaled), _marks.Length - 2);
+        double decibels = _marks[segment] + ((scaled - segment) * (_marks[segment + 1] - _marks[segment]));
+        return Math.Pow(10, decibels / 20);
+    }
+
     /// <summary>The readout of a gain: one decimal and a sign for a boost, or "-inf" for silence.</summary>
     public static string Text(double gain)
     {
