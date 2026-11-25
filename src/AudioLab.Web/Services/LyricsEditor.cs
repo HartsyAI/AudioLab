@@ -44,6 +44,12 @@ public sealed class LyricsEditor(LiveProject live)
         return EditRunner.RunAsync(live, project => live.SendAsync(new ImportLyricsLrc { Project = project, Clip = clip, Lrc = lrc }));
     }
 
+    /// <summary>Spreads a clip's lyrics evenly over the clip, one command and so one undo step; the server says why it cannot.</summary>
+    public Task<EditResult> EstimateAsync(ClipId clip)
+    {
+        return EditRunner.RunAsync(live, project => live.SendAsync(new EstimateLyricsTiming { Project = project, Clip = clip }));
+    }
+
     /// <summary>Drops the word times of a clip's lyrics and keeps the text.</summary>
     public Task<EditResult> ClearTimingAsync(ClipId clip)
     {

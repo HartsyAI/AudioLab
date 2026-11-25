@@ -18,6 +18,8 @@ public sealed partial class LyricsPanel
 
     private const string NoTimes = "The words have no times yet.";
 
+    private const long MaxLrcBytes = ProjectLimits.MaxLongText * 4L;
+
     private string _draft = string.Empty;
 
     private string _saved = string.Empty;
@@ -60,6 +62,9 @@ public sealed partial class LyricsPanel
 
     [Inject]
     private IKeyGuard Guard { get; set; } = default!;
+
+    [Inject]
+    private ILyricsModels Models { get; set; } = default!;
 
     [Inject]
     private IElementFocus Focus { get; set; } = default!;
@@ -113,6 +118,10 @@ public sealed partial class LyricsPanel
         : "Enter a number of seconds other than 0.";
 
     private bool ClearDisabled => !Timed || !Actions.CanEdit;
+
+    private string? EstimateBlock => LyricsEstimate.Block(Actions.CanEdit, Actions.Reason, _draft != _saved, _textWords);
+
+    private bool EstimateDisabled => EstimateBlock is not null;
 
     private string? ClearBlock => !Actions.CanEdit ? Actions.Reason : Timed ? null : NoTimes;
 
@@ -242,7 +251,21 @@ public sealed partial class LyricsPanel
         }
     }
 
-    // An LRC file is read whole, up to the most text a clip may hold; the server then says whether its lines fit.
+    private async Task ClearAsync()
+    {
+        if (Found is not { } found)
+        {
+            return;
+        }
+        EditResult result = await Actions.Lyrics.ClearTiming(found.Clip.Id);
+        if (result.Succeeded)
+        {
+            const string Cleared = "Word times cleared. The text is kept.";
+            await SayAsync(Cleared);
+            Toasts.Show(ToastKind.Info, Cleared, Actions.Undo);
+        }
+    }
+
     private async Task ImportChosenAsync(InputFileChangeEventArgs chosen)
     {
         if (Found is not { } found)
@@ -263,18 +286,19 @@ public sealed partial class LyricsPanel
         }
     }
 
-    private async Task ClearAsync()
+    private async Task EstimateAsync()
     {
         if (Found is not { } found)
         {
             return;
         }
-        EditResult result = await Actions.Lyrics.ClearTiming(found.Clip.Id);
+        int count = LyricsRules.WordsOf(found.Clip.Meta?.Lyrics?.Text).Count;
+        EditResult result = await Actions.Lyrics.Estimate(found.Clip.Id);
         if (result.Succeeded)
         {
-            const string Cleared = "Word times cleared. The text is kept.";
-            await SayAsync(Cleared);
-            Toasts.Show(ToastKind.Info, Cleared, Actions.Undo);
+            string said = LyricsEstimate.Summary(count, ClipRules.VisibleLength(found.Clip), found.Clip.Start);
+            await SayAsync(said);
+            Toasts.Show(ToastKind.Info, said, Actions.Undo);
         }
     }
 }

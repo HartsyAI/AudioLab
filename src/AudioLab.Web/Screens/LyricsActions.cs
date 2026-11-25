@@ -21,6 +21,9 @@ public sealed class LyricsActions
     /// <summary>Gives a clip the lyrics of an LRC file.</summary>
     public Func<ClipId, string, Task<EditResult>> ImportLrc { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Spreads a clip's lyrics evenly over the clip.</summary>
+    public Func<ClipId, Task<EditResult>> Estimate { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>Drops the word times of a clip's lyrics.</summary>
     public Func<ClipId, Task<EditResult>> ClearTiming { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
 
@@ -36,6 +39,7 @@ public sealed class LyricsActions
             Shift = (clip, seconds) => show(editor.ShiftAsync(clip, seconds)),
             ClearTiming = clip => show(editor.ClearTimingAsync(clip)),
             ImportLrc = (clip, lrc) => show(editor.ImportLrcAsync(clip, lrc)),
+            Estimate = clip => show(editor.EstimateAsync(clip)),
         };
     }
 }
