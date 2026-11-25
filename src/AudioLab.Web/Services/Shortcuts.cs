@@ -271,10 +271,10 @@ public static class Shortcuts
     /// <summary>Moves the selected point later by a grid step.</summary>
     public static readonly Shortcut AutomationLater = new("automation.later", "Move point later", "ArrowRight", Automation, Alt: true);
 
-    /// <summary>Raises the selected point by a fiftieth of the lane's range.</summary>
+    /// <summary>Raises the selected point by a tenth of the drawn range.</summary>
     public static readonly Shortcut AutomationHigher = new("automation.higher", "Raise point", "ArrowUp", Automation, Alt: true);
 
-    /// <summary>Lowers the selected point by a fiftieth of the lane's range.</summary>
+    /// <summary>Lowers the selected point by a tenth of the drawn range.</summary>
     public static readonly Shortcut AutomationLower = new("automation.lower", "Lower point", "ArrowDown", Automation, Alt: true);
 
     /// <summary>Removes the selected point.</summary>

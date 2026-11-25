@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
-
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;

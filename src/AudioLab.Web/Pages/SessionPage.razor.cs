@@ -415,7 +415,7 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Busy || Lanes.Drag is not null))
+        if (history && (Drags.Current is not null || RollDrags.Busy || Lanes.HoldsHistory))
         {
             // A press is down on a clip or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
             // So history waits.

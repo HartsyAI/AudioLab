@@ -31,6 +31,7 @@ public sealed class AutomationActions
     /// <summary>Folds a recorded pass into a lane, and sets the mode after it when one is given (D25).</summary>
     public Func<TrackId, AutomationParameter, AutomationPass, AutomationMode?, Task<EditResult>> CommitPass { get; init; } =
         (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>The project as the live connection holds it now, or null before it is open.</summary>
     public Func<ProjectDocument?> Current { get; init; } = () => null;
 

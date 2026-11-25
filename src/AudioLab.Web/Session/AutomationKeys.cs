@@ -3,7 +3,7 @@ using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>What a key does in an automation lane (D69): the decision, with no document or screen in it, so the rule is tested alone.</summary>
+/// <summary>What a key does in an automation lane (D74): the decision, with no document or screen in it, so the rule is tested alone.</summary>
 public static class AutomationKeys
 {
     /// <summary>The decision for a key, given the lane's point count and the selected point.</summary>
