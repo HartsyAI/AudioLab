@@ -4,7 +4,8 @@ using AudioLab.Server.Transcription;
 
 namespace AudioLab.Server.Tests;
 
-/// <summary>A media file whose windows cannot be read: each read fails with the exception given; with <paramref name="onDuration"/> the duration read fails.</summary>
+/// <summary>A media file whose windows cannot be read: each read fails with the exception given. With <paramref name="onDuration"/>, the duration
+/// read fails instead.</summary>
 public sealed class BrokenWindowSource(double durationSeconds, Exception failure, bool onDuration = false) : IAudioWindowSource
 {
     /// <inheritdoc />

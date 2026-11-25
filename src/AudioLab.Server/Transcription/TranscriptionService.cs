@@ -5,7 +5,7 @@ using AudioLab.Server.Media;
 namespace AudioLab.Server.Transcription;
 
 /// <summary>What a user can do with the transcription of a media file. Every method takes the user from the door.</summary>
-public sealed class TranscriptionService(MediaService media, TranscriptionJobs jobs, TranscriptionStore store)
+public sealed class TranscriptionService(MediaService media, TranscriptionJobs jobs, TranscriptionStore store, ISpeechModels models)
 {
     /// <summary>Starts a job for one of the user's media files, or returns the job already there.</summary>
     /// <exception cref="MediaNotFoundException">The user has no such file.</exception>
@@ -50,7 +50,7 @@ public sealed class TranscriptionService(MediaService media, TranscriptionJobs j
     public async Task<TranscriptDocument> TranscriptAsync(UserId user, MediaId id, CancellationToken cancellationToken)
     {
         MediaRecord record = media.Get(user, id);
-        TranscriptDocument? document = await store.ReadTranscriptAsync(user, id, cancellationToken);
+        TranscriptDocument? document = await store.ReadTranscriptForAsync(user, record, cancellationToken);
         if (document is null)
         {
             TranscriptionState state = await jobs.StateOfAsync(user, id, cancellationToken)
@@ -59,10 +59,25 @@ public sealed class TranscriptionService(MediaService media, TranscriptionJobs j
                 ? new TranscriptionNotFoundException("The transcript of that file is missing; start the transcription again to make it.")
                 : new TranscriptionConflictException($"The transcription is {state.ToString().ToLowerInvariant()}; it has no transcript yet.");
         }
-        if (document.Sha256 != record.Sha256)
-        {
-            throw new TranscriptRefusedException(["The stored transcript belongs to another version of the file."]);
-        }
         return document;
+    }
+
+    /// <summary>The speech model the user uses, and the ones the server has installed (D98).</summary>
+    public async Task<SpeechModelStatus> SpeechModelAsync(UserId user, CancellationToken cancellationToken)
+    {
+        string model = await store.ReadSpeechModelAsync(user, cancellationToken) ?? SpeechModelCatalog.DefaultSpeechModel;
+        return new SpeechModelStatus(model, models.Choosable);
+    }
+
+    /// <summary>Stores the speech model the user chooses; a job already running keeps the model it started with (D98).</summary>
+    /// <exception cref="SpeechModelChoiceException">The server has no such model installed.</exception>
+    public async Task<SpeechModelStatus> ChooseSpeechModelAsync(UserId user, string model, CancellationToken cancellationToken)
+    {
+        if (!models.Choosable.Contains(model, StringComparer.Ordinal))
+        {
+            throw new SpeechModelChoiceException("That speech model is not installed on this server.");
+        }
+        await store.WriteSpeechModelAsync(user, model, cancellationToken);
+        return new SpeechModelStatus(model, models.Choosable);
     }
 }

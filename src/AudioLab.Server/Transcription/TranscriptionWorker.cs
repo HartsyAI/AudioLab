@@ -2,20 +2,28 @@ namespace AudioLab.Server.Transcription;
 
 /// <summary>The background loop that runs transcription jobs, one chunk at a time. Requests never wait for it (D95).</summary>
 /// <remarks>
-/// Only the server's stop ends the loop (D93). A chunk in flight is finished before the stop pauses the running jobs; a failure of a chunk
-/// fails its job, and the loop goes on.
+/// The server's stop ends the loop (D93). When it begins, no retry starts and the chunk in flight gets one model timeout to finish; after
+/// that it is abandoned, and the running jobs are paused from their last complete chunk. A failure of a chunk fails its job, and the loop
+/// goes on.
 /// </remarks>
-public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<TranscriptionWorker> logger) : BackgroundService
+public sealed class TranscriptionWorker(TranscriptionJobs jobs, TranscriptionOptions options, ILogger<TranscriptionWorker> logger)
+    : BackgroundService
 {
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using CancellationTokenSource abandon = new();
+        using CancellationTokenRegistration stop = stoppingToken.Register(() =>
+        {
+            jobs.BeginStop();
+            abandon.CancelAfter(options.ModelTimeout);
+        });
         try
         {
             await WhenLoadedAsync();
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (await RunOneTurnAsync())
+                if (await RunOneTurnAsync(abandon.Token))
                 {
                     continue;
                 }
@@ -24,7 +32,7 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<Transcri
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // The server is stopping: the chunk in flight has finished, and the running jobs are paused below.
+            // The server is stopping: the chunk in flight has finished or was abandoned, and the running jobs are paused below.
         }
         finally
         {
@@ -44,11 +52,11 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<Transcri
         }
     }
 
-    private async Task<bool> RunOneTurnAsync()
+    private async Task<bool> RunOneTurnAsync(CancellationToken abandon)
     {
         try
         {
-            return await jobs.StepAsync(CancellationToken.None);
+            return await jobs.StepAsync(abandon);
         }
         catch (Exception exception)
         {

@@ -29,7 +29,7 @@ public sealed record TranscriptionOptions
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxRunning, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxQueuedPerUser, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(Retries, 0);
-        ArgumentOutOfRangeException.ThrowIfLessThan(RetryDelay, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RetryDelay, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(ModelTimeout, TimeSpan.Zero);
     }
 }

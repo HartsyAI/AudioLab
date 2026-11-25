@@ -33,6 +33,9 @@ internal sealed class TranscriptionJob(UserId owner, MediaId media)
     /// <summary>How many segments the kept chunks hold, counted against the transcript's limit (D94).</summary>
     public int Segments { get; set; }
 
+    /// <summary>The bytes the kept chunks would take in the transcript, counted against its limit (D95).</summary>
+    public long Bytes { get; set; }
+
     /// <summary>Whether a cancel is waiting for the next chunk boundary.</summary>
     public bool CancelRequested { get; set; }
 }

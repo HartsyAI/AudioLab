@@ -18,14 +18,25 @@ internal static class TranscriptionTestSupport
 
     public static TranscriptionStore Files(TestStore store) => new(store.Root, new AtomicFile(), NullLogger<TranscriptionStore>.Instance);
 
-    public static TranscriptionJobs Jobs(TestStore store, TranscriptionStore files, IAudioWindowSource source, ISpeechModel model)
+    /// <summary>The registry of the given models, over the catalog's entries; a model that is not in the catalog is still found by its id.</summary>
+    public static ISpeechModels Registry(params ISpeechModel[] models)
     {
-        return new TranscriptionJobs(files, store.Media, source, model, Options, store.Time, NullLogger<TranscriptionJobs>.Instance);
+        return new SpeechModels(SpeechModelCatalog.Entries, models);
     }
 
-    public static TranscriptionService Service(TestStore store, TranscriptionJobs jobs, TranscriptionStore files)
+    public static TranscriptionJobs Jobs(TestStore store, TranscriptionStore files, IAudioWindowSource source, ISpeechModel model)
     {
-        return new TranscriptionService(store.MediaFiles, jobs, files);
+        return Jobs(store, files, source, Registry(model));
+    }
+
+    public static TranscriptionJobs Jobs(TestStore store, TranscriptionStore files, IAudioWindowSource source, ISpeechModels models)
+    {
+        return new TranscriptionJobs(files, store.Media, source, models, Options, store.Time, NullLogger<TranscriptionJobs>.Instance);
+    }
+
+    public static TranscriptionService Service(TestStore store, TranscriptionJobs jobs, TranscriptionStore files, ISpeechModels? models = null)
+    {
+        return new TranscriptionService(store.MediaFiles, jobs, files, models ?? Registry());
     }
 
     /// <summary>Runs turns until none is left: each turn is one chunk, so the count of model calls is the count of windows.</summary>

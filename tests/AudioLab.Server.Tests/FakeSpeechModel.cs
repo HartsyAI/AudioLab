@@ -9,7 +9,7 @@ public sealed class FakeSpeechModel : ISpeechModel
     private TaskCompletionSource _release = NewSignal();
     private int? _blockAt;
 
-    public string ModelId { get; init; } = "fake-model";
+    public string ModelId { get; init; } = AudioLab.Core.Transcription.SpeechModelCatalog.DefaultSpeechModel;
 
     /// <summary>The window starts the model was asked about, in call order.</summary>
     public List<double> Starts { get; } = [];
