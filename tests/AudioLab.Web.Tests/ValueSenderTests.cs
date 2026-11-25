@@ -2,7 +2,7 @@ using AudioLab.Web.Components;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>What a slider sends: keys pressed while a send is on its way make one more send, and a held value goes once it is drawn or after a moment.</summary>
+/// <summary>What a slider sends: keys pressed while a send is on its way make one more send.</summary>
 public sealed class ValueSenderTests
 {
     /// <summary>Keys pressed while a send is on its way fold into one send after it, so a held key sends one value per answer.</summary>

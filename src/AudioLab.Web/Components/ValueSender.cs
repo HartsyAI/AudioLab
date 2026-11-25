@@ -19,7 +19,7 @@ public sealed class ValueSender : IDisposable
 
     private CancellationTokenSource? _settle;
 
-    /// <summary>Starts a sender that passes each value to send to <paramref name="send"/>, and calls <paramref name="changed"/> when what is shown changes.</summary>
+    /// <summary>Starts a sender that passes each value to send, and calls changed when what is shown changes.</summary>
     public ValueSender(Func<double, Task> send, Action changed)
     {
         _send = send ?? throw new ArgumentNullException(nameof(send));

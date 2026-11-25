@@ -134,7 +134,6 @@ public sealed class GroupRedrawTests
 
         Assert.Contains("Offline.", Html(strip));
         Assert.True(strip.TitleOfElementNamed("Colour 1 for group Drums", "Offline."));
-        Assert.Equal("true", strip.Values("aria-current").Single());
         await strip.DisposeServicesAsync();
     }
 
@@ -181,6 +180,27 @@ public sealed class GroupRedrawTests
         await strip.RunAsync(() => pointer.Release(0, 220));
         await UntilAsync(() => sent.Count == 1);
         Assert.Single(sent);
+        await strip.DisposeServicesAsync();
+    }
+
+    /// <summary>The swatch of the group's colour is the only one marked as current, and an editable swatch has no title.</summary>
+    [Fact]
+    public async Task TheCurrentColourIsTheOnlyMarkedSwatchAndAnEditableSwatchHasNoTitle()
+    {
+        List<string> palette = [.. Enumerable.Range(0, 12).Select(index => $"#{index:X6}")];
+        RenderedMarkup strip = await RenderedMarkup.OfAsync<GroupStrip>(new Dictionary<string, object?>
+        {
+            ["Group"] = Drums() with { Color = palette[3] },
+            ["Members"] = 2,
+            ["ColorToken"] = "var(--track-4)",
+            ["Palette"] = (IReadOnlyList<string>)palette,
+            ["Actions"] = new SessionActions { CanEdit = true },
+        });
+
+        Assert.True(strip.AttributeOfElementNamed("Colour 4 for group Drums", "aria-current", "true"));
+        Assert.Single(strip.Values("aria-current"));
+        Assert.False(strip.TitleOfElementNamed("Colour 4 for group Drums", string.Empty));
+        Assert.False(strip.TitleOfElementNamed("Colour 1 for group Drums", string.Empty));
         await strip.DisposeServicesAsync();
     }
 
