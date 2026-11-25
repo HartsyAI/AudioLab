@@ -46,10 +46,16 @@ public sealed class MasterRedrawTests
     {
         RenderedMarkup mixer = await RenderedMarkup.StartAsync<MixerPanel>(MixerParameters(Mix()), MixerServices);
 
+        int textsBefore = mixer.Texts.Count;
+        int attributesBefore = mixer.Attributes.Count;
         await mixer.RenderAgainAsync(MixerParameters(Mix(masterVolume: 0.5)));
 
         Assert.Equal(1, mixer.Drawn.Count(type => type == typeof(ChannelStrip)));
-        Assert.Contains("Channel Master", mixer.Values("aria-label"));
+        // What the redraw wrote is the master's: its name, its fader and its readout, and no track's.
+        Assert.Contains("Master", mixer.Texts.Skip(textsBefore));
+        Assert.DoesNotContain("Kick", mixer.Texts.Skip(textsBefore));
+        Assert.Contains("Volume of Master", mixer.Attributes.Skip(attributesBefore).Select(attribute => attribute.Value));
+        Assert.DoesNotContain("Volume of Kick", mixer.Attributes.Skip(attributesBefore).Select(attribute => attribute.Value));
         await mixer.DisposeServicesAsync();
     }
 

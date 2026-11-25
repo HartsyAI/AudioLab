@@ -65,7 +65,7 @@ public sealed partial class ChannelStrip
     [Parameter]
     public bool LimiterOn { get; set; }
 
-    /// <summary>The note under the master's slot: it is a project setting, and the master has no effect chain.</summary>
+    /// <summary>The note under the master's slot: its one setting is the limiter, and the master has no effect chain.</summary>
     [Parameter]
     public string? MasterNote { get; set; }
 
@@ -132,7 +132,7 @@ public sealed partial class ChannelStrip
         }
     }
 
-    // Only a track has a chain to open; the master's limiter is a project setting.
+    // Only a track has a chain to open; the master has no chain to open; its limiter is a named toggle.
     private bool Opens => Track is not null && OnOpenEffects.HasDelegate;
 
     private StripSlot Shown(StripEffect effect) => new(effect.Name, effect.Enabled, effect.Id, Opens && effect.Id is not null);
