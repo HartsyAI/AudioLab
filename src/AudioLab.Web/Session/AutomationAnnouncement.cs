@@ -1,5 +1,6 @@
 using System.Globalization;
 using AudioLab.Core.Model;
+using AudioLab.Web.Services;
 
 namespace AudioLab.Web.Session;
 
@@ -10,6 +11,12 @@ public static class AutomationAnnouncement
     public static string Selected(AutomationParameter parameter, int index, int count, double time, double value)
     {
         return $"Point {index + 1} of {count} selected: {Name(parameter)} {Format(value)} at {Format(time)} seconds.";
+    }
+
+    /// <summary>The announcement of a move, when the server applied it; a refused move announces nothing, since its reason is shown.</summary>
+    public static string? MovedIfApplied(EditResult result, AutomationParameter parameter, double time, double value)
+    {
+        return result.Succeeded ? Moved(parameter, time, value) : null;
     }
 
     /// <summary>A point added to a lane.</summary>

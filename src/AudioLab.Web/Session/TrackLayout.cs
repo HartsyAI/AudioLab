@@ -3,7 +3,7 @@ using AudioLab.Core.Model;
 namespace AudioLab.Web.Session;
 
 /// <summary>Where each track's row starts and how tall it is, from the document's heights; the headers and the lanes read the same rows.</summary>
-/// <remarks>A row is its clip lane, then its automation lane when the track shows one (D69). The clip lane is <see cref="ClipHeights"/>.</remarks>
+/// <remarks>A row is its clip lane, then its automation lane when the track shows one (D70). The clip lane is <see cref="ClipHeights"/>.</remarks>
 public sealed class TrackLayout
 {
     /// <summary>The least a row is drawn, so a hand-edited file cannot make a header unusable.</summary>

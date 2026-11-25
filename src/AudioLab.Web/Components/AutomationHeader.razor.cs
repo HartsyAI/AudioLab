@@ -1,10 +1,11 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Screens;
+using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The strip beside an automation lane (D69): parameter, mode and hide, each with its reason when unusable.</summary>
+/// <summary>The strip beside an automation lane (D70): parameter, mode and hide, each with its reason when unusable.</summary>
 public sealed partial class AutomationHeader
 {
     private static readonly (AutomationMode Mode, string Label)[] _modes =
@@ -46,7 +47,11 @@ public sealed partial class AutomationHeader
 
     private IReadOnlyList<SegmentItem> ModeItems =>
     [
-        .. _modes.Select(mode => new SegmentItem(Id(mode.Mode), $"Automation {mode.Label}", Label: mode.Label, Reason: Reason)),
+        .. _modes.Select(mode => new SegmentItem(
+            Id(mode.Mode),
+            $"Automation {mode.Label}",
+            Label: mode.Label,
+            Reason: Reason ?? AutomationModes.UnavailableReason(mode.Mode))),
     ];
 
     private static string Id(AutomationMode mode) => mode.ToString().ToLowerInvariant();
@@ -60,7 +65,8 @@ public sealed partial class AutomationHeader
     private Task ChooseModeAsync(string id)
     {
         AutomationMode? mode = _modes.Where(choice => Id(choice.Mode) == id).Select(choice => (AutomationMode?)choice.Mode).FirstOrDefault();
-        return Editable && mode is { } chosen && chosen != Track.Automation.Mode ? Actions.SetMode(Track.Id, chosen) : Task.CompletedTask;
+        bool allowed = Editable && mode is { } chosen && chosen != Track.Automation.Mode;
+        return allowed && AutomationModes.UnavailableReason(mode!.Value) is null ? Actions.SetMode(Track.Id, mode.Value) : Task.CompletedTask;
     }
 
     private Task HideAsync() => Editable ? Actions.SetView(Track.Id, false, null) : Task.CompletedTask;

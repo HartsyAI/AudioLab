@@ -14,6 +14,8 @@ public sealed class AutomationLanes
     /// <summary>Raised when the words for the status region changed.</summary>
     public event Action? AnnouncementChanged;
 
+    private int _announcements;
+
     /// <summary>The last announcement, read by the status region of the arrangement (D68).</summary>
     public string Announcement { get; private set; } = string.Empty;
 
@@ -25,6 +27,9 @@ public sealed class AutomationLanes
 
     /// <summary>The point being dragged, or null. It stays after the release until the server has answered.</summary>
     public AutomationDrag? Drag { get; private set; }
+
+    /// <summary>Whether a point is being dragged, which holds undo and redo back until the drag ends (as a clip drag does).</summary>
+    public bool HoldsHistory => Drag is not null;
 
     /// <summary>Selects a point of a track's lane, or nothing when <paramref name="index"/> is null.</summary>
     public void Select(TrackId track, int? index)
@@ -50,7 +55,9 @@ public sealed class AutomationLanes
     /// <summary>Says a sentence in the status region, so that it is read to the user.</summary>
     public void Announce(string text)
     {
-        Announcement = text;
+        // A screen reader reads a change of text only, so each announcement carries a count and the same words are read again.
+        _announcements++;
+        Announcement = $"{text} ({_announcements})";
         AnnouncementChanged?.Invoke();
     }
 

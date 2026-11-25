@@ -4,7 +4,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>Holds the decisions of an automation lane: its keys, the redraw gate, the pass checks and the announcements (D68, D69).</summary>
+/// <summary>Holds the decisions of an automation lane: its keys, the redraw gate and the announcements (D68, D69).</summary>
 public sealed class AutomationDecisionTests
 {
     private static readonly KeyChord _right = new("ArrowRight", false, false, false);

@@ -3,7 +3,7 @@ using AudioLab.Core.Rules;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>The steps a key moves a selected point by, and the move that results (D69).</summary>
+/// <summary>The steps a key moves a selected point by, and the move that results (D74).</summary>
 /// <remarks>A value step is a tenth of the drawn range: four pixels at the lane's height. The move names the point's index now.</remarks>
 public static class AutomationNudge
 {

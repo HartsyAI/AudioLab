@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Screens;
 
-/// <summary>The automation lanes of the arrangement (D69): press to select or drag, double-click to add, keys to walk and edit.</summary>
+/// <summary>The automation lanes of the arrangement (D70): press to select or drag, double-click to add, keys to walk and edit.</summary>
 public sealed partial class Timeline
 {
     private readonly SemaphoreSlim _nudges = new(1, 1);
@@ -149,10 +149,10 @@ public sealed partial class Timeline
         {
             AutomationParameter parameter = CurrentTrack(drag.Track)?.View.AutomationParameter ?? AutomationParameter.Volume;
             EditResult result = await Actions.Automation.Move(drag.Track, parameter, send);
-            if (result.Succeeded)
+            if (AutomationAnnouncement.MovedIfApplied(result, parameter, send.Time, send.Value) is { } moved)
             {
                 SelectPoint(drag.Track, send.LandsAt);
-                Lanes.Announce(AutomationAnnouncement.Moved(parameter, send.Time, send.Value));
+                Lanes.Announce(moved);
             }
         }
         finally
@@ -228,10 +228,10 @@ public sealed partial class Timeline
                 return;
             }
             EditResult result = await Actions.Automation.Move(track, current.View.AutomationParameter, send);
-            if (result.Succeeded)
+            if (AutomationAnnouncement.MovedIfApplied(result, current.View.AutomationParameter, send.Time, send.Value) is { } moved)
             {
                 SelectPoint(track, send.LandsAt);
-                Lanes.Announce(AutomationAnnouncement.Moved(current.View.AutomationParameter, send.Time, send.Value));
+                Lanes.Announce(moved);
             }
         }
         finally

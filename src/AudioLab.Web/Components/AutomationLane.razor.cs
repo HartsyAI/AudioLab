@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>The catalogue automation lane (D69): one track's volume or pan drawn as one SVG, with no element per point.</summary>
+/// <summary>The catalogue automation lane (D70): one track's volume or pan drawn as one SVG, with no element per point.</summary>
 /// <remarks>
 /// The lane redraws only when its own points, parameter, selection, drag, size or name changed, and it hears only the changes of its own
 /// track, so a point moved by a drag costs this lane and no other. A lane that is drawn for the first time remembers what it drew (D68).
@@ -108,8 +108,7 @@ public sealed partial class AutomationLane : IDisposable
             _curve = Plan.Path(_points, Width);
             _dots = Plan.Marks(_points, Width);
         }
-        _selected = SelectedPath();
-        _overlay = OverlayPath();
+        Refresh();
     }
 
     /// <inheritdoc />
@@ -155,46 +154,17 @@ public sealed partial class AutomationLane : IDisposable
     {
         if (track == Track.Id)
         {
+            Refresh();
             _ = InvokeAsync(StateHasChanged);
         }
     }
 
-    // The selected point, drawn over the curve as a mark of its own.
-    private string SelectedPath()
+    // The marks follow the selection and the drag, so they are computed again whenever either changes, not only on a new parameter set.
+    private void Refresh()
     {
-        if (Lanes.Track != Track.Id || Lanes.Index is not { } index || index >= Points.Count)
-        {
-            return string.Empty;
-        }
-        AutomationPoint point = Points[index];
-        return $"M{Format(Plan.X(point.Time))} {Format(Plan.Y(point.Value))}h0";
+        _selected = AutomationMarks.Selected(Plan, Points, Lanes.Track == Track.Id ? Lanes.Index : null);
+        _overlay = AutomationMarks.Overlay(Plan, Points, Lanes.Drag is { } drag && drag.Track == Track.Id ? drag : null);
     }
-
-    // While a point is dragged, only its own segments are drawn again: from its neighbours to where it is now.
-    private string OverlayPath()
-    {
-        if (Lanes.Drag is not { } drag || drag.Track != Track.Id)
-        {
-            return string.Empty;
-        }
-        IReadOnlyList<AutomationPoint> points = Points;
-        double x = Plan.X(drag.Time);
-        double y = Plan.Y(drag.Value);
-        string path = $"M{Format(x)} {Format(y)}";
-        if (drag.Index > 0 && drag.Index - 1 < points.Count)
-        {
-            AutomationPoint before = points[drag.Index - 1];
-            path = $"M{Format(Plan.X(before.Time))} {Format(Plan.Y(before.Value))}L{Format(x)} {Format(y)}";
-        }
-        if (drag.Index + 1 < points.Count)
-        {
-            AutomationPoint after = points[drag.Index + 1];
-            path += $"L{Format(Plan.X(after.Time))} {Format(Plan.Y(after.Value))}";
-        }
-        return path;
-    }
-
-    private static string Format(double value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     private Task PointerDownAsync(PointerEventArgs press) => Editable ? OnPointerDown.InvokeAsync(press) : Task.CompletedTask;
 
