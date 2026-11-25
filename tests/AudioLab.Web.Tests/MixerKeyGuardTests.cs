@@ -36,7 +36,7 @@ public sealed class MixerKeyGuardTests
         services.AddScoped<EffectsNavigator>();
     }
 
-    /// <summary>The first draw asks for the slider keys to be kept from the transport in the mixer's own container; a redraw does not ask again.</summary>
+    /// <summary>The first draw keeps the slider keys from the transport in the mixer's container, once.</summary>
     [Fact]
     public async Task TheMixerKeepsItsSliderKeysOnceForItsOwnContainer()
     {
