@@ -6,7 +6,7 @@ using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Tests;
 
-/// <summary>The swing and step count typed into the drums tab: only what Core would accept is sent, and a value an agent set is not sent back changed.</summary>
+/// <summary>The swing and step count typed into the drums tab: only what Core accepts is sent, and an agent's value is not sent back changed.</summary>
 public sealed class BeatDraftTests
 {
     /// <summary>A swing from 0 to 1 is read; anything outside, or not a number, is not.</summary>
@@ -34,6 +34,7 @@ public sealed class BeatDraftTests
     [InlineData("-4", false)]
     [InlineData("", false)]
     [InlineData("16 steps", false)]
+    [InlineData("   ", false)]
     public void StepsAreWholeNumbersFromOneToTheLimit(string text, bool valid)
     {
         Assert.Equal(valid, BeatDraft.TryParseSteps(text, out _));
@@ -41,17 +42,30 @@ public sealed class BeatDraftTests
 
     /// <summary>The bounds the draft reads are the bounds of the command that sets them, so the two cannot drift apart.</summary>
     [Fact]
-    public void TheBoundsAreTheCommandsOwn()
+    public void TheSwingBoundsAreCoresOwnAndFixed()
     {
+        // The literals are the contract: if Core moves a bound, this fails and the draft's reading is reviewed with it.
+        Assert.Equal(0, ProjectLimits.MinBeatSwing);
+        Assert.Equal(1, ProjectLimits.MaxBeatSwing);
+
         RangeAttribute swing = typeof(SetBeatSwing).GetProperty(nameof(SetBeatSwing.Swing))!.GetCustomAttribute<RangeAttribute>()!;
+        Assert.Equal(ProjectLimits.MinBeatSwing, Convert.ToDouble(swing.Minimum));
+        Assert.Equal(ProjectLimits.MaxBeatSwing, Convert.ToDouble(swing.Maximum));
+        Assert.True(BeatDraft.TryParseSwing("1", out _));
+        Assert.False(BeatDraft.TryParseSwing("1.0000001", out _));
+    }
+
+    /// <summary>The step bounds are the command's own, so a draft accepts exactly what Core accepts.</summary>
+    [Fact]
+    public void TheStepBoundsAreCoresOwn()
+    {
         RangeAttribute steps = typeof(SetBeatSteps).GetProperty(nameof(SetBeatSteps.Steps))!.GetCustomAttribute<RangeAttribute>()!;
 
-        Assert.Equal(0, Convert.ToDouble(swing.Minimum));
-        Assert.Equal(1, Convert.ToDouble(swing.Maximum));
         Assert.Equal(1, Convert.ToInt32(steps.Minimum));
+        Assert.Equal(256, Convert.ToInt32(steps.Maximum));
         Assert.Equal(ProjectLimits.MaxBeatSteps, Convert.ToInt32(steps.Maximum));
-        Assert.True(BeatDraft.TryParseSwing(swing.Maximum.ToString()!, out _));
-        Assert.False(BeatDraft.TryParseSteps((ProjectLimits.MaxBeatSteps + 1).ToString(), out _));
+        Assert.True(BeatDraft.TryParseSteps("256", out _));
+        Assert.False(BeatDraft.TryParseSteps("257", out _));
     }
 
     /// <summary>A swing written as its round trip reads back to the same value, so an unedited Set has nothing to send.</summary>

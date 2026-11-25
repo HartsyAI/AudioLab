@@ -16,6 +16,13 @@
     box-shadow: var(--focus-ring);
 }
 
+.drums-status {
+    margin: 0;
+    min-height: var(--control-xs);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
 .drums-bar {
     display: flex;
     flex-wrap: wrap;

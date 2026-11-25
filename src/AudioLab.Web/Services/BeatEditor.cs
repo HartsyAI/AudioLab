@@ -38,7 +38,7 @@ public sealed class BeatEditor(LiveProject live)
         return EditRunner.RunAsync(live, project => live.SendAsync(new SetBeatSwing { Project = project, Swing = swing }));
     }
 
-    /// <summary>Sets how many steps the pattern has, from 1 to 256.</summary>
+    /// <summary>Sets how many steps the pattern has, up to the most a pattern may have.</summary>
     public Task<EditResult> SetStepsAsync(int steps)
     {
         return EditRunner.RunAsync(live, project => live.SendAsync(new SetBeatSteps { Project = project, Steps = steps }));

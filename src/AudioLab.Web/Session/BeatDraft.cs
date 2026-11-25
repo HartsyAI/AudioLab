@@ -16,7 +16,8 @@ public static class BeatDraft
     public static bool TryParseSwing(string text, out double swing)
     {
         swing = 0;
-        return double.TryParse(text, SwingStyle, CultureInfo.InvariantCulture, out swing) && swing is >= 0 and <= 1;
+        return double.TryParse(text, SwingStyle, CultureInfo.InvariantCulture, out swing)
+            && swing is >= ProjectLimits.MinBeatSwing and <= ProjectLimits.MaxBeatSwing;
     }
 
     /// <summary>Reads a whole step count from 1 to the most a pattern may have.</summary>

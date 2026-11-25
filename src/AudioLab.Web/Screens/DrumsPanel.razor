@@ -2,6 +2,7 @@
 @using AudioLab.Web.Services
 @using AudioLab.Web.Session
 <div id="@PanelId" class="drums-panel" tabindex="-1">
+    <p class="drums-status" role="status">@_announcement</p>
     <div class="drums-bar">
         <div class="drums-setting">
             <Slider Position="Pattern.Swing" Text="@SwingText" Label="Swing" Unit="" />

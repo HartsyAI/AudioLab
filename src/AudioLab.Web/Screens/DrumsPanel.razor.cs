@@ -34,6 +34,8 @@ public sealed partial class DrumsPanel
 
     private string? _renameFocus;
 
+    private string? _announcement;
+
     private bool _busy;
 
     private bool _dirty = true;
@@ -51,7 +53,22 @@ public sealed partial class DrumsPanel
     public SessionActions Actions { get; set; } = null!;
 
     [Inject]
-    private IElementFocus Focus { get; set; } = default!;
+    internal IElementFocus Focus { get; set; } = default!;
+
+    /// <summary>The element that takes the focus after the next render, or null.</summary>
+    internal string? PendingFocus => _focus;
+
+    /// <summary>What the status line says, such as why a lane key does nothing.</summary>
+    internal string? Announcement => _announcement;
+
+    /// <summary>The swing as typed, for the field.</summary>
+    internal string SwingDraft => _swingDraft;
+
+    /// <summary>The refusal the rename dialog shows, or null.</summary>
+    internal string? RenameError => _renameError;
+
+    /// <summary>Whether the rename dialog is open.</summary>
+    internal bool RenameOpen => _renaming is not null;
 
     private BeatPattern Pattern => Document.BeatPattern;
 
@@ -78,9 +95,19 @@ public sealed partial class DrumsPanel
     private string? RenameBlock => string.IsNullOrWhiteSpace(_nameDraft) ? "Enter a name for the lane." : null;
 
     /// <inheritdoc />
-    protected override void OnParametersSet()
+    protected override void OnParametersSet() => FollowPattern();
+
+    /// <summary>Takes a document and what the screen can do, as a render with new parameters does, and follows the pattern.</summary>
+    internal void Take(ProjectDocument document, SessionActions actions)
     {
-        // The drafts follow the pattern only when its swing or step count changes; another client's lane edit leaves typing alone.
+        Document = document;
+        Actions = actions;
+        FollowPattern();
+    }
+
+    /// <summary>Writes the drafts from the pattern when its swing or step count changed; a lane edit by another client leaves typing alone.</summary>
+    internal void FollowPattern()
+    {
         if (_seen && !BeatDraft.ChangedSince(Pattern, _seenSwing, _seenSteps))
         {
             return;
@@ -112,7 +139,7 @@ public sealed partial class DrumsPanel
 
     private static Dictionary<string, object> IdAttribute(string id) => new() { ["id"] = id };
 
-    private void SwingChanged(string value)
+    internal void SwingChanged(string value)
     {
         _swingDraft = value;
         _dirty = true;
@@ -168,19 +195,40 @@ public sealed partial class DrumsPanel
         }
     }
 
-    private async Task MoveAsync(BeatLane lane, MoveDirection direction)
+    internal async Task MoveAsync(BeatLane lane, MoveDirection direction)
     {
-        EditResult result = await Actions.Beats.MoveLane(lane.Id, direction);
-        if (result.Succeeded)
+        if (_busy)
         {
-            _focus = BeatLaneText.MoveId(lane.Id, direction);
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            EditResult result = await Actions.Beats.MoveLane(lane.Id, direction);
+            if (result.Succeeded)
+            {
+                _focus = BeatLaneText.MoveId(lane.Id, direction);
+            }
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 
-    private async Task KeyAsync(BeatLane lane, KeyboardEventArgs key)
+    // A held key does not repeat a move, a rename or a removal; a read-only project says why in the status line.
+    internal async Task KeyAsync(BeatLane lane, KeyboardEventArgs key)
     {
+        if (key.Repeat || !Shortcuts.DrumLane.Any(shortcut => shortcut.Matches(key)))
+        {
+            return;
+        }
+
         if (!Actions.CanEdit)
         {
+            _announcement = Actions.Reason;
+            _dirty = true;
             return;
         }
 
@@ -202,7 +250,7 @@ public sealed partial class DrumsPanel
         }
     }
 
-    private void BeginRename(BeatLane lane)
+    internal void BeginRename(BeatLane lane)
     {
         _renaming = lane.Id;
         _nameDraft = lane.Name;
@@ -211,7 +259,7 @@ public sealed partial class DrumsPanel
         _dirty = true;
     }
 
-    private void CloseRename()
+    internal void CloseRename()
     {
         _renaming = null;
         _renameError = null;
@@ -219,7 +267,7 @@ public sealed partial class DrumsPanel
     }
 
     // The dialog has closed, so focus goes back to the Rename button of the lane it was opened from.
-    private Task RestoreRenameFocusAsync()
+    internal Task RestoreRenameFocusAsync()
     {
         if (_renameFocus is { } id)
         {
@@ -230,27 +278,35 @@ public sealed partial class DrumsPanel
         return Task.CompletedTask;
     }
 
-    private async Task RenameAsync()
+    internal async Task RenameAsync()
     {
-        if (_renaming is not { } lane)
+        if (_renaming is not { } lane || _busy)
         {
             return;
         }
 
-        EditResult result = await Actions.Beats.RenameLane(lane, _nameDraft.Trim());
-        _dirty = true;
-        if (result.Succeeded)
+        _busy = true;
+        try
         {
-            _renaming = null;
-            _renameError = null;
+            EditResult result = await Actions.Beats.RenameLane(lane, _nameDraft.Trim());
+            _dirty = true;
+            if (result.Succeeded)
+            {
+                _renaming = null;
+                _renameError = null;
+            }
+            else
+            {
+                _renameError = result.Refusal;
+            }
         }
-        else
+        finally
         {
-            _renameError = result.Refusal;
+            _busy = false;
         }
     }
 
-    private async Task RemoveAsync(BeatLane lane)
+    internal async Task RemoveAsync(BeatLane lane)
     {
         if (_busy)
         {

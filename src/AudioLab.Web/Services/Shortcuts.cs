@@ -253,23 +253,22 @@ public static class Shortcuts
     /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
 
-    /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     /// <summary>Move the focused drum lane one place earlier in the pattern.</summary>
-    public static readonly Shortcut DrumEarlier = new("drum.move.earlier", "Move drum lane earlier", "ArrowUp", Drums, Alt: true);
+    public static readonly Shortcut DrumEarlier = new("drum.move.earlier", "Move drum lane earlier", "ArrowUp", Drums, Ctrl: true);
 
     /// <summary>Move the focused drum lane one place later in the pattern.</summary>
-    public static readonly Shortcut DrumLater = new("drum.move.later", "Move drum lane later", "ArrowDown", Drums, Alt: true);
+    public static readonly Shortcut DrumLater = new("drum.move.later", "Move drum lane later", "ArrowDown", Drums, Ctrl: true);
 
-    /// <summary>Rename the focused drum lane.</summary>
-    public static readonly Shortcut DrumRename = new("drum.rename", "Rename drum lane", "F2", Drums);
+    /// <summary>Rename the focused drum lane. F2 is the track rename, so the lane takes R.</summary>
+    public static readonly Shortcut DrumRename = new("drum.rename", "Rename drum lane", "r", Drums);
 
     /// <summary>Remove the focused drum lane.</summary>
     public static readonly Shortcut DrumRemove = new("drum.remove", "Remove drum lane", "Delete", Drums);
 
-    /// <summary>The keys of a drum lane.</summary>
+    /// <summary>The keys of a drum lane, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> DrumLane = [DrumEarlier, DrumLater, DrumRename, DrumRemove];
 
-    /// <summary>The keys of an effect row.</summary>
+    /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> EffectChain =
     [
         EffectAddMenu, EffectRemove, EffectBypass, EffectEarlier, EffectLater, EffectPresets,
