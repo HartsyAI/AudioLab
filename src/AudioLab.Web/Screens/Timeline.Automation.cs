@@ -19,7 +19,10 @@ public sealed partial class Timeline
 
     private AutomationLanePlan PlanOf(Track track) => new(track.View.AutomationParameter, Geometry, TrackLayout.AutomationHeight);
 
-    private void OnLanesChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnLanesChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     // A pointer is dropped with the lane's drag when the document changed under it, so the drag is never sent from a stale lane.
     private void PruneAutomation()

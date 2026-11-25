@@ -7,9 +7,10 @@
     @for (int index = 0; index < Shown.Count; index++)
     {
         AutomationPoint point = Shown[index];
-        <div class="point" data-selected="@(index == SelectedIndex ? "true" : "false")"
+        int position = index;
+        <div class="point" data-selected="@(position == SelectedIndex ? "true" : "false")"
              style="left: @Css.Px(Plan.X(point.Time) - PointRadius); top: @Css.Px(Plan.Y(point.Value) - PointRadius)"
-             @onpointerdown="press => PointDownAsync(index, press)" @onpointerdown:stopPropagation="true"
+             @onpointerdown="press => PointDownAsync(position, press)" @onpointerdown:stopPropagation="true"
              @ondblclick:stopPropagation="true"></div>
     }
 </div>
