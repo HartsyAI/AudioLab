@@ -11,7 +11,7 @@ public sealed partial class LrcFileButton
     /// <summary>The id of the file chooser.</summary>
     public const string ChooserId = "lyrics-lrc-chooser";
 
-    private int _number;
+    private readonly ChooserTurn _turn = new();
 
     /// <summary>Whether the project can be edited, which an import does.</summary>
     [Parameter]
@@ -30,9 +30,5 @@ public sealed partial class LrcFileButton
 
     private void Choose() => Click.Click(ChooserId);
 
-    private async Task ChosenAsync(InputFileChangeEventArgs chosen)
-    {
-        await OnChosen.InvokeAsync(chosen);
-        _number++;
-    }
+    private Task ChosenAsync(InputFileChangeEventArgs chosen) => _turn.PickAsync(() => OnChosen.InvokeAsync(chosen));
 }

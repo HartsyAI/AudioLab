@@ -1,5 +1,5 @@
 <span class="group">
-    <InputFile @key="_number" id="@ChooserId" accept=".lrc,text/plain" OnChange="ChosenAsync" hidden tabindex="-1"
+    <InputFile @key="_turn.Number" id="@ChooserId" accept=".lrc,text/plain" OnChange="ChosenAsync" hidden tabindex="-1"
                aria-label="Choose an LRC file to import" />
     <Button Name="Import LRC file" Disabled="@(!CanEdit)" DisabledReason="@Reason" OnClick="Choose">Import LRC</Button>
 </span>

@@ -36,8 +36,6 @@ public sealed partial class LyricsPanel
 
     private string _shift = "0";
 
-    private const long MaxLrcBytes = ProjectLimits.MaxLongText * 4L;
-
     private string? _announcement;
 
     /// <summary>The document.</summary>
@@ -252,30 +250,10 @@ public sealed partial class LyricsPanel
             return;
         }
         IBrowserFile file = chosen.File;
-        if (file.Size > MaxLrcBytes)
-        {
-            Toasts.Show(ToastKind.Warning, "That file holds more text than a clip's lyrics may, so it was not read.");
-            return;
-        }
-        byte[] bytes;
-        try
-        {
-            using MemoryStream memory = new();
-            await using (Stream stream = file.OpenReadStream(MaxLrcBytes))
-            {
-                await stream.CopyToAsync(memory);
-            }
-            bytes = memory.ToArray();
-        }
-        catch (IOException)
-        {
-            Toasts.Show(ToastKind.Warning, "That file could not be read.");
-            return;
-        }
-        (string? text, string? refusal) = LrcFile.Read(bytes);
+        (string? text, string? refusal) = await LrcFile.ReadPickedAsync(file);
         if (refusal is not null || text is null)
         {
-            Toasts.Show(ToastKind.Warning, refusal ?? "That file could not be read.");
+            Toasts.Show(ToastKind.Warning, refusal ?? LrcFile.Unreadable);
             return;
         }
         EditResult result = await Actions.Lyrics.ImportLrc(found.Clip.Id, text);
