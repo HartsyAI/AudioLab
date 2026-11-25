@@ -16,6 +16,8 @@
             <span class="lyrics-source">@SourceText</span>
             <span class="lyrics-gap"></span>
             <LrcFileButton CanEdit="Actions.CanEdit" Reason="@Actions.Reason" OnChosen="ImportChosenAsync" />
+            <Button Name="Align text to audio" Disabled="true" DisabledReason="@Models.Unavailable">Align text</Button>
+            <Button Name="Transcribe audio" Disabled="true" DisabledReason="@Models.Unavailable">Transcribe</Button>
             <Field Label="Move words by (seconds)" Value="@_shift" ValueChanged="value => _shift = value" MaxLength="16" Placeholder="0.5" />
             <Button Name="Move words" Disabled="@ShiftDisabled" DisabledReason="@ShiftBlock" OnClick="ShiftAsync">Move words</Button>
             <Button Name="Clear timing" Disabled="@ClearDisabled" DisabledReason="@ClearBlock" OnClick="ClearAsync">Clear timing</Button>

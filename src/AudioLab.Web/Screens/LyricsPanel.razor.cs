@@ -52,6 +52,9 @@ public sealed partial class LyricsPanel : IDisposable
     [Inject]
     private ToastService Toasts { get; set; } = default!;
 
+    [Inject]
+    private ILyricsModels Models { get; set; } = default!;
+
     private (Track Track, AudioClip Clip)? Found => Selection.Clip is { } clip ? LyricsTiming.Find(Document, clip) : null;
 
     private ClipLyrics? Lyrics => Found?.Clip.Meta?.Lyrics;
