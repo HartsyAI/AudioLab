@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
 using AudioLab.Web.Components;
@@ -255,14 +254,29 @@ public sealed partial class LyricsPanel
         IBrowserFile file = chosen.File;
         if (file.Size > MaxLrcBytes)
         {
-            Toasts.Show(ToastKind.Warning, "That file is larger than a clip may hold as lyrics, so it was not read.");
+            Toasts.Show(ToastKind.Warning, "That file holds more text than a clip's lyrics may, so it was not read.");
             return;
         }
-        string text;
-        using (Stream stream = file.OpenReadStream(MaxLrcBytes))
-        using (StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        byte[] bytes;
+        try
         {
-            text = await reader.ReadToEndAsync();
+            using MemoryStream memory = new();
+            await using (Stream stream = file.OpenReadStream(MaxLrcBytes))
+            {
+                await stream.CopyToAsync(memory);
+            }
+            bytes = memory.ToArray();
+        }
+        catch (IOException)
+        {
+            Toasts.Show(ToastKind.Warning, "That file could not be read.");
+            return;
+        }
+        (string? text, string? refusal) = LrcFile.Read(bytes);
+        if (refusal is not null || text is null)
+        {
+            Toasts.Show(ToastKind.Warning, refusal ?? "That file could not be read.");
+            return;
         }
         EditResult result = await Actions.Lyrics.ImportLrc(found.Clip.Id, text);
         if (result.Succeeded)
