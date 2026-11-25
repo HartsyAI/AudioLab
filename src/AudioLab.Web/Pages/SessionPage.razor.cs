@@ -416,7 +416,7 @@ public sealed partial class SessionPage
             return false;
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
-        if (history && (Drags.Current is not null || RollDrags.Busy || LyricsDrags.Busy))
+        if (history && HistoryGate.Waits(Drags.Current is not null, RollDrags.Busy, LyricsDrags.Busy))
         {
             // A press is down on a clip, a word or the roll is on its way: undoing now would take back a step under it, so history waits.
             return true;

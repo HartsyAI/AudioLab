@@ -82,6 +82,10 @@
     width: min(var(--space-4), 33%);
 }
 
+.lyric-word[data-editable="true"] .word-bar {
+    cursor: grab;
+}
+
 .lyric-word[data-editable="true"] .word-grip {
     cursor: ew-resize;
 }
