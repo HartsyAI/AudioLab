@@ -53,8 +53,9 @@ public sealed class MasterRedrawTests
         Assert.Equal(1, mixer.Drawn.Count(type => type == typeof(ChannelStrip)));
         // What the redraw wrote is the master's: its name, its fader and its readout, and no track's.
         Assert.Contains("-6.0", mixer.Texts.Skip(textsBefore));
-        Assert.Contains(mixer.Attributes.Skip(attributesBefore), attribute => attribute.Value.StartsWith("Volume of Master:", StringComparison.Ordinal));
-        Assert.DoesNotContain(mixer.Attributes.Skip(attributesBefore), attribute => attribute.Value.StartsWith("Volume of Kick", StringComparison.Ordinal));
+        IEnumerable<string> written = mixer.Attributes.Skip(attributesBefore).Select(attribute => attribute.Value);
+        Assert.Contains(written, value => value.StartsWith("Volume of Master:", StringComparison.Ordinal));
+        Assert.DoesNotContain(written, value => value.StartsWith("Volume of Kick", StringComparison.Ordinal));
         await mixer.DisposeServicesAsync();
     }
 
