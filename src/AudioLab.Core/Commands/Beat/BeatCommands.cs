@@ -109,7 +109,7 @@ internal static class BeatCommands
 
     private static CommandResult SetSwing(ProjectDocument document, SetBeatSwing command, IIdService ids)
     {
-        return CommandChecks.Range(nameof(command.Swing), command.Swing, 0, 1)
+        return CommandChecks.Range(nameof(command.Swing), command.Swing, ProjectLimits.MinBeatSwing, ProjectLimits.MaxBeatSwing)
             ?? CommandResult.Ok(document with { BeatPattern = document.BeatPattern with { Swing = command.Swing } });
     }
 
