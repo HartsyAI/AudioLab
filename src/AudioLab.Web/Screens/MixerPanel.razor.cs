@@ -69,9 +69,10 @@ public sealed partial class MixerPanel
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender && OperatingSystem.IsBrowser())
+        // A knob or a fader takes the arrow keys, Home and End; without this the transport would also seek with them.
+        // Blazor calls this only once the components are drawn, so the guard is asked once, on the first draw.
+        if (firstRender)
         {
-            // A knob or a fader takes the arrow keys, Home and End; without this the transport would also seek with them.
             Guard.PreventNavigationKeys(_id, "slider");
         }
     }

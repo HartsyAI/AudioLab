@@ -1,5 +1,13 @@
 <label class="field">
     <span class="field-label">@Label</span>
-    <input class="field-input" type="text" value="@Value" maxlength="@MaxLength" placeholder="@Placeholder" autocomplete="off"
-           aria-invalid="@AriaInvalid" aria-describedby="@DescribedBy" @oninput="ChangedAsync" @attributes="Attributes" />
+    @if (Multiline)
+    {
+        <textarea class="field-input field-multiline" value="@Value" maxlength="@MaxLength" placeholder="@Placeholder"
+                  aria-invalid="@AriaInvalid" aria-describedby="@DescribedBy" @oninput="ChangedAsync" @attributes="Attributes"></textarea>
+    }
+    else
+    {
+        <input class="field-input" type="text" value="@Value" maxlength="@MaxLength" placeholder="@Placeholder" autocomplete="off"
+               aria-invalid="@AriaInvalid" aria-describedby="@DescribedBy" @oninput="ChangedAsync" @attributes="Attributes" />
+    }
 </label>

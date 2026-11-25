@@ -30,6 +30,12 @@ public static class ProjectLimits
     /// <summary>The most steps a drum pattern has.</summary>
     public const int MaxBeatSteps = 256;
 
+    /// <summary>The least swing a drum pattern takes.</summary>
+    public const double MinBeatSwing = 0;
+
+    /// <summary>The most swing a drum pattern takes.</summary>
+    public const double MaxBeatSwing = 1;
+
     /// <summary>The most lanes a drum pattern has.</summary>
     public const int MaxBeatLanes = 128;
 

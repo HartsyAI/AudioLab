@@ -104,6 +104,7 @@ public sealed partial class Timeline : IDisposable
     public void Dispose()
     {
         Selection.Changed -= OnSelectionChanged;
+        Lanes.AnnouncementChanged -= OnAnnouncement;
         if (_drag is { } drag)
         {
             // The screen went while a clip was lifted: the listeners are let go and the drag is dropped without a move.
@@ -117,6 +118,7 @@ public sealed partial class Timeline : IDisposable
     protected override void OnInitialized()
     {
         Selection.Changed += OnSelectionChanged;
+        Lanes.AnnouncementChanged += OnAnnouncement;
     }
 
     /// <inheritdoc />
@@ -131,6 +133,7 @@ public sealed partial class Timeline : IDisposable
         _length = SessionExtent.LengthSeconds(Document);
         _bars = BarGrid.Lines(Document, _length);
         Selection.Prune(Document);
+        PruneAutomation();
         if (_tabStop is not { } stop || TrackOf(stop) is null)
         {
             _tabStop = ClipNavigator.First(Document);
@@ -144,10 +147,13 @@ public sealed partial class Timeline : IDisposable
         {
             _guarded = true;
             Guard.PreventNavigationKeys(ElementId, "button");
+            Guard.PreventNavigationKeys(ElementId, "application");
         }
     }
 
     private void OnSelectionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnAnnouncement() => _ = InvokeAsync(StateHasChanged);
 
     private Task AddTrack() => Actions.AddTrack();
 

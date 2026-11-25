@@ -31,11 +31,18 @@ public sealed class SessionActions
     /// <summary>What can be done to MIDI clips.</summary>
     public MidiActions Midi { get; init; } = new();
 
+    /// <summary>What can be done to a clip's lyrics.</summary>
+    public LyricsActions Lyrics { get; init; } = new();
+
     /// <summary>What can be done to a track's effect chain.</summary>
     public EffectActions Effects { get; init; } = new();
 
     /// <summary>What can be done to a track's sends to the aux buses.</summary>
     public SendActions Sends { get; init; } = new();
+    /// <summary>What can be done to the drum pattern.</summary>
+    public BeatActions Beats { get; init; } = new();
+    /// <summary>What can be done to a track's automation lane.</summary>
+    public AutomationActions Automation { get; init; } = new();
 
     /// <summary>What can be done to a track group.</summary>
     public GroupActions Groups { get; init; } = new();
