@@ -83,6 +83,9 @@ public sealed partial class SessionPage
     private PlaybackService Playback { get; set; } = default!;
 
     [Inject]
+    private AutomationRecorder Recorder { get; set; } = default!;
+
+    [Inject]
     private EffectsNavigator Effects { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
@@ -141,6 +144,10 @@ public sealed partial class SessionPage
         _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
+        Recorder.Open(
+            Playback,
+            RecordingTarget,
+            (track, parameter, pass, mode) => _actions.Automation.CommitPass(track, parameter, pass, mode));
         Rebuild();
         try
         {
@@ -165,6 +172,8 @@ public sealed partial class SessionPage
 
     private async Task CloseAsync()
     {
+        // A project switch or a close drops the pass in progress, without committing it.
+        Recorder.Close();
         await _page.CancelAsync();
         if (_live is { } live)
         {
@@ -210,8 +219,39 @@ public sealed partial class SessionPage
 
     private void OnLiveChanged()
     {
+        // A connection that is lost or reconnecting drops a pass in progress: it is not committed on the next one.
+        if (_live is not { Ready: true })
+        {
+            Recorder.Drop();
+        }
         Rebuild();
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    // The first track whose lane is in a recording mode: one pass writes one lane.
+    private AutomationTarget? RecordingTarget()
+    {
+        if (_live?.Document is not { } document)
+        {
+            return null;
+        }
+        foreach (Track track in document.Tracks)
+        {
+            if (track.Automation.Mode is AutomationMode.Touch or AutomationMode.Latch or AutomationMode.Write)
+            {
+                TrackId id = track.Id;
+                AutomationParameter parameter = track.View.AutomationParameter;
+                return new AutomationTarget(id, parameter, track.Automation.Mode, () => RestingOf(id, parameter));
+            }
+        }
+        return null;
+    }
+
+    // The control's value when no one holds it: the track's fader or its pan, as the document holds them now.
+    private double RestingOf(TrackId track, AutomationParameter parameter)
+    {
+        Track? found = _live?.Document?.Tracks.FirstOrDefault(candidate => candidate.Id == track);
+        return found is null ? 0 : parameter == AutomationParameter.Pan ? found.Pan : found.Volume;
     }
 
     // New actions whenever the state changes, so the screen sees that it may edit, or why it may not.
@@ -417,6 +457,12 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
+        // Escape ends a pass that is recording without committing it; the transport keeps playing.
+        if (chord.Key == "Escape" && Recorder.Passing)
+        {
+            Recorder.Drop();
+            return true;
+        }
         if (RollKeys.Route(chord, TransportPress))
         {
             return true;

@@ -62,6 +62,7 @@ builder.Services.AddScoped<ProjectRenamer>();
 builder.Services.AddScoped<SessionSelection>();
 builder.Services.AddScoped<ClipDragState>();
 builder.Services.AddScoped<AutomationLanes>();
+builder.Services.AddScoped<AutomationRecorder>();
 builder.Services.AddScoped<BottomPanelState>();
 builder.Services.AddScoped<LyricsCursor>();
 builder.Services.AddScoped<LyricsDrags>();

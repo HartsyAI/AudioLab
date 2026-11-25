@@ -17,6 +17,9 @@ public sealed partial class Timeline
     [Inject]
     private AutomationLanes Lanes { get; set; } = default!;
 
+    [Inject]
+    private AutomationRecorder Recorder { get; set; } = default!;
+
     private AutomationLanePlan PlanOf(Track track) => new(track.View.AutomationParameter, Geometry, TrackLayout.AutomationHeight);
 
     // A pointer is dropped with the lane's drag when the document changed under it, so the drag is never sent from a stale lane.
@@ -109,6 +112,12 @@ public sealed partial class Timeline
         TrackId owner = track.Id;
         AutomationDrag drag = new(owner, lane, index, plan, x, y);
         Lanes.Begin(drag);
+        // While a touch or latch pass is recording, the drag is the held control: it records and sends no point move.
+        bool recorded = Recorder.RecordsLane(owner);
+        if (recorded)
+        {
+            Recorder.Grab(owner, drag.Value);
+        }
         // The surface scrolls under the pointer, so where the pointer is in the lane is read again on every move and on the release.
         Pointer.Begin(
             (px, py) =>
@@ -116,6 +125,7 @@ public sealed partial class Timeline
                 if (LaneCoordinates(owner, px, py, out double moveX, out double moveY))
                 {
                     drag.Move(moveX, moveY);
+                    Recorder.Move(owner, drag.Value);
                     Lanes.Moved();
                 }
             },
@@ -125,14 +135,29 @@ public sealed partial class Timeline
                 {
                     drag.Move(endX, endY);
                 }
-                _ = InvokeAsync(() => AutomationReleaseAsync(drag));
+                _ = InvokeAsync(() => AutomationReleaseAsync(drag, recorded));
             },
-            () => Lanes.End());
+            () =>
+            {
+                Lanes.End();
+                if (recorded)
+                {
+                    // Escape or a lost pointer drops the pass as well as the drag: nothing it recorded is committed.
+                    Recorder.Drop();
+                }
+            });
     }
 
     // The release sends the point as one gesture with absolute targets; the lane keeps the drag's landing until the server has answered.
-    private async Task AutomationReleaseAsync(AutomationDrag drag)
+    // A drag that was recorded releases its segment instead, and sends no point move.
+    private async Task AutomationReleaseAsync(AutomationDrag drag, bool recorded)
     {
+        if (recorded)
+        {
+            Recorder.Release(drag.Track, drag.Value);
+            Lanes.End();
+            return;
+        }
         AutomationMoveTarget? target = drag.Commit();
         if (target is not { } send)
         {
