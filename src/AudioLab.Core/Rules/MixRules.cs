@@ -5,6 +5,9 @@ namespace AudioLab.Core.Rules;
 /// <summary>What a track's mute, solo and gain mean once its group and the aux buses are counted. The engine and the UI read these.</summary>
 public static class MixRules
 {
+    /// <summary>The level a new send starts at: -6 dB, after the track's fader.</summary>
+    public const double DefaultSendLevel = 0.5;
+
     /// <summary>Whether a track is silent by its own mute or its group's.</summary>
     public static bool IsMuted(Track track, IEnumerable<TrackGroup> groups)
     {

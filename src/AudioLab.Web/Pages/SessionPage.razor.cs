@@ -22,6 +22,7 @@ public sealed partial class SessionPage
 
     private EffectEditor? _effects;
 
+    private SendEditor? _sends;
     private LyricsEditor? _lyrics;
     private BeatEditor? _beats;
     private AutomationEditor? _automation;
@@ -142,6 +143,7 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
+        _sends = new SendEditor(live);
         _lyrics = new LyricsEditor(live);
         _beats = new BeatEditor(live);
         _automation = new AutomationEditor(live);
@@ -188,6 +190,7 @@ public sealed partial class SessionPage
             _editor = null;
             _midi = null;
             _effects = null;
+            _sends = null;
             _lyrics = null;
             _beats = null;
             await live.DisposeAsync();
@@ -273,6 +276,7 @@ public sealed partial class SessionPage
                 AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
+                Sends = SendActions.For(_sends!, ShowAsync),
                 Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
                 Beats = BeatActions.For(_beats!, ShowAsync),
                 Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),
