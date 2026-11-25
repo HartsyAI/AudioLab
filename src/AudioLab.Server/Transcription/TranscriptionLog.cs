@@ -24,4 +24,13 @@ internal static partial class TranscriptionLog
 
     [LoggerMessage(EventId = 7, Level = LogLevel.Warning, Message = "A transcription file could not be read or removed: {Type}.")]
     public static partial void FileFailed(ILogger logger, string type);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "The speech model call failed.")]
+    public static partial void ModelCallFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Warning, Message = "The speech model could not be opened.")]
+    public static partial void ModelOpenFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 10, Level = LogLevel.Warning, Message = "The speech model was still running at the stop; its lease was left.")]
+    public static partial void ModelStillBusy(ILogger logger);
 }

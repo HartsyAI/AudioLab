@@ -5,6 +5,7 @@
        builds depend on what was published that day. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,8 +18,12 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageVersion Include="HartsyInference.Engine" Version="2.0.0-alpha.445" />
-    <PackageVersion Include="HartsyInference.Cuda" Version="2.0.0-alpha.445" />
+    <!-- Exact pins: the brackets forbid any other version, so a pre-release is used only as it was tested (D7). -->
+    <PackageVersion Include="HartsyInference.Engine" Version="[2.0.0-alpha.445]" />
+    <PackageVersion Include="HartsyInference.Cuda" Version="[2.0.0-alpha.445]" />
+    <!-- Pulled in by HartsyInference; pinned here at the versions it resolves to, so an update of the engine cannot move them silently. -->
+    <PackageVersion Include="Google.Protobuf" Version="[3.30.2]" />
+    <PackageVersion Include="Microsoft.ML.Tokenizers" Version="[2.0.0]" />
   </ItemGroup>
 
 </Project>
