@@ -3,10 +3,9 @@ using AudioLab.Server.Media;
 
 namespace AudioLab.Server.Decoding;
 
-/// <summary>
-/// Turns one compressed file into a 16-bit stereo WAV file at 48 kHz by running the pinned ffmpeg. The arguments are a fixed list with
-/// the two temporary paths, the input may be read from files only, and the run ends at the timeout, at the output limit or at exit.
-/// </summary>
+/// <summary>Turns one compressed file into a 16-bit stereo WAV file at 48 kHz by running the pinned ffmpeg. The arguments are a
+/// fixed list with the two temporary paths, the input may be read from files only, and the run ends at the timeout, at
+/// the output limit or at exit.</summary>
 public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launcher, DecoderLocation location, ILogger<FfmpegDecoder> logger)
 {
     /// <summary>The rate of the WAV file a decode writes, the project rate.</summary>

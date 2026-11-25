@@ -2,11 +2,10 @@ using AudioLab.Core.Api.Decoder;
 
 namespace AudioLab.Server.Decoding;
 
-/// <summary>
-/// The one decoder build this server pins: gyan.dev FFmpeg 9.0.2 essentials for Windows x64. The archive's SHA-256 is the vendor's own
-/// published value. <see cref="BinarySha256"/> is the checksum of <c>bin/ffmpeg.exe</c> read from that archive in the owner-approved live check;
-/// an empty value would mean no platform has a pinned build, and the install route would answer that none is available.
-/// </summary>
+/// <summary>The one decoder build this server pins: gyan.dev FFmpeg 9.0.2 essentials for Windows x64. The archive's SHA-256 is
+/// the vendor's own published value. <see cref="BinarySha256"/> is the checksum of <c>bin/ffmpeg.exe</c> read from that
+/// archive in the owner-approved live check; an empty value would mean no platform has a pinned build, and the install
+/// route would answer that none is available.</summary>
 public static class DecoderPin
 {
     private const string Version = "9.0.2";

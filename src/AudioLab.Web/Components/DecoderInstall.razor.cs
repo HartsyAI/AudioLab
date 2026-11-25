@@ -4,10 +4,9 @@ using Microsoft.AspNetCore.Components;
 
 namespace AudioLab.Web.Components;
 
-/// <summary>
-/// The Media tab's install of the optional audio decoder (D101). The button shows only when the server has a build for this platform
-/// and none is installed. The download starts only when the user confirms the version, source, size and checksum the dialog shows.
-/// </summary>
+/// <summary>The Media tab's install of the optional audio decoder (D101). The button shows only when the server has a build for
+/// this platform and none is installed. The download starts only when the user confirms the version, source, size and
+/// checksum the dialog shows.</summary>
 public sealed partial class DecoderInstall : IDisposable
 {
     // The install runs on the server; the page asks how it is going this often until it has finished.

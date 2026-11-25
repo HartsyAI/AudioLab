@@ -4,10 +4,8 @@ using AudioLab.Server.Decoding;
 
 namespace AudioLab.Server.Tests;
 
-/// <summary>
-/// Stands in for the ffmpeg process. It writes a valid WAV, exits with an error and writes nothing, or never exits until it is killed,
-/// and it counts the starts and the kills so a test can see what the decoder did.
-/// </summary>
+/// <summary>Stands in for the ffmpeg process. It writes a valid WAV, exits with an error and writes nothing, or never exits
+/// until it is killed, and it counts the starts and the kills so a test can see what the decoder did.</summary>
 internal sealed class FakeDecoderLauncher : IDecoderLauncher
 {
     public enum Mode

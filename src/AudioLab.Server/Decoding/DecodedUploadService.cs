@@ -4,10 +4,9 @@ using AudioLab.Server.Services;
 
 namespace AudioLab.Server.Decoding;
 
-/// <summary>
-/// Stores a compressed upload: spools it to a temporary file under the limit, decodes it to WAV, then hands the WAV to the media
-/// service, which checks it with the strict WAV reader and stores it like any upload. Every temporary file is removed on any outcome.
-/// </summary>
+/// <summary>Stores a compressed upload: spools it to a temporary file under the limit, decodes it to WAV, then hands the WAV to
+/// the media service, which checks it with the strict WAV reader and stores it like any upload. Every temporary file is
+/// removed on any outcome.</summary>
 public sealed class DecodedUploadService(
     MediaService media,
     DecoderInstaller installer,

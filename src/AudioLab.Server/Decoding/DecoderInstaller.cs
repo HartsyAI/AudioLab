@@ -4,10 +4,9 @@ using AudioLab.Core.Api.Decoder;
 
 namespace AudioLab.Server.Decoding;
 
-/// <summary>
-/// Installs the pinned decoder: downloads the archive the user confirmed, checks its SHA-256, extracts the one binary and checks
-/// that too, and reports what it is doing. A binary is run only after <see cref="VerifiedBinary"/> has matched its checksum.
-/// </summary>
+/// <summary>Installs the pinned decoder: downloads the archive the user confirmed, checks its SHA-256, extracts the one binary
+/// and checks that too, and reports what it is doing. A binary is run only after <see cref="VerifiedBinary"/> has
+/// matched its checksum.</summary>
 public sealed class DecoderInstaller
 {
     private const long MaxBinaryBytes = 512L * 1024 * 1024;
