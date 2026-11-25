@@ -148,6 +148,7 @@ public sealed partial class SessionPage
             Playback,
             RecordingTarget,
             (track, parameter, pass, mode) => _actions.Automation.CommitPass(track, parameter, pass, mode));
+        Recorder.Notice += OnRecorderNotice;
         Rebuild();
         try
         {
@@ -174,6 +175,7 @@ public sealed partial class SessionPage
     {
         // A project switch or a close drops the pass in progress, without committing it.
         Recorder.Close();
+        Recorder.Notice -= OnRecorderNotice;
         await _page.CancelAsync();
         if (_live is { } live)
         {
@@ -219,33 +221,26 @@ public sealed partial class SessionPage
 
     private void OnLiveChanged()
     {
-        // A connection that is lost or reconnecting drops a pass in progress: it is not committed on the next one.
+        // A connection that is lost or reconnecting drops a pass in progress: it is not committed on the next one, and the page says so.
         if (_live is not { Ready: true })
         {
-            Recorder.Drop();
+            Recorder.Lost("The connection was lost, so the pass was not written.");
         }
         Rebuild();
         _ = InvokeAsync(StateHasChanged);
     }
 
-    // The first track whose lane is in a recording mode: one pass writes one lane.
+    // The lane a pass records is the one RecordingLane names: none unless exactly one lane is in a recording mode the screen can choose.
     private AutomationTarget? RecordingTarget()
     {
-        if (_live?.Document is not { } document)
+        if (_live?.Document is not { } document || RecordingLane.Find(document) is not { } lane)
         {
             return null;
         }
-        foreach (Track track in document.Tracks)
-        {
-            if (track.Automation.Mode is AutomationMode.Touch or AutomationMode.Latch or AutomationMode.Write)
-            {
-                TrackId id = track.Id;
-                AutomationParameter parameter = track.View.AutomationParameter;
-                return new AutomationTarget(id, parameter, track.Automation.Mode, () => RestingOf(id, parameter));
-            }
-        }
-        return null;
+        return new AutomationTarget(lane.Track, lane.Parameter, lane.Mode, () => RestingOf(lane.Track, lane.Parameter));
     }
+
+    private void OnRecorderNotice(string text) => Toasts.Show(ToastKind.Warning, text);
 
     // The control's value when no one holds it: the track's fader or its pan, as the document holds them now.
     private double RestingOf(TrackId track, AutomationParameter parameter)

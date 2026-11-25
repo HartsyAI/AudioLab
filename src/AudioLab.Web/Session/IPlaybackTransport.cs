@@ -13,4 +13,7 @@ public interface IPlaybackTransport
 
     /// <summary>The playhead in seconds.</summary>
     public double Position { get; }
+
+    /// <summary>Whether the audio engine is running; false once it has failed or been let go, which ends a pass without a commit (D86).</summary>
+    public bool EngineRunning { get; }
 }

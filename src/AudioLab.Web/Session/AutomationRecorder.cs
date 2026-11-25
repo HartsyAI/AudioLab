@@ -3,14 +3,18 @@ using AudioLab.Core.Playback;
 
 namespace AudioLab.Web.Session;
 
-/// <summary>Records a pass of one track's automation while the transport plays, and commits it when playing stops (D72, D73).</summary>
+/// <summary>Records a pass of one track's automation while the transport plays, and commits it when playing stops or pauses (D72, D86).</summary>
 /// <remarks>
-/// A pass begins when the transport starts playing with a lane in a recording mode. It ends when the transport stops or pauses, and that commits
-/// it; a drop (a lost connection, a project switch, Escape) ends it without committing. The samples are the transport's own ticks, so there is no
-/// second clock. Playing again after a drop starts a pass only once the transport has left the playing state.
+/// A pass begins when the transport starts playing with a lane in a recording mode the screen can choose. It ends when the transport stops or
+/// pauses, and that commits it. A drop (Escape, a project switch) ends it without a commit and says nothing; a lost connection or a failed engine
+/// ends it without a commit and says why through <see cref="Notice"/>. The samples are the transport's own ticks, so there is no second clock.
+/// A new pass waits until the commit of the last one has landed.
 /// </remarks>
 public sealed class AutomationRecorder : IDisposable
 {
+    // A playhead that moves further than this between two ticks was seeked, not played: a new segment starts there, so no ramp crosses it.
+    private const double SeekGap = 0.5;
+
     private IPlaybackTransport? _transport;
 
     private Func<AutomationTarget?>? _target;
@@ -23,6 +27,8 @@ public sealed class AutomationRecorder : IDisposable
 
     private TransportState _last = TransportState.Stopped;
 
+    private Task _committing = Task.CompletedTask;
+
     private double _time;
 
     private double _value;
@@ -30,8 +36,8 @@ public sealed class AutomationRecorder : IDisposable
     /// <summary>Whether a pass is recording now.</summary>
     public bool Passing => _writer is { Passing: true };
 
-    /// <summary>The commit of the last pass that stopped; the transport does not wait for it, and a test may.</summary>
-    public Task Committing { get; private set; } = Task.CompletedTask;
+    /// <summary>Raised with a sentence when a pass is not written or cannot start, so the page can say why.</summary>
+    public event Action<string>? Notice;
 
     /// <summary>Starts following a transport: the target names the lane a new pass writes, and commit receives a finished pass.</summary>
     /// <param name="transport">The transport whose ticks are the samples.</param>
@@ -66,17 +72,23 @@ public sealed class AutomationRecorder : IDisposable
         _commit = null;
     }
 
-    /// <summary>Whether a lane's point drag is a touch or latch segment of the pass that is recording.</summary>
+    /// <summary>Whether a point drag of this lane is the held control of the pass: the lane and parameter are the pass's, in a touch or latch pass.</summary>
     /// <param name="track">The track whose lane is dragged.</param>
-    public bool RecordsLane(TrackId track) =>
-        Passing && _pass is { } pass && pass.Track == track && pass.Mode is AutomationMode.Touch or AutomationMode.Latch;
+    /// <param name="parameter">The parameter the lane shows now.</param>
+    public bool RecordsLane(TrackId track, AutomationParameter parameter) =>
+        Records(track) && _pass is { } pass && pass.Parameter == parameter && pass.Mode is AutomationMode.Touch or AutomationMode.Latch;
+
+    /// <summary>Whether a pass is recording this track's lane, in any mode: no point of that lane may change while it records.</summary>
+    /// <param name="track">The track whose lane is asked about.</param>
+    public bool Records(TrackId track) => Passing && _pass is { } pass && pass.Track == track;
 
     /// <summary>The control is grabbed at the playhead with a value: a touch or latch segment starts.</summary>
     /// <param name="track">The track whose lane is grabbed.</param>
+    /// <param name="parameter">The parameter the lane shows.</param>
     /// <param name="value">The value the control holds.</param>
-    public void Grab(TrackId track, double value)
+    public void Grab(TrackId track, AutomationParameter parameter, double value)
     {
-        if (!RecordsLane(track))
+        if (!RecordsLane(track, parameter))
         {
             return;
         }
@@ -90,7 +102,7 @@ public sealed class AutomationRecorder : IDisposable
     /// <param name="value">The value the control holds now.</param>
     public void Move(TrackId track, double value)
     {
-        if (RecordsLane(track))
+        if (Records(track))
         {
             _value = value;
         }
@@ -101,7 +113,7 @@ public sealed class AutomationRecorder : IDisposable
     /// <param name="value">The value the control holds on release.</param>
     public void Release(TrackId track, double value)
     {
-        if (!RecordsLane(track))
+        if (!Records(track))
         {
             return;
         }
@@ -117,8 +129,17 @@ public sealed class AutomationRecorder : IDisposable
         _pass = null;
     }
 
-    /// <inheritdoc />
-    public void Dispose() => Close();
+    /// <summary>Drops the pass that is recording because the page lost its connection or its project; the reason is raised as a notice.</summary>
+    /// <param name="reason">A sentence that says why the pass was not written.</param>
+    public void Lost(string reason)
+    {
+        if (!Passing)
+        {
+            return;
+        }
+        Drop();
+        Notice?.Invoke(reason);
+    }
 
     private void OnTransport()
     {
@@ -131,17 +152,32 @@ public sealed class AutomationRecorder : IDisposable
         _last = now;
         if (Passing && now != TransportState.Playing)
         {
+            if (!_transport.EngineRunning)
+            {
+                Lost("The audio engine stopped, so the pass was not written.");
+                return;
+            }
             Finish();
             return;
         }
         if (Passing)
         {
-            _time = _transport.Position;
-            _writer!.Sample(_time, Current());
+            double position = _transport.Position;
+            if (position < _time || position - _time > SeekGap)
+            {
+                _writer!.Jump(position, Current());
+            }
+            _writer!.Sample(position, Current());
+            _time = position;
             return;
         }
         if (began && _target?.Invoke() is { } target && target.Mode is AutomationMode.Write or AutomationMode.Touch or AutomationMode.Latch)
         {
+            if (!_committing.IsCompleted)
+            {
+                Notice?.Invoke("The last pass is still being written; a new pass starts when it lands.");
+                return;
+            }
             Begin(target);
         }
     }
@@ -169,8 +205,11 @@ public sealed class AutomationRecorder : IDisposable
         {
             return;
         }
-        // A write pass ends by handing the lane to touch, in the same gesture as its commits (D25).
+        // A write pass ends by handing the lane to touch, in the same gesture as its commits (D73).
         AutomationMode? after = target.Mode == AutomationMode.Write ? AutomationMode.Touch : null;
-        Committing = _commit!(target.Track, target.Parameter, committed, after);
+        _committing = _commit!(target.Track, target.Parameter, committed, after);
     }
+
+    /// <inheritdoc />
+    public void Dispose() => Close();
 }

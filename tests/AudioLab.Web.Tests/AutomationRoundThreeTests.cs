@@ -41,6 +41,16 @@ public sealed class AutomationRoundThreeTests
         Assert.Equal(string.Empty, AutomationMarks.Overlay(_plan, _points, lanes.Drag));
     }
 
+    /// <summary>A recorded drag moves no point, so it draws no landing that would snap back on the release.</summary>
+    [Fact]
+    public void ARecordedDragDrawsNoLanding()
+    {
+        AutomationDrag drag = new(_track, _points, 1, _plan, _plan.X(2), _plan.Y(0.2)) { Recorded = true };
+        drag.Move(_plan.X(2), _plan.Y(0.6));
+
+        Assert.Equal(string.Empty, AutomationMarks.Overlay(_plan, _points, drag));
+    }
+
     /// <summary>The selected point's mark is where the point is, and nothing is marked with no selection.</summary>
     [Fact]
     public void TheSelectedMarkFollowsTheSelection()

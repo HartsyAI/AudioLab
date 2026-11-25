@@ -15,6 +15,9 @@ internal sealed class FakePlaybackTransport : IPlaybackTransport
     /// <inheritdoc />
     public double Position { get; private set; }
 
+    /// <summary>Whether the engine runs; set to false to model a failed or let-go engine.</summary>
+    public bool EngineRunning { get; set; } = true;
+
     /// <summary>Sets the state and the playhead, and raises the change as the engine's status does.</summary>
     public void Tick(TransportState state, double position)
     {

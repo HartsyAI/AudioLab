@@ -62,6 +62,9 @@ public sealed class PlaybackService : IDisposable, IPlaybackTransport
     /// <summary>Whether the engine is playing.</summary>
     public TransportState Transport => _status?.State ?? TransportState.Stopped;
 
+    /// <summary>Whether the audio engine is running now: false while it is let go, failed or starting (D86).</summary>
+    public bool EngineRunning => Phase == PlaybackPhase.Ready;
+
     /// <summary>The playhead in seconds: what the audio thread is about to play, or where the playhead was last put.</summary>
     public double Position =>
         _worklet is { Primed: true } worklet && _status is { } status ? Folded(worklet.Position / status.SampleRate) : _requested;

@@ -62,6 +62,9 @@ public sealed class AutomationDrag
     /// <summary>The lane as the lane held it when the drag began; a lane that is no longer this one cancels the drag.</summary>
     public IReadOnlyList<AutomationPoint> Source => _points;
 
+    /// <summary>Whether this drag is the held control of a recording pass: it records a value and moves no point, so it draws no landing.</summary>
+    public bool Recorded { get; init; }
+
     /// <summary>Whether the pointer has travelled far enough for this to be a drag and not a click.</summary>
     public bool Active { get; private set; }
 

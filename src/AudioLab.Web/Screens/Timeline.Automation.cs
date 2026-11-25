@@ -23,12 +23,30 @@ public sealed partial class Timeline
     private AutomationLanePlan PlanOf(Track track) => new(track.View.AutomationParameter, Geometry, TrackLayout.AutomationHeight);
 
     // A pointer is dropped with the lane's drag when the document changed under it, so the drag is never sent from a stale lane.
+    // Stopping the pointer runs no release, so a recorded drag releases its held value here, and the pass goes on without it.
     private void PruneAutomation()
     {
-        if (Lanes.Prune(Document))
+        AutomationDrag? held = Lanes.Drag;
+        if (!Lanes.Prune(Document))
         {
-            Pointer.Stop();
+            return;
         }
+        Pointer.Stop();
+        if (held is { Recorded: true })
+        {
+            Recorder.Release(held.Track, held.Value);
+        }
+    }
+
+    // While a pass records a lane, that lane's points do not change: the pass writes them when it stops (D86).
+    private bool RecordingBlocks(TrackId track)
+    {
+        if (!Recorder.Records(track))
+        {
+            return false;
+        }
+        Lanes.Announce("A pass is recording this lane; its points change when it stops.");
+        return true;
     }
 
     // The lane's own pixels: across from the left of the lanes, and down from the top of the lane.
@@ -72,6 +90,10 @@ public sealed partial class Timeline
     // Adds a point unless the lane already holds one at that time and value: an identical point is a zero-height step and a second undo step.
     private async Task AddPointAsync(Track track, double time, double value)
     {
+        if (RecordingBlocks(track.Id))
+        {
+            return;
+        }
         IReadOnlyList<AutomationPoint> lane = AutomationRules.Lane(track.Automation, track.View.AutomationParameter);
         if (lane.Any(point => Math.Abs(point.Time - time) < 1e-9 && Math.Abs(point.Value - value) < 1e-9))
         {
@@ -110,13 +132,19 @@ public sealed partial class Timeline
             return;
         }
         TrackId owner = track.Id;
-        AutomationDrag drag = new(owner, lane, index, plan, x, y);
+        AutomationParameter parameter = track.View.AutomationParameter;
+        // While a touch or latch pass records this control, the drag is the held control: it records and moves no point, and draws no landing.
+        bool recorded = Recorder.RecordsLane(owner, parameter);
+        if (!recorded && RecordingBlocks(owner))
+        {
+            return;
+        }
+        AutomationDrag drag = new(owner, lane, index, plan, x, y) { Recorded = recorded };
         Lanes.Begin(drag);
-        // While a touch or latch pass is recording, the drag is the held control: it records and sends no point move.
-        bool recorded = Recorder.RecordsLane(owner);
         if (recorded)
         {
-            Recorder.Grab(owner, drag.Value);
+            Recorder.Grab(owner, parameter, drag.Value);
+            Lanes.Announce("The held value is recorded into the pass; the point does not move.");
         }
         // The surface scrolls under the pointer, so where the pointer is in the lane is read again on every move and on the release.
         Pointer.Begin(
@@ -125,7 +153,10 @@ public sealed partial class Timeline
                 if (LaneCoordinates(owner, px, py, out double moveX, out double moveY))
                 {
                     drag.Move(moveX, moveY);
-                    Recorder.Move(owner, drag.Value);
+                    if (recorded)
+                    {
+                        Recorder.Move(owner, drag.Value);
+                    }
                     Lanes.Moved();
                 }
             },
@@ -155,6 +186,12 @@ public sealed partial class Timeline
         if (recorded)
         {
             Recorder.Release(drag.Track, drag.Value);
+            Lanes.End();
+            return;
+        }
+        // A drag begun before the pass started and let go during it changes no point: the pass owns the lane until it stops.
+        if (RecordingBlocks(drag.Track))
+        {
             Lanes.End();
             return;
         }
@@ -220,6 +257,10 @@ public sealed partial class Timeline
 
     private async Task DeletePointAsync(Track track, AutomationParameter parameter, int index)
     {
+        if (RecordingBlocks(track.Id))
+        {
+            return;
+        }
         EditResult result = await Actions.Automation.Delete(track.Id, parameter, index);
         if (!result.Succeeded)
         {
@@ -236,6 +277,10 @@ public sealed partial class Timeline
         await _nudges.WaitAsync();
         try
         {
+            if (RecordingBlocks(track))
+            {
+                return;
+            }
             Track? current = CurrentTrack(track);
             if (current is null || !current.View.AutomationVisible || Lanes.Track != track || Lanes.Index is not { } index)
             {
