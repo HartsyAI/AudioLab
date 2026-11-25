@@ -11,6 +11,7 @@ public static class TranscriptionServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
         services.AddSingleton(options);
         services.AddSingleton<TranscriptionStore>();
         services.AddSingleton<IAudioWindowSource, StoredAudioWindowSource>();

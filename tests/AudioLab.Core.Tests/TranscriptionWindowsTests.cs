@@ -62,7 +62,8 @@ public sealed class TranscriptionWindowsTests
             {
                 answer.Add(new SpeechSegment(27.5, 28.5, "straddles", SpeechKind.Singing));
             }
-            kept.AddRange(TranscriptRules.Own(window, answer, duration));
+            Assert.True(TranscriptRules.TryOwn(window, answer, duration, out ValueList<TranscriptSegment> owned, out string problem), problem);
+            kept.AddRange(owned);
         }
         Assert.Equal(new double[] { 1, 27.5, 29, 55.5, 57 }, kept.Select(segment => segment.Start).ToArray());
     }

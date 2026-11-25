@@ -1,7 +1,10 @@
-
 namespace AudioLab.Server.Transcription;
 
 /// <summary>The background loop that runs transcription jobs, one chunk at a time. Requests never wait for it (D95).</summary>
+/// <remarks>
+/// Only the server's stop ends the loop (D93). A chunk in flight is finished before the stop pauses the running jobs; a failure of a chunk
+/// fails its job, and the loop goes on.
+/// </remarks>
 public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<TranscriptionWorker> logger) : BackgroundService
 {
     /// <inheritdoc />
@@ -9,10 +12,10 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<Transcri
     {
         try
         {
-            await jobs.WhenLoadedAsync();
+            await WhenLoadedAsync();
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (await RunOneTurnAsync(stoppingToken))
+                if (await RunOneTurnAsync())
                 {
                     continue;
                 }
@@ -21,7 +24,7 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<Transcri
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // The server is stopping: the chunk in flight is abandoned and the jobs are paused below.
+            // The server is stopping: the chunk in flight has finished, and the running jobs are paused below.
         }
         finally
         {
@@ -29,13 +32,25 @@ public sealed class TranscriptionWorker(TranscriptionJobs jobs, ILogger<Transcri
         }
     }
 
-    private async Task<bool> RunOneTurnAsync(CancellationToken stoppingToken)
+    private async Task WhenLoadedAsync()
     {
         try
         {
-            return await jobs.StepAsync(stoppingToken);
+            await jobs.WhenLoadedAsync();
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception)
+        {
+            TranscriptionLog.WorkerFailed(logger, exception.GetType().Name);
+        }
+    }
+
+    private async Task<bool> RunOneTurnAsync()
+    {
+        try
+        {
+            return await jobs.StepAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
         {
             TranscriptionLog.WorkerFailed(logger, exception.GetType().Name);
             return false;

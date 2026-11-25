@@ -128,7 +128,7 @@ public sealed class TranscriptionJobTests
         FakeSpeechModel model = new()
         {
             Answer = (call, window) => call == 2
-                ? [new SpeechSegment(0, 1, " ", SpeechKind.Speech)]
+                ? [new SpeechSegment(double.NaN, 1, "not a time", SpeechKind.Speech)]
                 : [new SpeechSegment(1, 2, "fine", SpeechKind.Speech)],
         };
         TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(TenHours), model);
@@ -170,15 +170,16 @@ public sealed class TranscriptionJobTests
         using TempFolder folder = new();
         await using TestStore store = TestStore.On(folder.Path);
         TranscriptionStore files = Files(store);
-        FakeSpeechModel model = new() { Fail = _ => new SpeechModelException("The speech model is not installed.", retryable: false) };
-        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(TenHours), model);
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(TenHours), new UnavailableSpeechModel());
         MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
         await jobs.StartAsync(Users.Alice, media, None);
 
         await RunToEndAsync(jobs);
 
-        Assert.Equal(TranscriptionState.Failed, (await StatusOfAsync(jobs, Users.Alice, media.Id)).State);
-        Assert.Equal(1, model.Calls);
+        TranscriptionStatus status = await StatusOfAsync(jobs, Users.Alice, media.Id);
+        Assert.Equal(TranscriptionState.Failed, status.State);
+        Assert.Equal("The speech model is not installed.", status.Reason);
+        Assert.Equal(0, status.ChunksDone);
     }
 
     [Fact]

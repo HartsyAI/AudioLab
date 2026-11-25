@@ -101,6 +101,9 @@ public sealed class TranscriptionStore(StoreRoot root, AtomicFile atomic, ILogge
     /// <summary>Removes a job's chunk log, so its work starts again.</summary>
     public void DeleteChunks(UserId user, MediaId id) => DeleteFile(Paths.TranscriptChunkFile(user, id));
 
+    /// <summary>Removes a stored transcript, so a job that is made again starts with none (D90).</summary>
+    public void DeleteTranscript(UserId user, MediaId id) => DeleteFile(Paths.TranscriptFile(user, id));
+
     /// <summary>Writes a transcript, atomically, after it has been checked; a document the server would not accept is refused.</summary>
     /// <exception cref="TranscriptRefusedException">The document is not one the server stores.</exception>
     public Task WriteTranscriptAsync(UserId user, MediaId id, TranscriptDocument document, CancellationToken cancellationToken)
