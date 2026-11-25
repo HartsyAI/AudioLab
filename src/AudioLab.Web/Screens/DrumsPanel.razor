@@ -1,0 +1,46 @@
+@using AudioLab.Core.Rules
+<div id="@PanelId" class="drums-panel" tabindex="-1">
+    <div class="drums-bar">
+        <div class="drums-setting">
+            <Slider Position="Pattern.Swing" Text="@SwingText" Label="Swing" />
+            <Field Label="Swing, 0 to 1" Value="_swingDraft" ValueChanged="SwingChanged" MaxLength="8" Invalid="!SwingValid" />
+            <Button OnClick="ApplySwingAsync" Disabled="!CanApplySwing" DisabledReason="@SwingBlock">Set swing</Button>
+        </div>
+        <div class="drums-setting">
+            <Field Label="Steps" Value="_stepsDraft" ValueChanged="StepsChanged" MaxLength="3" Invalid="!StepsValid" />
+            <Button OnClick="ApplyStepsAsync" Disabled="!CanApplySteps" DisabledReason="@StepsBlock">Set steps</Button>
+        </div>
+        <Button Variant="ButtonVariant.Primary" OnClick="AddLaneAsync" Disabled="!Actions.CanEdit" DisabledReason="@Block">Add lane</Button>
+    </div>
+    @if (Pattern.Lanes.Count == 0)
+    {
+        <EmptyState Heading="No drum lanes" Message="Add a lane for each sound in the pattern. Each lane has its own steps.">
+            <Button Variant="ButtonVariant.Primary" OnClick="AddLaneAsync" Disabled="!Actions.CanEdit" DisabledReason="@Block">Add lane</Button>
+        </EmptyState>
+    }
+    else
+    {
+        <ol class="drums-lanes" aria-label="Drum lanes">
+            @for (int index = 0; index < Pattern.Lanes.Count; index++)
+            {
+                BeatLane lane = Pattern.Lanes[index];
+                bool first = index == 0;
+                bool last = index == Pattern.Lanes.Count - 1;
+                <li @key="lane.Id" id="@RowId(lane.Id)" class="drums-lane" tabindex="-1">
+                    <span class="drums-index">@(index + 1)</span>
+                    <span class="drums-name">@lane.Name</span>
+                    <Button OnClick="() => MoveAsync(lane.Id, MoveDirection.Up)" Disabled="!Actions.CanEdit || first"
+                            DisabledReason="@(first ? "It is the first lane." : Block)">Up</Button>
+                    <Button OnClick="() => MoveAsync(lane.Id, MoveDirection.Down)" Disabled="!Actions.CanEdit || last"
+                            DisabledReason="@(last ? "It is the last lane." : Block)">Down</Button>
+                    <Button OnClick="() => BeginRename(lane)" Disabled="!Actions.CanEdit" DisabledReason="@Block">Rename</Button>
+                    <Button Variant="ButtonVariant.Danger" OnClick="() => RemoveAsync(lane.Id)" Disabled="!Actions.CanEdit" DisabledReason="@Block">Remove</Button>
+                </li>
+            }
+        </ol>
+    }
+    <Dialog Title="Rename drum lane" ConfirmText="Rename lane" Open="_renaming is not null" OpenChanged="CloseRename" OnConfirm="RenameAsync"
+            ConfirmDisabled="string.IsNullOrWhiteSpace(_nameDraft)" Error="_renameError">
+        <Field Label="Name" Value="_nameDraft" ValueChanged="NameChanged" MaxLength="200" />
+    </Dialog>
+</div>

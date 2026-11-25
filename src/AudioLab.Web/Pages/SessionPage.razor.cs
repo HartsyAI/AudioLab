@@ -22,6 +22,8 @@ public sealed partial class SessionPage
 
     private EffectEditor? _effects;
 
+    private BeatEditor? _beats;
+
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
     private string? _opened;
@@ -126,6 +128,7 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
+        _beats = new BeatEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
         Rebuild();
@@ -161,6 +164,7 @@ public sealed partial class SessionPage
             _editor = null;
             _midi = null;
             _effects = null;
+            _beats = null;
             await live.DisposeAsync();
         }
     }
@@ -220,6 +224,7 @@ public sealed partial class SessionPage
                 AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
+                Beats = BeatActions.For(_beats!, ShowAsync),
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),

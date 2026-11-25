@@ -24,8 +24,8 @@ public sealed partial class BottomPanel : IDisposable
 
     private static IReadOnlyList<string> Names { get; } =
         [
-            BottomPanelState.Mixer, "Media", "Clip editor", BottomPanelState.PianoRoll, BottomPanelState.Effects, "Instruments", "Stems", "Score",
-            "Lyrics", "Voice agent",
+            BottomPanelState.Mixer, "Media", "Clip editor", BottomPanelState.PianoRoll, BottomPanelState.Effects, BottomPanelState.Drums,
+            "Instruments", "Stems", "Score", "Lyrics", "Voice agent",
         ];
 
     /// <inheritdoc />
