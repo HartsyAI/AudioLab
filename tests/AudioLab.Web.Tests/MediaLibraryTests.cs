@@ -309,6 +309,28 @@ public sealed class MediaLibraryTests
         Assert.Equal(3, library.Files.Count);
     }
 
+    /// <summary>Cancelling a compressed file that is still waiting its turn takes no place, so the next one still goes one at a time.</summary>
+    [Fact]
+    public async Task CancellingAWaitingCompressedFileDoesNotFreeAPlaceItNeverHad()
+    {
+        FakeMediaServer server = new([]) { UploadDelay = TimeSpan.FromMilliseconds(80) };
+        (MediaLibrary library, _) = Library(server);
+
+        IReadOnlyList<UploadJob> jobs = library.Add(
+        [
+            new CompressedSource("a.mp3", "audio/mpeg", [1, 2, 3]),
+            new CompressedSource("b.mp3", "audio/mpeg", [4, 5, 6]),
+            new CompressedSource("c.flac", "audio/flac", [7, 8, 9]),
+        ]);
+        // The first is sending, so the other two are waiting for the one decode place.
+        await UntilAsync(() => server.MostAtOnce == 1);
+        library.Cancel(jobs[1].Id);
+        await UntilAsync(() => library.Files.Count == 2);
+
+        Assert.Equal(1, server.MostAtOnce);
+        Assert.Equal(2, library.Files.Count);
+    }
+
     private static MediaSummary Gone(string id)
     {
         return new MediaSummary(

@@ -13,8 +13,8 @@ internal static partial class DecoderLog
     [LoggerMessage(Level = LogLevel.Warning, Message = "Decoder refused to run: {Reason}")]
     public static partial void Refused(ILogger logger, string reason);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Decode exited with code {ExitCode}; stderr: {Stderr}")]
-    public static partial void DecodeEnded(ILogger logger, int exitCode, string stderr);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Decode exited with code {ExitCode}; stderr: {Stderr} (kept {Kept} of {Total} bytes)")]
+    public static partial void DecodeEnded(ILogger logger, int exitCode, string stderr, long kept, long total);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Decode was stopped: {Reason}")]
     public static partial void DecodeStopped(ILogger logger, string reason);

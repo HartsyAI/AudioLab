@@ -257,17 +257,20 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
         // A compressed file takes the decode place first, so a batch of them goes one at a time and the server's one decode per user
         // is never a refusal the page caused; WAV files take only the upload places, and run beside them.
         bool decodePlace = !MediaTypes.IsWav(job.Source.ContentType);
+        // Set only once the decode place is taken: a wait cancelled while it is queued takes no place, and gives none back.
+        bool holdsDecodePlace = false;
         try
         {
             if (decodePlace)
             {
                 await _limits.Decodes.AcquireAsync(cancellation.Token);
+                holdsDecodePlace = true;
             }
             await _limits.Slots.AcquireAsync(cancellation.Token);
         }
         catch (OperationCanceledException)
         {
-            if (decodePlace)
+            if (holdsDecodePlace)
             {
                 _limits.Decodes.Release();
             }
@@ -317,7 +320,7 @@ public sealed class MediaLibrary(MediaApi api, ToastService toasts, TimeProvider
             _limits.Release(job);
             job.Cancellation = null;
             _limits.Slots.Release();
-            if (decodePlace)
+            if (holdsDecodePlace)
             {
                 _limits.Decodes.Release();
             }

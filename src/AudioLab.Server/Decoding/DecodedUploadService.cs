@@ -24,7 +24,7 @@ public sealed class DecodedUploadService(
 
     private int _spooled;
 
-    /// <summary>How many uploads have started to spool a file, counted for the tests and for the log of a busy server.</summary>
+    /// <summary>How many uploads have started to spool a file. The tests read it to check that refused uploads write nothing.</summary>
     public int SpoolCount => Volatile.Read(ref _spooled);
 
     /// <summary>The demuxer the decoder may read a file of this content type with, so a file that is not the type it says it is is refused.</summary>
@@ -72,6 +72,7 @@ public sealed class DecodedUploadService(
             // hashing the binary, checking the quota or writing a byte to disk. Each user has one slot and the server two.
             using (gate.Enter(user))
             {
+                EnsureTempFolder();
                 if (!installer.Supported)
                 {
                     throw new DecoderNotInstalledException(
@@ -94,6 +95,21 @@ public sealed class DecodedUploadService(
         {
             TryDelete(source);
             TryDelete(output);
+        }
+    }
+
+    // A missing or unwritable temporary folder is a refusal with its reason, not a server error; WAV uploads do not use the folder.
+    private void EnsureTempFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(location.TempFolder);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new DecoderNotInstalledException(
+                "The server cannot write the temporary folder its audio decoder uses, so compressed audio cannot be decoded now. "
+                + "Upload a WAV file instead.");
         }
     }
 

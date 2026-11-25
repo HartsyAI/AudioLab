@@ -50,7 +50,7 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         limit.CancelAfter(options.Timeout);
         bool timedOut = false;
         bool tooLarge = false;
-        Task<string> stderr = CaptureAsync(process.StandardError, options.StderrCapBytes);
+        Task<StderrCapture> stderr = CaptureAsync(process.StandardError, options.StderrCapBytes);
         Task drain = process.StandardOutput.CopyToAsync(Stream.Null, CancellationToken.None);
         try
         {
@@ -80,11 +80,11 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
             }
         }
         // After the kill, a pipe that a surviving grandchild holds must not keep the decode waiting, so both reads are bounded.
-        string message = (await WithinAsync(stderr, string.Empty)).Trim();
+        StderrCapture captured = await WithinAsync(stderr, new StderrCapture(string.Empty, 0, 0));
         await WithinAsync(drain);
         // The output is measured after the exit too: a process that finished quickly can still have written past the limit.
         tooLarge |= FileLength(output) > maxOutputBytes;
-        DecodeOutcome(process.HasExited ? process.ExitCode : -1, output, message, timedOut, tooLarge, maxOutputBytes);
+        DecodeOutcome(process.HasExited ? process.ExitCode : -1, output, captured, timedOut, tooLarge, maxOutputBytes);
     }
 
     private IDecoderProcess StartProcess(string binary, IReadOnlyList<string> arguments)
@@ -112,7 +112,7 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         await Task.WhenAny(task, Task.Delay(_reapWait));
     }
 
-    private void DecodeOutcome(int exitCode, string output, string stderr, bool timedOut, bool tooLarge, long maxOutputBytes)
+    private void DecodeOutcome(int exitCode, string output, StderrCapture captured, bool timedOut, bool tooLarge, long maxOutputBytes)
     {
         if (timedOut)
         {
@@ -128,7 +128,7 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
         }
         if (exitCode != 0 || FileLength(output) == 0)
         {
-            DecoderLog.DecodeEnded(logger, exitCode, Truncate(stderr));
+            DecoderLog.DecodeEnded(logger, exitCode, Truncate(captured.Text.Trim()), captured.Kept, captured.Total);
             TryDelete(output);
             throw new MediaRejectedException("The file is not audio the server can read.");
         }
@@ -166,21 +166,26 @@ public sealed class FfmpegDecoder(DecoderOptions options, IDecoderLauncher launc
     ];
 
     // Keeps the first cap bytes for the log and reads the rest, so the process never blocks on a full pipe.
-    private static async Task<string> CaptureAsync(Stream stream, int cap)
+    private static async Task<StderrCapture> CaptureAsync(Stream stream, int cap)
     {
         byte[] buffer = new byte[4096];
         using MemoryStream kept = new();
+        long total = 0;
         int read;
         while ((read = await stream.ReadAsync(buffer)) > 0)
         {
+            total += read;
             int room = cap - (int)kept.Length;
             if (room > 0)
             {
                 kept.Write(buffer, 0, Math.Min(room, read));
             }
         }
-        return Encoding.UTF8.GetString(kept.ToArray());
+        return new StderrCapture(Encoding.UTF8.GetString(kept.ToArray()), kept.Length, total);
     }
+
+    /// <summary>What the decoder wrote to its error output: the kept text, how many bytes were kept, and how many it wrote in all.</summary>
+    private sealed record StderrCapture(string Text, long Kept, long Total);
 
     // Kills the tree and waits briefly for the exit, so the output file is no longer held when the caller removes it.
     private async Task StopAsync(IDecoderProcess process)

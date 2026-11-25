@@ -86,6 +86,7 @@ public sealed class DecodedUploadTests
         // The fake is not ffmpeg, so this asserts the whitelist that a real ffmpeg is given; the refusal here is the fake's exit.
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         int at = launcher.LastArguments.ToList().IndexOf("-format_whitelist");
+        Assert.True(at >= 0, "the process was not given a demuxer whitelist");
         Assert.Equal("mp3", launcher.LastArguments[at + 1]);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
@@ -226,15 +227,27 @@ public sealed class DecodedUploadTests
     }
 
     [Fact]
-    public async Task ADecodedFileOverTheUploadLimitIsRefusedWith413()
+    public async Task ADecodedFileOverTheUploadLimitIsStoppedByTheDecoderAfterItExits()
     {
+        // The fake writes past the limit and exits at once, so only the check after the exit can see it. The decoder stops the decode
+        // itself, and the log says so, before the media service would have judged the size.
         FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Succeed };
+        List<string> messages = [];
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
         Dictionary<string, string?> settings = new() { ["AudioLab:Media:MaxUploadBytes"] = "1024" };
-        await using RunningServer server = await StartInstalledAsync(launcher, settings);
+        await using RunningServer server = await DecoderTestSupport.StartAsync(
+            build,
+            new FakeDecoderDownloader(),
+            launcher,
+            settings,
+            services => services.AddSingleton<ILogger<FfmpegDecoder>>(new CapturingLogger<FfmpegDecoder>(messages)));
+        DecoderTestSupport.PlaceBinary(server, build, DecoderTestSupport.Binary);
 
         using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "long.mp3", Mp3);
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Single(messages, message => message == "Decode was stopped: the output limit");
         Assert.Empty(DecoderTestSupport.TempFiles(server));
     }
 
@@ -261,7 +274,7 @@ public sealed class DecodedUploadTests
             build,
             new FakeDecoderDownloader(),
             launcher,
-            TimeLimit("00:00:10"),
+            new Dictionary<string, string?> { ["AudioLab:Decoder:Timeout"] = "00:00:10", ["AudioLab:Decoder:StderrCapBytes"] = "1024" },
             services => services.AddSingleton<ILogger<FfmpegDecoder>>(new CapturingLogger<FfmpegDecoder>(messages)));
         DecoderTestSupport.PlaceBinary(server, build, DecoderTestSupport.Binary);
 
@@ -271,9 +284,9 @@ public sealed class DecodedUploadTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
         string logged = Assert.Single(messages, message => message.StartsWith("Decode exited", StringComparison.Ordinal));
-        string excerpt = logged[(logged.IndexOf("stderr: ", StringComparison.Ordinal) + "stderr: ".Length)..];
-        Assert.Equal(200, excerpt.Length);
-        Assert.All(excerpt, character => Assert.Equal('e', character));
+        // The log has 200 characters of what was kept. It also says how much was kept: a read with no cap keeps all 200 KiB.
+        Assert.Contains($"stderr: {new string('e', 200)} (kept 1024 of 204800 bytes)", logged, StringComparison.Ordinal);
+        Assert.DoesNotContain(new string('e', 201), logged, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -348,5 +361,22 @@ public sealed class DecodedUploadTests
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("does not match its pinned checksum", await response.Content.ReadAsStringAsync());
         Assert.Equal(1, launcher.Starts);
+    }
+
+    [Fact]
+    public async Task AMissingTemporaryFolderIsARefusalWithItsReasonNotAServerError()
+    {
+        FakeDecoderLauncher launcher = new();
+        await using RunningServer server = await StartInstalledAsync(launcher);
+        string temp = server.Services.GetRequiredService<DecoderLocation>().TempFolder;
+        Directory.Delete(temp, recursive: true);
+        // A file where the folder belongs: the folder cannot be made again, so the refusal must come from the check, not from a retry.
+        File.WriteAllText(temp, "not a folder");
+
+        using HttpResponseMessage response = await DecoderTestSupport.UploadAsync(server, _compressedFile, "song.mp3", Mp3);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("temporary folder", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(0, launcher.Starts);
     }
 }

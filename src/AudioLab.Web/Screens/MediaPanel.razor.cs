@@ -141,10 +141,14 @@ public sealed partial class MediaPanel : IDisposable
         ? string.Empty
         : $"Deleting \"{_target.Name}\" removes the file from your library for good. This cannot be undone.";
 
+    // The hint names the compressed types once the decoder is installed, so the panel redraws when the install finishes.
+    private void OnDecoderChanged() => _ = InvokeAsync(StateHasChanged);
+
     /// <inheritdoc />
     public void Dispose()
     {
         Library.Changed -= OnChanged;
+        Decoder.Changed -= OnDecoderChanged;
         Dragger.Cancel();
         _tick?.Dispose();
         _request?.Cancel();
@@ -156,6 +160,7 @@ public sealed partial class MediaPanel : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Library.Changed += OnChanged;
+        Decoder.Changed += OnDecoderChanged;
         _tick = Time.CreateTimer(_ => OnTick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         // Opening the tab reads the list again, so a file added or deleted from another window is there.
         await Library.RefreshAsync(_panel.Token);

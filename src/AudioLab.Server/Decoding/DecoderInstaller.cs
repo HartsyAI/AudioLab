@@ -23,6 +23,10 @@ public sealed class DecoderInstaller
     private long _received;
     private string? _reason;
     private (string Path, long Length, DateTime Written)? _statusCheck;
+    private int _hashes;
+
+    /// <summary>How many times a binary or archive has been hashed, for the tests that check the hash is not repeated needlessly.</summary>
+    public int HashCount => Volatile.Read(ref _hashes);
     private bool _statusVerified;
 
     /// <summary>Creates the installer for the build this platform has, or none when it has none.</summary>
@@ -259,7 +263,7 @@ public sealed class DecoderInstaller
     }
 
     // Only the one named entry is read, and only into the fixed temporary path: no name from the archive is ever a path.
-    private static void ExtractBinary(string archive, string binary, DecoderBuild build)
+    private void ExtractBinary(string archive, string binary, DecoderBuild build)
     {
         using ZipArchive zip = ZipFile.OpenRead(archive);
         ZipArchiveEntry? entry = zip.GetEntry(build.EntryName);
@@ -296,8 +300,9 @@ public sealed class DecoderInstaller
         return false;
     }
 
-    private static string HashFile(string path)
+    private string HashFile(string path)
     {
+        Interlocked.Increment(ref _hashes);
         using FileStream stream = File.OpenRead(path);
         return Convert.ToHexStringLower(SHA256.HashData(stream));
     }

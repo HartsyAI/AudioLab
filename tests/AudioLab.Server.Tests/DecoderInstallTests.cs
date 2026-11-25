@@ -235,7 +235,9 @@ public sealed class DecoderInstallTests
         Assert.Contains("stopped unexpectedly", status.GetProperty("reason").GetString());
         Assert.Empty(DecoderTestSupport.TempFiles(server));
         // Logged once, with the exception's type; the exception itself still ends the install as a failure.
-        Assert.Single(messages, message => message.StartsWith("Decoder install stopped unexpectedly: InvalidOperationException", StringComparison.Ordinal));
+        Assert.Single(
+            messages,
+            message => message.StartsWith("Decoder install stopped unexpectedly: InvalidOperationException", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -277,5 +279,35 @@ public sealed class DecoderInstallTests
         string folder = server.Services.GetRequiredService<DecoderLocation>().Folder;
         string[] files = Directory.GetFiles(folder, "*", SearchOption.AllDirectories);
         Assert.Equal(new[] { DecoderTestSupport.BinaryPath(server, build) }, files);
+    }
+
+    [Fact]
+    public async Task StatusHashesAnUnchangedBinaryOnceAndHashesAgainAfterItChanges()
+    {
+        byte[] archive = DecoderTestSupport.Archive(DecoderTestSupport.Binary);
+        DecoderBuild build = DecoderTestSupport.BuildFor(archive, DecoderTestSupport.Binary);
+        await using RunningServer server = await DecoderTestSupport.StartAsync(build, new FakeDecoderDownloader(), new FakeDecoderLauncher());
+        DecoderTestSupport.PlaceBinary(server, build, DecoderTestSupport.Binary);
+        DecoderInstaller installer = server.Services.GetRequiredService<DecoderInstaller>();
+
+        Assert.True(await StatusInstalledAsync(server));
+        int afterFirst = installer.HashCount;
+        Assert.True(await StatusInstalledAsync(server));
+        Assert.Equal(afterFirst, installer.HashCount);
+
+        // Same length, different bytes, a later write time: the status must look again and report the mismatch.
+        string path = DecoderTestSupport.BinaryPath(server, build);
+        DecoderTestSupport.PlaceBinary(server, build, Enumerable.Repeat((byte)'x', DecoderTestSupport.Binary.Length).ToArray());
+        File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(path).AddMinutes(1));
+        Assert.False(await StatusInstalledAsync(server));
+        Assert.Equal(afterFirst + 1, installer.HashCount);
+    }
+
+    private static async Task<bool> StatusInstalledAsync(RunningServer server)
+    {
+        using HttpRequestMessage request = DecoderTestSupport.Request(HttpMethod.Get, "/api/decoder");
+        using HttpResponseMessage response = await server.Client.SendAsync(request);
+        using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement.GetProperty("installed").GetBoolean();
     }
 }
