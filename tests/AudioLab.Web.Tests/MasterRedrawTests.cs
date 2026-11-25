@@ -1,4 +1,4 @@
-﻿using AudioLab.Core.Model;
+using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Screens;

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using AudioLab.Core.Model;
 using AudioLab.Web.Components;
 using AudioLab.Web.Interop;
