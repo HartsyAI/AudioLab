@@ -86,6 +86,12 @@ public sealed partial class SessionPage
     private PlaybackService Playback { get; set; } = default!;
 
     [Inject]
+    private AutomationRecorder Recorder { get; set; } = default!;
+
+    [Inject]
+    private IAutomationModeRules AutomationModes { get; set; } = default!;
+
+    [Inject]
     private EffectsNavigator Effects { get; set; } = default!;
 
     // Red means recording alone, so a connection that is lost or a project that cannot be followed is a caution, never an alarm.
@@ -146,6 +152,11 @@ public sealed partial class SessionPage
         _automation = new AutomationEditor(live);
         live.Changed += OnLiveChanged;
         Playback.Follow(live);
+        Recorder.Open(
+            Playback,
+            RecordingTarget,
+            (track, parameter, pass, mode) => _actions.Automation.CommitPass(track, parameter, pass, mode));
+        Recorder.Notice += OnRecorderNotice;
         Rebuild();
         try
         {
@@ -170,6 +181,9 @@ public sealed partial class SessionPage
 
     private async Task CloseAsync()
     {
+        // A project switch or a close drops the pass in progress, without committing it.
+        Recorder.Close();
+        Recorder.Notice -= OnRecorderNotice;
         await _page.CancelAsync();
         if (_live is { } live)
         {
@@ -217,8 +231,32 @@ public sealed partial class SessionPage
 
     private void OnLiveChanged()
     {
+        // A connection that is lost or reconnecting drops a pass in progress: it is not committed on the next one, and the page says so.
+        if (_live is not { Ready: true })
+        {
+            Recorder.Lost("The connection was lost, so the pass was not written.");
+        }
         Rebuild();
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    // The lane a pass records is the one RecordingLane names: none unless exactly one lane is in a recording mode the screen can choose.
+    private AutomationTarget? RecordingTarget()
+    {
+        if (_live?.Document is not { } document || RecordingLane.Find(document, AutomationModes.UnavailableReason) is not { } lane)
+        {
+            return null;
+        }
+        return new AutomationTarget(lane.Track, lane.Parameter, lane.Mode, () => RestingOf(lane.Track, lane.Parameter));
+    }
+
+    private void OnRecorderNotice(string text) => Toasts.Show(ToastKind.Warning, text);
+
+    // The control's value when no one holds it: the track's fader or its pan, as the document holds them now.
+    private double RestingOf(TrackId track, AutomationParameter parameter)
+    {
+        Track? found = _live?.Document?.Tracks.FirstOrDefault(candidate => candidate.Id == track);
+        return found is null ? 0 : parameter == AutomationParameter.Pan ? found.Pan : found.Volume;
     }
 
     // New actions whenever the state changes, so the screen sees that it may edit, or why it may not.
@@ -426,6 +464,12 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
+        // Escape ends a pass that is recording without committing it; the transport keeps playing.
+        if (chord.Key == "Escape" && Recorder.Passing)
+        {
+            Recorder.Drop();
+            return true;
+        }
         if (RollKeys.Route(chord, TransportPress))
         {
             return true;
