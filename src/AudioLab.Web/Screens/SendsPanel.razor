@@ -3,9 +3,20 @@
         <span class="sends-title">Sends</span>
         @if (Selected is { Kind: not TrackKind.Bus } && AddItems.Count > 0)
         {
-            <Menu Label="Add send" Items="AddItems" OnSelect="AddAsync" />
+            @if (Actions.CanEdit)
+            {
+                <Menu Label="Add send" Items="AddItems" OnSelect="AddAsync" />
+            }
+            else
+            {
+                <Button Disabled="true" DisabledReason="@Actions.Reason">Add send</Button>
+            }
         }
     </header>
+    @if (!Actions.CanEdit && Selected is { Kind: not TrackKind.Bus })
+    {
+        <p class="sends-note">@Actions.Reason</p>
+    }
     @if (Selected is null)
     {
         <p class="sends-note">Select a track to see its sends.</p>
