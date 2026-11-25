@@ -22,27 +22,33 @@
     pointer-events: none;
 }
 
-.line path {
+.curve {
     fill: none;
     stroke-width: 1.5;
     stroke-linejoin: round;
 }
 
-.point {
-    position: absolute;
-    width: var(--space-8);
-    height: var(--space-8);
-    border-radius: var(--radius-round);
-    background: var(--control-cap);
-    box-shadow: var(--shadow-cap);
-    cursor: ns-resize;
+.marks {
+    fill: none;
+    stroke: var(--control-cap);
+    stroke-width: var(--space-8);
+    stroke-linecap: round;
 }
 
-.point[data-selected="true"] {
-    background: var(--playhead);
+.selected {
+    fill: none;
+    stroke: var(--playhead);
+    stroke-width: var(--space-8);
+    stroke-linecap: round;
 }
 
-.automation[data-editable="false"] .point {
+.overlay {
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 1.5;
+    stroke-dasharray: var(--space-4) var(--space-4);
+}
+
+.automation[data-editable="false"] .marks {
     opacity: 0.5;
-    cursor: default;
 }

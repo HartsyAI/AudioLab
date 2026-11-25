@@ -5,10 +5,11 @@ using AudioLab.Web.Session;
 namespace AudioLab.Web.Screens;
 
 /// <summary>What is selected in the automation lanes and what is being dragged: this client's view state, never part of the document.</summary>
+/// <remarks>Each change names the track whose lane it touches, so only that lane redraws (D68).</remarks>
 public sealed class AutomationLanes
 {
-    /// <summary>Raised when the selection or the drag changed.</summary>
-    public event Action? Changed;
+    /// <summary>Raised with the track whose lane changed.</summary>
+    public event Action<TrackId>? Changed;
 
     /// <summary>The track whose point is selected, or null.</summary>
     public TrackId? Track { get; private set; }
@@ -22,13 +23,22 @@ public sealed class AutomationLanes
     /// <summary>Selects a point of a track's lane, or nothing when <paramref name="index"/> is null.</summary>
     public void Select(TrackId track, int? index)
     {
-        if (Track == track && Index == index)
+        TrackId? before = Track;
+        int? beforeIndex = Index;
+        Track = index is null ? null : track;
+        Index = index;
+        if (Track == before && Index == beforeIndex)
         {
             return;
         }
-        Track = index is null ? null : track;
-        Index = index;
-        Changed?.Invoke();
+        if (before is { } old)
+        {
+            Changed?.Invoke(old);
+        }
+        if (Track is { } now && now != before)
+        {
+            Changed?.Invoke(now);
+        }
     }
 
     /// <summary>Begins a drag of a point.</summary>
@@ -36,51 +46,55 @@ public sealed class AutomationLanes
     {
         ArgumentNullException.ThrowIfNull(drag);
         Drag = drag;
-        Changed?.Invoke();
+        Changed?.Invoke(drag.Track);
     }
 
-    /// <summary>Says the drag moved, so the lane draws its new place.</summary>
-    public void Moved() => Changed?.Invoke();
+    /// <summary>Says the drag moved, so its lane draws the point's new place.</summary>
+    public void Moved()
+    {
+        if (Drag is { } drag)
+        {
+            Changed?.Invoke(drag.Track);
+        }
+    }
 
     /// <summary>Ends the drag, so the lane draws its own points again.</summary>
     public void End()
     {
-        if (Drag is null)
+        if (Drag is not { } drag)
         {
             return;
         }
         Drag = null;
-        Changed?.Invoke();
+        Changed?.Invoke(drag.Track);
     }
 
     /// <summary>Drops a selection of a point the document no longer has, and a drag whose lane another client changed.</summary>
+    /// <remarks>Raises a change only for what it drops, so a document that changed nothing here costs no redraw.</remarks>
     /// <returns>True when a drag was in progress and has been dropped, so the caller can let go of the pointer.</returns>
     public bool Prune(ProjectDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
         bool dropped = false;
-        if (Drag is { } drag)
+        if (Drag is { } drag && !ReferenceEquals(LaneOf(document, drag.Track), drag.Source))
         {
-            Track? track = document.Tracks.FirstOrDefault(candidate => candidate.Id == drag.Track);
-            if (track is null || !ReferenceEquals(AutomationRules.Lane(track.Automation, track.View.AutomationParameter), drag.Source))
-            {
-                Drag = null;
-                dropped = true;
-            }
+            Drag = null;
+            dropped = true;
+            Changed?.Invoke(drag.Track);
         }
-        if (Track is { } owner && Index is { } index)
+        if (Track is { } owner && Index is { } index && index >= (LaneOf(document, owner)?.Count ?? 0))
         {
-            Track? track = document.Tracks.FirstOrDefault(candidate => candidate.Id == owner);
-            if (track is null || index >= AutomationRules.Lane(track.Automation, track.View.AutomationParameter).Count)
-            {
-                Track = null;
-                Index = null;
-            }
-        }
-        if (dropped || Track is null)
-        {
-            Changed?.Invoke();
+            Track = null;
+            Index = null;
+            Changed?.Invoke(owner);
         }
         return dropped;
+    }
+
+    private static IReadOnlyList<AutomationPoint>? LaneOf(ProjectDocument document, TrackId track)
+    {
+        return document.Tracks.FirstOrDefault(candidate => candidate.Id == track) is { } found
+            ? AutomationRules.Lane(found.Automation, found.View.AutomationParameter)
+            : null;
     }
 }

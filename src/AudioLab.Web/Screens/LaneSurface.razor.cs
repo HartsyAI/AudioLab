@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using AudioLab.Core.Model;
 using AudioLab.Core.Rules;
+
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -84,30 +85,26 @@ public sealed partial class LaneSurface
     [Parameter]
     public string? Reason { get; set; }
 
-    /// <summary>Raised with a track and the pixel across and down its automation lane when an empty part of it is double-clicked.</summary>
+    /// <summary>Raised with a track and a double-click on its automation lane.</summary>
     [Parameter]
-    public EventCallback<(TrackId Track, double X, double Y)> OnAutomationAdd { get; set; }
+    public EventCallback<(TrackId Track, MouseEventArgs Click)> OnAutomationAdd { get; set; }
 
-    /// <summary>Raised with a track, the index of a point and the press when the point is pressed.</summary>
+    /// <summary>Raised with a track and a press on its automation lane.</summary>
     [Parameter]
-    public EventCallback<(TrackId Track, int Index, PointerEventArgs Press)> OnAutomationPointDown { get; set; }
+    public EventCallback<(TrackId Track, PointerEventArgs Press)> OnAutomationPointDown { get; set; }
 
     /// <summary>Raised with a track and a key an automation lane hands up.</summary>
     [Parameter]
     public EventCallback<(TrackId Track, KeyboardEventArgs Key)> OnAutomationKey { get; set; }
 
+    /// <summary>Raised with a track whose hidden automation lane is asked to show.</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnShowAutomation { get; set; }
+
     [Inject]
     private TrackColorMap Colors { get; set; } = default!;
 
     private AutomationLanePlan PlanOf(Track track) => new(track.View.AutomationParameter, Geometry, TrackLayout.AutomationHeight);
-
-    private IReadOnlyList<AutomationPoint> PointsOf(Track track) => AutomationRules.Lane(track.Automation, track.View.AutomationParameter);
-
-    private IReadOnlyList<AutomationPoint>? PreviewOf(Track track) => Lanes?.Drag is { } drag && drag.Track == track.Id ? drag.Preview : null;
-
-    private int? PreviewIndexOf(Track track) => Lanes?.Drag is { } drag && drag.Track == track.Id ? drag.PreviewIndex : null;
-
-    private int? SelectedOf(Track track) => Lanes?.Track == track.Id ? Lanes.Index : null;
 
     private double Width => Math.Round(Geometry.Width(Length));
 

@@ -31,12 +31,15 @@ public sealed class AutomationActions
     /// <summary>Folds a recorded pass into a lane, and sets the mode after it when one is given (D25).</summary>
     public Func<TrackId, AutomationParameter, AutomationPass, AutomationMode?, Task<EditResult>> CommitPass { get; init; } =
         (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+    /// <summary>The project as the live connection holds it now, or null before it is open.</summary>
+    public Func<ProjectDocument?> Current { get; init; } = () => null;
 
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
-    public static AutomationActions For(AutomationEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
+    public static AutomationActions For(AutomationEditor editor, Func<Task<EditResult>, Task<EditResult>> show, Func<ProjectDocument?> current)
     {
         ArgumentNullException.ThrowIfNull(editor);
         ArgumentNullException.ThrowIfNull(show);
+        ArgumentNullException.ThrowIfNull(current);
         return new AutomationActions
         {
             Add = (track, parameter, time, value) => show(editor.AddPointAsync(track, parameter, time, value)),
@@ -45,6 +48,7 @@ public sealed class AutomationActions
             SetMode = (track, mode) => show(editor.SetModeAsync(track, mode)),
             SetView = (track, visible, parameter) => show(editor.SetViewAsync(track, visible, parameter)),
             CommitPass = (track, parameter, pass, mode) => show(editor.CommitPassAsync(track, parameter, pass, mode)),
+            Current = current,
         };
     }
 }

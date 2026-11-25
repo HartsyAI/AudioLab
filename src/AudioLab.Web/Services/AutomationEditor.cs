@@ -1,6 +1,7 @@
 using AudioLab.Core.Commands;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using Microsoft.AspNetCore.SignalR;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Services;
@@ -53,37 +54,59 @@ public sealed class AutomationEditor(LiveProject live)
             project => live.SendAsync(new DeleteAutomationPoint { Project = project, Track = track, Parameter = parameter, Index = index }));
     }
 
-    /// <summary>Folds a recorded pass into a lane and, when a mode is given, sets it after the pass: one gesture, so one undo step (D25).</summary>
-    public Task<EditResult> CommitPassAsync(TrackId track, AutomationParameter parameter, AutomationPass pass, AutomationMode? mode)
+    /// <summary>Folds a recorded pass into a lane, one commit per segment, then sets the mode when one is given: one gesture, one undo step (D25).</summary>
+    /// <remarks>
+    /// A refusal after some segments landed does not take them back, since undo is shared by every client. The reason says how many landed, so an
+    /// edit that partly applied is not reported as one that did nothing; a refused mode change after the commits says the lane was written.
+    /// </remarks>
+    public async Task<EditResult> CommitPassAsync(TrackId track, AutomationParameter parameter, AutomationPass pass, AutomationMode? mode)
     {
-        return EditRunner.RunAsync(
-            live,
-            async project =>
+        if (live.Document is not { } document)
+        {
+            return EditResult.Refused("The project is not open yet.");
+        }
+        string gesture = live.NewGesture();
+        int landed = 0;
+        try
+        {
+            foreach (IReadOnlyList<WrittenPoint> segment in pass.Segments)
             {
-                string gesture = live.NewGesture();
-                try
-                {
-                    CommandReply committed = await live.SendAsync(
-                        new CommitAutomationWrite
-                        {
-                            Project = project,
-                            Track = track,
-                            Parameter = parameter,
-                            Points = [.. pass.Points],
-                            ReturnToOld = pass.ReturnToOld,
-                        },
-                        gesture);
-                    if (!committed.Succeeded || mode is not { } chosen)
+                CommandReply reply = await live.SendAsync(
+                    new CommitAutomationWrite
                     {
-                        return committed;
-                    }
-                    return await live.SendAsync(new SetAutomationMode { Project = project, Track = track, Mode = chosen }, gesture);
-                }
-                finally
+                        Project = document.Id,
+                        Track = track,
+                        Parameter = parameter,
+                        Points = [.. segment],
+                        ReturnToOld = pass.ReturnToOld,
+                    },
+                    gesture);
+                if (!reply.Succeeded)
                 {
-                    await live.EndGestureAsync(gesture);
+                    string why = CommandRefusal.Describe(reply);
+                    return EditResult.Refused(landed == 0 ? why : $"{landed} of {pass.Segments.Count} recorded parts were written; the rest was refused: {why}");
                 }
-            });
+                landed++;
+            }
+            if (mode is not { } chosen)
+            {
+                return EditResult.Applied(changed: true, []);
+            }
+            CommandReply moded = await live.SendAsync(new SetAutomationMode { Project = document.Id, Track = track, Mode = chosen }, gesture);
+            return moded.Succeeded
+                ? EditResult.Applied(changed: true, [])
+                : EditResult.Refused("The pass was written; its mode was not changed: " + CommandRefusal.Describe(moded));
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or HubException or OperationCanceledException)
+        {
+            return EditResult.Refused(landed == 0
+                ? "The connection to the server was lost, so the pass was not written."
+                : $"{landed} of {pass.Segments.Count} recorded parts were written before the connection was lost.");
+        }
+        finally
+        {
+            await live.EndGestureAsync(gesture);
+        }
     }
 
     /// <summary>Sets how a track's lanes behave during playback.</summary>

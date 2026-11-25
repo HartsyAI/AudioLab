@@ -254,7 +254,7 @@ public static class Shortcuts
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
 
     /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
-    public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session);
+    public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
 
     /// <summary>Adds a point to the selected lane at the selected point's time and value.</summary>
     public static readonly Shortcut AutomationAdd = new("automation.add", "Add point", "Enter", Automation);
