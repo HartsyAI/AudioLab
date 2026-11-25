@@ -18,6 +18,9 @@ public static class Shortcuts
     /// <summary>The scope of the effects panel: keys heard while the focus is inside it, so they never meet the keys of the arrangement.</summary>
     public const string Effects = "effects";
 
+    /// <summary>The scope of the drums tab: keys heard while the focus is inside a lane, so they never meet the keys of the arrangement.</summary>
+    public const string Drums = "drums";
+
     /// <summary>The scope of a control that takes a value, such as a knob: keys heard while the focus is on the control itself.</summary>
     public const string Controls = "controls";
 
@@ -253,6 +256,20 @@ public static class Shortcuts
     /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
 
+    /// <summary>Move the focused drum lane one place earlier in the pattern.</summary>
+    public static readonly Shortcut DrumEarlier = new("drum.move.earlier", "Move drum lane earlier", "ArrowUp", Drums, Ctrl: true);
+
+    /// <summary>Move the focused drum lane one place later in the pattern.</summary>
+    public static readonly Shortcut DrumLater = new("drum.move.later", "Move drum lane later", "ArrowDown", Drums, Ctrl: true);
+
+    /// <summary>Rename the focused drum lane. F2 is the track rename, so the lane takes R.</summary>
+    public static readonly Shortcut DrumRename = new("drum.rename", "Rename drum lane", "r", Drums);
+
+    /// <summary>Remove the focused drum lane.</summary>
+    public static readonly Shortcut DrumRemove = new("drum.remove", "Remove drum lane", "Delete", Drums);
+
+    /// <summary>The keys of a drum lane, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> DrumLane = [DrumEarlier, DrumLater, DrumRename, DrumRemove];
     /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
     public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
 
@@ -308,6 +325,6 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset, .. AutomationKeys,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, ControlReset, .. AutomationKeys,
     ];
 }

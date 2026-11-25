@@ -1,0 +1,72 @@
+.drums-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-8);
+    min-width: 0;
+    min-height: 0;
+    padding: var(--space-12);
+    overflow: auto;
+    font-size: var(--font-size-body);
+    color: var(--text);
+}
+
+.drums-panel:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.drums-status {
+    margin: 0;
+    min-height: var(--control-xs);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+}
+
+.drums-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-12);
+}
+
+.drums-setting {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-8);
+}
+
+.drums-lanes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.drums-lane {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    min-height: var(--control-md);
+    border-bottom: 1px solid var(--lane-line);
+}
+
+.drums-lane:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.drums-index {
+    width: var(--strip-width);
+    color: var(--text-faint);
+    font-size: var(--font-size-label);
+    font-variant-numeric: tabular-nums;
+}
+
+.drums-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: var(--font-weight-strong);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -34,6 +34,8 @@ public sealed class SessionActions
     /// <summary>What can be done to a track's effect chain.</summary>
     public EffectActions Effects { get; init; } = new();
 
+    /// <summary>What can be done to the drum pattern.</summary>
+    public BeatActions Beats { get; init; } = new();
     /// <summary>What can be done to a track's automation lane.</summary>
     public AutomationActions Automation { get; init; } = new();
 
