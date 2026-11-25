@@ -18,8 +18,14 @@ public static class Shortcuts
     /// <summary>The scope of the effects panel: keys heard while the focus is inside it, so they never meet the keys of the arrangement.</summary>
     public const string Effects = "effects";
 
+    /// <summary>The scope of the drums tab: keys heard while the focus is inside a lane, so they never meet the keys of the arrangement.</summary>
+    public const string Drums = "drums";
+
     /// <summary>The scope of a control that takes a value, such as a knob: keys heard while the focus is on the control itself.</summary>
     public const string Controls = "controls";
+
+    /// <summary>The scope of an automation lane: keys heard while the lane has the focus, so the arrangement keeps its own.</summary>
+    public const string Automation = "automation";
 
     /// <summary>Rename the project that has the focus in the list.</summary>
     public static readonly Shortcut RenameProject = new("project.rename", "Rename project", "F2", Projects);
@@ -247,8 +253,78 @@ public static class Shortcuts
     /// <summary>Put the knob that has the focus back to its default.</summary>
     public static readonly Shortcut ControlReset = new("control.reset", "Reset to default", "Backspace", Controls);
 
+    /// <summary>The scope of the lyrics tab: keys heard while the focus is on a word, so they never meet the keys of the arrangement.</summary>
+    public const string Lyrics = "lyrics";
+
+    /// <summary>Move the focused word earlier, its start and its end together.</summary>
+    public static readonly Shortcut LyricsWordEarlier = new("lyrics.word.earlier", "Move word earlier", "ArrowLeft", Lyrics, Ctrl: true);
+
+    /// <summary>Move the focused word later, its start and its end together.</summary>
+    public static readonly Shortcut LyricsWordLater = new("lyrics.word.later", "Move word later", "ArrowRight", Lyrics, Ctrl: true);
+
+    /// <summary>Move the start of the focused word earlier.</summary>
+    public static readonly Shortcut LyricsStartEarlier =
+        new("lyrics.start.earlier", "Move word start earlier", "ArrowLeft", Lyrics, Ctrl: true, Shift: true);
+
+    /// <summary>Move the start of the focused word later.</summary>
+    public static readonly Shortcut LyricsStartLater =
+        new("lyrics.start.later", "Move word start later", "ArrowRight", Lyrics, Ctrl: true, Shift: true);
+
+    /// <summary>Move the end of the focused word earlier.</summary>
+    public static readonly Shortcut LyricsEndEarlier = new("lyrics.end.earlier", "Move word end earlier", "ArrowUp", Lyrics, Ctrl: true);
+
+    /// <summary>Move the end of the focused word later.</summary>
+    public static readonly Shortcut LyricsEndLater = new("lyrics.end.later", "Move word end later", "ArrowDown", Lyrics, Ctrl: true);
+
     /// <summary>Move the focus to the preset menu of the effect whose settings are shown.</summary>
     public static readonly Shortcut EffectPresets = new("effect.presets", "Presets", "p", Effects);
+
+    /// <summary>Move the focused drum lane one place earlier in the pattern.</summary>
+    public static readonly Shortcut DrumEarlier = new("drum.move.earlier", "Move drum lane earlier", "ArrowUp", Drums, Ctrl: true);
+
+    /// <summary>Move the focused drum lane one place later in the pattern.</summary>
+    public static readonly Shortcut DrumLater = new("drum.move.later", "Move drum lane later", "ArrowDown", Drums, Ctrl: true);
+
+    /// <summary>Rename the focused drum lane. F2 is the track rename, so the lane takes R.</summary>
+    public static readonly Shortcut DrumRename = new("drum.rename", "Rename drum lane", "r", Drums);
+
+    /// <summary>Remove the focused drum lane.</summary>
+    public static readonly Shortcut DrumRemove = new("drum.remove", "Remove drum lane", "Delete", Drums);
+
+    /// <summary>The keys of a drum lane, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> DrumLane = [DrumEarlier, DrumLater, DrumRename, DrumRemove];
+    /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
+    public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
+
+    /// <summary>Adds a point to the selected lane at the selected point's time and value.</summary>
+    public static readonly Shortcut AutomationAdd = new("automation.add", "Add point", "Enter", Automation);
+
+    /// <summary>Selects the point before the selected one.</summary>
+    public static readonly Shortcut AutomationPrevious = new("automation.previous", "Select previous point", "ArrowLeft", Automation);
+
+    /// <summary>Selects the point after the selected one.</summary>
+    public static readonly Shortcut AutomationNext = new("automation.next", "Select next point", "ArrowRight", Automation);
+
+    /// <summary>Moves the selected point earlier by a grid step.</summary>
+    public static readonly Shortcut AutomationEarlier = new("automation.earlier", "Move point earlier", "ArrowLeft", Automation, Alt: true);
+
+    /// <summary>Moves the selected point later by a grid step.</summary>
+    public static readonly Shortcut AutomationLater = new("automation.later", "Move point later", "ArrowRight", Automation, Alt: true);
+
+    /// <summary>Raises the selected point by a tenth of the drawn range.</summary>
+    public static readonly Shortcut AutomationHigher = new("automation.higher", "Raise point", "ArrowUp", Automation, Alt: true);
+
+    /// <summary>Lowers the selected point by a tenth of the drawn range.</summary>
+    public static readonly Shortcut AutomationLower = new("automation.lower", "Lower point", "ArrowDown", Automation, Alt: true);
+
+    /// <summary>Removes the selected point.</summary>
+    public static readonly Shortcut AutomationDelete = new("automation.delete", "Delete point", "Delete", Automation);
+
+    /// <summary>The keys of an automation lane, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> AutomationKeys =
+    [
+        AutomationAdd, AutomationPrevious, AutomationNext, AutomationEarlier, AutomationLater, AutomationHigher, AutomationLower, AutomationDelete,
+    ];
 
     /// <summary>Every shortcut of the effects panel, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> EffectChain =
@@ -270,8 +346,9 @@ public static class Shortcuts
     public static readonly IReadOnlyList<Shortcut> All =
     [
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
-        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects,
+        OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, ControlReset,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, ControlReset, .. AutomationKeys,
+        LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];
 }

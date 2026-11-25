@@ -9,6 +9,9 @@ public sealed class BottomPanelState
     /// <summary>The effects tab.</summary>
     public const string Effects = "Effects";
 
+    /// <summary>The drums tab.</summary>
+    public const string Drums = "Drums";
+
     /// <summary>The piano roll tab.</summary>
     public const string PianoRoll = "Piano roll";
 

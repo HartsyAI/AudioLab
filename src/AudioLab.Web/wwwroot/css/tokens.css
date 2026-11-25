@@ -85,6 +85,7 @@
     --lane-height: 4rem;
     --header-column: 15.5rem;
     --strip-width: 6.5rem;
+    --automation-height: 2.5rem;
 
     /* Shape and depth. */
     --radius-xs: 0.125rem;

@@ -31,7 +31,21 @@ public sealed partial class GroupStrip
 
     private string VolumeText => FaderScale.Readout(Group.Volume);
 
-    private string SwatchTitle => Actions.CanEdit ? string.Empty : Actions.Reason ?? string.Empty;
+    // The first swatch in the palette that is the group's colour: it is marked as the current one, and none is marked when no swatch matches.
+    private int CurrentSwatch
+    {
+        get
+        {
+            for (int index = 0; index < Palette.Count; index++)
+            {
+                if (string.Equals(Palette[index], Group.Color, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+            return -1;
+        }
+    }
 
     // The fader travels over the decibel scale, the same as a track's, so its marks and its readout agree.
     private static double PositionOf(double gain) => FaderScale.Position(gain);

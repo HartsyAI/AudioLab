@@ -40,32 +40,6 @@ public sealed class MasterRedrawTests
         services.AddScoped<EffectsNavigator>();
     }
 
-    // The attribute that follows a label is the element's own: the title written after its aria-label belongs to it, and no other element's.
-    private static bool TitleOfElementNamed(RenderedMarkup rendered, string label, string text)
-    {
-        IReadOnlyList<(string Name, string Value)> attributes = rendered.Attributes;
-        int start = -1;
-        for (int i = 0; i < attributes.Count && start < 0; i++)
-        {
-            if (attributes[i] == ("aria-label", label))
-            {
-                start = i;
-            }
-        }
-        if (start < 0)
-        {
-            return false;
-        }
-        for (int j = start + 1; j < attributes.Count && attributes[j].Name != "aria-label"; j++)
-        {
-            if (attributes[j].Name == "title" && attributes[j].Value.Contains(text, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /// <summary>A change to the master fader draws the master's strip alone; the one strip drawn is the master's.</summary>
     [Fact]
     public async Task AMasterFaderChangeDrawsOnlyTheMasterStrip()
@@ -85,7 +59,7 @@ public sealed class MasterRedrawTests
     {
         RenderedMarkup readOnly = await RenderedMarkup.StartAsync<MixerPanel>(MixerParameters(Mix(limiter: true), canEdit: false), MixerServices);
 
-        Assert.True(TitleOfElementNamed(readOnly, "Master limiter", "Offline."));
+        Assert.True(readOnly.TitleOfElementNamed("Master limiter", "Offline."));
         await readOnly.DisposeServicesAsync();
     }
 
@@ -122,6 +96,26 @@ public sealed class MasterRedrawTests
         await strip.RunAsync(() => pointer.Release(0, 220));
         await UntilAsync(() => sent.Count == 1);
         Assert.Single(sent);
+        await strip.DisposeServicesAsync();
+    }
+
+    /// <summary>A master fader that cannot be changed says why beside it, as well as in its title.</summary>
+    [Fact]
+    public async Task TheMasterFaderSaysWhyBesideItWhenItCannotBeChanged()
+    {
+        RenderedMarkup strip = await RenderedMarkup.StartAsync<ChannelStrip>(new Dictionary<string, object?>
+        {
+            ["Name"] = "Master",
+            ["ColorToken"] = "var(--text)",
+            ["Effects"] = (IReadOnlyList<StripEffect>)[],
+            ["Volume"] = 1.0,
+            ["Master"] = true,
+            ["Editable"] = false,
+            ["Reason"] = "Offline.",
+            ["OnVolume"] = EventCallback.Factory.Create<double>(new object(), _ => { }),
+        });
+
+        Assert.Contains("Offline.", strip.Texts);
         await strip.DisposeServicesAsync();
     }
 

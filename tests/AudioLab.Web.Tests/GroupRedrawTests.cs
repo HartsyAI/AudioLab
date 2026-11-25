@@ -133,7 +133,8 @@ public sealed class GroupRedrawTests
         });
 
         Assert.Contains("Offline.", Html(strip));
-        Assert.Contains(strip.Values("title"), title => title.Contains("Offline.", StringComparison.Ordinal));
+        Assert.True(strip.TitleOfElementNamed("Colour 1 for group Drums", "Offline."));
+        Assert.Equal("true", strip.Values("aria-current").Single());
         await strip.DisposeServicesAsync();
     }
 

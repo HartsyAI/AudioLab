@@ -17,6 +17,10 @@
                DefaultPosition="@VolumePositionOfUnity" Disabled="!Editable" Reason="@(Editable ? null : Reason)" />
         <div class="meter"><LiveMeter Track="Track" /></div>
     </div>
+    @if (Master && OnVolume.HasDelegate && !Editable)
+    {
+        <span class="reason">@Reason</span>
+    }
     <div class="foot">
         @if (!Master)
         {

@@ -18,5 +18,11 @@ public sealed partial class Slider
     [Parameter, EditorRequired]
     public string Label { get; set; } = string.Empty;
 
+    /// <summary>The unit said after the value, such as dB; empty for a value with none.</summary>
+    [Parameter]
+    public string Unit { get; set; } = "dB";
+
     private string Percent => (Math.Clamp(Position, 0, 1) * 100).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private string AnnouncedText => Unit.Length == 0 ? $"{Label} {Text}" : $"{Label} {Text} {Unit}";
 }

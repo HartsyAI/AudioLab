@@ -29,3 +29,11 @@
 .field-input:focus-visible {
     box-shadow: var(--shadow-well), var(--focus-ring);
 }
+
+.field-multiline {
+    height: auto;
+    min-height: var(--control-lg);
+    padding: var(--space-6) var(--space-10);
+    resize: vertical;
+    line-height: 1.4;
+}

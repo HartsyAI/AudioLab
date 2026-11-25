@@ -15,7 +15,8 @@
         {
             int chosen = shade;
             <button type="button" class="swatch" style="background: @Palette[chosen]" aria-label="@($"Colour {chosen + 1} for group {Group.Name}")"
-                    title="@SwatchTitle" disabled="@(!Actions.CanEdit)" @onclick="() => SetColourAsync(chosen)"></button>
+                    title="@(Actions.CanEdit ? null : Actions.Reason)" aria-current="@(chosen == CurrentSwatch ? "true" : null)"
+                    disabled="@(!Actions.CanEdit)" @onclick="() => SetColourAsync(chosen)"></button>
         }
     </div>
     <div class="fader-row">
