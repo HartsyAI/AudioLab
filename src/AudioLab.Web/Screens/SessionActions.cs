@@ -44,6 +44,9 @@ public sealed class SessionActions
     /// <summary>What can be done to a track's automation lane.</summary>
     public AutomationActions Automation { get; init; } = new();
 
+    /// <summary>What can be done to a track group.</summary>
+    public GroupActions Groups { get; init; } = new();
+
     /// <summary>Asks for the new name of a track.</summary>
     public Func<TrackId, Task> RenameTrack { get; init; } = _ => Task.CompletedTask;
 

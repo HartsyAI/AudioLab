@@ -22,8 +22,9 @@ public sealed class SendEditor(LiveProject live)
     /// <summary>Sets the level of a send to an absolute gain, as one gesture: a drag is one undo step.</summary>
     public Task<EditResult> SetLevelAsync(TrackId track, TrackId bus, double level)
     {
-        return GestureAsync((project, gesture) =>
-            live.SendAsync(new SetSendLevel { Project = project, Track = track, Bus = bus, Level = level }, gesture));
+        return EditRunner.RunInGestureAsync(
+            live,
+            (project, gesture) => live.SendAsync(new SetSendLevel { Project = project, Track = track, Bus = bus, Level = level }, gesture));
     }
 
     /// <summary>Mutes or unmutes a send.</summary>
@@ -39,20 +40,4 @@ public sealed class SendEditor(LiveProject live)
     }
 
     private Task<EditResult> RunAsync(Func<ProjectId, Task<CommandReply>> send) => EditRunner.RunAsync(live, send);
-
-    private Task<EditResult> GestureAsync(Func<ProjectId, string, Task<CommandReply>> send)
-    {
-        return RunAsync(async project =>
-        {
-            string gesture = live.NewGesture();
-            try
-            {
-                return await send(project, gesture);
-            }
-            finally
-            {
-                await live.EndGestureAsync(gesture);
-            }
-        });
-    }
 }

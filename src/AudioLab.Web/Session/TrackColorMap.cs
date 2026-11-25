@@ -12,6 +12,8 @@ public sealed class TrackColorMap
 
     private readonly Dictionary<string, int> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly IReadOnlyList<string> _values;
+
     /// <summary>Creates the map from the values of <c>--track-1</c> to <c>--track-12</c>.</summary>
     /// <exception cref="ArgumentException">There are not twelve values, or one is not a hex colour.</exception>
     public TrackColorMap(IReadOnlyList<string> trackTokenValues)
@@ -22,7 +24,11 @@ public sealed class TrackColorMap
             throw new ArgumentException($"The twelve track colours are needed, not {trackTokenValues.Count}.", nameof(trackTokenValues));
         }
         _palette = [.. trackTokenValues.Select(Parse)];
+        _values = [.. trackTokenValues];
     }
+
+    /// <summary>The twelve track colours as the style sheet writes them, in order: the choices for a colour.</summary>
+    public IReadOnlyList<string> Values => _values;
 
     /// <summary>The 1-based number of the track colour nearest to a stored colour; an unreadable colour is the first.</summary>
     public int Nearest(string? color)
