@@ -18,6 +18,9 @@ public sealed class LyricsActions
     /// <summary>Moves every word of a clip's lyrics by seconds, negative for earlier.</summary>
     public Func<ClipId, double, Task<EditResult>> Shift { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Gives a clip the lyrics of an LRC file.</summary>
+    public Func<ClipId, string, Task<EditResult>> ImportLrc { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
     /// <summary>Drops the word times of a clip's lyrics.</summary>
     public Func<ClipId, Task<EditResult>> ClearTiming { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
 
@@ -32,6 +35,7 @@ public sealed class LyricsActions
             SetWordTime = (clip, word, start, end) => show(editor.SetWordTimeAsync(clip, word, start, end)),
             Shift = (clip, seconds) => show(editor.ShiftAsync(clip, seconds)),
             ClearTiming = clip => show(editor.ClearTimingAsync(clip)),
+            ImportLrc = (clip, lrc) => show(editor.ImportLrcAsync(clip, lrc)),
         };
     }
 }

@@ -7,6 +7,7 @@ using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace AudioLab.Web.Screens;
 
@@ -238,6 +239,27 @@ public sealed partial class LyricsPanel
         if (result.Succeeded && seconds >= -first)
         {
             await SayAsync($"Words moved by {seconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds.");
+        }
+    }
+
+    // An LRC file is read whole, up to the most text a clip may hold; the server then says whether its lines fit.
+    private async Task ImportChosenAsync(InputFileChangeEventArgs chosen)
+    {
+        if (Found is not { } found)
+        {
+            return;
+        }
+        IBrowserFile file = chosen.File;
+        (string? text, string? refusal) = await LrcFile.ReadPickedAsync(file);
+        if (refusal is not null || text is null)
+        {
+            Toasts.Show(ToastKind.Warning, refusal ?? LrcFile.Unreadable);
+            return;
+        }
+        EditResult result = await Actions.Lyrics.ImportLrc(found.Clip.Id, text);
+        if (result.Succeeded)
+        {
+            await SayAsync(string.Create(CultureInfo.InvariantCulture, $"Lyrics imported from {file.Name}."));
         }
     }
 

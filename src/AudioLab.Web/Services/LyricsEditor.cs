@@ -37,6 +37,13 @@ public sealed class LyricsEditor(LiveProject live)
         return EditRunner.RunAsync(live, project => live.SendAsync(new ShiftLyrics { Project = project, Clip = clip, Seconds = seconds }));
     }
 
+    /// <summary>Gives a clip the lyrics of an LRC file, each line timed from its own start; the server says why a file is refused.</summary>
+    public Task<EditResult> ImportLrcAsync(ClipId clip, string lrc)
+    {
+        ArgumentNullException.ThrowIfNull(lrc);
+        return EditRunner.RunAsync(live, project => live.SendAsync(new ImportLyricsLrc { Project = project, Clip = clip, Lrc = lrc }));
+    }
+
     /// <summary>Drops the word times of a clip's lyrics and keeps the text.</summary>
     public Task<EditResult> ClearTimingAsync(ClipId clip)
     {
