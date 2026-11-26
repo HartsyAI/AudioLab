@@ -297,10 +297,11 @@ public sealed partial class DrumsPanel : IDisposable
         }
     }
 
-    // A held key does not repeat a move, a rename or a removal; a read-only project says why in the status line.
+    // A held key does not repeat a move, a rename or a removal; a read-only project says why in the status line. A key pressed on a step
+    // bubbles up to this row, so while the focus is in the grid the row ignores it: a Delete there does not remove the lane.
     internal async Task KeyAsync(BeatLane lane, KeyboardEventArgs key)
     {
-        if (key.Repeat || !Shortcuts.DrumLane.Any(shortcut => shortcut.Matches(key)))
+        if (key.Repeat || _inGrid || !Shortcuts.DrumLane.Any(shortcut => shortcut.Matches(key)))
         {
             return;
         }

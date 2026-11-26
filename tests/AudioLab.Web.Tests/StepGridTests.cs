@@ -207,4 +207,37 @@ public sealed class StepGridTests
         Assert.True(ended[0].Ended);
         await markup.DisposeServicesAsync();
     }
+
+    /// <summary>A secondary press is not a paint: a right or middle button sends nothing and starts no drag.</summary>
+    [Fact]
+    public async Task ASecondaryButtonDoesNotPaint()
+    {
+        Sends sends = new();
+        RenderedMarkup markup = await StartAsync(sends);
+
+        await markup.RaiseOnAsync(Cell(3), "onpointerdown", new PointerEventArgs { Button = 2, PointerType = "mouse" });
+
+        Assert.Empty(sends.Batches);
+        await markup.DisposeServicesAsync();
+    }
+
+    /// <summary>A send that fails still ends the drag, so its gesture is closed and the error reaches the browser.</summary>
+    [Fact]
+    public async Task AFailedSendStillEndsTheDrag()
+    {
+        Sends sends = new() { Reply = _ => throw new InvalidOperationException("The send failed.") };
+        List<StepStroke> ended = [];
+        EventCallback<StepStroke> hear = new(null, new Func<StepStroke, Task>(stroke =>
+        {
+            ended.Add(stroke);
+            return Task.CompletedTask;
+        }));
+        RenderedMarkup markup = await StartAsync(sends, hear);
+        await markup.RaiseOnAsync(Cell(2), "onpointerdown", Pointer());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => markup.RaiseOnAsync(null, "onpointerup", Pointer()));
+
+        Assert.Single(ended);
+        await markup.DisposeServicesAsync();
+    }
 }

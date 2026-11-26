@@ -58,6 +58,10 @@
     min-height: var(--control-md);
 }
 
+.drums-gain {
+    display: contents;
+}
+
 .drums-lane:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring);

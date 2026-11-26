@@ -45,8 +45,10 @@
                                 Disabled="!Actions.CanEdit" DisabledReason="@Block">Rename</Button>
                         <Button Variant="ButtonVariant.Danger" OnClick="() => RemoveAsync(lane)" Name="@BeatLaneText.RemoveName(lane.Name)"
                                 Shortcut="@Shortcuts.DrumRemove.Display" Disabled="!Actions.CanEdit" DisabledReason="@Block">Remove</Button>
-                        <Field Label="@BeatLaneText.GainName(lane.Name)" Value="@GainValue(lane)" ValueChanged="value => GainChanged(lane.Id, value)"
-                               MaxLength="8" Invalid="!GainValid(lane)" />
+                        <div class="drums-gain" @onkeydown:stopPropagation="true">
+                            <Field Label="@BeatLaneText.GainName(lane.Name)" Value="@GainValue(lane)" ValueChanged="value => GainChanged(lane.Id, value)"
+                                   MaxLength="8" Invalid="!GainValid(lane)" />
+                        </div>
                         <Button OnClick="() => SetGainAsync(lane)" Name="@BeatLaneText.SetGainName(lane.Name)" Disabled="!CanApplyGain(lane)"
                                 DisabledReason="@GainBlock(lane)">Set gain</Button>
                     </div>

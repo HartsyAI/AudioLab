@@ -88,8 +88,13 @@ public sealed partial class StepGrid : IDisposable
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender) => _dirty = false;
 
-    internal async Task PressAsync(int step)
+    internal async Task PressAsync(int step, PointerEventArgs pointer)
     {
+        if (pointer.Button != 0)
+        {
+            return;
+        }
+
         await Press.InvokeAsync(step);
         if (!Editable || _stroke is not null || _disposed)
         {
@@ -152,15 +157,21 @@ public sealed partial class StepGrid : IDisposable
         try
         {
             await stroke.EndAsync();
-            await EndStroke.InvokeAsync(stroke);
         }
         finally
         {
-            stroke.Changed -= Refresh;
-            _settling.Remove(stroke);
-            if (!_disposed)
+            try
             {
-                Repaint();
+                await EndStroke.InvokeAsync(stroke);
+            }
+            finally
+            {
+                stroke.Changed -= Refresh;
+                _settling.Remove(stroke);
+                if (!_disposed)
+                {
+                    Repaint();
+                }
             }
         }
     }

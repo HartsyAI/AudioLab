@@ -403,6 +403,33 @@ public sealed class DrumsPanelTests
         Assert.Null(top.PendingFocus);
     }
 
+    /// <summary>A Delete pressed in the step grid does not remove the lane; once the focus leaves the grid, Delete removes it again.</summary>
+    [Fact]
+    public async Task ALaneKeyPressedInTheGridIsNotTheLanesKey()
+    {
+        int removed = 0;
+        DrumsPanel panel = Panel(Document(Pattern()), new SessionActions
+        {
+            CanEdit = true,
+            Beats = new BeatActions
+            {
+                RemoveLane = _ =>
+                {
+                    removed++;
+                    return Task.FromResult(EditResult.Applied(true, []));
+                },
+            },
+        });
+
+        await panel.GridFocusAsync(true);
+        await panel.KeyAsync(Lane(_kick, "Kick"), new KeyboardEventArgs { Key = "Delete" });
+        Assert.Equal(0, removed);
+
+        await panel.GridFocusAsync(false);
+        await panel.KeyAsync(Lane(_kick, "Kick"), new KeyboardEventArgs { Key = "Delete" });
+        Assert.Equal(1, removed);
+    }
+
     /// <summary>The grid takes Space, Enter, Home, End and the arrows from the page only while the focus is in it, so the transport keeps them
     /// elsewhere.</summary>
     [Fact]
