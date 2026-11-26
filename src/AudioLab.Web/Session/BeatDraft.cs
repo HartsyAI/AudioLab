@@ -48,6 +48,28 @@ public static class BeatDraft
     /// <summary>The reason a typed step count is not accepted.</summary>
     public static string StepsReason() => $"Enter a whole number from 1 to {ProjectLimits.MaxBeatSteps}.";
 
+    /// <summary>Reads a lane gain from 0 up to the most a lane may have, in invariant decimal form.</summary>
+    public static bool TryParseGain(string text, out double gain)
+    {
+        gain = 0;
+        return double.TryParse(text, SwingStyle, CultureInfo.InvariantCulture, out gain)
+            && gain is >= 0 and <= ProjectLimits.MaxGain;
+    }
+
+    /// <summary>Writes a gain so that reading it back gives the same value.</summary>
+    public static string FormatGain(double gain) => gain.ToString("R", CultureInfo.InvariantCulture);
+
+    /// <summary>Whether a typed gain is a different value from the lane's, so that Set gain has something to send.</summary>
+    public static bool CanApplyGain(string text, double current) => TryParseGain(text, out double gain) && gain != current;
+
+    /// <summary>The reason a typed gain is not accepted; a comma is named, as it is for swing.</summary>
+    public static string GainReason(string text)
+    {
+        return text.Contains(',', StringComparison.Ordinal)
+            ? "Use a dot for the decimal point, for example 0.5."
+            : $"Enter a number from 0 to {ProjectLimits.MaxGain.ToString(CultureInfo.InvariantCulture)}, for example 1.";
+    }
+
     /// <summary>Whether the pattern's swing or step count differs from the values the drafts came from.</summary>
     public static bool ChangedSince(BeatPattern pattern, double seenSwing, int seenSteps)
     {

@@ -1,4 +1,5 @@
 @using AudioLab.Core.Rules
+@using AudioLab.Web.Components
 @using AudioLab.Web.Services
 @using AudioLab.Web.Session
 <div id="@PanelId" class="drums-panel" tabindex="-1">
@@ -30,19 +31,31 @@
                 bool first = index == 0;
                 bool last = index == Pattern.Lanes.Count - 1;
                 <li @key="lane.Id" id="@BeatLaneText.RowId(lane.Id)" class="drums-lane" tabindex="-1" @onkeydown="key => KeyAsync(lane, key)">
-                    <span class="drums-index">@(index + 1)</span>
-                    <span class="drums-name">@lane.Name</span>
-                    <Button OnClick="() => MoveAsync(lane, MoveDirection.Up)" Name="@BeatLaneText.MoveName(lane.Name, MoveDirection.Up)"
-                            Shortcut="@Shortcuts.DrumEarlier.Display" Attributes="@IdAttribute(BeatLaneText.MoveId(lane.Id, MoveDirection.Up))"
-                            Disabled="!Actions.CanEdit || first" DisabledReason="@(first ? "It is the first lane." : Block)">Up</Button>
-                    <Button OnClick="() => MoveAsync(lane, MoveDirection.Down)" Name="@BeatLaneText.MoveName(lane.Name, MoveDirection.Down)"
-                            Shortcut="@Shortcuts.DrumLater.Display" Attributes="@IdAttribute(BeatLaneText.MoveId(lane.Id, MoveDirection.Down))"
-                            Disabled="!Actions.CanEdit || last" DisabledReason="@(last ? "It is the last lane." : Block)">Down</Button>
-                    <Button OnClick="() => BeginRename(lane)" Name="@BeatLaneText.RenameName(lane.Name)"
-                            Shortcut="@Shortcuts.DrumRename.Display" Attributes="@IdAttribute(BeatLaneText.RenameId(lane.Id))"
-                            Disabled="!Actions.CanEdit" DisabledReason="@Block">Rename</Button>
-                    <Button Variant="ButtonVariant.Danger" OnClick="() => RemoveAsync(lane)" Name="@BeatLaneText.RemoveName(lane.Name)"
-                            Shortcut="@Shortcuts.DrumRemove.Display" Disabled="!Actions.CanEdit" DisabledReason="@Block">Remove</Button>
+                    <div class="drums-lane-head">
+                        <span class="drums-index">@(index + 1)</span>
+                        <span class="drums-name">@lane.Name</span>
+                        <Button OnClick="() => MoveAsync(lane, MoveDirection.Up)" Name="@BeatLaneText.MoveName(lane.Name, MoveDirection.Up)"
+                                Shortcut="@Shortcuts.DrumEarlier.Display" Attributes="@IdAttribute(BeatLaneText.MoveId(lane.Id, MoveDirection.Up))"
+                                Disabled="!Actions.CanEdit || first" DisabledReason="@(first ? "It is the first lane." : Block)">Up</Button>
+                        <Button OnClick="() => MoveAsync(lane, MoveDirection.Down)" Name="@BeatLaneText.MoveName(lane.Name, MoveDirection.Down)"
+                                Shortcut="@Shortcuts.DrumLater.Display" Attributes="@IdAttribute(BeatLaneText.MoveId(lane.Id, MoveDirection.Down))"
+                                Disabled="!Actions.CanEdit || last" DisabledReason="@(last ? "It is the last lane." : Block)">Down</Button>
+                        <Button OnClick="() => BeginRename(lane)" Name="@BeatLaneText.RenameName(lane.Name)"
+                                Shortcut="@Shortcuts.DrumRename.Display" Attributes="@IdAttribute(BeatLaneText.RenameId(lane.Id))"
+                                Disabled="!Actions.CanEdit" DisabledReason="@Block">Rename</Button>
+                        <Button Variant="ButtonVariant.Danger" OnClick="() => RemoveAsync(lane)" Name="@BeatLaneText.RemoveName(lane.Name)"
+                                Shortcut="@Shortcuts.DrumRemove.Display" Disabled="!Actions.CanEdit" DisabledReason="@Block">Remove</Button>
+                        <div class="drums-gain" @onkeydown:stopPropagation="true">
+                            <Field Label="@BeatLaneText.GainName(lane.Name)" Value="@GainValue(lane)" ValueChanged="value => GainChanged(lane.Id, value)"
+                                   MaxLength="8" Invalid="!GainValid(lane)" />
+                        </div>
+                        <Button OnClick="() => SetGainAsync(lane)" Name="@BeatLaneText.SetGainName(lane.Name)" Disabled="!CanApplyGain(lane)"
+                                DisabledReason="@GainBlock(lane)">Set gain</Button>
+                    </div>
+                    <StepGrid Lane="lane" Editable="Actions.CanEdit" Reason="Block" Cursor="CursorFor(lane)"
+                              StartStroke="on => StartStroke(lane, on)" EndStroke="stroke => StrokeEndedAsync(stroke)"
+                              Press="step => PressAsync(lane, step)" Key="key => GridKeyAsync(lane, key.Step, key.Key)"
+                              FocusChanged="inside => GridFocusAsync(inside)" />
                 </li>
             }
         </ol>

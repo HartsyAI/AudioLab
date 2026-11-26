@@ -28,6 +28,19 @@ public sealed class BeatActions
     /// <summary>Sets the step count of the pattern.</summary>
     public Func<int, Task<EditResult>> SetSteps { get; init; } = _ => Task.FromResult(EditResult.Refused(NotAvailable));
 
+    /// <summary>Makes the given steps of a lane fire, or silences them, to an absolute state.</summary>
+    public Func<BeatLaneId, IReadOnlyList<int>, bool, string?, Task<EditResult>> SetLaneSteps { get; init; } =
+        (_, _, _, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
+    /// <summary>Sets the gain of a lane to an absolute value.</summary>
+    public Func<BeatLaneId, double, Task<EditResult>> SetLaneGain { get; init; } = (_, _) => Task.FromResult(EditResult.Refused(NotAvailable));
+
+    /// <summary>Opens the gesture of a paint drag, which is closed by <see cref="EndStroke"/>.</summary>
+    public Func<string> BeginStroke { get; init; } = () => string.Empty;
+
+    /// <summary>Closes the gesture of a paint drag.</summary>
+    public Func<string, Task> EndStroke { get; init; } = _ => Task.CompletedTask;
+
     /// <summary>The actions of an editor; <paramref name="show"/> tells the user what a refusal said.</summary>
     public static BeatActions For(BeatEditor editor, Func<Task<EditResult>, Task<EditResult>> show)
     {
@@ -41,6 +54,10 @@ public sealed class BeatActions
             RenameLane = (lane, name) => show(editor.RenameLaneAsync(lane, name)),
             SetSwing = swing => show(editor.SetSwingAsync(swing)),
             SetSteps = steps => show(editor.SetStepsAsync(steps)),
+            SetLaneSteps = (lane, steps, on, gesture) => show(editor.SetLaneStepsAsync(lane, steps, on, gesture)),
+            SetLaneGain = (lane, gain) => show(editor.SetLaneGainAsync(lane, gain)),
+            BeginStroke = editor.BeginStroke,
+            EndStroke = editor.EndStrokeAsync,
         };
     }
 }
