@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
 using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Decoding;
@@ -133,6 +134,37 @@ public sealed class DecodedUploadTests
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Equal(1, launcher.Kills);
         Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task ACancelledUploadKillsItsDecodeRemovesItsTempFilesAndFreesItsPlace()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:30"));
+        using CancellationTokenSource cancel = new();
+        ByteArrayContent content = new(_compressedFile);
+        content.Headers.ContentType = new MediaTypeHeaderValue(Mp3);
+        using HttpRequestMessage request = DecoderTestSupport.Request(HttpMethod.Post, "/api/media?name=cut.mp3", "alice", content);
+        Task<HttpResponseMessage> upload = server.Client.SendAsync(request, cancel.Token);
+        while (launcher.Starts == 0)
+        {
+            await Task.Delay(10);
+        }
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => upload);
+
+        // The server ends the decode when the request ends, so the kill and the removal of the temporary files come a moment later.
+        for (int wait = 0; wait < 500 && (launcher.Kills == 0 || DecoderTestSupport.TempFiles(server).Length > 0); wait++)
+        {
+            await Task.Delay(20);
+        }
+        Assert.Equal(1, launcher.Kills);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+
+        // The place the cancelled decode held is free again, so the user's next upload is not refused.
+        launcher.Behaviour = FakeDecoderLauncher.Mode.Succeed;
+        using HttpResponseMessage next = await DecoderTestSupport.UploadAsync(server, _compressedFile, "next.mp3", Mp3);
+        Assert.Equal(HttpStatusCode.Created, next.StatusCode);
     }
 
     [Fact]
