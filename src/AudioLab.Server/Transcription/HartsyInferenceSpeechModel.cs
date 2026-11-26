@@ -131,14 +131,25 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        // A native call still running keeps the lease. The wait is one second at most, so the stop's total stays within the host's shutdown
-        // timeout (D93); a lease still in use is left to the process.
-        if (!await _busy.WaitAsync(_disposeWait))
+        // A native call or a model open still running keeps the lease. Both waits share one deadline of one second, so the stop's total stays
+        // within the host's shutdown timeout (D93); a lease still in use is left to the process.
+        using CancellationTokenSource bound = new(_disposeWait);
+        bool holdsBusy = false;
+        try
         {
+            await _busy.WaitAsync(bound.Token);
+            holdsBusy = true;
+            await _open.WaitAsync(bound.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (holdsBusy)
+            {
+                _busy.Release();
+            }
             TranscriptionLog.ModelStillBusy(_logger);
             return;
         }
-        await _open.WaitAsync();
         try
         {
             _lease?.Dispose();
@@ -151,8 +162,6 @@ public sealed class HartsyInferenceSpeechModel : ISpeechModel, IAsyncDisposable
             _open.Release();
             _busy.Release();
         }
-        _open.Dispose();
-        _busy.Dispose();
     }
 
     private static SpeechModelException Map(Exception exception)
