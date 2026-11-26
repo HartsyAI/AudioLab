@@ -10,6 +10,7 @@ namespace AudioLab.Core.Transcription;
 /// <param name="ReachedSeconds">How far into the media the finished windows reach, in seconds.</param>
 /// <param name="CancelRequested">Whether a cancel is waiting for the next chunk boundary.</param>
 /// <param name="Reason">Why it failed or was cancelled, when it was.</param>
+/// <param name="StrippedCharacters">The control characters removed from the model's text so far; the transcript holds the text without them.</param>
 public sealed record TranscriptionStatus(
     [property: JsonPropertyName("media")] string Media,
     [property: JsonPropertyName("state")] TranscriptionState State,
@@ -17,4 +18,5 @@ public sealed record TranscriptionStatus(
     [property: JsonPropertyName("chunks")] int Chunks,
     [property: JsonPropertyName("reachedSeconds")] double ReachedSeconds,
     [property: JsonPropertyName("cancelRequested")] bool CancelRequested,
-    [property: JsonPropertyName("reason")] string? Reason);
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("strippedCharacters")] int StrippedCharacters);

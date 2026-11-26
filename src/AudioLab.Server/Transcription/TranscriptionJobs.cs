@@ -371,6 +371,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
         job.Done = kept.Count;
         job.Segments = kept.Sum(chunk => chunk.Segments.Count);
         job.Bytes = kept.Sum(TranscriptionStore.ChunkBytes);
+        job.Stripped = kept.Sum(chunk => chunk.Stripped);
         job.Reached = kept.Count == 0 ? 0 : TranscriptionWindows.At(kept.Count - 1, job.Duration).OwnedEndSeconds;
     }
 
@@ -467,12 +468,12 @@ public sealed class TranscriptionJobs : IMediaRemoval
             await FinishAsync(job, TranscriptionState.Failed, exception.Message, cancellationToken);
             return false;
         }
-        if (!TranscriptRules.TryOwn(window, answer, job.Duration, out ValueList<TranscriptSegment> owned, out string problem))
+        if (!TranscriptRules.TryOwn(window, answer, job.Duration, out ValueList<TranscriptSegment> owned, out string problem, out int stripped))
         {
             await FinishAsync(job, TranscriptionState.Failed, $"The model's answer is malformed: {problem}", cancellationToken);
             return false;
         }
-        ChunkRecord chunk = new(window.Index, owned);
+        ChunkRecord chunk = new(window.Index, owned, stripped);
         long bytes = TranscriptionStore.ChunkBytes(chunk);
         if (job.Bytes + bytes > TranscriptionLimits.MaxTranscriptBytes - TranscriptionLimits.TranscriptOverheadBytes)
         {
@@ -505,6 +506,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
             job.Reached = window.OwnedEndSeconds;
             job.Segments += owned.Count;
             job.Bytes += bytes;
+            job.Stripped += stripped;
             if (job.CancelRequested)
             {
                 await SetStateAsync(job, TranscriptionState.Cancelled, null, cancellationToken);
@@ -806,7 +808,8 @@ public sealed class TranscriptionJobs : IMediaRemoval
             job.File.Chunks,
             job.Reached,
             job.CancelRequested,
-            job.File.Reason);
+            job.File.Reason,
+            job.Stripped);
     }
 
     private static string Describe(TranscriptionState state) => state switch

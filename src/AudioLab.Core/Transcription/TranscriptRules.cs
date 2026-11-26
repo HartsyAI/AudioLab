@@ -60,13 +60,14 @@ public static class TranscriptRules
         return Cap(problems);
     }
 
-    /// <summary>The answer with its text and times made usable: whitespace collapsed, segments with no text dropped, each segment and each word
-    /// clamped into the window (and the word into its segment), and the segments sorted by start. A value that is not finite is kept,
-    /// so <see cref="AnswerProblems"/> refuses it.</summary>
-    public static IReadOnlyList<SpeechSegment> Normalise(IReadOnlyList<SpeechSegment> answer, double windowLength)
+    /// <summary>The answer with its text and times made usable: control characters removed (counted in <paramref name="stripped"/>), whitespace
+    /// collapsed, segments with no text dropped, each segment and each word clamped into the window (and the word into its segment), and the
+    /// segments sorted by start. A value that is not finite is kept, so <see cref="AnswerProblems"/> refuses it.</summary>
+    public static IReadOnlyList<SpeechSegment> Normalise(IReadOnlyList<SpeechSegment> answer, double windowLength, out int stripped)
     {
         ArgumentNullException.ThrowIfNull(answer);
         List<SpeechSegment> kept = [];
+        stripped = 0;
         foreach (SpeechSegment segment in answer)
         {
             if (!double.IsFinite(segment.Start) || !double.IsFinite(segment.End))
@@ -74,14 +75,22 @@ public static class TranscriptRules
                 kept.Add(segment);
                 continue;
             }
-            string text = Cut(Collapse(segment.Text), TranscriptionLimits.MaxTextChars);
+            string source = segment.Text ?? string.Empty;
+            string clean = StripControls(source);
+            stripped += source.Length - clean.Length;
+            string text = Cut(Collapse(clean), TranscriptionLimits.MaxTextChars);
             if (text.Length == 0)
             {
                 continue;
             }
             double start = Math.Clamp(segment.Start, 0, windowLength);
             double end = Math.Clamp(segment.End, start, windowLength);
-            ValueList<LyricWord>? words = segment.Words is { } given ? KeptWords(given, start, end) : null;
+            ValueList<LyricWord>? words = null;
+            if (segment.Words is { } given)
+            {
+                words = KeptWords(given, start, end, out int wordStripped);
+                stripped += wordStripped;
+            }
             kept.Add(new SpeechSegment(start, end, text, segment.Kind, words));
         }
         kept.Sort((left, right) => left.Start.CompareTo(right.Start));
@@ -118,17 +127,19 @@ public static class TranscriptRules
     }
 
     /// <summary>The segments of a window's answer that the window owns, in media seconds (D91); the rest belong to a neighbour. The answer is
-    /// normalised first, so the stored segments pass <see cref="DocumentProblems"/> by construction.</summary>
+    /// normalised first, so the stored segments pass <see cref="DocumentProblems"/> by construction. The count of control characters removed
+    /// (<paramref name="stripped"/>) covers the whole answer, so a character in the overlap can be counted by both windows.</summary>
     /// <returns>False, with the first problem, when the answer is not one the server accepts.</returns>
     public static bool TryOwn(
         TranscriptionWindow window,
         IReadOnlyList<SpeechSegment> answer,
         double durationSeconds,
         out ValueList<TranscriptSegment> owned,
-        out string problem)
+        out string problem,
+        out int stripped)
     {
         ArgumentNullException.ThrowIfNull(answer);
-        IReadOnlyList<SpeechSegment> usable = Normalise(answer, window.LengthSeconds);
+        IReadOnlyList<SpeechSegment> usable = Normalise(answer, window.LengthSeconds, out stripped);
         IReadOnlyList<string> problems = AnswerProblems(usable, window.LengthSeconds);
         if (problems.Count > 0)
         {
@@ -160,19 +171,29 @@ public static class TranscriptRules
         return true;
     }
 
-    /// <summary>The words with text, collapsed and clamped into their segment; a word of only spaces is dropped.</summary>
-    private static ValueList<LyricWord>? KeptWords(ValueList<LyricWord> given, double start, double end)
+    /// <summary>The words with text, control characters removed, collapsed and clamped into their segment; a word of only spaces is dropped.</summary>
+    private static ValueList<LyricWord>? KeptWords(ValueList<LyricWord> given, double start, double end, out int stripped)
     {
         List<LyricWord> kept = [];
+        stripped = 0;
         foreach (LyricWord word in given)
         {
-            string text = Cut(Collapse(word.Word), TranscriptionLimits.MaxWordChars);
+            string clean = StripControls(word.Word ?? string.Empty);
+            stripped += (word.Word ?? string.Empty).Length - clean.Length;
+            string text = Cut(Collapse(clean), TranscriptionLimits.MaxWordChars);
             if (text.Length > 0)
             {
                 kept.Add(ClampWord(word with { Word = text }, start, end));
             }
         }
         return kept.Count == 0 ? null : new ValueList<LyricWord>(kept);
+    }
+
+    /// <summary>The text without its control characters, which no transcript holds (D94). Tab, line feed and carriage return are whitespace and stay;
+    /// the whitespace collapse that follows turns them into spaces.</summary>
+    private static string StripControls(string text)
+    {
+        return new string(text.Where(character => !char.IsControl(character) || char.IsWhiteSpace(character)).ToArray());
     }
 
     private static LyricWord ClampWord(LyricWord word, double start, double end)
