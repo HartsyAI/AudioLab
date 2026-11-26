@@ -32,6 +32,14 @@ public static class TranscriptionServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<TranscriptionStore>();
         services.AddSingleton<IAudioWindowSource, StoredAudioWindowSource>();
+        // Only a model whose files are on disk is registered: a model that is not installed cannot be chosen (D98).
+        foreach (SpeechModelEntry entry in registry.Where(entry => HartsyInferenceSpeechModel.IsInstalled(options, entry)))
+        {
+            services.AddSingleton<ISpeechModel>(provider => new HartsyInferenceSpeechModel(
+                options,
+                entry,
+                provider.GetRequiredService<ILogger<HartsyInferenceSpeechModel>>()));
+        }
         foreach (SpeechModelEntry entry in registry)
         {
             services.AddSingleton(entry);
