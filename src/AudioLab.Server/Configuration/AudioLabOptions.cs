@@ -3,6 +3,7 @@ using AudioLab.Server.Media;
 using AudioLab.Server.Midi;
 using AudioLab.Server.Render;
 using AudioLab.Server.Store;
+using AudioLab.Server.Transcription;
 
 namespace AudioLab.Server.Configuration;
 
@@ -26,6 +27,9 @@ public sealed record AudioLabOptions
 
     /// <summary>What the MIDI import and export routes accept.</summary>
     public MidiOptions Midi { get; init; } = new();
+
+    /// <summary>The transcription jobs' limits, under <c>AudioLab:Transcription</c>.</summary>
+    public TranscriptionOptions Transcription { get; init; } = new();
 
     /// <summary>The largest request body a route accepts, in bytes, unless the route sets its own limit as the media upload does.</summary>
     public long MaxRequestBodyBytes { get; init; } = 64 * 1024;

@@ -8,4 +8,6 @@ public static class Users
     public static UserId Alice { get; } = UserId.ForDoor("swarm", "alice");
 
     public static UserId Bob { get; } = UserId.ForDoor("swarm", "bob");
+
+    public static UserId Carol { get; } = UserId.ForDoor("swarm", "carol");
 }
