@@ -78,7 +78,9 @@ public sealed class TranscriptionWindowsTests
             new SpeechSegment(3, 4, "tab\tand\nnewline", SpeechKind.Speech),
         ];
 
-        Assert.True(TranscriptRules.TryOwn(window, answer, 60, out ValueList<TranscriptSegment> owned, out string problem, out int stripped), problem);
+        Assert.True(
+            TranscriptRules.TryOwn(window, answer, 60, out ValueList<TranscriptSegment> owned, out string problem, out int stripped),
+            problem);
 
         Assert.Equal(2, stripped);
         Assert.Equal(new[] { "abcdef", "tab and newline" }, owned.Select(segment => segment.Text).ToArray());

@@ -171,7 +171,7 @@ public static class TranscriptRules
         return true;
     }
 
-    /// <summary>The words with text, control characters removed, collapsed and clamped into their segment; a word of only spaces is dropped.</summary>
+    /// <summary>The words with text, control characters removed and collapsed, clamped into their segment; a word of only spaces is dropped.</summary>
     private static ValueList<LyricWord>? KeptWords(ValueList<LyricWord> given, double start, double end, out int stripped)
     {
         List<LyricWord> kept = [];
