@@ -716,6 +716,33 @@ public sealed class TranscriptionContractTests
     }
 
     [Fact]
+    public async Task ABusyTimeoutIsRetriedWithoutAskingTheBusyModelAgain()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        TranscriptionStore files = Files(store);
+        BusyHangingSpeechModel model = new();
+        TranscriptionOptions options = new() { ModelTimeout = TimeSpan.FromMinutes(1), Retries = 2 };
+        TranscriptionJobs jobs = new(
+            files,
+            store.Media,
+            new FakeWindowSource(100),
+            Registry(model),
+            options,
+            store.Time,
+            NullLogger<TranscriptionJobs>.Instance);
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
+        await jobs.StartAsync(Users.Alice, media, None);
+
+        await RunWithClockAsync(jobs, store.Time).WaitAsync(TimeSpan.FromSeconds(30));
+
+        TranscriptionStatus status = await StatusOfAsync(jobs, Users.Alice, media.Id);
+        Assert.Equal(TranscriptionState.Failed, status.State);
+        Assert.Equal("The speech model did not answer in time: it is busy with a call that has not finished.", status.Reason);
+        Assert.Equal(1, model.Calls);
+    }
+
+    [Fact]
     public async Task ALockedChunkLogLeavesTheStartUpAliveAndThatJobAtNoProgress()
     {
         using TempFolder folder = new();

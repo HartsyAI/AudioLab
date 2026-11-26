@@ -230,4 +230,23 @@ public sealed class TranscriptionJobTests
         Assert.Null(store.Media.Find(Users.Alice, media.Id));
         Assert.False(File.Exists(store.Paths.TranscriptJobFile(Users.Alice, media.Id)));
     }
+
+    [Fact]
+    public async Task AStartWhileTheFileIsBeingDeletedWritesNoJobAndSucceedsAfterwards()
+    {
+        using TempFolder folder = new();
+        await using TestStore store = TestStore.On(folder.Path);
+        TranscriptionStore files = Files(store);
+        TranscriptionJobs jobs = Jobs(store, files, new FakeWindowSource(10), new FakeSpeechModel());
+        MediaRecord media = await store.UploadAsync(Users.Alice, Wav());
+        _ = store.Media.BeginDelete(Users.Alice, media.Id);
+
+        await Assert.ThrowsAsync<MediaNotFoundException>(() => jobs.StartAsync(Users.Alice, media, None));
+
+        Assert.Null(await jobs.StatusAsync(Users.Alice, media.Id, None));
+        Assert.False(File.Exists(store.Paths.TranscriptJobFile(Users.Alice, media.Id)));
+        store.Media.CancelDelete(Users.Alice, media.Id);
+        StartOutcome outcome = await jobs.StartAsync(Users.Alice, media, None);
+        Assert.True(outcome.Created);
+    }
 }

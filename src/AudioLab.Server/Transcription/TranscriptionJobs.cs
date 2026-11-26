@@ -67,6 +67,7 @@ public sealed class TranscriptionJobs : IMediaRemoval
     /// <summary>Starts a job for a media file (D90), or answers with the job there (<c>created</c> false). A queued, running or paused job is
     /// always answered; a failed, cancelled or done job is answered under the model the user has chosen, and a done one only with its
     /// transcript present. Any other start makes a new job from chunk 0; if its state cannot be written, the job there is kept as it was.</summary>
+    /// <exception cref="MediaNotFoundException">The file is gone or its delete has begun.</exception>
     /// <exception cref="TranscriptionLimitException">The user already has as many queued, paused or running jobs as allowed.</exception>
     public async Task<StartOutcome> StartAsync(UserId user, MediaRecord record, CancellationToken cancellationToken)
     {
@@ -76,9 +77,15 @@ public sealed class TranscriptionJobs : IMediaRemoval
         int chunks = TranscriptionWindows.CountOf(duration);
         JobKey key = new(user, record.Id);
         string model = await _store.ReadSpeechModelAsync(user, cancellationToken) ?? SpeechModelCatalog.DefaultSpeechModel;
+        await _media.PrepareAsync(user, cancellationToken);
         await _mutex.WaitAsync(cancellationToken);
         try
         {
+            // A file whose delete has begun is not found (D37), so no job is written for a file being removed (D90).
+            if (_media.Find(user, record.Id) is null)
+            {
+                throw new MediaNotFoundException();
+            }
             TranscriptionJob? existing = _jobs.TryGetValue(key, out TranscriptionJob? found) ? found : null;
             if (existing is not null && await AnswersStartAsync(existing, user, record, model, cancellationToken))
             {
@@ -549,6 +556,11 @@ public sealed class TranscriptionJobs : IMediaRemoval
         ReadOnlyMemory<float> samples,
         CancellationToken cancellationToken)
     {
+        // A call the model gave up on still holds it, so no new call is made until it is free; a retry waits and asks again (D93).
+        if (model.IsBusy)
+        {
+            throw new SpeechModelException(BusyTimeout, retryable: true);
+        }
         using CancellationTokenSource call = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         // The model is given only the audio the window owns (D91): the overlap would be transcribed twice.
         ReadOnlyMemory<float> owned = window.IsLast
