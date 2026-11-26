@@ -62,10 +62,28 @@ public sealed class TranscriptionWindowsTests
             {
                 answer.Add(new SpeechSegment(27.5, 28.5, "straddles", SpeechKind.Singing));
             }
-            Assert.True(TranscriptRules.TryOwn(window, answer, duration, out ValueList<TranscriptSegment> owned, out string problem), problem);
+            Assert.True(TranscriptRules.TryOwn(window, answer, duration, out ValueList<TranscriptSegment> owned, out string problem, out _), problem);
             kept.AddRange(owned);
         }
         Assert.Equal(new double[] { 1, 27.5, 29, 55.5, 57 }, kept.Select(segment => segment.Start).ToArray());
+    }
+
+    [Fact]
+    public void AControlCharacterInTheMiddleOfASegmentIsRemovedAndCounted()
+    {
+        TranscriptionWindow window = TranscriptionWindows.At(0, 60);
+        List<SpeechSegment> answer =
+        [
+            new SpeechSegment(1, 2, "ab\u0000cd\u0007ef", SpeechKind.Speech),
+            new SpeechSegment(3, 4, "tab\tand\nnewline", SpeechKind.Speech),
+        ];
+
+        Assert.True(
+            TranscriptRules.TryOwn(window, answer, 60, out ValueList<TranscriptSegment> owned, out string problem, out int stripped),
+            problem);
+
+        Assert.Equal(2, stripped);
+        Assert.Equal(new[] { "abcdef", "tab and newline" }, owned.Select(segment => segment.Text).ToArray());
     }
 
     [Fact]

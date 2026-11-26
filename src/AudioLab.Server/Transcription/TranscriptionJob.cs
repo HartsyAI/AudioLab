@@ -36,6 +36,9 @@ internal sealed class TranscriptionJob(UserId owner, MediaId media)
     /// <summary>The bytes the kept chunks would take in the transcript, counted against its limit (D95).</summary>
     public long Bytes { get; set; }
 
+    /// <summary>The control characters removed from the kept chunks' answers, reported on the status (D94).</summary>
+    public int Stripped { get; set; }
+
     /// <summary>Whether a cancel is waiting for the next chunk boundary.</summary>
     public bool CancelRequested { get; set; }
 }
