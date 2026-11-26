@@ -10,6 +10,6 @@
                 class="step-cell @(on ? "step-on" : null) @(index % 4 == 0 ? "step-beat" : null)"
                 aria-pressed="@(on ? "true" : "false")" aria-label="@BeatLaneText.StepName(Lane.Name, index)"
                 aria-disabled="@(Editable ? null : "true")" title="@(Editable ? null : Reason)" tabindex="@(index == Cursor ? 0 : -1)"
-                @onpointerdown="pointer => PressAsync(index, pointer)"@onpointerenter="() => Enter(index)" @onkeydown="key => KeyAsync(index, key)"></button>
+                @onpointerdown="pointer => PressAsync(index, pointer)" @onpointerenter="() => Enter(index)" @onkeydown="key => KeyAsync(index, key)"></button>
     }
 </div>
