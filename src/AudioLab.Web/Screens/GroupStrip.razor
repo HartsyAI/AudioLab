@@ -1,0 +1,38 @@
+<div class="strip" data-folded="@(Group.Collapsed ? "true" : "false")" role="group" aria-label="@($"Group {Group.Name}")"
+     style="width: @Css.Rem(6.5)">
+    <div class="head">
+        <span class="dot" style="background: @ColorToken"></span>
+        <span class="name">@Group.Name</span>
+    </div>
+    <div class="controls">
+        <Toggle Label="Fold" Name="@($"Fold group {Group.Name}")" On="Group.Collapsed" Tone="ToggleTone.Accent" Disabled="!Actions.CanEdit"
+                Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetCollapsed(Group.Id, !Group.Collapsed)" />
+        <Toggle Label="Tint" Name="@($"Tint the clips of group {Group.Name}")" On="Group.Tint" Tone="ToggleTone.Accent" Disabled="!Actions.CanEdit"
+                Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetTint(Group.Id, !Group.Tint)" />
+    </div>
+    <div class="swatches" role="group" aria-label="@($"Colour of group {Group.Name}")">
+        @for (int shade = 0; shade < Palette.Count; shade++)
+        {
+            int chosen = shade;
+            <button type="button" class="swatch" style="background: @Palette[chosen]" aria-label="@($"Colour {chosen + 1} for group {Group.Name}")"
+                    title="@(Actions.CanEdit ? null : Actions.Reason)" aria-current="@(chosen == CurrentSwatch ? "true" : null)"
+                    disabled="@(!Actions.CanEdit)" @onclick="() => SetColourAsync(chosen)"></button>
+        }
+    </div>
+    <div class="fader-row">
+        <Fader Label="@($"Volume of group {Group.Name}")" Position="@PositionOf(Group.Volume)" Text="@VolumeText" Format="FormatVolume"
+               DefaultPosition="@PositionOf(1)" OnCommit="SetVolumeAsync" Disabled="!Actions.CanEdit" Reason="@Actions.Reason" />
+    </div>
+    <div class="foot">
+        <Toggle Track="true" Label="M" Name="@($"Mute group {Group.Name}")" On="Group.Muted" Tone="ToggleTone.Mute" Disabled="!Actions.CanEdit"
+                Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetMuted(Group.Id, !Group.Muted)" />
+        <Toggle Track="true" Label="S" Name="@($"Solo group {Group.Name}")" On="Group.Soloed" Tone="ToggleTone.Caution" Disabled="!Actions.CanEdit"
+                Reason="@(Actions.CanEdit ? null : Actions.Reason)" OnClick="() => Actions.Groups.SetSoloed(Group.Id, !Group.Soloed)" />
+        <span class="db">@VolumeText</span>
+    </div>
+    @if (!Actions.CanEdit)
+    {
+        <span class="members">@Actions.Reason</span>
+    }
+    <span class="members">@Members @(Members == 1 ? "track" : "tracks")</span>
+</div>

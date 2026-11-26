@@ -1,6 +1,6 @@
 @if (Interactive)
 {
-    <div class="knob" data-interactive="true" data-dragging="@(_gesture is { Active: true } ? "true" : "false")">
+    <div class="knob" data-interactive="true" data-dragging="@(Slider.Gesture is { Active: true } ? "true" : "false")">
         <button type="button" class="knob-control" role="slider" aria-label="@Label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Now"
                 aria-valuetext="@Shown" aria-disabled="@(Disabled ? "true" : null)" title="@Hint" @onpointerdown="PressAsync"
                 @onkeydown="KeyAsync" @ondblclick="ResetAsync">

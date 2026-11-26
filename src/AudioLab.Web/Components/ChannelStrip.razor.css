@@ -65,3 +65,10 @@
     font-weight: var(--font-weight-strong);
     text-align: right;
 }
+
+.silence,
+.reason {
+    color: var(--text-soft);
+    font-size: var(--font-size-label);
+    line-height: 1.2;
+}
