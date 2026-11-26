@@ -43,4 +43,28 @@ public sealed class BeatEditor(LiveProject live)
     {
         return EditRunner.RunAsync(live, project => live.SendAsync(new SetBeatSteps { Project = project, Steps = steps }));
     }
+
+    /// <summary>Makes the given steps of a lane fire, or silences them, to an absolute state; the others stay as they are.</summary>
+    /// <param name="lane">The lane to edit.</param>
+    /// <param name="steps">The steps to set, each counted from 0.</param>
+    /// <param name="on">True to make the steps fire, false to silence them.</param>
+    /// <param name="gesture">The gesture of a paint drag, so its commands are one undo step; null for a single edit.</param>
+    public Task<EditResult> SetLaneStepsAsync(BeatLaneId lane, IReadOnlyList<int> steps, bool on, string? gesture = null)
+    {
+        return EditRunner.RunAsync(
+            live,
+            project => live.SendAsync(new SetBeatLaneSteps { Project = project, Lane = lane, Steps = [.. steps], On = on }, gesture));
+    }
+
+    /// <summary>Sets the gain of a lane to an absolute value, from 0 up to the most a lane may have; 1 is unity.</summary>
+    public Task<EditResult> SetLaneGainAsync(BeatLaneId lane, double gain)
+    {
+        return EditRunner.RunAsync(live, project => live.SendAsync(new SetBeatLaneGain { Project = project, Lane = lane, Gain = gain }));
+    }
+
+    /// <summary>Opens a gesture for a paint drag; every command sent with it is one undo step once it ends.</summary>
+    public string BeginStroke() => live.NewGesture();
+
+    /// <summary>Closes the gesture of a paint drag.</summary>
+    public Task EndStrokeAsync(string gesture) => live.EndGestureAsync(gesture);
 }

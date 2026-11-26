@@ -24,7 +24,10 @@ internal sealed class RenderedMarkup : Renderer
 
     private readonly Dictionary<string, ulong> _handlers = [];
 
+    private readonly Dictionary<(string? Element, string Name), ulong> _handlersOfElement = [];
+
     private ServiceProvider? _provider;
+
 
     private int _root;
 
@@ -83,6 +86,9 @@ internal sealed class RenderedMarkup : Renderer
 
     /// <summary>Every text that was written.</summary>
     public IReadOnlyList<string> Texts => _texts;
+
+    /// <summary>How many batches of output were written: one for each render of a component that changed what it shows.</summary>
+    public int Batches { get; private set; }
 
     /// <summary>How many components of a type were ever made: a component that is kept is made once, one that is replaced is made again.</summary>
     public int Made(Type type) => _types.Values.Count(candidate => candidate == type);
@@ -144,8 +150,25 @@ internal sealed class RenderedMarkup : Renderer
         return Dispatcher.InvokeAsync(() => DispatchEventAsync(_handlers[name], new EventFieldInfo(), args));
     }
 
+    /// <summary>Raises an event on the element with the given id, such as <c>onkeydown</c> on a step's button, and runs its handler.</summary>
+    /// <param name="elementId">The id the element was written with, or null for the root element, which has none.</param>
+    /// <param name="name">The event, such as <c>onkeydown</c>.</param>
+    /// <param name="args">The event's arguments.</param>
+    public Task RaiseOnAsync(string? elementId, string name, EventArgs args)
+    {
+        return Dispatcher.InvokeAsync(() => DispatchEventAsync(_handlersOfElement[(elementId, name)], new EventFieldInfo(), args));
+    }
+
+    /// <summary>The rendered component itself, for work that a test calls on it directly: a handler's id is only sent again when the
+    /// handler changes, so a test that needs a particular element's handler calls the method the handler calls.</summary>
+    /// <typeparam name="T">The component.</typeparam>
+    public T Component<T>() where T : class => (T)Instance!;
+
     /// <summary>Runs work on the renderer's own context, as a callback from the browser does.</summary>
     public Task RunAsync(Action work) => Dispatcher.InvokeAsync(work);
+
+    /// <summary>Runs work that finishes later on the renderer's own context, and returns when it has finished.</summary>
+    public Task RunAsync(Func<Task> work) => Dispatcher.InvokeAsync(work);
 
     /// <summary>Takes the components down, as the page does when it leaves, so that what they do on the way out can be seen.</summary>
     public void TakeDown() => Dispose();
@@ -163,9 +186,44 @@ internal sealed class RenderedMarkup : Renderer
     /// <inheritdoc />
     protected override void HandleException(Exception exception) => System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(exception);
 
+    // The handlers the components hold now, by the element that has them. A batch sends an element's id only when that id changes, so the
+    // ids are read from the current render tree, which has all of them.
+    private void CollectHandlers(int componentId)
+    {
+        _handlersOfElement.Clear();
+        CollectFrom(componentId);
+    }
+
+    private void CollectFrom(int componentId)
+    {
+        ArrayRange<RenderTreeFrame> frames = GetCurrentRenderTreeFrames(componentId);
+        string? element = null;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            RenderTreeFrame frame = frames.Array[i];
+            if (frame.FrameType == RenderTreeFrameType.Element)
+            {
+                element = null;
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeName == "id")
+            {
+                element = frame.AttributeValue?.ToString();
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeEventHandlerId != 0)
+            {
+                _handlersOfElement[(element, frame.AttributeName)] = frame.AttributeEventHandlerId;
+            }
+            else if (frame.FrameType == RenderTreeFrameType.Component)
+            {
+                CollectFrom(frame.ComponentId);
+            }
+        }
+    }
+
     /// <inheritdoc />
     protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
     {
+        Batches++;
         ArrayRange<RenderTreeFrame> frames = renderBatch.ReferenceFrames;
         for (int i = 0; i < frames.Count; i++)
         {
@@ -191,6 +249,7 @@ internal sealed class RenderedMarkup : Renderer
                 _markup.Add(frame.MarkupContent);
             }
         }
+        CollectHandlers(_root);
         List<Type> drawn = [];
         ArrayRange<RenderTreeDiff> updated = renderBatch.UpdatedComponents;
         for (int i = 0; i < updated.Count; i++)

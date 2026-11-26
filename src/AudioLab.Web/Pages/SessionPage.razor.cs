@@ -83,7 +83,14 @@ public sealed partial class SessionPage
     private LyricsDrags LyricsDrags { get; set; } = default!;
 
     [Inject]
+    private DrumDrags DrumDrags { get; set; } = default!;
+
+    [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
+
+    [Inject]
+    private DrumKeys DrumKeys { get; set; } = default!;
+
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
 
@@ -469,12 +476,18 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
+        if (DrumKeys.Handle(chord))
+        {
+            return true;
+        }
+
         // Escape ends a pass that is recording without committing it; the transport keeps playing.
         if (chord.Key == "Escape" && Recorder.Passing)
         {
             Recorder.Drop();
             return true;
         }
+
         if (RollKeys.Route(chord, TransportPress))
         {
             return true;
@@ -486,7 +499,7 @@ public sealed partial class SessionPage
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
         // A press is down on a clip, a word or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
         // So history waits.
-        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy))
+        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy, DrumDrags.Busy))
         {
             return true;
         }

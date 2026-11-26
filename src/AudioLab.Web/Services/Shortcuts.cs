@@ -293,6 +293,47 @@ public static class Shortcuts
 
     /// <summary>The keys of a drum lane, in the order they are listed.</summary>
     public static readonly IReadOnlyList<Shortcut> DrumLane = [DrumEarlier, DrumLater, DrumRename, DrumRemove];
+
+    /// <summary>Move the focus to the step one place earlier in the lane.</summary>
+    public static readonly Shortcut DrumStepEarlier = new("drum.step.earlier", "Previous step", "ArrowLeft", Drums);
+
+    /// <summary>Move the focus to the step one place later in the lane.</summary>
+    public static readonly Shortcut DrumStepLater = new("drum.step.later", "Next step", "ArrowRight", Drums);
+
+    /// <summary>Move the focus to the same step in the lane above.</summary>
+    public static readonly Shortcut DrumStepAbove = new("drum.step.above", "Same step in the lane above", "ArrowUp", Drums);
+
+    /// <summary>Move the focus to the same step in the lane below.</summary>
+    public static readonly Shortcut DrumStepBelow = new("drum.step.below", "Same step in the lane below", "ArrowDown", Drums);
+
+    /// <summary>Switch the focused step on or off.</summary>
+    public static readonly Shortcut DrumStepToggle = new("drum.step.toggle", "Switch step on or off", " ", Drums);
+
+    /// <summary>Switch the focused step on or off, as Space does.</summary>
+    public static readonly Shortcut DrumStepToggleEnter = new("drum.step.toggle.enter", "Switch step on or off", "Enter", Drums);
+
+    /// <summary>Move the focus to the first step of the lane.</summary>
+    public static readonly Shortcut DrumStepFirst = new("drum.step.first", "First step of the lane", "Home", Drums);
+
+    /// <summary>Move the focus to the last step of the lane.</summary>
+    public static readonly Shortcut DrumStepLast = new("drum.step.last", "Last step of the lane", "End", Drums);
+
+    /// <summary>Cancels the paint drag that is held down, anywhere but a text field or a dialog: the steps not yet sent are withdrawn.</summary>
+    public static readonly Shortcut DrumStepCancel = new("drum.step.cancel", "Cancel the paint drag", "Escape", Drums);
+
+    /// <summary>The keys of a step grid, in the order they are listed.</summary>
+    public static readonly IReadOnlyList<Shortcut> DrumStep =
+    [
+        DrumStepEarlier, DrumStepLater, DrumStepAbove, DrumStepBelow, DrumStepToggle, DrumStepToggleEnter, DrumStepFirst, DrumStepLast,
+    ];
+
+    /// <summary>The keys a step grid takes from the session while its focus is in the grid: the arrows, Space, Enter, Home and End stay in the
+    /// grid, not on the transport or the page.</summary>
+    public static readonly IReadOnlyList<Shortcut> DrumStepClaims =
+    [
+        DrumStepEarlier, DrumStepLater, DrumStepAbove, DrumStepBelow, DrumStepToggle, DrumStepToggleEnter, DrumStepFirst, DrumStepLast,
+    ];
+
     /// <summary>The shortcut that shows or hides the selected track's automation lane.</summary>
     public static readonly Shortcut AutomationToggle = new("automation.toggle", "Show or hide automation", "a", Session, Shift: true);
 
@@ -348,7 +389,8 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, ControlReset, .. AutomationKeys,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset,
+        .. AutomationKeys, DrumStepCancel,
         LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];
 }
