@@ -111,6 +111,11 @@ public sealed partial class Timeline
     // A press on a point selects it and, when the lane may be edited, may become a drag; nothing is sent until the release.
     private void AutomationPointDown((TrackId Track, PointerEventArgs Press) down)
     {
+        // Only the primary button edits or grabs a lane, as a fader's press does (SliderInput).
+        if (down.Press.Button != 0)
+        {
+            return;
+        }
         Track? track = CurrentTrack(down.Track);
         if (track is null || !track.View.AutomationVisible)
         {
@@ -183,11 +188,10 @@ public sealed partial class Timeline
     // A press on an empty part of a lane that a touch or latch pass records grabs the lane at the value under the pointer, and moves no point (D86).
     private void GrabEmptyLane(TrackId track, AutomationParameter parameter, AutomationLanePlan plan, double pressY)
     {
-        if (!Actions.CanEdit || !Recorder.RecordsLane(track, parameter))
+        if (!Actions.CanEdit || !Recorder.Grab(track, parameter, plan.Value(pressY)))
         {
             return;
         }
-        Recorder.Grab(track, parameter, plan.Value(pressY));
         Lanes.Announce("The held value is recorded into the pass; no point is added.");
         Pointer.Begin(
             (px, py) =>

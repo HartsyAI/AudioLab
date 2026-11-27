@@ -7,7 +7,9 @@ namespace AudioLab.Web.Components;
 /// </remarks>
 public sealed class ValueSender : IDisposable
 {
-    private const int SettleMilliseconds = 400;
+    private static readonly TimeSpan _defaultSettle = TimeSpan.FromMilliseconds(400);
+
+    private readonly TimeSpan _settleFor;
 
     private readonly Func<double, Task> _send;
 
@@ -20,10 +22,11 @@ public sealed class ValueSender : IDisposable
     private CancellationTokenSource? _settle;
 
     /// <summary>Starts a sender that passes each value to send, and calls changed when what is shown changes.</summary>
-    public ValueSender(Func<double, Task> send, Action changed)
+    public ValueSender(Func<double, Task> send, Action changed, TimeSpan? settle = null)
     {
         _send = send ?? throw new ArgumentNullException(nameof(send));
         _changed = changed ?? throw new ArgumentNullException(nameof(changed));
+        _settleFor = settle ?? _defaultSettle;
     }
 
     /// <summary>The value held while it is sent, from 0 to 1, or null when the drawn value is shown.</summary>
@@ -84,7 +87,7 @@ public sealed class ValueSender : IDisposable
         _settle = settle;
         try
         {
-            await Task.Delay(SettleMilliseconds, settle.Token);
+            await Task.Delay(_settleFor, settle.Token);
         }
         catch (OperationCanceledException)
         {

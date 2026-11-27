@@ -13,11 +13,7 @@ public sealed partial class PointerTracker : IPointerTracker
 {
     private readonly List<(string Type, JSObject Handler)> _installed = [];
 
-    private Action<double, double>? _move;
-
-    private Action<double, double>? _end;
-
-    private Action? _cancel;
+    private readonly PointerDrag _drag = new();
 
     private JSObject? _document;
 
@@ -30,38 +26,41 @@ public sealed partial class PointerTracker : IPointerTracker
         ArgumentNullException.ThrowIfNull(move);
         ArgumentNullException.ThrowIfNull(end);
         ArgumentNullException.ThrowIfNull(cancel);
-        Stop();
-        _move = move;
-        _end = end;
-        _cancel = cancel;
+        Action? displaced = _drag.Begin(move, end, cancel);
+        RemoveListeners();
         _document = Query("html");
         Add("pointermove", press =>
         {
             Shift = press.GetPropertyAsBoolean("shiftKey");
-            Action<double, double>? call = _move;
+            Action<double, double>? call = _drag.Move;
             call?.Invoke(press.GetPropertyAsDouble("clientX"), press.GetPropertyAsDouble("clientY"));
         });
         Add("pointerup", press =>
         {
             Shift = press.GetPropertyAsBoolean("shiftKey");
-            Finish(_end, press);
+            Finish(_drag.End, press);
         });
-        Add("pointercancel", _ => Finish(_cancel));
+        Add("pointercancel", _ => Finish(_drag.Cancel));
         Add("keydown", press =>
         {
             if (press.GetPropertyAsString("key") == "Escape")
             {
-                Finish(_cancel);
+                Finish(_drag.Cancel);
             }
         });
+        // A drag that a new one replaces is cancelled once the new one listens, so its owner does not wait for a release that will not come.
+        displaced?.Invoke();
     }
 
     /// <inheritdoc />
     public void Stop()
     {
-        _move = null;
-        _end = null;
-        _cancel = null;
+        _drag.Clear();
+        RemoveListeners();
+    }
+
+    private void RemoveListeners()
+    {
         if (_document is not null)
         {
             foreach ((string type, JSObject handler) in _installed)

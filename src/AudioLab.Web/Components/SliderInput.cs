@@ -28,13 +28,20 @@ public sealed class SliderInput : IDisposable
     /// <param name="redraw">Redraws the control.</param>
     /// <param name="dispatch">Runs work on the control's own thread.</param>
     /// <param name="send">Sends a place on the travel to the project.</param>
-    public SliderInput(Func<double> setting, IPointerTracker pointer, Action redraw, Func<Func<Task>, Task> dispatch, Func<double, Task> send)
+    /// <param name="settle">How long a sent place is held in the drawing; null for the default.</param>
+    public SliderInput(
+        Func<double> setting,
+        IPointerTracker pointer,
+        Action redraw,
+        Func<Func<Task>, Task> dispatch,
+        Func<double, Task> send,
+        TimeSpan? settle = null)
     {
         _setting = setting ?? throw new ArgumentNullException(nameof(setting));
         _pointer = pointer ?? throw new ArgumentNullException(nameof(pointer));
         _redraw = redraw ?? throw new ArgumentNullException(nameof(redraw));
         _dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
-        _sender = new ValueSender(send ?? throw new ArgumentNullException(nameof(send)), redraw);
+        _sender = new ValueSender(send ?? throw new ArgumentNullException(nameof(send)), redraw, settle);
     }
 
     /// <summary>The drag in progress, or null.</summary>
@@ -46,8 +53,8 @@ public sealed class SliderInput : IDisposable
     /// <summary>Raised on each move of a drag, with the place the drag is at.</summary>
     public event Action<double>? Dragged;
 
-    /// <summary>Raised when a drag is let go, with the place it ends at, before that place is sent.</summary>
-    public event Action<double>? LetGo;
+    /// <summary>Raised when a drag is let go, with the place it ends at and whether that place is sent after it.</summary>
+    public event Action<double, bool>? LetGo;
 
     /// <summary>Raised when a drag is taken down without a release.</summary>
     public event Action? Cancelled;
@@ -158,7 +165,9 @@ public sealed class SliderInput : IDisposable
     {
         double? place = gesture.Commit();
         Gesture = null;
-        LetGo?.Invoke(place ?? gesture.Position);
+        // A send follows only when the place differs from where the drawn control is, as Commit decides below.
+        bool sends = place is { } sent && (_sender.Sending || Math.Abs(sent - Travel) >= 1e-9);
+        LetGo?.Invoke(place ?? gesture.Position, sends);
         if (place is { } target)
         {
             await Commit(target);

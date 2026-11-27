@@ -62,18 +62,23 @@ public sealed partial class Fader : IDisposable
 
     /// <summary>Raised with the position when a grab is let go: the release, or the Space key going up, or the fader losing focus.</summary>
     [Parameter]
-    public EventCallback<double> OnLetGo { get; set; }
+    public EventCallback<(double Place, bool Sends)> OnLetGo { get; set; }
 
     /// <summary>Raised when a pointer grab is taken down without a release, so the recording it fed can be dropped.</summary>
     [Parameter]
     public EventCallback OnCancel { get; set; }
+
+    /// <summary>How long a sent place is held in the drawing until the value that answers it is drawn; a test sets it to zero.</summary>
+    [Parameter]
+    public TimeSpan? SettleDelay { get; set; }
 
     private SliderInput Slider => _slider ??= Attach(new SliderInput(
         () => Math.Clamp(Position, 0, 1),
         Pointer,
         () => StateHasChanged(),
         work => InvokeAsync(work),
-        value => OnCommit.InvokeAsync(value)));
+        value => OnCommit.InvokeAsync(value),
+        SettleDelay));
 
     private bool Interactive => OnCommit.HasDelegate;
 
@@ -86,7 +91,7 @@ public sealed partial class Fader : IDisposable
     {
         input.Grabbed += place => _ = InvokeAsync(() => OnGrab.InvokeAsync(place));
         input.Dragged += place => _ = InvokeAsync(() => OnDrag.InvokeAsync(place));
-        input.LetGo += place => _ = InvokeAsync(() => OnLetGo.InvokeAsync(place));
+        input.LetGo += (place, sends) => _ = InvokeAsync(() => OnLetGo.InvokeAsync((place, sends)));
         input.Cancelled += () => _ = InvokeAsync(() => OnCancel.InvokeAsync());
         return input;
     }
@@ -128,7 +133,7 @@ public sealed partial class Fader : IDisposable
         if (_held || _slider?.Gesture is not null)
         {
             _held = false;
-            _ = OnCancel.InvokeAsync();
+            _ = InvokeAsync(() => OnCancel.InvokeAsync());
         }
         _slider?.Dispose();
     }
@@ -142,7 +147,8 @@ public sealed partial class Fader : IDisposable
 
     private Task PressAsync(PointerEventArgs press)
     {
-        Slider.Press(press, Disabled || !Interactive);
+        // A press cannot start a second grab while the keyboard holds one: one grab at a time (the recorder refuses a second).
+        Slider.Press(press, Disabled || !Interactive || _held);
         return Task.CompletedTask;
     }
 
@@ -152,7 +158,7 @@ public sealed partial class Fader : IDisposable
         KeyChord chord = new(key.Key, key.CtrlKey || key.MetaKey, key.ShiftKey, key.AltKey, key.Repeat);
         if (Shortcuts.FaderGrab.Matches(chord))
         {
-            if (!key.Repeat && !_held && Interactive && !Disabled)
+            if (!key.Repeat && !_held && Interactive && !Disabled && Slider.Gesture is null)
             {
                 _held = true;
                 _heldAt = Travel;
@@ -160,11 +166,12 @@ public sealed partial class Fader : IDisposable
             }
             return;
         }
+        // While the keyboard holds a grab, only Up and Down step it (D86); every other key leaves the fader alone.
         // A held grab steps from the place it holds, not the drawn travel: a sent place is dropped from the drawing after a moment, and a
         // touch or latch pass sends none, so the drawn travel would fall back to the track's gain.
         if (_held)
         {
-            if (ValueGesture.Step(key.Key, key.ShiftKey, _heldAt) is { } stepped)
+            if (key.Key is "ArrowUp" or "ArrowDown" && ValueGesture.Step(key.Key, key.ShiftKey, _heldAt) is { } stepped)
             {
                 _heldAt = stepped;
                 await OnDrag.InvokeAsync(stepped);
@@ -194,7 +201,8 @@ public sealed partial class Fader : IDisposable
     private async Task ReleaseHeldAsync()
     {
         _held = false;
-        await OnLetGo.InvokeAsync(_heldAt);
+        // A keyboard grab sends its steps while it is held, so its release sends nothing more.
+        await OnLetGo.InvokeAsync((_heldAt, false));
     }
 
     private Task ResetAsync()

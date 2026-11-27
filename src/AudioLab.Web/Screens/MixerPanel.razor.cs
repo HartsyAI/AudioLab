@@ -38,10 +38,12 @@ public sealed partial class MixerPanel
     [Inject]
     private AutomationRecorder Recorder { get; set; } = default!;
 
-    // A touch or latch pass that records this track's volume owns the fader's gesture: the held gain goes into the lane and the track's fader is not moved.
+    // A touch or latch pass that records this track's volume takes the gain of a grab into the lane, not into the track's fader. The keys and the
+    // reset that are not part of a grab still send, and so does a release that did not move the value (nothing of it reaches here then).
     private async Task SetTrackVolumeAsync((TrackId Track, double Gain) change)
     {
-        if (!Recorder.RecordsLane(change.Track, AutomationParameter.Volume))
+        bool grabbed = Recorder.RecordsLane(change.Track, AutomationParameter.Volume) && (Recorder.Holding || Recorder.TakeSettling());
+        if (!grabbed)
         {
             await Actions.SetVolume(change.Track, change.Gain);
         }
@@ -59,9 +61,9 @@ public sealed partial class MixerPanel
         return Task.CompletedTask;
     }
 
-    private Task LetGoAsync((TrackId Track, double Gain) release)
+    private Task LetGoAsync((TrackId Track, double Gain, bool Sends) release)
     {
-        Recorder.Release(release.Track, release.Gain);
+        Recorder.Release(release.Track, release.Gain, release.Sends);
         return Task.CompletedTask;
     }
 

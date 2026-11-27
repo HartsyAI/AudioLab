@@ -33,6 +33,8 @@ public sealed class AutomationRecorder : IDisposable
 
     private double _value;
 
+    private bool _settling;
+
     /// <summary>Whether a pass is recording now.</summary>
     public bool Passing => _writer is { Passing: true };
 
@@ -86,15 +88,28 @@ public sealed class AutomationRecorder : IDisposable
     /// <param name="track">The track whose lane is grabbed.</param>
     /// <param name="parameter">The parameter the lane shows.</param>
     /// <param name="value">The value the control holds.</param>
-    public void Grab(TrackId track, AutomationParameter parameter, double value)
+    /// <returns>Whether the grab was taken: no lane records, or a grab is already held, refuses it.</returns>
+    public bool Grab(TrackId track, AutomationParameter parameter, double value)
     {
-        if (!RecordsLane(track, parameter))
+        if (!RecordsLane(track, parameter) || Holding || !LiveMatches())
         {
-            return;
+            return false;
         }
         _value = value;
         _time = _transport!.Position;
-        _writer!.Grab(_time, value);
+        return _writer!.Grab(_time, value);
+    }
+
+    /// <summary>Whether a grab is held now, from any source.</summary>
+    public bool Holding => _writer is { Held: true };
+
+    /// <summary>Whether the last release of a grab is followed by a send of its value, which the screen must not write as a track gain.</summary>
+    /// <remarks>Reading clears it, so the send it belongs to takes it once; a release with no send leaves nothing to take.</remarks>
+    public bool TakeSettling()
+    {
+        bool settling = _settling;
+        _settling = false;
+        return settling;
     }
 
     /// <summary>The held control moved to a value; the next sample and the release record it.</summary>
@@ -111,13 +126,15 @@ public sealed class AutomationRecorder : IDisposable
     /// <summary>The control is let go at the playhead with a value: the segment ends, and a latch keeps this value.</summary>
     /// <param name="track">The track whose lane is released.</param>
     /// <param name="value">The value the control holds on release.</param>
-    public void Release(TrackId track, double value)
+    /// <param name="sends">Whether the control sends its value after this release, so a fader that moved is written by the send, not the lane.</param>
+    public void Release(TrackId track, double value, bool sends = false)
     {
-        if (!Records(track))
+        if (!Records(track) || !Holding)
         {
             return;
         }
         _value = value;
+        _settling = sends;
         _time = _transport!.Position;
         _writer!.Release(_time, value);
     }
@@ -127,6 +144,7 @@ public sealed class AutomationRecorder : IDisposable
     {
         _writer = null;
         _pass = null;
+        _settling = false;
     }
 
     /// <summary>Drops the pass that is recording because the page lost its connection or its project; the reason is raised as a notice.</summary>
@@ -150,6 +168,12 @@ public sealed class AutomationRecorder : IDisposable
         TransportState now = _transport.Transport;
         bool began = now == TransportState.Playing && _last != TransportState.Playing;
         _last = now;
+        // The lane may have changed under the pass (its mode, its parameter or its track): what it recorded is not written.
+        if (Passing && !LiveMatches())
+        {
+            Lost("The lane changed while the pass recorded, so the pass was not written.");
+            return;
+        }
         if (Passing && now != TransportState.Playing)
         {
             if (!_transport.EngineRunning)
@@ -181,6 +205,10 @@ public sealed class AutomationRecorder : IDisposable
             Begin(target);
         }
     }
+
+    // The lane the screen now records is the pass's own: the mode the pass began in still holds, or the pass is not written.
+    private bool LiveMatches() => _pass is { } pass && _target?.Invoke() is { } live
+        && live.Track == pass.Track && live.Parameter == pass.Parameter && live.Mode == pass.Mode;
 
     private void Begin(AutomationTarget target)
     {

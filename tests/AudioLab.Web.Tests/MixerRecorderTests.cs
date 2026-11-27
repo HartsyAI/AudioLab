@@ -30,9 +30,9 @@ public sealed class MixerRecorderTests
         fixture.Pointer.Move(0, 260);
         fixture.Transport.Tick(TransportState.Playing, 1.2);
         fixture.Pointer.Release(0, 240);
+        await fixture.Barrier();
         fixture.Transport.Tick(TransportState.Playing, 1.5);
         fixture.Transport.Tick(TransportState.Stopped, 1.5);
-        await Task.Delay(100);
 
         Assert.Empty(fixture.Sent);
         (AutomationPass pass, _, _) = Assert.Single(fixture.Passes);
@@ -49,10 +49,24 @@ public sealed class MixerRecorderTests
         await fixture.PressAsync(300);
         fixture.Pointer.Move(0, 260);
         fixture.Pointer.Release(0, 240);
-        await Task.Delay(100);
+        await fixture.Barrier();
 
         Assert.Single(fixture.Sent);
         Assert.Empty(fixture.Passes);
+    }
+
+    /// <summary>An arrow key during a touch pass, with no grab held, sends the gain as it always did: only the gesture of a grab is kept out of the track.</summary>
+    [Fact]
+    public async Task AnArrowKeyDuringAPassWithNoGrabSendsItsGain()
+    {
+        Fixture fixture = await Fixture.OpenAsync(AutomationMode.Touch);
+        fixture.Transport.Tick(TransportState.Playing, 0);
+        fixture.Transport.Tick(TransportState.Playing, 1.0);
+
+        await fixture.KeyAsync("ArrowUp");
+        await fixture.Barrier();
+
+        Assert.Single(fixture.Sent);
     }
 
     private sealed class Fixture
@@ -125,6 +139,11 @@ public sealed class MixerRecorderTests
 
         public Task PressAsync(double clientY) =>
             Mixer.RaiseOnAsync("fader-t1", "onpointerdown", new PointerEventArgs { Button = 0, ClientY = clientY });
+
+        public Task KeyAsync(string key) => Mixer.RaiseOnAsync("fader-t1", "onkeydown", new KeyboardEventArgs { Key = key });
+
+        // A barrier on the renderer: the handlers that a pointer or key started have run once it returns.
+        public Task Barrier() => Mixer.RunAsync(() => { });
     }
 
     // A pointer the test drives: it keeps the callbacks of the drag that began, and forgets them when stopped.

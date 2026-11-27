@@ -7,166 +7,194 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AudioLab.Web.Tests;
 
 /// <summary>The fader's grab: a press or the Space key grabs it, its moves are reported, and a release, a Space key up, a blur or a cancel ends it (D86).</summary>
-/// <remarks>Each test fails when its wire is taken out of <see cref="Fader"/>: the grab, the drag or the let-go is missing from what the recorder receives.</remarks>
+/// <remarks>Each test fails when its wire is taken out of <see cref="Fader"/>: the grab, the drag or the let-go is missing from what the recorder receives.
+/// The handlers run on the renderer in order, so a barrier on the renderer ends each step; no test waits on a clock.</remarks>
 public sealed class FaderGrabTests
 {
     /// <summary>A press grabs at the fader's place, each move reports its place, and the release reports the place it is let go at, with the value sent.</summary>
     [Fact]
     public async Task APressGrabsDragsAndLetsGoAtTheFaderPlace()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent);
+        Probe probe = await Probe.StartAsync();
 
-        await fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
-        pointer.Move(0, 260);
-        pointer.Release(0, 240);
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
+        probe.Pointer.Move(0, 260);
+        probe.Pointer.Release(0, 240);
+        await probe.Barrier();
 
-        Assert.Equal([0.5], grabs);
-        Assert.NotEmpty(drags);
-        Assert.Single(letGos);
-        Assert.Equal(letGos, sent);
-        Assert.True(letGos[0] > 0.5);
-        await fader.DisposeServicesAsync();
+        Assert.Equal([0.5], probe.Grabs);
+        Assert.NotEmpty(probe.Drags);
+        Assert.Single(probe.LetGos);
+        Assert.True(probe.LetGos[0].Sends);
+        Assert.Equal(probe.LetGos.Select(release => release.Place), probe.Sent);
+        Assert.True(probe.LetGos[0].Place > 0.5);
+        await probe.DisposeAsync();
     }
 
-    /// <summary>Space grabs the fader once; each arrow key while it is held reports the step; Space going up lets the grab go.</summary>
+    /// <summary>Space grabs the fader once; each arrow key while it is held reports the step; Space going up lets the grab go, with no send of its own.</summary>
     [Fact]
     public async Task TheSpaceKeyGrabsAndLetsGoWhileTheArrowKeysStep()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent);
+        Probe probe = await Probe.StartAsync();
 
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " ", Repeat = true });
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
-        await fader.RaiseAsync("onkeyup", new KeyboardEventArgs { Key = " " });
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " ", Repeat = true });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
+        await probe.Fader.RaiseAsync("onkeyup", new KeyboardEventArgs { Key = " " });
 
-        Assert.Equal([0.5], grabs);
-        Assert.Single(drags);
-        Assert.True(drags[0] > 0.5);
-        Assert.Equal([drags[0]], letGos);
-        await fader.DisposeServicesAsync();
+        Assert.Equal([0.5], probe.Grabs);
+        Assert.Single(probe.Drags);
+        Assert.True(probe.Drags[0] > 0.5);
+        Assert.Equal([(probe.Drags[0], false)], probe.LetGos);
+        await probe.DisposeAsync();
+    }
+
+    /// <summary>While the keyboard holds a grab, only Up and Down step it; Left, Right and Home leave the fader and the grab alone.</summary>
+    [Fact]
+    public async Task WhileHeldOnlyTheUpAndDownKeysStep()
+    {
+        Probe probe = await Probe.StartAsync();
+
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowRight" });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "Home" });
+
+        Assert.Empty(probe.Drags);
+        Assert.Empty(probe.Sent);
+        await probe.DisposeAsync();
+    }
+
+    /// <summary>A pointer press cannot start a second grab while the keyboard holds one: the recorder would refuse it silently.</summary>
+    [Fact]
+    public async Task APressWhileTheKeyboardHoldsAGrabStartsNothing()
+    {
+        Probe probe = await Probe.StartAsync();
+
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await probe.Fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
+        probe.Pointer.Release(0, 240);
+        await probe.Barrier();
+
+        Assert.Equal([0.5], probe.Grabs);
+        Assert.Empty(probe.Sent);
+        await probe.DisposeAsync();
     }
 
     /// <summary>A fader that loses focus while Space is held lets its grab go, so no segment is left open.</summary>
     [Fact]
     public async Task ALostFocusLetsAHeldKeyboardGrabGo()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent);
+        Probe probe = await Probe.StartAsync();
 
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
-        await fader.RaiseAsync("onblur", new FocusEventArgs());
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await probe.Fader.RaiseAsync("onblur", new FocusEventArgs());
 
-        Assert.Equal([0.5], grabs);
-        Assert.Equal([0.5], letGos);
-        await fader.DisposeServicesAsync();
+        Assert.Equal([0.5], probe.Grabs);
+        Assert.Equal([(0.5, false)], probe.LetGos);
+        await probe.DisposeAsync();
     }
 
     /// <summary>A pointer taken down during a grab reports a cancel and no release, so the recording it fed can be dropped.</summary>
     [Fact]
     public async Task ATakenDownGrabReportsACancelAndNoRelease()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        int cancels = 0;
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent, () => cancels++);
+        Probe probe = await Probe.StartAsync();
 
-        await fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
-        pointer.Cancel();
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onpointerdown", new PointerEventArgs { Button = 0, ClientY = 300 });
+        probe.Pointer.Cancel();
+        await probe.Barrier();
 
-        Assert.Equal([0.5], grabs);
-        Assert.Empty(letGos);
-        Assert.Equal(1, cancels);
-        await fader.DisposeServicesAsync();
+        Assert.Equal([0.5], probe.Grabs);
+        Assert.Empty(probe.LetGos);
+        Assert.Equal(1, probe.Cancels);
+        await probe.DisposeAsync();
     }
 
     /// <summary>A held grab steps from the place it holds, so a step after the drawn place has fallen back to the gain still moves on from the grab.</summary>
     [Fact]
     public async Task AHeldGrabStepsFromItsOwnPlaceAfterTheSendSettles()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent);
+        // A settle of zero makes the send's settle finish before the next key: the drawn travel is back at the setting by then.
+        Probe probe = await Probe.StartAsync(TimeSpan.Zero);
 
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
-        await Task.Delay(450);
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
-        await fader.RaiseAsync("onkeyup", new KeyboardEventArgs { Key = " " });
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
+        await probe.Fader.RaiseAsync("onkeyup", new KeyboardEventArgs { Key = " " });
 
-        Assert.Equal(2, drags.Count);
-        Assert.True(drags[1] > drags[0]);
-        await fader.DisposeServicesAsync();
+        Assert.Equal(2, probe.Drags.Count);
+        Assert.True(probe.Drags[1] > probe.Drags[0]);
+        await probe.DisposeAsync();
     }
 
     /// <summary>A fader taken away while its grab is held cancels it, so the pass it fed is not left open.</summary>
     [Fact]
     public async Task ADisposedHeldGrabCancels()
     {
-        CancellablePointer pointer = new();
-        List<double> grabs = [];
-        List<double> drags = [];
-        List<double> letGos = [];
-        List<double> sent = [];
-        int cancels = 0;
-        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent, () => cancels++);
+        Probe probe = await Probe.StartAsync();
 
-        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
-        fader.TakeDown();
-        await Task.Delay(50);
+        await probe.Fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        probe.Fader.TakeDown();
 
-        Assert.Equal(1, cancels);
-        Assert.Empty(letGos);
+        Assert.Equal(1, probe.Cancels);
+        Assert.Empty(probe.LetGos);
+        await probe.DisposeAsync();
     }
 
-    private static Task<RenderedMarkup> Start(
-        CancellablePointer pointer,
-        List<double> grabs,
-        List<double> drags,
-        List<double> letGos,
-        List<double> sent,
-        Action? cancelled = null)
+    // The fader under test, with the callbacks it raises written into lists, so a test reads what the recorder would have received.
+    private sealed class Probe
     {
-        return RenderedMarkup.StartAsync<Fader>(
-            new Dictionary<string, object?>
+        private Probe(RenderedMarkup fader, DrivenPointer pointer)
+        {
+            Fader = fader;
+            Pointer = pointer;
+        }
+
+        public RenderedMarkup Fader { get; }
+
+        public DrivenPointer Pointer { get; }
+
+        public List<double> Grabs { get; } = [];
+
+        public List<double> Drags { get; } = [];
+
+        public List<(double Place, bool Sends)> LetGos { get; } = [];
+
+        public List<double> Sent { get; } = [];
+
+        public int Cancels { get; private set; }
+
+        public static async Task<Probe> StartAsync(TimeSpan? settle = null)
+        {
+            DrivenPointer pointer = new();
+            Probe probe = null!;
+            Dictionary<string, object?> parameters = new()
             {
                 ["Label"] = "Volume of Kick",
                 ["Text"] = "0.0 dB",
                 ["Position"] = 0.5,
-                ["OnCommit"] = EventCallback.Factory.Create<double>(new object(), value => sent.Add(value)),
-                ["OnGrab"] = EventCallback.Factory.Create<double>(new object(), place => grabs.Add(place)),
-                ["OnDrag"] = EventCallback.Factory.Create<double>(new object(), place => drags.Add(place)),
-                ["OnLetGo"] = EventCallback.Factory.Create<double>(new object(), place => letGos.Add(place)),
-                ["OnCancel"] = EventCallback.Factory.Create(new object(), () => cancelled?.Invoke()),
-            },
-            services => services.AddSingleton<IPointerTracker>(pointer));
+                ["OnCommit"] = EventCallback.Factory.Create<double>(new object(), value => probe.Sent.Add(value)),
+                ["OnGrab"] = EventCallback.Factory.Create<double>(new object(), place => probe.Grabs.Add(place)),
+                ["OnDrag"] = EventCallback.Factory.Create<double>(new object(), place => probe.Drags.Add(place)),
+                ["OnLetGo"] = EventCallback.Factory.Create<(double Place, bool Sends)>(new object(), release => probe.LetGos.Add(release)),
+                ["OnCancel"] = EventCallback.Factory.Create(new object(), () => probe.Cancels++),
+            };
+            if (settle is { } delay)
+            {
+                parameters["SettleDelay"] = delay;
+            }
+            RenderedMarkup fader = await RenderedMarkup.StartAsync<Fader>(parameters, services => services.AddSingleton<IPointerTracker>(pointer));
+            probe = new Probe(fader, pointer);
+            return probe;
+        }
+
+        // A barrier on the renderer: the handlers a pointer or key started have run once it returns.
+        public Task Barrier() => Fader.RunAsync(() => { });
+
+        public async Task DisposeAsync() => await Fader.DisposeServicesAsync();
     }
 
-    private sealed class CancellablePointer : IPointerTracker
+    private sealed class DrivenPointer : IPointerTracker
     {
         private Action<double, double>? _move;
 

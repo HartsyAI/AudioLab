@@ -166,7 +166,9 @@ public sealed partial class AutomationLane : IDisposable
         _overlay = AutomationMarks.Overlay(Plan, Points, Lanes.Drag is { } drag && drag.Track == Track.Id ? drag : null);
     }
 
-    private Task PointerDownAsync(PointerEventArgs press) => Editable ? OnPointerDown.InvokeAsync(press) : Task.CompletedTask;
+    // Only the primary button presses a lane: a right-click starts nothing, as a fader's press does (SliderInput).
+    private Task PointerDownAsync(PointerEventArgs press) =>
+        Editable && press.Button == 0 ? OnPointerDown.InvokeAsync(press) : Task.CompletedTask;
 
     private Task DoubleClickAsync(MouseEventArgs press) => Editable ? OnDoubleClick.InvokeAsync(press) : Task.CompletedTask;
 

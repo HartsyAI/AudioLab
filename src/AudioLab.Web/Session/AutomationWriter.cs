@@ -60,12 +60,16 @@ public sealed class AutomationWriter(AutomationMode mode, AutomationParameter pa
         }
     }
 
+    /// <summary>Whether a grab is held now: one grab at a time, whatever its source.</summary>
+    public bool Held => _held;
+
     /// <summary>The control is touched at a time with a value; touch starts a segment, and touch and latch record here.</summary>
-    public void Grab(double time, double value)
+    /// <returns>Whether the grab was taken; a grab is refused while another is held, or when the pass is not touch or latch.</returns>
+    public bool Grab(double time, double value)
     {
         if (!_passing || Mode == AutomationMode.Write || _held)
         {
-            return;
+            return false;
         }
         _held = true;
         _latched = Mode == AutomationMode.Latch;
@@ -74,6 +78,7 @@ public sealed class AutomationWriter(AutomationMode mode, AutomationParameter pa
             _segments.Add([]);
         }
         Record(time, value);
+        return true;
     }
 
     /// <summary>The control is let go at a time with a value; touch stops recording and keeps this last point.</summary>

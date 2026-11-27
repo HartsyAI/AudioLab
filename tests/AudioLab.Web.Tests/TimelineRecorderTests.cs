@@ -76,6 +76,24 @@ public sealed class TimelineRecorderTests
         Assert.Contains(segment, point => Math.Abs(point.Time - 1.2) < 1e-6 && Math.Abs(point.Value - 0.6) < 1e-2);
     }
 
+    /// <summary>A right-click on an empty part of a recording lane starts nothing: no grab, no pointer drag, and nothing is written.</summary>
+    [Fact]
+    public async Task ARightClickOnAnEmptyLaneStartsNoGrab()
+    {
+        Fixture fixture = await Fixture.OpenAsync(Lane(AutomationMode.Touch, _points));
+        fixture.Transport.Tick(TransportState.Playing, 0);
+        fixture.Transport.Tick(TransportState.Playing, 1.0);
+
+        await fixture.PressEmptyAsync(time: 1.5, value: 0.9, button: 2);
+        fixture.Transport.Tick(TransportState.Playing, 1.5);
+        fixture.Transport.Tick(TransportState.Stopped, 1.5);
+        await fixture.CommitsAsync();
+
+        Assert.Null(fixture.Pointer.Move);
+        Assert.Empty(fixture.Passes);
+        Assert.Empty(fixture.Hub.Sent);
+    }
+
     /// <summary>A pointer cancel of an empty-lane grab drops the pass it fed: nothing is committed.</summary>
     [Fact]
     public async Task ACancelledEmptyLaneGrabDropsThePass()
@@ -222,11 +240,11 @@ public sealed class TimelineRecorderTests
             return new Fixture(render, hub, transport, recorder, pointer, editor, actions, passes, commits);
         }
 
-        public Task PressEmptyAsync(double time, double value)
+        public Task PressEmptyAsync(double time, double value, short button = 0)
         {
             Track track = Timeline.Document.Tracks.Single();
             double top = TrackLayout.Of(Timeline.Document).AutomationTop(0);
-            PointerEventArgs press = new() { ClientX = _plan.X(time), ClientY = top + _plan.Y(value) };
+            PointerEventArgs press = new() { ClientX = _plan.X(time), ClientY = top + _plan.Y(value), Button = button };
             return Render.RunAsync(() => InvokeTimeline("AutomationPointDown", (track.Id, press)));
         }
 

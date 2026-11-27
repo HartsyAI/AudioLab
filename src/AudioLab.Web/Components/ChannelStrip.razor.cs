@@ -70,7 +70,7 @@ public sealed partial class ChannelStrip
 
     /// <summary>Raised with the track and its gain when a grab is let go (D86).</summary>
     [Parameter]
-    public EventCallback<(TrackId Track, double Gain)> OnLetGo { get; set; }
+    public EventCallback<(TrackId Track, double Gain, bool Sends)> OnLetGo { get; set; }
 
     /// <summary>Raised with the track when a pointer grab is taken down without a release (D86).</summary>
     [Parameter]
@@ -139,9 +139,13 @@ public sealed partial class ChannelStrip
 
     private EventCallback<double> DragCallback => EventCallback.Factory.Create<double>(this, position => GestureOf(OnDrag, position));
 
-    private EventCallback<double> LetGoCallback => EventCallback.Factory.Create<double>(this, position => GestureOf(OnLetGo, position));
+    private EventCallback<(double Place, bool Sends)> LetGoCallback =>
+        EventCallback.Factory.Create<(double Place, bool Sends)>(this, release => LetGoOf(release));
 
     private EventCallback CancelCallback => EventCallback.Factory.Create(this, () => Track is { } track && OnCancel.HasDelegate ? OnCancel.InvokeAsync(track) : Task.CompletedTask);
+
+    private Task LetGoOf((double Place, bool Sends) release) =>
+        Track is { } track && OnLetGo.HasDelegate ? OnLetGo.InvokeAsync((track, FaderScale.Gain(release.Place), release.Sends)) : Task.CompletedTask;
 
     private Task GestureOf(EventCallback<(TrackId Track, double Gain)> callback, double position) =>
         Track is { } track && callback.HasDelegate ? callback.InvokeAsync((track, FaderScale.Gain(position))) : Task.CompletedTask;
