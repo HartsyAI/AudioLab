@@ -38,6 +38,7 @@ public sealed class MasterRedrawTests
         services.AddScoped<EffectSelection>();
         services.AddScoped<BottomPanelState>();
         services.AddScoped<EffectsNavigator>();
+        services.AddScoped<AutomationRecorder>();
     }
 
     /// <summary>A change to the master fader draws the master's strip alone; the one strip drawn is the master's.</summary>

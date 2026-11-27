@@ -6,5 +6,5 @@ namespace AudioLab.Web.Session;
 public sealed class ScreenAutomationModes : IAutomationModeRules
 {
     /// <inheritdoc />
-    public string? UnavailableReason(AutomationMode mode) => AutomationModes.UnavailableReason(mode);
+    public string? UnavailableReason(AutomationMode mode, AutomationParameter parameter) => AutomationModes.UnavailableReason(mode, parameter);
 }

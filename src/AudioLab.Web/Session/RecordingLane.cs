@@ -8,10 +8,10 @@ public static class RecordingLane
     /// <summary>The lane a pass records, or null.</summary>
     /// <remarks>Null when no lane is in a recording mode, when more than one is (neither records, since a pass writes one lane), or when the mode cannot be chosen yet.</remarks>
     /// <param name="document">The project as it is now.</param>
-    /// <param name="unavailable">The reason a mode cannot be chosen, or null; the screen's rule unless a test says otherwise.</param>
+    /// <param name="unavailable">The reason a mode cannot be chosen on a lane, or null; the screen's rule unless a test says otherwise.</param>
     public static (TrackId Track, AutomationParameter Parameter, AutomationMode Mode)? Find(
         ProjectDocument document,
-        Func<AutomationMode, string?>? unavailable = null)
+        Func<AutomationMode, AutomationParameter, string?>? unavailable = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         List<Track> lanes = document.Tracks
@@ -23,7 +23,7 @@ public static class RecordingLane
         }
         Track lane = lanes[0];
         AutomationMode mode = lane.Automation.Mode;
-        return (unavailable ?? AutomationModes.UnavailableReason)(mode) is null
+        return (unavailable ?? AutomationModes.UnavailableReason)(mode, lane.View.AutomationParameter) is null
             ? (lane.Id, lane.View.AutomationParameter, mode)
             : null;
     }

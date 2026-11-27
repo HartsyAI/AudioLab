@@ -111,6 +111,11 @@ public sealed partial class Timeline
     // A press on a point selects it and, when the lane may be edited, may become a drag; nothing is sent until the release.
     private void AutomationPointDown((TrackId Track, PointerEventArgs Press) down)
     {
+        // Only the primary button edits or grabs a lane, as a fader's press does (SliderInput).
+        if (down.Press.Button != 0)
+        {
+            return;
+        }
         Track? track = CurrentTrack(down.Track);
         if (track is null || !track.View.AutomationVisible)
         {
@@ -122,8 +127,10 @@ public sealed partial class Timeline
         }
         AutomationLanePlan plan = PlanOf(track);
         IReadOnlyList<AutomationPoint> lane = AutomationRules.Lane(track.Automation, track.View.AutomationParameter);
+        AutomationParameter parameter = track.View.AutomationParameter;
         if (plan.IndexAt(lane, x, y) is not { } index)
         {
+            GrabEmptyLane(track.Id, parameter, plan, y);
             return;
         }
         SelectPoint(track.Id, index);
@@ -132,7 +139,6 @@ public sealed partial class Timeline
             return;
         }
         TrackId owner = track.Id;
-        AutomationParameter parameter = track.View.AutomationParameter;
         // While a touch or latch pass records this control, the drag is the held control: it records and moves no point, and draws no landing.
         bool recorded = Recorder.RecordsLane(owner, parameter);
         if (!recorded && RecordingBlocks(owner))
@@ -174,6 +180,37 @@ public sealed partial class Timeline
                 if (recorded)
                 {
                     // Escape or a lost pointer drops the pass as well as the drag: nothing it recorded is committed.
+                    Recorder.Drop();
+                }
+            });
+    }
+
+    // A press on an empty part of a lane that a touch or latch pass records grabs the lane at the value under the pointer, and moves no point (D86).
+    private void GrabEmptyLane(TrackId track, AutomationParameter parameter, AutomationLanePlan plan, double pressY)
+    {
+        if (!Actions.CanEdit || !Recorder.Grab(track, parameter, plan.Value(pressY)))
+        {
+            return;
+        }
+        Lanes.Announce("The held value is recorded into the pass; no point is added.");
+        Pointer.Begin(
+            (px, py) =>
+            {
+                if (LaneCoordinates(track, px, py, out _, out double moveY))
+                {
+                    Recorder.Move(track, plan.Value(moveY));
+                }
+            },
+            (px, py) =>
+            {
+                double endY = LaneCoordinates(track, px, py, out _, out double releaseY) ? releaseY : pressY;
+                _ = InvokeAsync(() => Recorder.Release(track, plan.Value(endY)));
+            },
+            () =>
+            {
+                // Escape or a lost pointer drops the pass that the grab fed, as it does for a point drag.
+                if (Recorder.RecordsLane(track, parameter))
+                {
                     Recorder.Drop();
                 }
             });

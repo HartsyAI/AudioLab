@@ -53,6 +53,66 @@ public sealed class TimelineRecorderTests
         Assert.Contains(segment, point => Math.Abs(point.Time - 1.2) < 1e-6 && Math.Abs(point.Value - 0.6) < 1e-2);
     }
 
+    /// <summary>A press on an empty part of a lane whose touch pass is recording grabs the lane there: the moves and the release record the held value, and no point is added.</summary>
+    [Fact]
+    public async Task AnEmptyLaneGrabRecordsTheHeldValueAndAddsNoPoint()
+    {
+        Fixture fixture = await Fixture.OpenAsync(Lane(AutomationMode.Touch, _points));
+        fixture.Transport.Tick(TransportState.Playing, 0);
+        fixture.Transport.Tick(TransportState.Playing, 1.0);
+
+        await fixture.PressEmptyAsync(time: 1.5, value: 0.9);
+        await fixture.MoveAsync(0.6);
+        fixture.Transport.Tick(TransportState.Playing, 1.2);
+        fixture.Transport.Tick(TransportState.Playing, 1.5);
+        await fixture.ReleaseAsync();
+        fixture.Transport.Tick(TransportState.Playing, 2.0);
+        fixture.Transport.Tick(TransportState.Stopped, 2.0);
+        await fixture.CommitsAsync();
+
+        Assert.Equal(["automation_write_commit"], fixture.Hub.Sent.Select(sent => sent.Command));
+        (AutomationPass pass, _, _) = Assert.Single(fixture.Passes);
+        IReadOnlyList<WrittenPoint> segment = Assert.Single(pass.Segments);
+        Assert.Contains(segment, point => Math.Abs(point.Time - 1.2) < 1e-6 && Math.Abs(point.Value - 0.6) < 1e-2);
+    }
+
+    /// <summary>A right-click on an empty part of a recording lane starts nothing: no grab, no pointer drag, and nothing is written.</summary>
+    [Fact]
+    public async Task ARightClickOnAnEmptyLaneStartsNoGrab()
+    {
+        Fixture fixture = await Fixture.OpenAsync(Lane(AutomationMode.Touch, _points));
+        fixture.Transport.Tick(TransportState.Playing, 0);
+        fixture.Transport.Tick(TransportState.Playing, 1.0);
+
+        await fixture.PressEmptyAsync(time: 1.5, value: 0.9, button: 2);
+        fixture.Transport.Tick(TransportState.Playing, 1.5);
+        fixture.Transport.Tick(TransportState.Stopped, 1.5);
+        await fixture.CommitsAsync();
+
+        Assert.Null(fixture.Pointer.Move);
+        Assert.Empty(fixture.Passes);
+        Assert.Empty(fixture.Hub.Sent);
+    }
+
+    /// <summary>A pointer cancel of an empty-lane grab drops the pass it fed: nothing is committed.</summary>
+    [Fact]
+    public async Task ACancelledEmptyLaneGrabDropsThePass()
+    {
+        Fixture fixture = await Fixture.OpenAsync(Lane(AutomationMode.Touch, _points));
+        fixture.Transport.Tick(TransportState.Playing, 0);
+        fixture.Transport.Tick(TransportState.Playing, 1.0);
+        await fixture.PressEmptyAsync(time: 1.5, value: 0.9);
+
+        await fixture.CancelAsync();
+        Assert.False(fixture.Recorder.Passing);
+        fixture.Transport.Tick(TransportState.Playing, 1.5);
+        fixture.Transport.Tick(TransportState.Stopped, 1.5);
+        await fixture.CommitsAsync();
+
+        Assert.Empty(fixture.Passes);
+        Assert.Empty(fixture.Hub.Sent);
+    }
+
     /// <summary>A pointer cancel while a drag records drops the pass: nothing is committed and the transport keeps playing.</summary>
     [Fact]
     public async Task ACancelledRecordingDragDropsThePass()
@@ -178,6 +238,14 @@ public sealed class TimelineRecorderTests
                     SessionServices.Add(services, new HttpClient { BaseAddress = new Uri("http://example.test/") });
                 });
             return new Fixture(render, hub, transport, recorder, pointer, editor, actions, passes, commits);
+        }
+
+        public Task PressEmptyAsync(double time, double value, short button = 0)
+        {
+            Track track = Timeline.Document.Tracks.Single();
+            double top = TrackLayout.Of(Timeline.Document).AutomationTop(0);
+            PointerEventArgs press = new() { ClientX = _plan.X(time), ClientY = top + _plan.Y(value), Button = button };
+            return Render.RunAsync(() => InvokeTimeline("AutomationPointDown", (track.Id, press)));
         }
 
         public async Task PressPointAsync(int index)

@@ -136,6 +136,6 @@ public sealed class SessionPageRecorderTests
 
     private sealed class AllModesAvailable : IAutomationModeRules
     {
-        public string? UnavailableReason(AutomationMode mode) => null;
+        public string? UnavailableReason(AutomationMode mode, AutomationParameter parameter) => null;
     }
 }

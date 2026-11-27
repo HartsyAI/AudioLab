@@ -34,6 +34,7 @@ public sealed class MixerKeyGuardTests
         services.AddScoped<EffectSelection>();
         services.AddScoped<BottomPanelState>();
         services.AddScoped<EffectsNavigator>();
+        services.AddScoped<AutomationRecorder>();
     }
 
     /// <summary>The first draw keeps the slider keys from the transport in the mixer's container, once.</summary>

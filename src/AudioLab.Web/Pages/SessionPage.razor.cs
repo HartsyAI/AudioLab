@@ -300,6 +300,7 @@ public sealed partial class SessionPage
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
+                SetVolume = (track, gain) => ShowAsync(_editor!.SetVolumeAsync(track, gain)),
                 AddClip = AddClipAsync,
                 MoveClip = move => ShowAsync(_editor!.MoveClipAsync(move.Clip, move.Start, move.Track)),
                 SetMetronome = on => ShowAsync(_editor!.SetMetronomeAsync(on)),
@@ -498,8 +499,8 @@ public sealed partial class SessionPage
         }
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
         // A press is down on a clip, a word or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
-        // So history waits.
-        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy, DrumDrags.Busy))
+        // A grab that a pass records is held the same way (D86). So history waits.
+        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory || Recorder.Holding, RollDrags.Busy, LyricsDrags.Busy, DrumDrags.Busy))
         {
             return true;
         }

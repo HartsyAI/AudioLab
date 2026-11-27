@@ -253,6 +253,9 @@ public static class Shortcuts
     /// <summary>Put the knob that has the focus back to its default.</summary>
     public static readonly Shortcut ControlReset = new("control.reset", "Reset to default", "Backspace", Controls);
 
+    /// <summary>Hold on a focused fader to grab it for a pass: a touch or latch lane records the fader while the key is down (D86).</summary>
+    public static readonly Shortcut FaderGrab = new("fader.grab", "Grab the fader for a pass", " ", Controls);
+
     /// <summary>The scope of the lyrics tab: keys heard while the focus is on a word, so they never meet the keys of the arrangement.</summary>
     public const string Lyrics = "lyrics";
 
@@ -389,7 +392,7 @@ public static class Shortcuts
         RenameProject, DeleteProject, Undo, Redo, RedoAlternate, RenameTrack, NudgeLeft, NudgeRight, NudgeUp, NudgeDown,
         OpenClip, AddMidiClip, MidiClipLonger, MidiClipShorter, OpenEffects, AutomationToggle,
         PlayPause, Stop, ToStart, ToEnd, SeekBack, SeekForward, ToggleLoop, ToggleClick,
-        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset,
+        DeleteMedia, AddMedia, MediaNext, MediaPrevious, MediaFirst, MediaLast, .. Roll, .. EffectChain, .. DrumLane, .. DrumStep, ControlReset, FaderGrab,
         .. AutomationKeys, DrumStepCancel,
         LyricsWordEarlier, LyricsWordLater, LyricsStartEarlier, LyricsStartLater, LyricsEndEarlier, LyricsEndLater,
     ];

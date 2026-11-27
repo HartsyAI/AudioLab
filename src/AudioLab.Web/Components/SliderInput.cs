@@ -28,17 +28,36 @@ public sealed class SliderInput : IDisposable
     /// <param name="redraw">Redraws the control.</param>
     /// <param name="dispatch">Runs work on the control's own thread.</param>
     /// <param name="send">Sends a place on the travel to the project.</param>
-    public SliderInput(Func<double> setting, IPointerTracker pointer, Action redraw, Func<Func<Task>, Task> dispatch, Func<double, Task> send)
+    /// <param name="settle">How long a sent place is held in the drawing; null for the default.</param>
+    public SliderInput(
+        Func<double> setting,
+        IPointerTracker pointer,
+        Action redraw,
+        Func<Func<Task>, Task> dispatch,
+        Func<double, Task> send,
+        TimeSpan? settle = null)
     {
         _setting = setting ?? throw new ArgumentNullException(nameof(setting));
         _pointer = pointer ?? throw new ArgumentNullException(nameof(pointer));
         _redraw = redraw ?? throw new ArgumentNullException(nameof(redraw));
         _dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
-        _sender = new ValueSender(send ?? throw new ArgumentNullException(nameof(send)), redraw);
+        _sender = new ValueSender(send ?? throw new ArgumentNullException(nameof(send)), redraw, settle);
     }
 
     /// <summary>The drag in progress, or null.</summary>
     public ValueGesture? Gesture { get; private set; }
+
+    /// <summary>Raised when a drag starts, with the place it starts at (D86: the grab a recorder follows).</summary>
+    public event Action<double>? Grabbed;
+
+    /// <summary>Raised on each move of a drag, with the place the drag is at.</summary>
+    public event Action<double>? Dragged;
+
+    /// <summary>Raised when a drag is let go, with the place it ends at and whether that place is sent after it.</summary>
+    public event Action<double, bool>? LetGo;
+
+    /// <summary>Raised when a drag is taken down without a release.</summary>
+    public event Action? Cancelled;
 
     /// <summary>Where the control is drawn on the travel: the drag, else the place being sent, else the setting.</summary>
     public double Travel => Gesture?.Position ?? _sender.Held ?? _setting();
@@ -67,6 +86,7 @@ public sealed class SliderInput : IDisposable
         }
         ValueGesture gesture = new(Travel, press.ClientY);
         Gesture = gesture;
+        Grabbed?.Invoke(gesture.Position);
         _pointer.Begin(
             (x, y) => Moved(gesture, y),
             (x, y) =>
@@ -127,6 +147,7 @@ public sealed class SliderInput : IDisposable
     private void Moved(ValueGesture gesture, double y)
     {
         gesture.Move(y, _pointer.Shift);
+        Dragged?.Invoke(gesture.Position);
         _ = _dispatch(RedrawAsync);
     }
 
@@ -135,6 +156,7 @@ public sealed class SliderInput : IDisposable
         if (ReferenceEquals(Gesture, gesture))
         {
             Gesture = null;
+            Cancelled?.Invoke();
             _ = _dispatch(RedrawAsync);
         }
     }
@@ -143,6 +165,9 @@ public sealed class SliderInput : IDisposable
     {
         double? place = gesture.Commit();
         Gesture = null;
+        // A send follows only when the place differs from where the drawn control is, as Commit decides below.
+        bool sends = place is { } sent && (_sender.Sending || Math.Abs(sent - Travel) >= 1e-9);
+        LetGo?.Invoke(place ?? gesture.Position, sends);
         if (place is { } target)
         {
             await Commit(target);
