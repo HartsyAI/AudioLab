@@ -300,6 +300,7 @@ public sealed partial class SessionPage
                 RenameTrack = BeginRename,
                 ToggleMute = id => ToggleAsync(id, track => _editor!.SetMutedAsync(id, !track.Muted)),
                 ToggleSolo = id => ToggleAsync(id, track => _editor!.SetSoloedAsync(id, !track.Soloed)),
+                SetVolume = (track, gain) => ShowAsync(_editor!.SetVolumeAsync(track, gain)),
                 AddClip = AddClipAsync,
                 MoveClip = move => ShowAsync(_editor!.MoveClipAsync(move.Clip, move.Start, move.Track)),
                 SetMetronome = on => ShowAsync(_editor!.SetMetronomeAsync(on)),

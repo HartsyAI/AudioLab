@@ -62,15 +62,19 @@ public sealed class AutomationRoundThreeTests
         Assert.Equal(string.Empty, AutomationMarks.Selected(_plan, _points, null));
     }
 
-    /// <summary>Off and read play the lanes; touch, latch and write cannot be chosen until the recorder is wired to playback.</summary>
+    /// <summary>Every mode can be chosen on a volume lane; on a pan lane touch and latch wait on the pan knob's grab, and write does not.</summary>
     [Fact]
-    public void TouchLatchAndWriteCannotBeChosenYet()
+    public void TouchAndLatchWaitOnlyOnAPanLane()
     {
-        Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Off));
-        Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Read));
-        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Touch));
-        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Latch));
-        Assert.Equal(AutomationModes.FaderGrabPending, AutomationModes.UnavailableReason(AutomationMode.Write));
+        foreach (AutomationMode mode in Enum.GetValues<AutomationMode>())
+        {
+            Assert.Null(AutomationModes.UnavailableReason(mode, AutomationParameter.Volume));
+        }
+        Assert.Equal(AutomationModes.PanGrabPending, AutomationModes.UnavailableReason(AutomationMode.Touch, AutomationParameter.Pan));
+        Assert.Equal(AutomationModes.PanGrabPending, AutomationModes.UnavailableReason(AutomationMode.Latch, AutomationParameter.Pan));
+        Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Write, AutomationParameter.Pan));
+        Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Off, AutomationParameter.Pan));
+        Assert.Null(AutomationModes.UnavailableReason(AutomationMode.Read, AutomationParameter.Pan));
     }
 
     /// <summary>Undo and redo are held while a point is dragged, and free again when the drag ends.</summary>

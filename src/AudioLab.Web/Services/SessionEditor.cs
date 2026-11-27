@@ -26,6 +26,14 @@ public sealed class SessionEditor(LiveProject live)
         return RunAsync(project => live.SendAsync(new SetTrackMuted { Project = project, Track = track, Muted = muted }));
     }
 
+    /// <summary>Sets a track's fader to an absolute gain, as one gesture: a drag is one undo step.</summary>
+    public Task<EditResult> SetVolumeAsync(TrackId track, double gain)
+    {
+        return EditRunner.RunInGestureAsync(
+            live,
+            (project, gesture) => live.SendAsync(new SetTrackVolume { Project = project, Track = track, Volume = gain }, gesture));
+    }
+
     /// <summary>Solos or unsolos a track.</summary>
     public Task<EditResult> SetSoloedAsync(TrackId track, bool soloed)
     {

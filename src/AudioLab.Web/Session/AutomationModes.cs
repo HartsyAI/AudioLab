@@ -3,16 +3,18 @@ using AudioLab.Core.Model;
 namespace AudioLab.Web.Session;
 
 /// <summary>Which automation modes the screen can choose now (D71).</summary>
-/// <remarks>Off and read play the lanes; touch, latch and write record a pass. The recorder is wired (D86); the fader grab is not.</remarks>
+/// <remarks>Off, read and write are open for every lane. Touch and latch record a volume lane, whose fader takes the grab (D86); a pan lane has
+/// no grab yet, so touch and latch on it stay disabled with their reason, rather than saving a mode that records nothing.</remarks>
 public static class AutomationModes
 {
-    /// <summary>Why touch, latch and write cannot be chosen yet: the track faders take no grab until the mixer work lands.</summary>
-    public const string FaderGrabPending = "The fader grab is waiting on the mixer work still in review.";
+    /// <summary>Why touch and latch cannot be chosen on a pan lane: the pan knob takes no grab yet.</summary>
+    public const string PanGrabPending = "Touch and latch on a pan lane wait on the pan knob's grab.";
 
-    /// <summary>The reason a mode cannot be chosen, or null when it can.</summary>
+    /// <summary>The reason a mode cannot be chosen on a lane, or null when it can.</summary>
     /// <param name="mode">The mode.</param>
-    public static string? UnavailableReason(AutomationMode mode)
+    /// <param name="parameter">The parameter of the lane the mode would be chosen on.</param>
+    public static string? UnavailableReason(AutomationMode mode, AutomationParameter parameter)
     {
-        return mode is AutomationMode.Touch or AutomationMode.Latch or AutomationMode.Write ? FaderGrabPending : null;
+        return mode is AutomationMode.Touch or AutomationMode.Latch && parameter == AutomationParameter.Pan ? PanGrabPending : null;
     }
 }

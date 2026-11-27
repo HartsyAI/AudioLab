@@ -52,6 +52,7 @@ public sealed class SendRedrawTests
         services.AddScoped<EffectSelection>();
         services.AddScoped<BottomPanelState>();
         services.AddScoped<EffectsNavigator>();
+        services.AddScoped<AutomationRecorder>();
     }
 
     /// <summary>Each send names its bus, and its level is a knob that says which send it sets.</summary>

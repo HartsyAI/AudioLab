@@ -57,6 +57,7 @@ public sealed class GroupRedrawTests
         services.AddScoped<EffectSelection>();
         services.AddScoped<BottomPanelState>();
         services.AddScoped<EffectsNavigator>();
+        services.AddScoped<AutomationRecorder>();
     }
 
     // Static text is written as markup and dynamic text as a text frame, so an assertion reads both.

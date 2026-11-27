@@ -52,10 +52,29 @@ public sealed partial class ChannelStrip
     [Parameter]
     public string? Silence { get; set; }
 
-    /// <summary>Raised with the gain when the fader is dragged or keyed.</summary>
-    /// <remarks>Without it the fader is shown and cannot be changed, as a track fader is for now.</remarks>
+    /// <summary>Raised with the gain when the master fader is dragged or keyed; without it the master fader is shown and cannot be changed.</summary>
     [Parameter]
     public EventCallback<double> OnVolume { get; set; }
+
+    /// <summary>Raised with the track and its gain when the track's fader is dragged or keyed; without it the track fader is shown only.</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, double Gain)> OnTrackVolume { get; set; }
+
+    /// <summary>Raised with the track and its gain when a track's fader is grabbed, by a press or the Space key (D86).</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, double Gain)> OnGrab { get; set; }
+
+    /// <summary>Raised with the track and its gain each time a grabbed track fader moves (D86).</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, double Gain)> OnDrag { get; set; }
+
+    /// <summary>Raised with the track and its gain when a grab is let go (D86).</summary>
+    [Parameter]
+    public EventCallback<(TrackId Track, double Gain)> OnLetGo { get; set; }
+
+    /// <summary>Raised with the track when a pointer grab is taken down without a release (D86).</summary>
+    [Parameter]
+    public EventCallback<TrackId> OnCancel { get; set; }
 
     /// <summary>Raised with the wanted state when the master limiter's toggle is pressed.</summary>
     [Parameter]
@@ -105,10 +124,25 @@ public sealed partial class ChannelStrip
 
     private static string FormatVolume(double position) => FaderScale.Readout(FaderScale.Gain(position));
 
-    // A fader is interactive only where a handler for its gain is given: the master's, not a track's.
-    private EventCallback<double> VolumeCommit => OnVolume.HasDelegate ? EventCallback.Factory.Create<double>(this, VolumeCommitAsync) : default;
+    // A fader is interactive where a handler for its gain is given: the master's, or a track's when the track handler is.
+    private EventCallback<double> VolumeCommit =>
+        OnVolume.HasDelegate || OnTrackVolume.HasDelegate ? EventCallback.Factory.Create<double>(this, VolumeCommitAsync) : default;
 
-    private Task VolumeCommitAsync(double position) => OnVolume.InvokeAsync(FaderScale.Gain(position));
+    private Task VolumeCommitAsync(double position) => Track is { } track
+        ? OnTrackVolume.InvokeAsync((track, FaderScale.Gain(position)))
+        : OnVolume.InvokeAsync(FaderScale.Gain(position));
+
+    // The grab, the drag and the release of a track's fader go to the recorder with the track's gain; the master has no lane to record.
+    private EventCallback<double> GrabCallback => EventCallback.Factory.Create<double>(this, position => GestureOf(OnGrab, position));
+
+    private EventCallback<double> DragCallback => EventCallback.Factory.Create<double>(this, position => GestureOf(OnDrag, position));
+
+    private EventCallback<double> LetGoCallback => EventCallback.Factory.Create<double>(this, position => GestureOf(OnLetGo, position));
+
+    private EventCallback CancelCallback => EventCallback.Factory.Create(this, () => Track is { } track && OnCancel.HasDelegate ? OnCancel.InvokeAsync(track) : Task.CompletedTask);
+
+    private Task GestureOf(EventCallback<(TrackId Track, double Gain)> callback, double position) =>
+        Track is { } track && callback.HasDelegate ? callback.InvokeAsync((track, FaderScale.Gain(position))) : Task.CompletedTask;
 
     private Task ToggleLimiterAsync() => OnLimiter.InvokeAsync(!LimiterOn);
 
@@ -188,6 +222,6 @@ public sealed partial class ChannelStrip
     {
         string effects = string.Join(',', Effects.Select(effect => $"{effect.Id?.Value}:{effect.Name}:{effect.Enabled}"));
         return $"{Name}|{ColorToken}|{effects}|{Pan}|{Volume}|{Muted}|{Soloed}|{Master}|{Selected}|{Editable}|{Reason}|{Silence}" +
-            $"|{LimiterOn}|{OnVolume.HasDelegate}|{OnLimiter.HasDelegate}";
+            $"|{LimiterOn}|{OnVolume.HasDelegate}|{OnTrackVolume.HasDelegate}|{OnLimiter.HasDelegate}";
     }
 }

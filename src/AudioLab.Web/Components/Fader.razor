@@ -10,7 +10,7 @@
         <button type="button" class="track" role="slider" aria-label="@Label" aria-valuemin="0" aria-valuemax="100"
                 aria-valuenow="@Now" aria-valuetext="@ValueText" aria-disabled="@(Disabled ? "true" : null)" title="@Hint"
                 data-dragging="@(Slider.Gesture is { Active: true } ? "true" : "false")" @onpointerdown="PressAsync" @onkeydown="KeyAsync"
-                @ondblclick="ResetAsync">
+                @onkeyup="KeyUpAsync" @onblur="BlurAsync" @ondblclick="ResetAsync">
             <span class="slot"></span>
             <span class="cap" style="bottom: @Percent%"><span class="notch"></span></span>
         </button>

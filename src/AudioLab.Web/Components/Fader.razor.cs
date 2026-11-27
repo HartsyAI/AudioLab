@@ -1,6 +1,7 @@
 using System.Globalization;
 using AudioLab.Web.Interop;
 using AudioLab.Web.Services;
+using AudioLab.Web.Session;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -47,14 +48,44 @@ public sealed partial class Fader : IDisposable
     [Inject]
     private IPointerTracker Pointer { get; set; } = default!;
 
-    private SliderInput Slider => _slider ??= new SliderInput(
+    /// <summary>Raised with the position when a press or the Space key grabs the fader: a recorder starts a segment there (D86).</summary>
+    [Parameter]
+    public EventCallback<double> OnGrab { get; set; }
+
+    /// <summary>Raised with the position each time a grabbed fader moves, by the pointer or by an arrow key.</summary>
+    [Parameter]
+    public EventCallback<double> OnDrag { get; set; }
+
+    /// <summary>Raised with the position when a grab is let go: the release, or the Space key going up, or the fader losing focus.</summary>
+    [Parameter]
+    public EventCallback<double> OnLetGo { get; set; }
+
+    /// <summary>Raised when a pointer grab is taken down without a release, so the recording it fed can be dropped.</summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private SliderInput Slider => _slider ??= Attach(new SliderInput(
         () => Math.Clamp(Position, 0, 1),
         Pointer,
         () => StateHasChanged(),
         work => InvokeAsync(work),
-        value => OnCommit.InvokeAsync(value));
+        value => OnCommit.InvokeAsync(value)));
 
     private bool Interactive => OnCommit.HasDelegate;
+
+    // A grab from the keyboard is held from Space going down until it goes up, and its place is kept for the release.
+    private bool _held;
+
+    private double _heldAt;
+
+    private SliderInput Attach(SliderInput input)
+    {
+        input.Grabbed += place => _ = InvokeAsync(() => OnGrab.InvokeAsync(place));
+        input.Dragged += place => _ = InvokeAsync(() => OnDrag.InvokeAsync(place));
+        input.LetGo += place => _ = InvokeAsync(() => OnLetGo.InvokeAsync(place));
+        input.Cancelled += () => _ = InvokeAsync(() => OnCancel.InvokeAsync());
+        return input;
+    }
 
     private double Travel => Slider.Travel;
 
@@ -105,9 +136,47 @@ public sealed partial class Fader : IDisposable
         return Task.CompletedTask;
     }
 
-    private Task KeyAsync(KeyboardEventArgs key)
+    private async Task KeyAsync(KeyboardEventArgs key)
     {
-        return Slider.Key(key, Disabled, Math.Clamp(DefaultPosition, 0, 1));
+        // Space grabs the fader while it has focus; the page leaves Space alone on a button, so the transport does not start.
+        if (key.Key == " ")
+        {
+            if (!key.Repeat && !_held && Interactive && !Disabled)
+            {
+                _held = true;
+                _heldAt = Travel;
+                await OnGrab.InvokeAsync(Travel);
+            }
+            return;
+        }
+        if (_held && ValueGesture.Step(key.Key, key.ShiftKey, Travel) is { } stepped)
+        {
+            _heldAt = stepped;
+            await OnDrag.InvokeAsync(stepped);
+        }
+        await Slider.Key(key, Disabled, Math.Clamp(DefaultPosition, 0, 1));
+    }
+
+    private async Task KeyUpAsync(KeyboardEventArgs key)
+    {
+        if (key.Key == " " && _held)
+        {
+            await ReleaseHeldAsync();
+        }
+    }
+
+    private async Task BlurAsync()
+    {
+        if (_held)
+        {
+            await ReleaseHeldAsync();
+        }
+    }
+
+    private async Task ReleaseHeldAsync()
+    {
+        _held = false;
+        await OnLetGo.InvokeAsync(_heldAt);
     }
 
     private Task ResetAsync()

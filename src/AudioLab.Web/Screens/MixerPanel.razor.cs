@@ -35,6 +35,46 @@ public sealed partial class MixerPanel
     [Inject]
     private IKeyGuard Guard { get; set; } = default!;
 
+    [Inject]
+    private AutomationRecorder Recorder { get; set; } = default!;
+
+    // A touch or latch pass that records this track's volume owns the fader's gesture: the held gain goes into the lane and the track's fader is not moved.
+    private async Task SetTrackVolumeAsync((TrackId Track, double Gain) change)
+    {
+        if (!Recorder.RecordsLane(change.Track, AutomationParameter.Volume))
+        {
+            await Actions.SetVolume(change.Track, change.Gain);
+        }
+    }
+
+    private Task GrabAsync((TrackId Track, double Gain) grab)
+    {
+        Recorder.Grab(grab.Track, AutomationParameter.Volume, grab.Gain);
+        return Task.CompletedTask;
+    }
+
+    private Task DragAsync((TrackId Track, double Gain) drag)
+    {
+        Recorder.Move(drag.Track, drag.Gain);
+        return Task.CompletedTask;
+    }
+
+    private Task LetGoAsync((TrackId Track, double Gain) release)
+    {
+        Recorder.Release(release.Track, release.Gain);
+        return Task.CompletedTask;
+    }
+
+    // A pointer grab taken down drops the pass it fed, as Escape does on a lane; a pass on another lane goes on.
+    private Task CancelAsync(TrackId track)
+    {
+        if (Recorder.RecordsLane(track, AutomationParameter.Volume))
+        {
+            Recorder.Drop();
+        }
+        return Task.CompletedTask;
+    }
+
     private Track? SelectedTrack => Selected is { } id ? Document.Tracks.FirstOrDefault(track => track.Id == id) : null;
 
     private IReadOnlyList<StripEffect> MasterEffects => Document.MasterLimiter ? [new StripEffect(null, "Limiter", true)] : [];

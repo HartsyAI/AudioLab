@@ -45,6 +45,7 @@ public sealed class EffectRedrawTests
         services.AddScoped<EffectSelection>();
         services.AddScoped<BottomPanelState>();
         services.AddScoped<EffectsNavigator>();
+        services.AddScoped<AutomationRecorder>();
     }
 
     /// <summary>A mixer of 16 tracks with 3 effects each, given the document it already has, draws no strip again.</summary>

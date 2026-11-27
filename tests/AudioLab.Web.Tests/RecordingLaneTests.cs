@@ -6,7 +6,7 @@ namespace AudioLab.Web.Tests;
 /// <summary>Which lane a pass records: the one lane in a recording mode the screen can choose, never two, never a mode it cannot choose (D86).</summary>
 public sealed class RecordingLaneTests
 {
-    private static readonly Func<AutomationMode, string?> _allAvailable = _ => null;
+    private static readonly Func<AutomationMode, AutomationParameter, string?> _allAvailable = (_, _) => null;
 
     private static ProjectDocument Document(params (string Id, AutomationMode Mode)[] lanes) =>
         Song.Empty().With(lanes.Select(lane => Lane(lane.Id, lane.Mode)).ToArray());
@@ -21,9 +21,12 @@ public sealed class RecordingLaneTests
     [Fact]
     public void ALaneInARecordingModeIsNotRecordedWhileTheModeCannotBeChosen()
     {
-        ProjectDocument document = Document(("t1", AutomationMode.Write));
+        ProjectDocument document = Document(("t1", AutomationMode.Touch));
+        Track pan = document.Tracks.Single() with { View = document.Tracks.Single().View with { AutomationParameter = AutomationParameter.Pan } };
+        ProjectDocument panDocument = document with { Tracks = [pan] };
 
-        Assert.Null(RecordingLane.Find(document));
+        Assert.Null(RecordingLane.Find(panDocument, AutomationModes.UnavailableReason));
+        Assert.NotNull(RecordingLane.Find(document, AutomationModes.UnavailableReason));
     }
 
     /// <summary>A lane in a recording mode the screen can choose is the one lane a pass records, with its parameter.</summary>

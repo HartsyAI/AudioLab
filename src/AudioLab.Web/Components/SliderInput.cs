@@ -40,6 +40,18 @@ public sealed class SliderInput : IDisposable
     /// <summary>The drag in progress, or null.</summary>
     public ValueGesture? Gesture { get; private set; }
 
+    /// <summary>Raised when a drag starts, with the place it starts at (D86: the grab a recorder follows).</summary>
+    public event Action<double>? Grabbed;
+
+    /// <summary>Raised on each move of a drag, with the place the drag is at.</summary>
+    public event Action<double>? Dragged;
+
+    /// <summary>Raised when a drag is let go, with the place it ends at, before that place is sent.</summary>
+    public event Action<double>? LetGo;
+
+    /// <summary>Raised when a drag is taken down without a release.</summary>
+    public event Action? Cancelled;
+
     /// <summary>Where the control is drawn on the travel: the drag, else the place being sent, else the setting.</summary>
     public double Travel => Gesture?.Position ?? _sender.Held ?? _setting();
 
@@ -67,6 +79,7 @@ public sealed class SliderInput : IDisposable
         }
         ValueGesture gesture = new(Travel, press.ClientY);
         Gesture = gesture;
+        Grabbed?.Invoke(gesture.Position);
         _pointer.Begin(
             (x, y) => Moved(gesture, y),
             (x, y) =>
@@ -127,6 +140,7 @@ public sealed class SliderInput : IDisposable
     private void Moved(ValueGesture gesture, double y)
     {
         gesture.Move(y, _pointer.Shift);
+        Dragged?.Invoke(gesture.Position);
         _ = _dispatch(RedrawAsync);
     }
 
@@ -135,6 +149,7 @@ public sealed class SliderInput : IDisposable
         if (ReferenceEquals(Gesture, gesture))
         {
             Gesture = null;
+            Cancelled?.Invoke();
             _ = _dispatch(RedrawAsync);
         }
     }
@@ -143,6 +158,7 @@ public sealed class SliderInput : IDisposable
     {
         double? place = gesture.Commit();
         Gesture = null;
+        LetGo?.Invoke(place ?? gesture.Position);
         if (place is { } target)
         {
             await Commit(target);

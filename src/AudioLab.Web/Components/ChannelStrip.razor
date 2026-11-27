@@ -14,7 +14,8 @@
     <Knob Label="@($"Pan of {Name}")" Position="Pan" Text="@PanText" />
     <div class="fader-row">
         <Fader Label="@($"Volume of {Name}")" Position="VolumePosition" Text="@VolumeText" OnCommit="VolumeCommit" Format="FormatVolume"
-               DefaultPosition="@VolumePositionOfUnity" Disabled="!Editable" Reason="@(Editable ? null : Reason)" />
+               DefaultPosition="@VolumePositionOfUnity" Disabled="!Editable" Reason="@(Editable ? null : Reason)"
+               OnGrab="GrabCallback" OnDrag="DragCallback" OnLetGo="LetGoCallback" OnCancel="CancelCallback" />
         <div class="meter"><LiveMeter Track="Track" /></div>
     </div>
     @if (Master && OnVolume.HasDelegate && !Editable)

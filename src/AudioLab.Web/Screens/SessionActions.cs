@@ -1,5 +1,6 @@
 using AudioLab.Core.Model;
 using AudioLab.Web.Media;
+using AudioLab.Web.Services;
 using AudioLab.Web.Session;
 
 namespace AudioLab.Web.Screens;
@@ -58,6 +59,9 @@ public sealed class SessionActions
 
     /// <summary>Toggles the solo of a track.</summary>
     public Func<TrackId, Task> ToggleSolo { get; init; } = _ => Task.CompletedTask;
+
+    /// <summary>Sets the fader of a track to a gain, from 0 up.</summary>
+    public Func<TrackId, double, Task<EditResult>> SetVolume { get; init; } = (_, _) => Task.FromResult(EditResult.Refused("Not available."));
 
     /// <summary>Moves a clip.</summary>
     public Func<ClipMove, Task> MoveClip { get; init; } = _ => Task.CompletedTask;

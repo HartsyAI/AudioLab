@@ -11,7 +11,8 @@
             <ChannelStrip @key="track.Id" Name="@track.Name" ColorToken="@Colors.Token(track.Color)" Effects="Effects(track)" Pan="track.Pan"
                           Volume="track.Volume" Muted="track.Muted" Soloed="track.Soloed" Selected="@(track.Id == Selected)" Track="track.Id"
                           Editable="Actions.CanEdit" Reason="@Actions.Reason" OnMute="Actions.ToggleMute" OnSolo="Actions.ToggleSolo"
-                          OnOpenEffects="OpenEffects" Silence="@SilenceOf(track)" />
+                          OnOpenEffects="OpenEffects" Silence="@SilenceOf(track)" OnTrackVolume="SetTrackVolumeAsync" OnGrab="GrabAsync"
+                          OnDrag="DragAsync" OnLetGo="LetGoAsync" OnCancel="CancelAsync" />
         }
     }
     <ChannelStrip Name="Master" ColorToken="var(--text)" Effects="MasterEffects" Volume="Document.MasterVolume" Master="true"
