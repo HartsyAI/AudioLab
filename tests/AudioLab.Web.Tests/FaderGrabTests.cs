@@ -100,6 +100,49 @@ public sealed class FaderGrabTests
         await fader.DisposeServicesAsync();
     }
 
+    /// <summary>A held grab steps from the place it holds, so a step after the drawn place has fallen back to the gain still moves on from the grab.</summary>
+    [Fact]
+    public async Task AHeldGrabStepsFromItsOwnPlaceAfterTheSendSettles()
+    {
+        CancellablePointer pointer = new();
+        List<double> grabs = [];
+        List<double> drags = [];
+        List<double> letGos = [];
+        List<double> sent = [];
+        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent);
+
+        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
+        await Task.Delay(450);
+        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = "ArrowUp" });
+        await fader.RaiseAsync("onkeyup", new KeyboardEventArgs { Key = " " });
+        await Task.Delay(50);
+
+        Assert.Equal(2, drags.Count);
+        Assert.True(drags[1] > drags[0]);
+        await fader.DisposeServicesAsync();
+    }
+
+    /// <summary>A fader taken away while its grab is held cancels it, so the pass it fed is not left open.</summary>
+    [Fact]
+    public async Task ADisposedHeldGrabCancels()
+    {
+        CancellablePointer pointer = new();
+        List<double> grabs = [];
+        List<double> drags = [];
+        List<double> letGos = [];
+        List<double> sent = [];
+        int cancels = 0;
+        RenderedMarkup fader = await Start(pointer, grabs, drags, letGos, sent, () => cancels++);
+
+        await fader.RaiseAsync("onkeydown", new KeyboardEventArgs { Key = " " });
+        fader.TakeDown();
+        await Task.Delay(50);
+
+        Assert.Equal(1, cancels);
+        Assert.Empty(letGos);
+    }
+
     private static Task<RenderedMarkup> Start(
         CancellablePointer pointer,
         List<double> grabs,

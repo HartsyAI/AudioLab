@@ -37,6 +37,10 @@ public sealed partial class Fader : IDisposable
     [Parameter]
     public Func<double, string>? Format { get; set; }
 
+    /// <summary>The id of the slider element, so a test or a script can name the fader it is.</summary>
+    [Parameter]
+    public string? ElementId { get; set; }
+
     /// <summary>Whether the fader does nothing now; it stays focusable and its title says why.</summary>
     [Parameter]
     public bool Disabled { get; set; }
@@ -113,13 +117,19 @@ public sealed partial class Fader : IDisposable
             {
                 return Reason ?? "Not available.";
             }
-            return $"{Label}: {ValueText}. Double-click or {Shortcuts.ControlReset.Display} resets it.";
+            return $"{Label}: {ValueText}. Double-click or {Shortcuts.ControlReset.Display} resets it. Hold {Shortcuts.FaderGrab.Display} to grab it for a pass.";
         }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
+        // A grab that is still held when the fader goes is taken down, so the pass it fed is dropped rather than left open.
+        if (_held || _slider?.Gesture is not null)
+        {
+            _held = false;
+            _ = OnCancel.InvokeAsync();
+        }
         _slider?.Dispose();
     }
 
@@ -138,8 +148,9 @@ public sealed partial class Fader : IDisposable
 
     private async Task KeyAsync(KeyboardEventArgs key)
     {
-        // Space grabs the fader while it has focus; the page leaves Space alone on a button, so the transport does not start.
-        if (key.Key == " ")
+        // The page leaves Space alone on a button, so the grab key does not start the transport.
+        KeyChord chord = new(key.Key, key.CtrlKey || key.MetaKey, key.ShiftKey, key.AltKey, key.Repeat);
+        if (Shortcuts.FaderGrab.Matches(chord))
         {
             if (!key.Repeat && !_held && Interactive && !Disabled)
             {
@@ -149,10 +160,17 @@ public sealed partial class Fader : IDisposable
             }
             return;
         }
-        if (_held && ValueGesture.Step(key.Key, key.ShiftKey, Travel) is { } stepped)
+        // A held grab steps from the place it holds, not the drawn travel: a sent place is dropped from the drawing after a moment, and a
+        // touch or latch pass sends none, so the drawn travel would fall back to the track's gain.
+        if (_held)
         {
-            _heldAt = stepped;
-            await OnDrag.InvokeAsync(stepped);
+            if (ValueGesture.Step(key.Key, key.ShiftKey, _heldAt) is { } stepped)
+            {
+                _heldAt = stepped;
+                await OnDrag.InvokeAsync(stepped);
+                await Slider.Commit(stepped);
+            }
+            return;
         }
         await Slider.Key(key, Disabled, Math.Clamp(DefaultPosition, 0, 1));
     }

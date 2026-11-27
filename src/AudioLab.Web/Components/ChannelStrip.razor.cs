@@ -116,6 +116,8 @@ public sealed partial class ChannelStrip
 
     private string PanText => TrackText.Pan(Pan);
 
+    private string FaderElementId => Track is { } track ? $"fader-{track.Value}" : "master-fader";
+
     private double VolumePosition => FaderScale.Position(Volume);
 
     private string VolumeText => FaderScale.Text(Volume);
