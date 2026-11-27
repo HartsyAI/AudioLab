@@ -16,6 +16,11 @@ public sealed partial class MediaPanel : IDisposable
 
     private const string ListId = "media-list";
 
+    /// <summary>The id of the Add audio button, which the decoder install moves focus to when it has finished.</summary>
+    public const string AddId = "media-add";
+
+    private static readonly Dictionary<string, object> _addAttributes = new() { ["id"] = AddId };
+
     // Progress arrives many times a second; the list is drawn at most this often, so a busy upload never makes the page busy.
     private static readonly TimeSpan _drawInterval = TimeSpan.FromMilliseconds(100);
 
@@ -61,6 +66,14 @@ public sealed partial class MediaPanel : IDisposable
 
     [Inject]
     private MediaLibrary Library { get; set; } = default!;
+
+    [Inject]
+    private DecoderState Decoder { get; set; } = default!;
+
+    // With the decoder installed, the page also takes the compressed types, and it says they go one at a time.
+    private string HintText => Decoder.Installed
+        ? "Drop WAV, MP3, M4A, FLAC or OGG files anywhere on the page to add them. Compressed files are added one at a time."
+        : "Drop WAV files anywhere on the page to add them.";
 
     [Inject]
     private MediaDragger Dragger { get; set; } = default!;
@@ -128,10 +141,14 @@ public sealed partial class MediaPanel : IDisposable
         ? string.Empty
         : $"Deleting \"{_target.Name}\" removes the file from your library for good. This cannot be undone.";
 
+    // The hint names the compressed types once the decoder is installed, so the panel redraws when the install finishes.
+    private void OnDecoderChanged() => _ = InvokeAsync(StateHasChanged);
+
     /// <inheritdoc />
     public void Dispose()
     {
         Library.Changed -= OnChanged;
+        Decoder.Changed -= OnDecoderChanged;
         Dragger.Cancel();
         _tick?.Dispose();
         _request?.Cancel();
@@ -143,6 +160,7 @@ public sealed partial class MediaPanel : IDisposable
     protected override async Task OnInitializedAsync()
     {
         Library.Changed += OnChanged;
+        Decoder.Changed += OnDecoderChanged;
         _tick = Time.CreateTimer(_ => OnTick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         // Opening the tab reads the list again, so a file added or deleted from another window is there.
         await Library.RefreshAsync(_panel.Token);

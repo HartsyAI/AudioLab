@@ -13,4 +13,7 @@ public sealed class BrowserFileSource(IBrowserFile file) : IUploadSource
 
     /// <inheritdoc />
     public Stream Open() => file.OpenReadStream(Math.Max(1, file.Size));
+
+    /// <inheritdoc />
+    public string ContentType => MediaTypes.FromName(file.Name, file.ContentType);
 }

@@ -53,6 +53,8 @@ builder.Services.AddScoped<ProjectApi>();
 builder.Services.AddScoped(provider => new MediaApi(
     provider.GetRequiredService<HttpClient>(),
     new HttpClient { BaseAddress = site, Timeout = Timeout.InfiniteTimeSpan }));
+builder.Services.AddScoped(provider => new DecoderApi(provider.GetRequiredService<HttpClient>()));
+builder.Services.AddScoped<DecoderState>();
 builder.Services.AddScoped<MediaLibrary>();
 builder.Services.AddScoped<MediaDragState>();
 builder.Services.AddScoped<MediaAdder>();

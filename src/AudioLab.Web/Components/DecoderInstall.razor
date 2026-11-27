@@ -1,0 +1,7 @@
+@if (_status is { Supported: true, Installed: false, InstallEnabled: true } && !_busy)
+{
+    <Button OnClick="Open">Install audio decoder</Button>
+}
+<span class="decoder-status" role="status" aria-live="polite">@_message</span>
+<Dialog Title="Install audio decoder" ConfirmText="Install decoder" Open="_open" OpenChanged="SetOpen" OnConfirm="ConfirmAsync"
+        Description="@DialogText" />

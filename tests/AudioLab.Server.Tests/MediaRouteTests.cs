@@ -251,7 +251,8 @@ public sealed class MediaRouteTests
         await using RunningServer server = await RunningServer.StartAsync();
         byte[] file = Wav();
 
-        using HttpResponseMessage wrongType = await UploadAsync(server, file, type: "audio/mpeg");
+        // MP3 is a compressed type the decoder reads, so only a type nothing reads is refused as unsupported.
+        using HttpResponseMessage wrongType = await UploadAsync(server, file, type: "video/mp4");
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, wrongType.StatusCode);
         using HttpResponseMessage noType = await server.Client.PostAsync("/api/media?name=a.wav", new ByteArrayContent(file));
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, noType.StatusCode);

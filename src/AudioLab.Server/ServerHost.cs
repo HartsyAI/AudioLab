@@ -1,11 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AudioLab.Core.Api;
+using AudioLab.Core.Api.Decoder;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
 using AudioLab.Core.Transcription;
 using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
+using AudioLab.Server.Decoding;
 using AudioLab.Server.Doors;
 using AudioLab.Server.Json;
 using AudioLab.Server.Mcp;
@@ -54,6 +56,7 @@ public static class ServerHost
     private static AudioLabOptions ReadOptions(IConfiguration configuration)
     {
         AudioLabOptions options = configuration.GetSection(AudioLabOptions.Section).Get<AudioLabOptions>() ?? new AudioLabOptions();
+        options = EnableDecoderInstallOnDesktop(configuration, options);
         List<string> problems = [];
         ValidateOptionsResult result = new AudioLabOptionsValidator().Validate(null, options);
         if (result.Failures is not null)
@@ -69,6 +72,17 @@ public static class ServerHost
             throw new InvalidOperationException($"The server cannot start with this configuration: {string.Join(" ", problems)}");
         }
         return options;
+    }
+
+    // The desktop door serves one user on their own machine, so the decoder install is offered there unless the configuration
+    // says otherwise. Every other door keeps it off, since the decoder is one per server and would serve all of its users.
+    private static AudioLabOptions EnableDecoderInstallOnDesktop(IConfiguration configuration, AudioLabOptions options)
+    {
+        if (options.Door.Kind != DoorKind.Desktop || configuration["AudioLab:Decoder:InstallEnabled"] is not null)
+        {
+            return options;
+        }
+        return options with { Decoder = options.Decoder with { InstallEnabled = true } };
     }
 
     private static void ConfigureLogging(ILoggingBuilder logging)
@@ -97,6 +111,7 @@ public static class ServerHost
         services.AddSingleton<StoreRoot>();
         services.AddSingleton<ProjectStore>();
         services.AddMedia(options.Media);
+        services.AddDecoder(options.Decoder);
         services.AddTranscription(options.Transcription);
         services.AddSingleton(options.Render);
         services.AddSingleton<RenderMediaProvider>();
@@ -134,7 +149,8 @@ public static class ServerHost
             json.SerializerOptions.TypeInfoResolverChain.Insert(0, ServerJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(1, MediaJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(2, ApiJsonContext.Default);
-            json.SerializerOptions.TypeInfoResolverChain.Insert(3, TranscriptJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(3, DecoderJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(4, TranscriptJsonContext.Default);
             // A resolver chain does not carry a context's own options, so a request body is read as strictly as the context reads it.
             json.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
             json.SerializerOptions.RespectNullableAnnotations = true;
@@ -159,6 +175,7 @@ public static class ServerHost
         ProjectRoutes.Map(api);
         McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
+        DecoderRoutes.Map(api);
         TranscriptionRoutes.Map(api);
         MidiRoutes.Map(api);
         ExportRoutes.Map(api);
