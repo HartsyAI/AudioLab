@@ -28,4 +28,23 @@ public static class EditRunner
             return EditResult.Refused(exception is HubException hub && !string.IsNullOrWhiteSpace(hub.Message) ? hub.Message : Lost);
         }
     }
+
+    /// <summary>Runs one command as one gesture, which closes when the command has been sent: a drag is one undo step.</summary>
+    public static Task<EditResult> RunInGestureAsync(LiveProject live, Func<ProjectId, string, Task<CommandReply>> send)
+    {
+        ArgumentNullException.ThrowIfNull(live);
+        ArgumentNullException.ThrowIfNull(send);
+        return RunAsync(live, async project =>
+        {
+            string gesture = live.NewGesture();
+            try
+            {
+                return await send(project, gesture);
+            }
+            finally
+            {
+                await live.EndGestureAsync(gesture);
+            }
+        });
+    }
 }

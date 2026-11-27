@@ -55,6 +55,8 @@ internal static class SessionServices
         services.TryAddScoped<BottomPanelState>();
         services.TryAddScoped<LyricsCursor>();
         services.TryAddScoped<LyricsDrags>();
+        services.TryAddScoped<DrumDrags>();
+        services.TryAddScoped<DrumKeys>();
         services.TryAddScoped<EffectSelection>();
         services.TryAddScoped<EffectsNavigator>();
         services.TryAddScoped<PianoRollState>();

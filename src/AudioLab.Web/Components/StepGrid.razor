@@ -1,0 +1,15 @@
+<div class="step-grid" role="group" aria-label="Steps of @Lane.Name" style="--steps: @Lane.Steps.Count"
+     aria-description="Arrows move the focus. Space or Enter switches a step. Home and End go to the first and last step. Drag to paint."
+     @onpointerup="ReleaseAsync" @onpointercancel="CancelAsync" @onpointerleave="ReleaseAsync" @onpointermove="TouchMove"
+     @onfocusin="() => FocusAsync(true)" @onfocusout="() => FocusAsync(false)">
+    @for (int step = 0; step < Lane.Steps.Count; step++)
+    {
+        int index = step;
+        bool on = Shown(index);
+        <button type="button" id="@BeatLaneText.CellId(Lane.Id, index)"
+                class="step-cell @(on ? "step-on" : null) @(index % 4 == 0 ? "step-beat" : null)"
+                aria-pressed="@(on ? "true" : "false")" aria-label="@BeatLaneText.StepName(Lane.Name, index)"
+                aria-disabled="@(Editable ? null : "true")" title="@(Editable ? null : Reason)" tabindex="@(index == Cursor ? 0 : -1)"
+                @onpointerdown="pointer => PressAsync(index, pointer)" @onpointerenter="() => Enter(index)" @onkeydown="key => KeyAsync(index, key)"></button>
+    }
+</div>

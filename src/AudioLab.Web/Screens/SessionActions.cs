@@ -37,10 +37,18 @@ public sealed class SessionActions
     /// <summary>What can be done to a track's effect chain.</summary>
     public EffectActions Effects { get; init; } = new();
 
+    /// <summary>What can be done to a track's sends to the aux buses.</summary>
+    public SendActions Sends { get; init; } = new();
     /// <summary>What can be done to the drum pattern.</summary>
     public BeatActions Beats { get; init; } = new();
     /// <summary>What can be done to a track's automation lane.</summary>
     public AutomationActions Automation { get; init; } = new();
+
+    /// <summary>What can be done to a track group.</summary>
+    public GroupActions Groups { get; init; } = new();
+
+    /// <summary>What can be done to the master: its fader and its limiter.</summary>
+    public MasterActions Master { get; init; } = new();
 
     /// <summary>Asks for the new name of a track.</summary>
     public Func<TrackId, Task> RenameTrack { get; init; } = _ => Task.CompletedTask;

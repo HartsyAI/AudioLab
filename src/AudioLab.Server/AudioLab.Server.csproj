@@ -5,7 +5,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="AudioLab.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="HartsyInference.Engine" />
+    <PackageReference Include="HartsyInference.Cuda" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,6 +4,7 @@ using AudioLab.Core.Api;
 using AudioLab.Core.Api.Decoder;
 using AudioLab.Core.Model;
 using AudioLab.Core.Realtime;
+using AudioLab.Core.Transcription;
 using AudioLab.Server.Commands;
 using AudioLab.Server.Configuration;
 using AudioLab.Server.Decoding;
@@ -17,6 +18,7 @@ using AudioLab.Server.Render;
 using AudioLab.Server.Routes;
 using AudioLab.Server.Services;
 using AudioLab.Server.Store;
+using AudioLab.Server.Transcription;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Options;
@@ -110,6 +112,7 @@ public static class ServerHost
         services.AddSingleton<ProjectStore>();
         services.AddMedia(options.Media);
         services.AddDecoder(options.Decoder);
+        services.AddTranscription(options.Transcription);
         services.AddSingleton(options.Render);
         services.AddSingleton<RenderMediaProvider>();
         services.AddKeyedSingleton(
@@ -147,6 +150,7 @@ public static class ServerHost
             json.SerializerOptions.TypeInfoResolverChain.Insert(1, MediaJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(2, ApiJsonContext.Default);
             json.SerializerOptions.TypeInfoResolverChain.Insert(3, DecoderJsonContext.Default);
+            json.SerializerOptions.TypeInfoResolverChain.Insert(4, TranscriptJsonContext.Default);
             // A resolver chain does not carry a context's own options, so a request body is read as strictly as the context reads it.
             json.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
             json.SerializerOptions.RespectNullableAnnotations = true;
@@ -172,6 +176,7 @@ public static class ServerHost
         McpEndpoints.Map(api, options);
         MediaRoutes.Map(api);
         DecoderRoutes.Map(api);
+        TranscriptionRoutes.Map(api);
         MidiRoutes.Map(api);
         ExportRoutes.Map(api);
         app.MapHub<ProjectHub>(HubProtocol.Path, connection => connection.Transports = HttpTransportType.WebSockets).WithMetadata(new DoorRequired());

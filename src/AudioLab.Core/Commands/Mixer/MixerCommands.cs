@@ -1,13 +1,11 @@
 using AudioLab.Core.Model;
+using AudioLab.Core.Rules;
 
 namespace AudioLab.Core.Commands;
 
 /// <summary>The mixer commands: the fader, pan, mute and solo of a track, the master, and the sends to aux buses.</summary>
 internal static class MixerCommands
 {
-    // A new send starts at -6 dB, post-fader.
-    private const double DefaultSendLevel = 0.5;
-
     public static void Register(CommandRegistryBuilder builder, TrackCommandJsonContext json)
     {
         builder
@@ -87,7 +85,7 @@ internal static class MixerCommands
         {
             return CommandChecks.Rejected("The track already sends to this bus.");
         }
-        Send added = new(command.Bus, command.Level ?? DefaultSendLevel, false, false);
+        Send added = new(command.Bus, command.Level ?? MixRules.DefaultSendLevel, false, false);
         return TrackEdits.Replace(document, command.Track, candidate => candidate with { Sends = [.. candidate.Sends, added] });
     }
 

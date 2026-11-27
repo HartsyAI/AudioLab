@@ -1,0 +1,28 @@
+.sends {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-8);
+    width: var(--header-column);
+    padding: var(--space-12);
+    background: var(--surface-panel);
+    border-right: var(--space-2) solid var(--line);
+}
+
+.sends-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+}
+
+.sends-title {
+    font-size: var(--font-size-title);
+    font-weight: var(--font-weight-strong);
+}
+
+.sends-note {
+    margin: 0;
+    font-size: var(--font-size-body);
+    color: var(--text-faint);
+}

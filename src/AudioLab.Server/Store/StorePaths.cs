@@ -62,6 +62,18 @@ public sealed partial class StorePaths
     /// <summary>The file a media file's peaks are kept in, beside its record.</summary>
     public string MediaPeaksFile(UserId user, MediaId id) => Inside(MediaDirectory(user), MediaPeaksFileName(id));
 
+    /// <summary>The folder of one user's transcription files (D92, D94), beside the media.</summary>
+    public string TranscriptsDirectory(UserId user) => Inside(UsersDirectory, UserName(user), "transcripts");
+
+    /// <summary>The state file of a media file's transcription job (D92).</summary>
+    public string TranscriptJobFile(UserId user, MediaId id) => Inside(TranscriptsDirectory(user), Name('t', id.Value) + ".job.json");
+
+    /// <summary>The chunk log of a media file's transcription job, one line a window (D92).</summary>
+    public string TranscriptChunkFile(UserId user, MediaId id) => Inside(TranscriptsDirectory(user), Name('t', id.Value) + ".chunks.jsonl");
+
+    /// <summary>The stored transcript of a media file (D94).</summary>
+    public string TranscriptFile(UserId user, MediaId id) => Inside(TranscriptsDirectory(user), Name('t', id.Value) + ".transcript.json");
+
     /// <summary>A new temporary file beside the media file's peaks, which they are written to before it is renamed into place.</summary>
     public string MediaPeaksTempFile(UserId user, MediaId id) => $"{MediaPeaksFile(user, id)}.{Guid.NewGuid():N}.tmp";
 

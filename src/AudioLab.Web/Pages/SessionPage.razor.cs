@@ -22,9 +22,14 @@ public sealed partial class SessionPage
 
     private EffectEditor? _effects;
 
+    private SendEditor? _sends;
     private LyricsEditor? _lyrics;
     private BeatEditor? _beats;
     private AutomationEditor? _automation;
+
+    private GroupEditor? _groups;
+
+    private MasterEditor? _master;
 
     private SessionActions _actions = SessionActions.ReadOnly("Opening the project.");
 
@@ -78,7 +83,14 @@ public sealed partial class SessionPage
     private LyricsDrags LyricsDrags { get; set; } = default!;
 
     [Inject]
+    private DrumDrags DrumDrags { get; set; } = default!;
+
+    [Inject]
     private PianoRollKeys RollKeys { get; set; } = default!;
+
+    [Inject]
+    private DrumKeys DrumKeys { get; set; } = default!;
+
     [Inject]
     private PlaybackService Playback { get; set; } = default!;
 
@@ -142,6 +154,9 @@ public sealed partial class SessionPage
         _editor = new SessionEditor(live);
         _midi = new MidiEditor(live);
         _effects = new EffectEditor(live, _midi.SendAsync);
+        _sends = new SendEditor(live);
+        _groups = new GroupEditor(live);
+        _master = new MasterEditor(live);
         _lyrics = new LyricsEditor(live);
         _beats = new BeatEditor(live);
         _automation = new AutomationEditor(live);
@@ -188,6 +203,9 @@ public sealed partial class SessionPage
             _editor = null;
             _midi = null;
             _effects = null;
+            _sends = null;
+            _groups = null;
+            _master = null;
             _lyrics = null;
             _beats = null;
             await live.DisposeAsync();
@@ -273,6 +291,9 @@ public sealed partial class SessionPage
                 AddInstrumentTrack = () => AddTrackAsync(TrackKind.Instrument),
                 Midi = MidiActions.For(_midi!, ShowAsync),
                 Effects = EffectActions.For(_effects!, ShowAsync),
+                Sends = SendActions.For(_sends!, ShowAsync),
+                Groups = GroupActions.For(_groups!, ShowAsync),
+                Master = MasterActions.For(_master!, ShowAsync),
                 Lyrics = LyricsActions.For(_lyrics!, ShowAsync),
                 Beats = BeatActions.For(_beats!, ShowAsync),
                 Automation = AutomationActions.For(_automation!, ShowAsync, () => _live?.Document),
@@ -455,12 +476,18 @@ public sealed partial class SessionPage
 
     private bool Press(KeyChord chord)
     {
+        if (DrumKeys.Handle(chord))
+        {
+            return true;
+        }
+
         // Escape ends a pass that is recording without committing it; the transport keeps playing.
         if (chord.Key == "Escape" && Recorder.Passing)
         {
             Recorder.Drop();
             return true;
         }
+
         if (RollKeys.Route(chord, TransportPress))
         {
             return true;
@@ -472,7 +499,7 @@ public sealed partial class SessionPage
         bool history = Shortcuts.Undo.Matches(chord) || Shortcuts.Redo.Matches(chord) || Shortcuts.RedoAlternate.Matches(chord);
         // A press is down on a clip, a word or a point, or an edit of the roll is on its way: undoing now would take back a step under it.
         // So history waits.
-        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy))
+        if (history && HistoryGate.Waits(Drags.Current is not null || Lanes.HoldsHistory, RollDrags.Busy, LyricsDrags.Busy, DrumDrags.Busy))
         {
             return true;
         }
