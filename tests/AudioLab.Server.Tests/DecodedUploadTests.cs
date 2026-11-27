@@ -5,6 +5,7 @@ using AudioLab.Audio.Tests.Support;
 using AudioLab.Core.Model;
 using AudioLab.Server.Decoding;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace AudioLab.Server.Tests;
@@ -224,6 +225,50 @@ public sealed class DecodedUploadTests
             answer.Dispose();
         }
     }
+
+    [Fact]
+    public async Task TwoDecodesOfTwoUsersNeverShareAPathOfEitherKind()
+    {
+        FakeDecoderLauncher launcher = new() { Behaviour = FakeDecoderLauncher.Mode.Hang };
+        await using RunningServer server = await StartInstalledAsync(launcher, TimeLimit("00:00:03"));
+
+        Task<HttpResponseMessage> alice = DecoderTestSupport.UploadAsync(server, _compressedFile, "alice.mp3", Mp3, "alice");
+        Task<HttpResponseMessage> bob = DecoderTestSupport.UploadAsync(server, _compressedFile, "bob.mp3", Mp3, "bob");
+        while (launcher.Starts < 2)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.NotEqual(InputOf(launcher.Calls[0]), InputOf(launcher.Calls[1]));
+        Assert.NotEqual(launcher.Calls[0][^1], launcher.Calls[1][^1]);
+        using HttpResponseMessage aliceAnswer = await alice;
+        using HttpResponseMessage bobAnswer = await bob;
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, aliceAnswer.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, bobAnswer.StatusCode);
+        Assert.Empty(DecoderTestSupport.TempFiles(server));
+    }
+
+    [Fact]
+    public async Task TheStartSweepRemovesALeftoverOfAnInterruptedRun()
+    {
+        FakeDecoderLauncher launcher = new();
+        await using RunningServer server = await StartInstalledAsync(launcher);
+        string leftover = Path.Combine(server.Services.GetRequiredService<DecoderLocation>().TempFolder, "crashed.src");
+        await File.WriteAllBytesAsync(leftover, [1, 2, 3]);
+
+        foreach (IHostedService hosted in server.Services.GetServices<IHostedService>())
+        {
+            if (hosted is DecoderSweep)
+            {
+                await hosted.StartAsync(CancellationToken.None);
+            }
+        }
+
+        Assert.False(File.Exists(leftover));
+        Assert.Equal(0, launcher.Starts);
+    }
+
+    private static string InputOf(IReadOnlyList<string> arguments) => arguments[arguments.ToList().IndexOf("-i") + 1];
 
     [Fact]
     public async Task AUploadThatArrivesWhileAnotherDecodesIsRefusedWith429()

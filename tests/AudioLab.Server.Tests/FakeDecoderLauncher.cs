@@ -33,10 +33,13 @@ internal sealed class FakeDecoderLauncher : IDecoderLauncher
 
     public IReadOnlyList<string> LastArguments { get; private set; } = [];
 
+    public List<IReadOnlyList<string>> Calls { get; } = [];
+
     public int? SpawnedProcessId { get; private set; }
 
     public IDecoderProcess Start(string fileName, IReadOnlyList<string> arguments, string workingDirectory)
     {
+        Calls.Add(arguments);
         Starts++;
         LastArguments = arguments;
         // ffmpeg is given the output path as its last argument, so the fake writes there the way ffmpeg would.

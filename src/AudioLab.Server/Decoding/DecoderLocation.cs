@@ -8,22 +8,21 @@ public sealed class DecoderLocation
     private const string FolderName = "decoder";
     private const string TempName = "tmp";
 
-    /// <summary>Creates the folders under the store root and removes what an interrupted install or decode left in the temporary folder.</summary>
+    private readonly ILogger<DecoderLocation> _logger;
+
+    /// <summary>Creates the folders under the store root.</summary>
     public DecoderLocation(StoreRoot root, ILogger<DecoderLocation> logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(root);
+        _logger = logger;
         Folder = Path.Combine(root.Paths.Root, FolderName);
         TempFolder = Path.Combine(Folder, TempName);
-        // A folder that cannot be made or read must not stop the server: WAV uploads do not need the decoder, and a decode that
+        // A folder that cannot be made must not stop the server: WAV uploads do not need the decoder, and a decode that
         // needs the folder fails with its own refusal when it tries to use it.
         try
         {
             Directory.CreateDirectory(TempFolder);
-            foreach (string leftover in Directory.EnumerateFiles(TempFolder))
-            {
-                RemoveLeftover(leftover, logger);
-            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -31,7 +30,23 @@ public sealed class DecoderLocation
         }
     }
 
-    private static void RemoveLeftover(string leftover, ILogger logger)
+    /// <summary>Removes what an interrupted install or decode left in the temporary folder. The server calls it once at start, before any decode.</summary>
+    public void SweepLeftovers()
+    {
+        try
+        {
+            foreach (string leftover in Directory.EnumerateFiles(TempFolder))
+            {
+                RemoveLeftover(leftover);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            DecoderLog.NotRemoved(_logger, "the temporary folder", exception.GetType().Name);
+        }
+    }
+
+    private void RemoveLeftover(string leftover)
     {
         try
         {
@@ -40,7 +55,7 @@ public sealed class DecoderLocation
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // A file another process still holds, or one this process may not delete, is left for the next start; nothing reads it.
-            DecoderLog.NotRemoved(logger, Path.GetFileName(leftover), exception.GetType().Name);
+            DecoderLog.NotRemoved(_logger, Path.GetFileName(leftover), exception.GetType().Name);
         }
     }
 
